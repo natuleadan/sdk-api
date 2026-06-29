@@ -1,0 +1,6 @@
+name: turso-bench
+services:
+  bench:
+    build:
+      context: ../../..
+      dockerfile: sdk-api/examples/turso/Dockerfile

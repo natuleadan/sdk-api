@@ -1,0 +1,30 @@
+name: test-svc
+port: 8080
+health: true
+
+database:
+  url: postgres://dev:devpass@localhost:5432/postgres?sslmode=disable
+  table: product
+  pool:
+    max_conns: 10
+    min_conns: 2
+
+nats:
+  url: nats://localhost:4222
+  streams:
+    - name: orders
+    - name: order-results
+  consumers:
+    - stream: orders
+      durable: products-consumer
+      queue_group: products-workers
+      handler: onOrderCreated
+  producers:
+    - stream: order-results
+      after:
+        - create
+        - update
+
+auth:
+  secret: my-secret
+  prev_secret: old-secret

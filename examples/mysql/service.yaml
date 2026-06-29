@@ -1,0 +1,29 @@
+name: mysql-bench
+port: 18085
+
+databases:
+  - name: pg-main
+    driver: postgres
+    url: "${DATABASE_URL}"
+    pool:
+      max_conns: 20
+      min_conns: 5
+
+entry:
+  - type: crud
+    model: Product
+    db: pg-main
+    table: product
+    path: /products
+
+server:
+  host: "0.0.0.0"
+  api_prefix: /api/v1
+  prefork: true
+  max_conns: 10000
+  timeout: 30s
+  middleware:
+    - path: "/api/v1/*"
+      apply:
+        - logger
+        - breaker

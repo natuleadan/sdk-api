@@ -1,0 +1,417 @@
+package runtime
+
+import (
+	"context"
+	"fmt"
+	"reflect"
+	"time"
+
+	"github.com/gofiber/fiber/v2"
+	"github.com/nats-io/nats.go"
+	"github.com/natuleadan/sdk-api/db"
+	"github.com/natuleadan/sdk-api/events"
+	"github.com/natuleadan/sdk-api/infra/logx"
+	"github.com/natuleadan/sdk-api/infra/proc"
+	"github.com/natuleadan/sdk-api/server"
+)
+
+// Service is the main runtime orchestrator. It reads a service YAML,
+// initializes databases, NATS connections, entry endpoints, and
+// optionally exit workers and cron jobs.
+type Service struct {
+	config    *ServiceConfig
+	srv       *server.Server
+	pools     map[string]any
+	natsConns map[string]*events.Conn
+	handlers  *EntryHandlers
+	hooks     map[string]any // model → EntryHooks[T]
+	exitFuncs map[string]ExitHandler
+	exitHooks map[string]ExitHooks
+	exitMgr   *ExitWorkerManager
+	cronSched *CronScheduler
+	cronFuncs map[string]CronJobFunc
+	models    map[string]*db.TableInfo
+
+	stop context.CancelFunc
+}
+
+// New creates a Service from a YAML config file.
+func New(configPath string) (*Service, error) {
+	cfg, err := LoadConfig(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("runtime: %w", err)
+	}
+	return &Service{
+		config:    cfg,
+		pools:     make(map[string]any),
+		natsConns: make(map[string]*events.Conn),
+		handlers:  &EntryHandlers{},
+		exitMgr:   NewExitWorkerManager(),
+	}, nil
+}
+
+// WithHandlers registers all entry handler functions.
+func (s *Service) WithHandlers(h *EntryHandlers) *Service {
+	s.handlers = h
+	return s
+}
+
+// WithCRUD registers a CRUD provider for a model name.
+func (s *Service) WithCRUD(model string, provider CRUDProvider) *Service {
+	if s.handlers.CRUD == nil {
+		s.handlers.CRUD = make(map[string]CRUDProvider)
+	}
+	s.handlers.CRUD[model] = provider
+	return s
+}
+
+// WithRest registers a REST handler by name.
+func (s *Service) WithRest(name string, h func(*fiber.Ctx) error) *Service {
+	if s.handlers.Rest == nil {
+		s.handlers.Rest = make(map[string]func(*fiber.Ctx) error)
+	}
+	s.handlers.Rest[name] = h
+	return s
+}
+
+// WithWS registers a WebSocket handler by name.
+func (s *Service) WithWS(name string, h WSHandler) *Service {
+	if s.handlers.WS == nil {
+		s.handlers.WS = make(map[string]WSHandler)
+	}
+	s.handlers.WS[name] = h
+	return s
+}
+
+// WithSSE registers an SSE handler by name.
+func (s *Service) WithSSE(name string, h SSEHandler) *Service {
+	if s.handlers.SSE == nil {
+		s.handlers.SSE = make(map[string]SSEHandler)
+	}
+	s.handlers.SSE[name] = h
+	return s
+}
+
+// WithHooks registers entry hooks for a model. The hooks are applied to the
+// corresponding CRUD provider if one has been registered for that model.
+func (s *Service) WithHooks(model string, hooks any) *Service {
+	if s.hooks == nil {
+		s.hooks = make(map[string]any)
+	}
+	s.hooks[model] = hooks
+	if s.handlers.CRUD != nil {
+		if provider, ok := s.handlers.CRUD[model]; ok {
+			if setter, ok := provider.(interface{ SetHooks(any) }); ok {
+				setter.SetHooks(hooks)
+			}
+		}
+	}
+	return s
+}
+
+// WithExit registers an exit handler by name (for NATS workers).
+func (s *Service) WithExit(name string, h ExitHandler) *Service {
+	if s.exitFuncs == nil {
+		s.exitFuncs = make(map[string]ExitHandler)
+	}
+	s.exitFuncs[name] = h
+	return s
+}
+
+// WithExitHooks registers exit hooks by worker name.
+func (s *Service) WithExitHooks(h map[string]ExitHooks) *Service {
+	s.exitHooks = h
+	return s
+}
+
+// WithCron registers a cron handler by name (for mode=handler).
+func (s *Service) WithCron(name string, handler CronJobFunc) *Service {
+	if s.cronFuncs == nil {
+		s.cronFuncs = make(map[string]CronJobFunc)
+	}
+	s.cronFuncs[name] = handler
+	return s
+}
+
+// RegisterModel registers a model for OpenAPI schema generation.
+// Usage: svc.RegisterModel("Product", (*Product)(nil)).
+func (s *Service) RegisterModel(name string, model any) *Service {
+	if s.models == nil {
+		s.models = make(map[string]*db.TableInfo)
+	}
+	t := reflect.TypeOf(model)
+	if t != nil && t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	if t == nil || t.Kind() != reflect.Struct {
+		logx.Errorf("RegisterModel %s: model must be a struct pointer", name)
+		return s
+	}
+	info, err := db.ParseStructReflect(t)
+	if err != nil {
+		logx.Errorf("RegisterModel %s: %v", name, err)
+		return s
+	}
+	s.models[name] = info
+	return s
+}
+
+// Pool returns a DB pool by name.
+func (s *Service) Pool(name string) any {
+	return s.pools[name]
+}
+
+// PoolPG returns a *pgxpool.Pool by name.
+func (s *Service) PoolPG(name string) any {
+	return PoolPG(s.pools, name)
+}
+
+// NATS returns a NATS connection by name.
+func (s *Service) NATS(name string) *events.Conn {
+	return s.natsConns[name]
+}
+
+// App returns the underlying Fiber app.
+func (s *Service) App() *fiber.App {
+	if s.srv == nil {
+		return nil
+	}
+	return s.srv.App()
+}
+
+// Run starts the service: init DBs, NATS, register routes, start HTTP server.
+func (s *Service) Run() error {
+	return s.RunWithContext(context.Background())
+}
+
+// RunWithContext starts the service with a parent context.
+func (s *Service) RunWithContext(ctx context.Context) error {
+	var cancel context.CancelFunc
+	ctx, cancel = context.WithCancel(ctx)
+	s.stop = cancel
+
+	// 1. Initialize databases
+	if len(s.config.Databases) > 0 {
+		pools, err := initDatabases(ctx, s.config.Databases)
+		if err != nil {
+			return fmt.Errorf("databases: %w", err)
+		}
+		s.pools = pools
+	}
+
+	// 2. Initialize NATS connections
+	if len(s.config.NATS) > 0 {
+		conns, err := initNATSList(ctx, s.config.NATS)
+		if err != nil {
+			return fmt.Errorf("nats: %w", err)
+		}
+		s.natsConns = conns
+	}
+
+	// 3. Create HTTP server
+	if err := s.initServer(); err != nil {
+		return fmt.Errorf("server: %w", err)
+	}
+
+	// 4. Register entry routes
+	if len(s.config.Entry) > 0 {
+		// Auto-create storage backends from YAML
+		if s.handlers.Storage == nil {
+			s.handlers.Storage = make(map[string]server.StorageBackend)
+		}
+		for _, entry := range s.config.Entry {
+			if entry.Type == "file" && entry.Storage != nil {
+				key := entry.Path
+				if s.handlers.Storage[key] == nil {
+					backend, err := initStorageFromDef(entry.Storage)
+					if err != nil {
+						return fmt.Errorf("storage %s: %w", entry.Path, err)
+					}
+					s.handlers.Storage[key] = backend
+					logx.Infof("storage ready: %s mode=%s", entry.Path, entry.Storage.Mode)
+				}
+			}
+		}
+		prefix := s.config.Server.APIPrefix
+		if err := RegisterEntries(s.srv.App(), s.config, s.handlers, prefix, s.natsConns); err != nil {
+			return fmt.Errorf("entry routes: %w", err)
+		}
+	}
+
+	// 5. Static files
+	for _, sd := range s.config.Server.Static {
+		s.srv.App().Static(sd.Prefix, sd.Dir)
+	}
+
+	// 5.5 Register OpenAPI docs
+	registerDocs(s.srv.App(), s.config, s.models)
+
+	// 6. Init exit workers
+	if len(s.config.Exit) > 0 {
+		if err := s.exitMgr.Start(ctx, s.config.Exit, s.natsConns, s.exitFuncs, s.exitHooks); err != nil {
+			return fmt.Errorf("exit workers: %w", err)
+		}
+	}
+
+	// 7. Init cron
+	if len(s.config.Cron) > 0 {
+		s.cronSched = NewCronScheduler()
+		if err := s.cronSched.AddAll(s.config.Cron, s.natsConns, s.cronFuncs); err != nil {
+			return fmt.Errorf("cron: %w", err)
+		}
+		s.cronSched.Start()
+	}
+
+	logx.Infof("%s starting on :%d", s.config.Name, s.config.Port)
+
+	proc.AddShutdownListener(func() {
+		s.shutdown()
+	})
+
+	return s.srv.Start()
+}
+
+func (s *Service) initServer() error {
+	sc := s.config.Server
+
+	var corsCfg *server.CORSConfig
+	if sc.CORS != nil {
+		corsCfg = &server.CORSConfig{
+			Origins:     sc.CORS.Origins,
+			Methods:     sc.CORS.Methods,
+			Headers:     sc.CORS.Headers,
+			Credentials: sc.CORS.Credentials,
+			MaxAge:      sc.CORS.MaxAge,
+		}
+	}
+
+	var routes []server.RouteConfig
+	for _, mw := range sc.Middleware {
+		routes = append(routes, server.RouteConfig{
+			Path:       mw.Path,
+			Middleware: mw.Apply,
+		})
+	}
+
+	srvCfg := server.Config{
+		Port:            s.config.Port,
+		Host:            sc.Host,
+		Prefork:         sc.Prefork,
+		BodyLimit:       sc.BodyLimit,
+		Timeout:         parseServerDuration(sc.Timeout, 30*time.Second),
+		MaxConns:        sc.MaxConns,
+		MaxBytes:        sc.MaxBytes,
+		MetricsPath:     sc.MetricsPath,
+		HealthPath:      sc.HealthPath,
+		ShutdownTimeout: parseServerDuration(sc.ShutdownTimeout, 10*time.Second),
+		RecoverStack:    sc.RecoverStack,
+		APIPrefix:       sc.APIPrefix,
+		Routes:          routes,
+	}
+
+	s.srv = server.New(srvCfg, server.TelemetryConfig{}, server.SecurityConfig{}, corsCfg)
+	return nil
+}
+
+func (s *Service) shutdown() {
+	logx.Info("runtime: shutting down...")
+	if s.stop != nil {
+		s.stop()
+	}
+	if s.cronSched != nil {
+		s.cronSched.Stop()
+	}
+	if s.exitMgr != nil {
+		s.exitMgr.Shutdown(5 * time.Second)
+	}
+	for name, conn := range s.natsConns {
+		conn.Drain()
+		logx.Infof("nats %s drained", name)
+	}
+	for name, pool := range s.pools {
+		if closer, ok := pool.(interface{ Close() }); ok {
+			closer.Close()
+			logx.Infof("pool %s closed", name)
+		}
+	}
+}
+
+func parseServerDuration(s string, fallback time.Duration) time.Duration {
+	if d, err := time.ParseDuration(s); err == nil {
+		return d
+	}
+	return fallback
+}
+
+func initNATSList(ctx context.Context, natsList []NATSConnConf) (map[string]*events.Conn, error) {
+	conns := make(map[string]*events.Conn, len(natsList))
+	for i, natsCfg := range natsList {
+		if err := natsCfg.Validate(); err != nil {
+			return nil, fmt.Errorf("nats[%d] (%s): %w", i, natsCfg.Name, err)
+		}
+		conn, err := events.Connect(ctx, events.ConnOptions{
+			URL:           natsCfg.URL,
+			MaxReconnects: natsCfg.MaxReconnects,
+			ReconnectWait: parseServerDuration(natsCfg.ReconnectWait, 2*time.Second),
+			Timeout:       parseServerDuration(natsCfg.Timeout, 5*time.Second),
+			RetryOnFail:   natsCfg.RetryOnFail,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", natsCfg.Name, err)
+		}
+		for _, sd := range natsCfg.Streams {
+			sc := events.DefaultStreamConfig(sd.Name)
+			if sd.MaxAge != "" {
+				if d, err := time.ParseDuration(sd.MaxAge); err == nil {
+					sc.MaxAge = d
+				}
+			}
+			if sd.MaxBytes > 0 {
+				sc.MaxBytes = sd.MaxBytes
+			}
+			sc.Storage = parseNATSStorage(sd.Storage)
+			sc.Compression = parseNATSCompression(sd.Compression)
+			if err := conn.EnsureStream(sc); err != nil {
+				return nil, fmt.Errorf("%s: stream %s: %w", natsCfg.Name, sd.Name, err)
+			}
+		}
+		conns[natsCfg.Name] = conn
+		logx.Infof("nats ready: %s (%s)", natsCfg.Name, natsCfg.URL)
+	}
+	return conns, nil
+}
+
+func parseNATSStorage(s string) nats.StorageType {
+	switch s {
+	case "memory":
+		return nats.MemoryStorage
+	default:
+		return nats.FileStorage
+	}
+}
+
+func parseNATSCompression(s string) nats.StoreCompression {
+	switch s {
+	case "none":
+		return nats.NoCompression
+	default:
+		return nats.S2Compression
+	}
+}
+
+func initStorageFromDef(s *StorageDef) (server.StorageBackend, error) {
+	switch s.Mode {
+	case "local":
+		return server.NewLocalStorage(s.Path)
+	case "s3":
+		return server.NewS3Storage(server.S3Config{
+			Endpoint:        s.Endpoint,
+			Region:          s.Region,
+			Bucket:          s.Bucket,
+			AccessKeyID:     s.AccessKey,
+			SecretAccessKey: s.SecretKey,
+		})
+	default:
+		return nil, fmt.Errorf("unsupported storage mode %q", s.Mode)
+	}
+}

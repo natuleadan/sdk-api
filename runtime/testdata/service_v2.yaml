@@ -1,0 +1,151 @@
+name: order-service
+port: 9090
+
+databases:
+  - name: pg-main
+    driver: postgres
+    url: "postgres://localhost:5432/test"
+    pool:
+      max_conns: 200
+      min_conns: 10
+      reserved_conns: 10
+  - name: mysql-audit
+    driver: mysql
+    url: "mysql://localhost:3306/test"
+
+nats:
+  - name: primary
+    url: "nats://localhost:4222"
+    streams:
+      - name: orders
+        max_age: "24h"
+        storage: file
+      - name: email
+        storage: memory
+        compression: none
+  - name: secondary
+    url: "nats://backup:4222"
+
+entry:
+  - type: crud
+    model: Product
+    db: pg-main
+    table: products
+    overrides:
+      create: "onCustomCreate"
+
+  - type: crud
+    model: Order
+    db: pg-main
+    table: orders
+    resource: orders
+    overrides:
+      get: "onCustomGet"
+      update: "-"
+      delete: "-"
+
+  - type: rest
+    method: GET
+    path: /products/:id/transform
+    handler: onTransformProduct
+    auth: true
+
+  - type: rest
+    method: POST
+    path: /orders
+    handler: onCreateOrder
+    db: pg-main
+    nats_publish:
+      - stream: orders
+        subject: orders.created
+
+  - type: webhook
+    method: POST
+    path: /webhooks/sendgrid
+    handler: onInboundEmail
+    nats_publish:
+      - stream: email
+        subject: email.received
+
+  - type: websocket
+    path: /ws/chat
+    handler: onChat
+
+  - type: sse
+    path: /events/stream
+    handler: onStream
+
+  - type: file
+    method: POST
+    path: /files/upload
+    handler: onFileUpload
+    allowed_types:
+      - image/png
+      - image/jpeg
+    max_size: "10MB"
+    storage:
+      mode: s3
+      bucket: uploads
+      endpoint: "http://minio:9000"
+
+  - type: file
+    method: GET
+    path: /files/:id/download
+    handler: onFileDownload
+    storage:
+      mode: local
+      path: /data/uploads
+
+exit:
+  - name: email-sender
+    subscribe:
+      stream: orders
+      subject: orders.confirmed
+    handler: onOrderConfirmed
+    max_concurrent: 10
+
+  - name: order-validator
+    subscribe:
+      stream: orders
+      subject: orders.validate
+      durable: order-validator-durable
+    handler: onValidateOrder
+    db: pg-main
+    reply: true
+    reply_timeout: "30s"
+
+cron:
+  - name: daily-report
+    schedule: "0 6 * * *"
+    mode: nats
+    publish:
+      stream: orders
+      subject: cron.daily-report
+
+  - name: cleanup-expired
+    schedule: "0 */4 * * *"
+    mode: handler
+    handler: onCleanupExpired
+
+  - name: health-check
+    schedule: "*/10 * * * *"
+    mode: internal
+
+server:
+  host: "0.0.0.0"
+  api_prefix: /api/v1
+  middleware:
+    - path: "/api/v1/*"
+      apply:
+        - logger
+        - breaker
+        - cors
+        - jwt
+  cors:
+    origins:
+      - "http://localhost:3000"
+    methods:
+      - GET
+      - POST
+      - PUT
+    credentials: true

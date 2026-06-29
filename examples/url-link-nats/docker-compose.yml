@@ -1,0 +1,30 @@
+name: url-link-nats-bench
+services:
+  postgres:
+    image: postgres:18-alpine
+    command: ["postgres", "-c", "max_connections=500"]
+    environment:
+      POSTGRES_USER: dev
+      POSTGRES_PASSWORD: devpass
+      POSTGRES_DB: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dev"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+  nats:
+    image: nats:2.10-alpine
+    command: ["--jetstream"]
+
+  bench:
+    build:
+      context: ../../..
+      dockerfile: sdk-api/examples/url-link-nats/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_started
+    environment:
+      NATS_URL: nats://nats:4222

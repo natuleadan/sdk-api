@@ -1,0 +1,66 @@
+from dataclasses import dataclass, field, asdict
+from typing import Any, Optional, List
+import httpx
+
+
+@dataclass
+class {{.Name}}:
+{{- range .Fields}}
+    {{.JSON}}: {{.Type}}
+{{- end}}
+
+
+@dataclass
+class {{.Name}}ListResponse:
+    data: List[{{.Name}}]
+    total: int
+    page: int
+    size: int
+
+
+class {{.Name}}Client:
+    def __init__(self, base_url: str):
+        self.base_url = base_url.rstrip("/")
+        self.resource = "{{.Resource}}"
+
+    def _url(self, path: str) -> str:
+        return f"{self.base_url}{path}"
+
+    def list(self, page: int = 1, size: int = 20, sort: Optional[str] = None) -> {{.Name}}ListResponse:
+        params = {"page": page, "size": size}
+        if sort:
+            params["sort"] = sort
+        r = httpx.get(self._url(f"/api/v1/{self.resource}"), params=params)
+        r.raise_for_status()
+        data = r.json()
+        return {{.Name}}ListResponse(
+            data=[{{.Name}}(**item) for item in data["data"]],
+            total=data["total"],
+            page=data["page"],
+            size=data["size"],
+        )
+
+    def get(self, id: int) -> {{.Name}}:
+        r = httpx.get(self._url(f"/api/v1/{self.resource}/{id}"))
+        r.raise_for_status()
+        return {{.Name}}(**r.json())
+
+    def create(self, data: {{.Name}}) -> {{.Name}}:
+        r = httpx.post(
+            self._url(f"/api/v1/{self.resource}"),
+            json=asdict(data),
+        )
+        r.raise_for_status()
+        return {{.Name}}(**r.json())
+
+    def update(self, id: int, data: dict[str, Any]) -> {{.Name}}:
+        r = httpx.patch(
+            self._url(f"/api/v1/{self.resource}/{id}"),
+            json=data,
+        )
+        r.raise_for_status()
+        return {{.Name}}(**r.json())
+
+    def delete(self, id: int) -> None:
+        r = httpx.delete(self._url(f"/api/v1/{self.resource}/{id}"))
+        r.raise_for_status()

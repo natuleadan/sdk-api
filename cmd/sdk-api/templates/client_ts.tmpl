@@ -1,0 +1,67 @@
+export interface {{.Name}} {
+{{- range .Fields}}
+  {{.JSON}}: {{.Type}};
+{{- end}}
+}
+
+export interface {{.Name}}ListResponse {
+  data: {{.Name}}[];
+  total: number;
+  page: number;
+  size: number;
+}
+
+export class {{.Name}}Client {
+  private baseURL: string;
+  private resource: string;
+
+  constructor(baseURL: string) {
+    this.baseURL = baseURL.replace(/\/+$/, "");
+    this.resource = "{{.Resource}}";
+  }
+
+  private async request<T>(path: string, init?: RequestInit): Promise<T> {
+    const res = await fetch(`${this.baseURL}${path}`, {
+      headers: { "Content-Type": "application/json", ...init?.headers },
+      ...init,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: res.statusText }));
+      throw new Error(err.message || res.statusText);
+    }
+    return res.json();
+  }
+
+  async list(params?: { page?: number; size?: number; sort?: string }): Promise<{{.Name}}ListResponse> {
+    const q = new URLSearchParams();
+    if (params?.page) q.set("page", String(params.page));
+    if (params?.size) q.set("size", String(params.size));
+    if (params?.sort) q.set("sort", params.sort);
+    const query = q.toString();
+    return this.request<{{.Name}}ListResponse>(`/api/v1/${this.resource}${query ? "?" + query : ""}`);
+  }
+
+  async get(id: number): Promise<{{.Name}}> {
+    return this.request<{{.Name}}>(`/api/v1/${this.resource}/${id}`);
+  }
+
+  async create(data: Omit<{{.Name}}, "id">): Promise<{{.Name}}> {
+    return this.request<{{.Name}}>(`/api/v1/${this.resource}`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async update(id: number, data: Partial<{{.Name}}>): Promise<{{.Name}}> {
+    return this.request<{{.Name}}>(`/api/v1/${this.resource}/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async delete(id: number): Promise<void> {
+    await this.request<unknown>(`/api/v1/${this.resource}/${id}`, {
+      method: "DELETE",
+    });
+  }
+}

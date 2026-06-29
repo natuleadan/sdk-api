@@ -1,0 +1,113 @@
+class {{.Name}} {
+{{- range .Fields}}
+  final {{.Type}} {{.JSON}};
+{{- end}}
+
+  {{.Name}}({
+{{- range .Fields}}
+    required this.{{.JSON}},
+{{- end}}
+  });
+
+  factory {{.Name}}.fromJson(Map<String, dynamic> json) {
+    return {{.Name}}(
+{{- range .Fields}}
+      {{.JSON}}: json['{{.JSON}}'],
+{{- end}}
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+{{- range .Fields}}
+    '{{.JSON}}': {{.JSON}},
+{{- end}}
+  };
+}
+
+class {{.Name}}ListResponse {
+  final List<{{.Name}}> data;
+  final int total;
+  final int page;
+  final int size;
+
+  {{.Name}}ListResponse({
+    required this.data,
+    required this.total,
+    required this.page,
+    required this.size,
+  });
+}
+
+class {{.Name}}Client {
+  final String baseURL;
+  final String resource;
+
+  {{.Name}}Client(this.baseURL) : resource = '{{.Resource}}';
+
+  Future<{{.Name}}ListResponse> list({int? page, int? size, String? sort}) async {
+    final q = <String, String>{};
+    if (page != null) q['page'] = page.toString();
+    if (size != null) q['size'] = size.toString();
+    if (sort != null) q['sort'] = sort;
+    final uri = Uri.parse('$baseURL/api/v1/$resource').replace(queryParameters: q);
+    final res = await _get(uri.toString());
+    return {{.Name}}ListResponse(
+      data: (res['data'] as List).map((e) => {{.Name}}.fromJson(e)).toList(),
+      total: res['total'],
+      page: res['page'],
+      size: res['size'],
+    );
+  }
+
+  Future<{{.Name}}> get(num id) async {
+    final res = await _get('$baseURL/api/v1/$resource/$id');
+    return {{.Name}}.fromJson(res);
+  }
+
+  Future<{{.Name}}> create(Map<String, dynamic> data) async {
+    final res = await _post('$baseURL/api/v1/$resource', data);
+    return {{.Name}}.fromJson(res);
+  }
+
+  Future<{{.Name}}> update(num id, Map<String, dynamic> data) async {
+    final res = await _patch('$baseURL/api/v1/$resource/$id', data);
+    return {{.Name}}.fromJson(res);
+  }
+
+  Future<void> delete(num id) async {
+    await _delete('$baseURL/api/v1/$resource/$id');
+  }
+
+  Future<Map<String, dynamic>> _get(String url) async {
+    final c = await HttpClient().getUrl(Uri.parse(url));
+    return _response(c);
+  }
+
+  Future<Map<String, dynamic>> _post(String url, Map<String, dynamic> body) async {
+    final c = await HttpClient().postUrl(Uri.parse(url));
+    c.headers.contentType = ContentType.json;
+    c.write(jsonEncode(body));
+    return _response(c);
+  }
+
+  Future<Map<String, dynamic>> _patch(String url, Map<String, dynamic> body) async {
+    final c = await HttpClient().patchUrl(Uri.parse(url));
+    c.headers.contentType = ContentType.json;
+    c.write(jsonEncode(body));
+    return _response(c);
+  }
+
+  Future<Map<String, dynamic>> _delete(String url) async {
+    final c = await HttpClient().deleteUrl(Uri.parse(url));
+    return _response(c);
+  }
+
+  Future<Map<String, dynamic>> _response(HttpClientRequest req) async {
+    final res = await req.close();
+    final body = await res.transform(utf8.decoder).join();
+    if (res.statusCode >= 400) {
+      throw Exception('HTTP ${res.statusCode}: $body');
+    }
+    return jsonDecode(body);
+  }
+}

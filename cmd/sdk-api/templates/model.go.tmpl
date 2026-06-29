@@ -1,0 +1,29 @@
+package models
+
+import (
+	"context"
+	"{{.SDKModule}}/runtime"
+)
+
+type {{.ModelName}} struct {
+	ID int64 `db:"id,primary,auto" json:"id"`
+{{- range .ExtraFields}}
+	{{.Name}} {{.Type}} `db:"{{.Column}}" json:"{{.JSON}}"`
+{{- end}}
+}
+
+type {{.ModelName}}Hooks struct {
+	runtime.DefaultHooks[{{.ModelName}}]
+}
+
+// Override any lifecycle method as needed:
+//
+// func (h *{{.ModelName}}Hooks) BeforeCreate(ctx context.Context, req {{.ModelName}}) ({{.ModelName}}, error) {
+//     // transform here
+//     return req, nil
+// }
+//
+// func (h *{{.ModelName}}Hooks) AfterCreate(ctx context.Context, entity *{{.ModelName}}) error {
+//     // post-create logic
+//     return nil
+// }

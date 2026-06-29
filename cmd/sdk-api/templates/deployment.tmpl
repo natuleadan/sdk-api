@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.Name}}
+  namespace: {{.Namespace}}
+spec:
+  replicas: {{.Replicas}}
+  selector:
+    matchLabels:
+      app: {{.Name}}
+  template:
+    metadata:
+      labels:
+        app: {{.Name}}
+    spec:
+      containers:
+      - name: {{.Name}}
+        image: {{.Image}}
+        ports:
+        - containerPort: {{.Port}}
+        readinessProbe:
+          tcpSocket:
+            port: {{.Port}}
+        livenessProbe:
+          tcpSocket:
+            port: {{.Port}}
+        resources:
+          requests:
+            cpu: {{.ReqCPU}}
+            memory: {{.ReqMem}}
+          limits:
+            cpu: {{.LimitCPU}}
+            memory: {{.LimitMem}}
+{{if .Secret}}
+        envFrom:
+        - secretRef:
+            name: {{.Secret}}
+{{end}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{.Name}}
+  namespace: {{.Namespace}}
+spec:
+  selector:
+    app: {{.Name}}
+  ports:
+  - port: {{.Port}}
+    targetPort: {{.Port}}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{.Name}}-cpu
+  namespace: {{.Namespace}}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{.Name}}
+  minReplicas: 1
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 80

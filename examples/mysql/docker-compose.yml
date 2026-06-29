@@ -1,0 +1,20 @@
+name: mysql-bench
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: bench
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-prootpass"]
+      interval: 3s
+      timeout: 2s
+      retries: 15
+
+  bench:
+    build:
+      context: ../../..
+      dockerfile: sdk-api/examples/mysql/Dockerfile
+    depends_on:
+      mysql:
+        condition: service_healthy

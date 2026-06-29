@@ -1,0 +1,375 @@
+- filippo.io/edwards25519 (BSD-3-Clause)
+  https://github.com/FiloSottile/edwards25519/blob/v1.2.0/LICENSE
+
+- github.com/DATA-DOG/go-sqlmock (Unknown)
+  Unknown
+
+- github.com/alicebob/miniredis/v2 (MIT)
+  https://github.com/alicebob/miniredis/blob/v2.38.0/LICENSE
+
+- github.com/alicebob/miniredis/v2/fpconv (BSL-1.0)
+  https://github.com/alicebob/miniredis/blob/v2.38.0/fpconv/LICENSE.txt
+
+- github.com/alicebob/miniredis/v2/geohash (MIT)
+  https://github.com/alicebob/miniredis/blob/v2.38.0/geohash/LICENSE
+
+- github.com/alicebob/miniredis/v2/gopher-json (Unlicense)
+  https://github.com/alicebob/miniredis/blob/v2.38.0/gopher-json/LICENSE
+
+- github.com/alicebob/miniredis/v2/hyperloglog (MIT)
+  https://github.com/alicebob/miniredis/blob/v2.38.0/hyperloglog/LICENSE
+
+- github.com/alicebob/miniredis/v2/metro (MIT)
+  https://github.com/alicebob/miniredis/blob/v2.38.0/metro/LICENSE
+
+- github.com/andybalholm/brotli (MIT)
+  https://github.com/andybalholm/brotli/blob/v1.1.0/LICENSE
+
+- github.com/bdpiprava/scalar-go (MIT)
+  https://github.com/bdpiprava/scalar-go/blob/v0.13.0/LICENSE
+
+- github.com/beorn7/perks/quantile (MIT)
+  https://github.com/beorn7/perks/blob/v1.0.1/LICENSE
+
+- github.com/cenkalti/backoff/v5 (MIT)
+  https://github.com/cenkalti/backoff/blob/v5.0.3/LICENSE
+
+- github.com/cespare/xxhash/v2 (MIT)
+  https://github.com/cespare/xxhash/blob/v2.3.0/LICENSE.txt
+
+- github.com/clipperhouse/uax29/v2/graphemes (MIT)
+  https://github.com/clipperhouse/uax29/blob/v2.7.0/LICENSE
+
+- github.com/coreos/go-semver/semver (Apache-2.0)
+  https://github.com/coreos/go-semver/blob/v0.3.1/LICENSE
+
+- github.com/coreos/go-systemd/v22/journal (Apache-2.0)
+  https://github.com/coreos/go-systemd/blob/v22.5.0/LICENSE
+
+- github.com/davecgh/go-spew/spew (ISC)
+  https://github.com/davecgh/go-spew/blob/v1.1.1/LICENSE
+
+- github.com/dustin/go-humanize (MIT)
+  https://github.com/dustin/go-humanize/blob/v1.0.1/LICENSE
+
+- github.com/ebitengine/purego (Apache-2.0)
+  https://github.com/ebitengine/purego/blob/v0.9.1/LICENSE
+
+- github.com/fasthttp/websocket (BSD-3-Clause)
+  https://github.com/fasthttp/websocket/blob/v1.5.8/LICENSE
+
+- github.com/fatih/color (MIT)
+  https://github.com/fatih/color/blob/v1.19.0/LICENSE.md
+
+- github.com/getkin/kin-openapi/openapi3 (MIT)
+  https://github.com/getkin/kin-openapi/blob/v0.140.0/LICENSE
+
+- github.com/go-logr/logr (Apache-2.0)
+  https://github.com/go-logr/logr/blob/v1.4.3/LICENSE
+
+- github.com/go-logr/stdr (Apache-2.0)
+  https://github.com/go-logr/stdr/blob/v1.2.2/LICENSE
+
+- github.com/go-openapi/jsonpointer (Apache-2.0)
+  https://github.com/go-openapi/jsonpointer/blob/v0.22.5/LICENSE
+
+- github.com/go-openapi/swag/jsonname (Apache-2.0)
+  https://github.com/go-openapi/swag/blob/jsonname/v0.25.5/jsonname/LICENSE
+
+- github.com/go-sql-driver/mysql (MPL-2.0)
+  https://github.com/go-sql-driver/mysql/blob/v1.10.0/LICENSE
+
+- github.com/goccy/go-json (MIT)
+  https://github.com/goccy/go-json/blob/v0.10.6/LICENSE
+
+- github.com/gofiber/contrib/websocket (MIT)
+  https://github.com/gofiber/contrib/blob/websocket/v1.3.4/websocket/LICENSE
+
+- github.com/gofiber/fiber/v2 (MIT)
+  https://github.com/gofiber/fiber/blob/v2.52.13/LICENSE
+
+- github.com/gofiber/fiber/v2/internal/schema (BSD-3-Clause)
+  https://github.com/gofiber/fiber/blob/v2.52.13/internal/schema/LICENSE
+
+- github.com/gogo/protobuf (BSD-3-Clause)
+  https://github.com/gogo/protobuf/blob/v1.3.2/LICENSE
+
+- github.com/golang-jwt/jwt/v5 (MIT)
+  https://github.com/golang-jwt/jwt/blob/v5.3.1/LICENSE
+
+- github.com/golang/protobuf/proto (BSD-3-Clause)
+  https://github.com/golang/protobuf/blob/v1.5.4/LICENSE
+
+- github.com/google/uuid (BSD-3-Clause)
+  https://github.com/google/uuid/blob/v1.6.0/LICENSE
+
+- github.com/grafana/pyroscope-go (Apache-2.0)
+  https://github.com/grafana/pyroscope-go/blob/v1.3.1/LICENSE
+
+- github.com/grafana/pyroscope-go/godeltaprof (Apache-2.0)
+  https://github.com/grafana/pyroscope-go/blob/godeltaprof/v0.1.11/godeltaprof/LICENSE
+
+- github.com/grpc-ecosystem/grpc-gateway/v2 (BSD-3-Clause)
+  https://github.com/grpc-ecosystem/grpc-gateway/blob/v2.29.0/LICENSE
+
+- github.com/jackc/pgpassfile (MIT)
+  https://github.com/jackc/pgpassfile/blob/v1.0.0/LICENSE
+
+- github.com/jackc/pgservicefile (MIT)
+  https://github.com/jackc/pgservicefile/blob/5a60cdf6a761/LICENSE
+
+- github.com/jackc/pgx/v5 (MIT)
+  https://github.com/jackc/pgx/blob/v5.10.0/LICENSE
+
+- github.com/jackc/puddle/v2 (MIT)
+  https://github.com/jackc/puddle/blob/v2.2.2/LICENSE
+
+- github.com/klauspost/compress (Apache-2.0)
+  https://github.com/klauspost/compress/blob/v1.18.6/LICENSE
+
+- github.com/klauspost/compress/internal/snapref (BSD-3-Clause)
+  https://github.com/klauspost/compress/blob/v1.18.6/internal/snapref/LICENSE
+
+- github.com/klauspost/compress/s2 (BSD-3-Clause)
+  https://github.com/klauspost/compress/blob/v1.18.6/s2/LICENSE
+
+- github.com/klauspost/compress/snappy (BSD-3-Clause)
+  https://github.com/klauspost/compress/blob/v1.18.6/snappy/LICENSE
+
+- github.com/klauspost/compress/zstd/internal/xxhash (MIT)
+  https://github.com/klauspost/compress/blob/v1.18.6/zstd/internal/xxhash/LICENSE.txt
+
+- github.com/klauspost/cpuid/v2 (MIT)
+  https://github.com/klauspost/cpuid/blob/v2.2.11/LICENSE
+
+- github.com/klauspost/crc32 (BSD-3-Clause)
+  https://github.com/klauspost/crc32/blob/v1.3.0/LICENSE
+
+- github.com/mattn/go-colorable (MIT)
+  https://github.com/mattn/go-colorable/blob/v0.1.14/LICENSE
+
+- github.com/mattn/go-isatty (MIT)
+  https://github.com/mattn/go-isatty/blob/v0.0.20/LICENSE
+
+- github.com/mattn/go-runewidth (MIT)
+  https://github.com/mattn/go-runewidth/blob/v0.0.24/LICENSE
+
+- github.com/minio/crc64nvme (Apache-2.0)
+  https://github.com/minio/crc64nvme/blob/v1.1.1/LICENSE
+
+- github.com/minio/md5-simd (Apache-2.0)
+  https://github.com/minio/md5-simd/blob/v1.1.2/LICENSE
+
+- github.com/minio/minio-go/v7 (Apache-2.0)
+  https://github.com/minio/minio-go/blob/v7.2.1/LICENSE
+
+- github.com/munnerz/goautoneg (BSD-3-Clause)
+  https://github.com/munnerz/goautoneg/blob/a7dc8b61c822/LICENSE
+
+- github.com/nats-io/nats.go (Apache-2.0)
+  https://github.com/nats-io/nats.go/blob/v1.52.0/LICENSE
+
+- github.com/nats-io/nkeys (Apache-2.0)
+  https://github.com/nats-io/nkeys/blob/v0.4.15/LICENSE
+
+- github.com/nats-io/nuid (Apache-2.0)
+  https://github.com/nats-io/nuid/blob/v1.0.1/LICENSE
+
+- github.com/oasdiff/yaml (MIT)
+  https://github.com/oasdiff/yaml/blob/v0.1.0/LICENSE
+
+- github.com/oasdiff/yaml3 (MIT)
+  https://github.com/oasdiff/yaml3/blob/v0.0.13/LICENSE
+
+- github.com/openzipkin/zipkin-go/model (Apache-2.0)
+  https://github.com/openzipkin/zipkin-go/blob/v0.4.3/LICENSE
+
+- github.com/pelletier/go-toml/v2 (MIT)
+  https://github.com/pelletier/go-toml/blob/v2.4.2/LICENSE
+
+- github.com/philhofer/fwd (MIT)
+  https://github.com/philhofer/fwd/blob/v1.2.0/LICENSE.md
+
+- github.com/pmezard/go-difflib/difflib (BSD-3-Clause)
+  https://github.com/pmezard/go-difflib/blob/v1.0.0/LICENSE
+
+- github.com/prometheus/client_golang/internal/github.com/golang/gddo/httputil (BSD-3-Clause)
+  https://github.com/prometheus/client_golang/blob/v1.23.2/internal/github.com/golang/gddo/LICENSE
+
+- github.com/prometheus/client_golang/prometheus (Apache-2.0)
+  https://github.com/prometheus/client_golang/blob/v1.23.2/LICENSE
+
+- github.com/prometheus/client_model/go (Apache-2.0)
+  https://github.com/prometheus/client_model/blob/v0.6.2/LICENSE
+
+- github.com/prometheus/common (Apache-2.0)
+  https://github.com/prometheus/common/blob/v0.66.1/LICENSE
+
+- github.com/redis/go-redis/v9 (BSD-2-Clause)
+  https://github.com/redis/go-redis/blob/v9.21.0/LICENSE
+
+- github.com/robfig/cron/v3 (MIT)
+  https://github.com/robfig/cron/blob/v3.0.1/LICENSE
+
+- github.com/rs/xid (MIT)
+  https://github.com/rs/xid/blob/v1.6.0/LICENSE
+
+- github.com/santhosh-tekuri/jsonschema/v6 (Apache-2.0)
+  https://github.com/santhosh-tekuri/jsonschema/blob/v6.0.2/LICENSE
+
+- github.com/savsgio/gotils/strconv (Apache-2.0)
+  https://github.com/savsgio/gotils/blob/093b76447511/LICENSE
+
+- github.com/spaolacci/murmur3 (BSD-3-Clause)
+  https://github.com/spaolacci/murmur3/blob/v1.1.0/LICENSE
+
+- github.com/stretchr/testify/assert (MIT)
+  https://github.com/stretchr/testify/blob/v1.11.1/LICENSE
+
+- github.com/tinylib/msgp/msgp (MIT)
+  https://github.com/tinylib/msgp/blob/v1.6.1/LICENSE
+
+- github.com/titanous/json5 (MIT)
+  https://github.com/titanous/json5/blob/v1.0.0/LICENSE
+
+- github.com/tursodatabase/turso-go-platform-libs (MIT)
+  https://github.com/tursodatabase/turso-go-platform-libs/blob/v0.7.0-pre.13/LICENSE
+
+- github.com/valyala/bytebufferpool (MIT)
+  https://github.com/valyala/bytebufferpool/blob/v1.0.0/LICENSE
+
+- github.com/valyala/fasthttp (MIT)
+  https://github.com/valyala/fasthttp/blob/v1.52.0/LICENSE
+
+- github.com/valyala/fasthttp/reuseport (MIT)
+  https://github.com/valyala/fasthttp/blob/v1.52.0/reuseport/LICENSE
+
+- github.com/valyala/tcplisten (MIT)
+  https://github.com/valyala/tcplisten/blob/v1.0.0/LICENSE
+
+- github.com/xdg-go/scram (Apache-2.0)
+  https://github.com/xdg-go/scram/blob/v1.2.0/LICENSE
+
+- github.com/xdg-go/stringprep (Apache-2.0)
+  https://github.com/xdg-go/stringprep/blob/v1.0.4/LICENSE
+
+- github.com/youmark/pkcs8 (MIT)
+  https://github.com/youmark/pkcs8/blob/a2c0da244d78/LICENSE
+
+- github.com/yuin/gopher-lua (MIT)
+  https://github.com/yuin/gopher-lua/blob/v1.1.1/LICENSE
+
+- github.com/zeebo/xxh3 (BSD-2-Clause)
+  https://github.com/zeebo/xxh3/blob/v1.1.0/LICENSE
+
+- go.etcd.io/etcd/api/v3 (Apache-2.0)
+  https://github.com/etcd-io/etcd/blob/api/v3.6.12/api/LICENSE
+
+- go.etcd.io/etcd/client/pkg/v3 (Apache-2.0)
+  https://github.com/etcd-io/etcd/blob/client/pkg/v3.6.12/client/pkg/LICENSE
+
+- go.etcd.io/etcd/client/v3 (Apache-2.0)
+  https://github.com/etcd-io/etcd/blob/client/v3.6.12/client/v3/LICENSE
+
+- go.mongodb.org/mongo-driver/v2 (Apache-2.0)
+  https://github.com/mongodb/mongo-go-driver/blob/v2.7.0/LICENSE
+
+- go.opentelemetry.io/auto/sdk (Apache-2.0)
+  https://github.com/open-telemetry/opentelemetry-go-instrumentation/blob/sdk/v1.2.1/sdk/LICENSE
+
+- go.opentelemetry.io/otel (Apache-2.0)
+  https://github.com/open-telemetry/opentelemetry-go/blob/v1.44.0/LICENSE
+
+- go.opentelemetry.io/otel/exporters/otlp/otlptrace (Apache-2.0)
+  https://github.com/open-telemetry/opentelemetry-go/blob/exporters/otlp/otlptrace/v1.44.0/exporters/otlp/otlptrace/LICENSE
+
+- go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc (Apache-2.0)
+  https://github.com/open-telemetry/opentelemetry-go/blob/exporters/otlp/otlptrace/otlptracegrpc/v1.44.0/exporters/otlp/otlptrace/otlptracegrpc/LICENSE
+
+- go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp (Apache-2.0)
+  https://github.com/open-telemetry/opentelemetry-go/blob/exporters/otlp/otlptrace/otlptracehttp/v1.44.0/exporters/otlp/otlptrace/otlptracehttp/LICENSE
+
+- go.opentelemetry.io/otel/exporters/stdout/stdouttrace (Apache-2.0)
+  https://github.com/open-telemetry/opentelemetry-go/blob/exporters/stdout/stdouttrace/v1.44.0/exporters/stdout/stdouttrace/LICENSE
+
+- go.opentelemetry.io/otel/exporters/zipkin (Apache-2.0)
+  https://github.com/open-telemetry/opentelemetry-go/blob/exporters/zipkin/v1.44.0/exporters/zipkin/LICENSE
+
+- go.opentelemetry.io/otel/metric (Apache-2.0)
+  https://github.com/open-telemetry/opentelemetry-go/blob/metric/v1.44.0/metric/LICENSE
+
+- go.opentelemetry.io/otel/sdk (Apache-2.0)
+  https://github.com/open-telemetry/opentelemetry-go/blob/sdk/v1.44.0/sdk/LICENSE
+
+- go.opentelemetry.io/otel/trace (Apache-2.0)
+  https://github.com/open-telemetry/opentelemetry-go/blob/trace/v1.44.0/trace/LICENSE
+
+- go.opentelemetry.io/proto/otlp (Apache-2.0)
+  https://github.com/open-telemetry/opentelemetry-proto-go/blob/otlp/v1.10.0/otlp/LICENSE
+
+- go.uber.org/atomic (MIT)
+  https://github.com/uber-go/atomic/blob/v1.11.0/LICENSE.txt
+
+- go.uber.org/automaxprocs (MIT)
+  https://github.com/uber-go/automaxprocs/blob/v1.6.0/LICENSE
+
+- go.uber.org/mock/gomock (Apache-2.0)
+  https://github.com/uber/mock/blob/v0.6.0/LICENSE
+
+- go.uber.org/multierr (MIT)
+  https://github.com/uber-go/multierr/blob/v1.11.0/LICENSE.txt
+
+- go.uber.org/zap (MIT)
+  https://github.com/uber-go/zap/blob/v1.27.0/LICENSE
+
+- go.yaml.in/yaml/v2 (Apache-2.0)
+  https://github.com/yaml/go-yaml/blob/v2.4.2/LICENSE
+
+- go.yaml.in/yaml/v3 (MIT)
+  https://github.com/yaml/go-yaml/blob/v3.0.4/LICENSE
+
+- golang.org/x/crypto (BSD-3-Clause)
+  https://cs.opensource.google/go/x/crypto/+/v0.51.0:LICENSE
+
+- golang.org/x/net (BSD-3-Clause)
+  https://cs.opensource.google/go/x/net/+/v0.55.0:LICENSE
+
+- golang.org/x/sync (BSD-3-Clause)
+  https://cs.opensource.google/go/x/sync/+/v0.20.0:LICENSE
+
+- golang.org/x/sys (BSD-3-Clause)
+  https://cs.opensource.google/go/x/sys/+/v0.46.0:LICENSE
+
+- golang.org/x/text (BSD-3-Clause)
+  https://cs.opensource.google/go/x/text/+/v0.37.0:LICENSE
+
+- golang.org/x/time/rate (BSD-3-Clause)
+  https://cs.opensource.google/go/x/time/+/v0.15.0:LICENSE
+
+- google.golang.org/genproto/googleapis/api (Apache-2.0)
+  https://github.com/googleapis/go-genproto/blob/3dc84a4a5aaa/googleapis/api/LICENSE
+
+- google.golang.org/genproto/googleapis/rpc (Apache-2.0)
+  https://github.com/googleapis/go-genproto/blob/3dc84a4a5aaa/googleapis/rpc/LICENSE
+
+- google.golang.org/grpc (Apache-2.0)
+  https://github.com/grpc/grpc-go/blob/v1.81.1/LICENSE
+
+- google.golang.org/protobuf (BSD-3-Clause)
+  https://github.com/protocolbuffers/protobuf-go/blob/v1.36.11/LICENSE
+
+- gopkg.in/cheggaaa/pb.v1 (BSD-3-Clause)
+  https://github.com/cheggaaa/pb/blob/v1.0.28/LICENSE
+
+- gopkg.in/ini.v1 (Apache-2.0)
+  https://github.com/go-ini/ini/blob/v1.67.2/LICENSE
+
+- gopkg.in/yaml.v2 (Apache-2.0)
+  https://github.com/go-yaml/yaml/blob/v2.4.0/LICENSE
+
+- gopkg.in/yaml.v3 (MIT)
+  https://github.com/go-yaml/yaml/blob/v3.0.1/LICENSE
+
+- turso.tech/database/tursogo (MIT)
+  Unknown
+

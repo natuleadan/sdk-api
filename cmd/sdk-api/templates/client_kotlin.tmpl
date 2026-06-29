@@ -1,0 +1,81 @@
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
+
+@Serializable
+data class {{.Name}}(
+{{- range .Fields}}
+  @SerialName("{{.JSON}}") val {{.JSON}}: {{.Type}},
+{{- end}}
+)
+
+@Serializable
+data class {{.Name}}ListResponse(
+  val data: List<{{.Name}}>,
+  val total: Int,
+  val page: Int,
+  val size: Int,
+)
+
+class {{.Name}}Client(private val baseURL: String) {
+  private val json = Json { ignoreUnknownKeys = true }
+  private val http = HttpClient.newHttpClient()
+  private val resource = "{{.Resource}}"
+
+  fun list(page: Int = 1, size: Int = 20, sort: String? = null): {{.Name}}ListResponse {
+    val q = mutableMapOf("page" to page.toString(), "size" to size.toString())
+    sort?.let { q["sort"] = it }
+    val res = get("/api/v1/$resource?${q.toQueryString()}")
+    return json.decodeFromString(res)
+  }
+
+  fun get(id: Long): {{.Name}} {
+    val res = get("/api/v1/$resource/$id")
+    return json.decodeFromString(res)
+  }
+
+  fun create(data: {{.Name}}): {{.Name}} {
+    val res = post("/api/v1/$resource", json.encodeToString(data))
+    return json.decodeFromString(res)
+  }
+
+  fun update(id: Long, data: {{.Name}}): {{.Name}} {
+    val res = patch("/api/v1/$resource/$id", json.encodeToString(data))
+    return json.decodeFromString(res)
+  }
+
+  fun delete(id: Long) {
+    deleteReq("/api/v1/$resource/$id")
+  }
+
+  private fun get(path: String): String {
+    val req = HttpRequest.newBuilder(URI.create("$baseURL$path")).GET().build()
+    return http.send(req, HttpResponse.BodyHandlers.ofString()).body()
+  }
+
+  private fun post(path: String, body: String): String {
+    val req = HttpRequest.newBuilder(URI.create("$baseURL$path"))
+      .header("Content-Type", "application/json")
+      .POST(HttpRequest.BodyPublishers.ofString(body)).build()
+    return http.send(req, HttpResponse.BodyHandlers.ofString()).body()
+  }
+
+  private fun patch(path: String, body: String): String {
+    val req = HttpRequest.newBuilder(URI.create("$baseURL$path"))
+      .header("Content-Type", "application/json")
+      .method("PATCH", HttpRequest.BodyPublishers.ofString(body)).build()
+    return http.send(req, HttpResponse.BodyHandlers.ofString()).body()
+  }
+
+  private fun deleteReq(path: String) {
+    val req = HttpRequest.newBuilder(URI.create("$baseURL$path")).DELETE().build()
+    http.send(req, HttpResponse.BodyHandlers.ofString())
+  }
+}
+
+private fun Map<String, String>.toQueryString(): String =
+  entries.joinToString("&") { "${it.key}=${it.value}" }

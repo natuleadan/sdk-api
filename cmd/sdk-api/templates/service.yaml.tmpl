@@ -1,0 +1,64 @@
+name: {{.ServiceName}}
+port: {{.Port}}
+
+{{- if .HasDB}}
+databases:
+  - name: pg-main
+    driver: postgres
+    url: "${DATABASE_URL}"
+    pool:
+      max_conns: 10
+      min_conns: 2
+{{- end}}
+{{- if .HasNATS}}
+
+nats:
+  - name: primary
+    url: "${NATS_URL}"
+    streams:
+{{- range .StreamNames}}
+      - name: {{.}}
+{{- end}}
+{{- end}}
+
+entry:
+{{- if .HasDB}}
+  - type: crud
+    model: {{.ModelName}}
+    db: pg-main
+    table: {{.DBTable}}
+    resource: {{.ResourceName}}
+    path: /{{.ResourceName}}
+{{- end}}
+{{- if .HasNATS}}
+{{- range .Consumers}}
+
+exit:
+  - name: {{.Durable}}
+    subscribe:
+      stream: {{.Stream}}
+      subject: {{.Stream}}
+    handler: {{.Handler}}
+    max_concurrent: 10
+    reply: false
+{{- end}}
+{{- end}}
+
+server:
+  host: "0.0.0.0"
+  api_prefix: /api/v1
+  middleware:
+    - path: "/api/v1/*"
+      apply:
+        - logger
+        - breaker
+        - cors
+{{- if .HasDB}}
+endpoints:
+  list:
+    page_size: 10
+    max_page_size: 100
+    sortable:
+      - id
+      - created_at
+{{- end}}

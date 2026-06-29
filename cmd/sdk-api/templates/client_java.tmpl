@@ -1,0 +1,84 @@
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.util.List;
+
+public class {{.Name}} {
+{{- range .Fields}}
+  @JsonProperty("{{.JSON}}")
+  private {{.Type}} {{.JSON}};
+{{- end}}
+
+  public {{.Name}}() {}
+
+{{- range .Fields}}
+  public {{.Type}} get{{.Name}}() { return {{.JSON}}; }
+  public void set{{.Name}}({{.Type}} {{.JSON}}) { this.{{.JSON}} = {{.JSON}}; }
+{{- end}}
+}
+
+class {{.Name}}ListResponse {
+  private List<{{.Name}}> data;
+  private int total;
+  private int page;
+  private int size;
+
+  public List<{{.Name}}> getData() { return data; }
+  public int getTotal() { return total; }
+  public int getPage() { return page; }
+  public int getSize() { return size; }
+}
+
+class {{.Name}}Client {
+  private final HttpClient http = HttpClient.newHttpClient();
+  private final ObjectMapper mapper = new ObjectMapper();
+  private final String baseURL;
+  private final String resource;
+
+  public {{.Name}}Client(String baseURL) {
+    this.baseURL = baseURL.replaceAll("/+$", "");
+    this.resource = "{{.Resource}}";
+  }
+
+  public {{.Name}}ListResponse list(int page, int size, String sort) throws Exception {
+    var q = "?page=" + page + "&size=" + size;
+    if (sort != null) q += "&sort=" + sort;
+    var res = request("GET", "/api/v1/" + resource + q, null);
+    return mapper.readValue(res, {{.Name}}ListResponse.class);
+  }
+
+  public {{.Name}} get(int id) throws Exception {
+    var res = request("GET", "/api/v1/" + resource + "/" + id, null);
+    return mapper.readValue(res, {{.Name}}.class);
+  }
+
+  public {{.Name}} create({{.Name}} data) throws Exception {
+    var res = request("POST", "/api/v1/" + resource, mapper.writeValueAsString(data));
+    return mapper.readValue(res, {{.Name}}.class);
+  }
+
+  public {{.Name}} update(int id, {{.Name}} data) throws Exception {
+    var res = request("PATCH", "/api/v1/" + resource + "/" + id, mapper.writeValueAsString(data));
+    return mapper.readValue(res, {{.Name}}.class);
+  }
+
+  public void delete(int id) throws Exception {
+    request("DELETE", "/api/v1/" + resource + "/" + id, null);
+  }
+
+  private String request(String method, String path, String body) throws Exception {
+    var b = HttpRequest.newBuilder(URI.create(baseURL + path));
+    if (body != null) {
+      b.header("Content-Type", "application/json");
+      b.method(method, HttpRequest.BodyPublishers.ofString(body));
+    } else if (method.equals("GET")) {
+      b.GET();
+    } else {
+      b.method(method, HttpRequest.BodyPublishers.noBody());
+    }
+    return http.send(b.build(), HttpResponse.BodyHandlers.ofString()).body();
+  }
+}

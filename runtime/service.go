@@ -330,6 +330,7 @@ func (s *Service) initServer() error {
 		SecurityHeaders: convertSecurityHeaders(sc.SecurityHeaders),
 		CSRF:            convertCSRF(sc.CSRF),
 		RateLimit:       convertRateLimit(sc.RateLimit),
+		TLS:             convertTLS(sc.TLS),
 	}
 
 	s.srv = server.New(srvCfg, server.TelemetryConfig{}, server.SecurityConfig{}, corsCfg)
@@ -537,6 +538,35 @@ func convertRateLimit(cfg *RateLimitConf) *middleware.RateLimitConfig {
 		PerIP:    perIP,
 		PerUser:  perUser,
 	}
+}
+
+func convertTLS(cfg *TLSConf) *server.TLSConfig {
+	if cfg == nil || !cfg.Enabled {
+		return nil
+	}
+	tlsCfg := &server.TLSConfig{
+		Enabled:      cfg.Enabled,
+		MinVersion:   cfg.MinVersion,
+		MaxVersion:   cfg.MaxVersion,
+		CurvePrefs:   cfg.CurvePrefs,
+		CipherSuites: cfg.CipherSuites,
+		RedirectHTTP: cfg.RedirectHTTP,
+		RedirectPort: cfg.RedirectPort,
+	}
+	if cfg.Manual != nil {
+		tlsCfg.Manual = &server.ManualTLS{
+			CertFile: cfg.Manual.CertFile,
+			KeyFile:  cfg.Manual.KeyFile,
+		}
+	}
+	if cfg.Autocert != nil {
+		tlsCfg.Autocert = &server.AutocertTLS{
+			Domains:  cfg.Autocert.Domains,
+			Email:    cfg.Autocert.Email,
+			CacheDir: cfg.Autocert.CacheDir,
+		}
+	}
+	return tlsCfg
 }
 
 func initStorageFromDef(s *StorageDef) (server.StorageBackend, error) {

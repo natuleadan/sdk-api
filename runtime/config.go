@@ -46,6 +46,7 @@ type ServerConf struct {
 	SecurityHeaders *SecurityHeadersConf  `json:"security_headers,optional"`
 	CSRF            *CSRFConf             `json:"csrf,optional"`
 	RateLimit       *RateLimitConf        `json:"rate_limit,optional"`
+	TLS             *TLSConf              `json:"tls,optional"`
 }
 
 type RateLimitConf struct {
@@ -60,6 +61,29 @@ type RateLimitConf struct {
 type RateLimitDef struct {
 	RequestsPerSecond int `json:"requests_per_second"`
 	Burst             int `json:"burst"`
+}
+
+type TLSConf struct {
+	Enabled      bool         `json:"enabled"`
+	Manual       *ManualTLS   `json:"manual,optional"`
+	Autocert     *AutocertTLS `json:"autocert,optional"`
+	MinVersion   string       `json:"min_version,optional"`
+	MaxVersion   string       `json:"max_version,optional"`
+	CurvePrefs   []string     `json:"curve_preferences,optional"`
+	CipherSuites []string     `json:"cipher_suites,optional"`
+	RedirectHTTP bool         `json:"redirect_http,optional"`
+	RedirectPort int          `json:"redirect_port,optional"`
+}
+
+type ManualTLS struct {
+	CertFile string `json:"cert_file"`
+	KeyFile  string `json:"key_file"`
+}
+
+type AutocertTLS struct {
+	Domains  []string `json:"domains"`
+	Email    string   `json:"email"`
+	CacheDir string   `json:"cache_dir,optional"`
 }
 
 type SecurityHeadersConf struct {

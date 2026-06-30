@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -37,6 +36,7 @@ type Config struct {
 	SecurityHeaders *middleware.SecurityHeadersConfig
 	CSRF            *middleware.CSRFConfig
 	RateLimit       *middleware.RateLimitConfig
+	TLS             *TLSConfig
 }
 
 type TelemetryConfig struct {
@@ -256,9 +256,7 @@ func (s *Server) App() *fiber.App {
 }
 
 func (s *Server) Start() error {
-	addr := fmt.Sprintf("%s:%d", s.config.Host, s.config.Port)
-	logx.Infof("server listening on %s", addr)
-	return s.app.Listen(addr)
+	return s.listenTLS()
 }
 
 func (s *Server) Stop() {

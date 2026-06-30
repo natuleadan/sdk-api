@@ -1,8 +1,10 @@
 package runtime
 
 import (
+	"bytes"
 	"fmt"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 
@@ -554,10 +556,30 @@ func (c *CronJob) Validate() error {
 	return nil
 }
 
+// ---- SOPS decryption ----
+
+func trySOPSDecrypt(data []byte) ([]byte, error) {
+	// Check if file is SOPS-encrypted (has "sops:" envelope or .enc.yaml path)
+	if !bytes.Contains(data, []byte("sops:")) && !bytes.Contains(data, []byte("encrypted_regex")) {
+		return data, nil
+	}
+	if _, err := exec.LookPath("sops"); err != nil {
+		logx.Errorf("config: file appears SOPS-encrypted but 'sops' binary not found in PATH")
+		return data, nil
+	}
+	cmd := exec.Command("sops", "--decrypt", "--input-type", "yaml", "/dev/stdin")
+	cmd.Stdin = bytes.NewReader(data)
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("sops decrypt: %w", err)
+	}
+	return out, nil
+}
+
 // ---- LoadConfig ----
 
-func expandEnvDefaults(content string) string {
-	// Replace ${VAR:default} with env var value or default
+func expandEnvDefaults(content string) (string, error) {
+	var missing []string
 	result := ""
 	i := 0
 	for i < len(content) {
@@ -575,10 +597,9 @@ func expandEnvDefaults(content string) string {
 			if envVal != "" {
 				result += envVal
 			} else if len(parts) > 1 {
-				result += parts[1] // use default
+				result += parts[1]
 			} else {
-				// Required env var not set
-				logx.Errorf("required env var %s is not set", envName)
+				missing = append(missing, envName)
 				result += "${" + envName + "}"
 			}
 			i += end + 1
@@ -587,7 +608,10 @@ func expandEnvDefaults(content string) string {
 			i++
 		}
 	}
-	return result
+	if len(missing) > 0 {
+		return result, fmt.Errorf("required env vars not set: %s", strings.Join(missing, ", "))
+	}
+	return result, nil
 }
 
 func LoadConfig(path string) (*ServiceConfig, error) {
@@ -597,7 +621,17 @@ func LoadConfig(path string) (*ServiceConfig, error) {
 		if err != nil {
 			return nil, fmt.Errorf("read config: %w", err)
 		}
-		expanded := expandEnvDefaults(string(content))
+
+		decrypted, err := trySOPSDecrypt(content)
+		if err != nil {
+			return nil, fmt.Errorf("decrypt config: %w", err)
+		}
+
+		expanded, err := expandEnvDefaults(string(decrypted))
+		if err != nil {
+			return nil, err
+		}
+
 		if err := conf.LoadFromYamlBytes([]byte(expanded), &cfg); err != nil {
 			return nil, fmt.Errorf("load config: %w", err)
 		}

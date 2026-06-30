@@ -10,6 +10,27 @@ import (
 	xrate "golang.org/x/time/rate"
 )
 
+type limiter interface {
+	Allow() bool
+	Remaining() int
+}
+
+type xrateLimiter struct {
+	*xrate.Limiter
+}
+
+func (l *xrateLimiter) Remaining() int {
+	return max(0, int(l.Tokens()))
+}
+
+type redisLimiter struct {
+	*limit.TokenLimiter
+}
+
+func (l *redisLimiter) Remaining() int {
+	return 0
+}
+
 type RateLimitConfig struct {
 	Enabled       bool            `json:"enabled,optional"`
 	Driver        string          `json:"driver,default=memory"`
@@ -30,10 +51,6 @@ type rateLimiterStore struct {
 	perIP   map[string]limiter
 	perUser map[string]limiter
 	rdb     *redis.Redis
-}
-
-type limiter interface {
-	Allow() bool
 }
 
 func newRateLimiterStore(driver, redisURL string) *rateLimiterStore {
@@ -57,32 +74,38 @@ func RateLimit(cfg RateLimitConfig) fiber.Handler {
 		var limit, remaining int
 
 		if store.global != nil {
+			r := store.global.Remaining()
 			if !store.global.Allow() {
-				setRateLimitHeaders(c, cfg.Global.RequestsPerSecond, 0)
+				setRateLimitHeaders(c, cfg.Global.RequestsPerSecond, r)
 				return rateLimitResponse(c)
 			}
 			limit = cfg.Global.RequestsPerSecond
+			remaining = r
 		}
 
 		if cfg.PerIP != nil && cfg.PerIP.RequestsPerSecond > 0 {
 			ip := c.IP()
 			l := getOrCreateLimiter(store, "ip", ip, cfg.PerIP)
+			r := l.Remaining()
 			if !l.Allow() {
-				setRateLimitHeaders(c, cfg.PerIP.RequestsPerSecond, 0)
+				setRateLimitHeaders(c, cfg.PerIP.RequestsPerSecond, r)
 				return rateLimitResponse(c)
 			}
 			limit = cfg.PerIP.RequestsPerSecond
+			remaining = r
 		}
 
 		if cfg.PerUser != nil && cfg.PerUser.RequestsPerSecond > 0 {
 			userID := extractUserID(c)
 			if userID != "" {
 				l := getOrCreateLimiter(store, "user", userID, cfg.PerUser)
+				r := l.Remaining()
 				if !l.Allow() {
-					setRateLimitHeaders(c, cfg.PerUser.RequestsPerSecond, 0)
+					setRateLimitHeaders(c, cfg.PerUser.RequestsPerSecond, r)
 					return rateLimitResponse(c)
 				}
 				limit = cfg.PerUser.RequestsPerSecond
+				remaining = r
 			}
 		}
 
@@ -93,9 +116,9 @@ func RateLimit(cfg RateLimitConfig) fiber.Handler {
 
 func newLimiter(driver, key string, entry *RateLimitEntry, rdb *redis.Redis) limiter {
 	if driver == "redis" && rdb != nil {
-		return limit.NewTokenLimiter(entry.RequestsPerSecond, entry.Burst, rdb, key)
+		return &redisLimiter{limit.NewTokenLimiter(entry.RequestsPerSecond, entry.Burst, rdb, key)}
 	}
-	return xrate.NewLimiter(xrate.Limit(entry.RequestsPerSecond), entry.Burst)
+	return &xrateLimiter{xrate.NewLimiter(xrate.Limit(entry.RequestsPerSecond), entry.Burst)}
 }
 
 func setRateLimitHeaders(c *fiber.Ctx, limit, remaining int) {

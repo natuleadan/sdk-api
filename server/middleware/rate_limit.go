@@ -5,6 +5,8 @@ import (
 	"sync"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/natuleadan/sdk-api/infra/limit"
+	"github.com/natuleadan/sdk-api/infra/stores/redis"
 	xrate "golang.org/x/time/rate"
 )
 
@@ -24,72 +26,76 @@ type RateLimitEntry struct {
 
 type rateLimiterStore struct {
 	mu      sync.Mutex
-	global  *xrate.Limiter
-	perIP   map[string]*xrate.Limiter
-	perUser map[string]*xrate.Limiter
+	global  limiter
+	perIP   map[string]limiter
+	perUser map[string]limiter
+	rdb     *redis.Redis
 }
 
-func newRateLimiterStore() *rateLimiterStore {
-	return &rateLimiterStore{
-		perIP:   make(map[string]*xrate.Limiter),
-		perUser: make(map[string]*xrate.Limiter),
+type limiter interface {
+	Allow() bool
+}
+
+func newRateLimiterStore(driver, redisURL string) *rateLimiterStore {
+	s := &rateLimiterStore{
+		perIP:   make(map[string]limiter),
+		perUser: make(map[string]limiter),
 	}
+	if driver == "redis" && redisURL != "" {
+		s.rdb = redis.New(redisURL)
+	}
+	return s
 }
 
 func RateLimit(cfg RateLimitConfig) fiber.Handler {
-	store := newRateLimiterStore()
+	store := newRateLimiterStore(cfg.Driver, cfg.RedisURL)
 	if cfg.Global != nil && cfg.Global.RequestsPerSecond > 0 {
-		store.global = xrate.NewLimiter(
-			xrate.Limit(cfg.Global.RequestsPerSecond),
-			cfg.Global.Burst,
-		)
+		store.global = newLimiter(cfg.Driver, "sdk:rl:global", cfg.Global, store.rdb)
 	}
 
 	return func(c *fiber.Ctx) error {
 		var limit, remaining int
 
-		// Global limit
 		if store.global != nil {
-			tokens := store.global.Tokens()
 			if !store.global.Allow() {
-				setRateLimitHeaders(c, cfg.Global.RequestsPerSecond, int(tokens))
+				setRateLimitHeaders(c, cfg.Global.RequestsPerSecond, 0)
 				return rateLimitResponse(c)
 			}
 			limit = cfg.Global.RequestsPerSecond
-			remaining = int(store.global.Tokens())
 		}
 
-		// Per-IP limit
 		if cfg.PerIP != nil && cfg.PerIP.RequestsPerSecond > 0 {
 			ip := c.IP()
-			limiter := getOrCreateLimiter(store, "ip", ip, cfg.PerIP)
-			tokens := limiter.Tokens()
-			if !limiter.Allow() {
-				setRateLimitHeaders(c, cfg.PerIP.RequestsPerSecond, int(tokens))
+			l := getOrCreateLimiter(store, "ip", ip, cfg.PerIP)
+			if !l.Allow() {
+				setRateLimitHeaders(c, cfg.PerIP.RequestsPerSecond, 0)
 				return rateLimitResponse(c)
 			}
 			limit = cfg.PerIP.RequestsPerSecond
-			remaining = int(limiter.Tokens())
 		}
 
-		// Per-user limit (extracts user from JWT claims if available)
 		if cfg.PerUser != nil && cfg.PerUser.RequestsPerSecond > 0 {
 			userID := extractUserID(c)
 			if userID != "" {
-				limiter := getOrCreateLimiter(store, "user", userID, cfg.PerUser)
-				tokens := limiter.Tokens()
-				if !limiter.Allow() {
-					setRateLimitHeaders(c, cfg.PerUser.RequestsPerSecond, int(tokens))
+				l := getOrCreateLimiter(store, "user", userID, cfg.PerUser)
+				if !l.Allow() {
+					setRateLimitHeaders(c, cfg.PerUser.RequestsPerSecond, 0)
 					return rateLimitResponse(c)
 				}
 				limit = cfg.PerUser.RequestsPerSecond
-				remaining = int(limiter.Tokens())
 			}
 		}
 
 		setRateLimitHeaders(c, limit, remaining)
 		return c.Next()
 	}
+}
+
+func newLimiter(driver, key string, entry *RateLimitEntry, rdb *redis.Redis) limiter {
+	if driver == "redis" && rdb != nil {
+		return limit.NewTokenLimiter(entry.RequestsPerSecond, entry.Burst, rdb, key)
+	}
+	return xrate.NewLimiter(xrate.Limit(entry.RequestsPerSecond), entry.Burst)
 }
 
 func setRateLimitHeaders(c *fiber.Ctx, limit, remaining int) {
@@ -99,21 +105,31 @@ func setRateLimitHeaders(c *fiber.Ctx, limit, remaining int) {
 	c.Set("X-RateLimit-Remaining", strconv.Itoa(remaining))
 }
 
-func getOrCreateLimiter(store *rateLimiterStore, prefix, key string, entry *RateLimitEntry) *xrate.Limiter {
+func getOrCreateLimiter(store *rateLimiterStore, prefix, key string, entry *RateLimitEntry) limiter {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 
-	var m map[string]*xrate.Limiter
-	if prefix == "user" {
-		m = store.perUser
-	} else {
+	m := store.perUser
+	if prefix == "ip" {
+		if store.perIP == nil {
+			store.perIP = make(map[string]limiter)
+		}
 		m = store.perIP
+	} else {
+		if store.perUser == nil {
+			store.perUser = make(map[string]limiter)
+		}
 	}
 
 	if l, ok := m[key]; ok {
 		return l
 	}
-	l := xrate.NewLimiter(xrate.Limit(entry.RequestsPerSecond), entry.Burst)
+	rlKey := "sdk:rl:" + prefix + ":" + key
+	driver := "memory"
+	if store.rdb != nil {
+		driver = "redis"
+	}
+	l := newLimiter(driver, rlKey, entry, store.rdb)
 	m[key] = l
 	return l
 }
@@ -138,5 +154,3 @@ func rateLimitResponse(c *fiber.Ctx) error {
 		"message": "rate limit exceeded",
 	})
 }
-
-

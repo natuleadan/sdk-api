@@ -556,10 +556,49 @@ func (c *CronJob) Validate() error {
 
 // ---- LoadConfig ----
 
+func expandEnvDefaults(content string) string {
+	// Replace ${VAR:default} with env var value or default
+	result := ""
+	i := 0
+	for i < len(content) {
+		if content[i] == '$' && i+2 < len(content) && content[i+1] == '{' {
+			end := strings.Index(content[i:], "}")
+			if end < 0 {
+				result += string(content[i])
+				i++
+				continue
+			}
+			expr := content[i+2 : i+end]
+			parts := strings.SplitN(expr, ":", 2)
+			envName := parts[0]
+			envVal := os.Getenv(envName)
+			if envVal != "" {
+				result += envVal
+			} else if len(parts) > 1 {
+				result += parts[1] // use default
+			} else {
+				// Required env var not set
+				logx.Errorf("required env var %s is not set", envName)
+				result += "${" + envName + "}"
+			}
+			i += end + 1
+		} else {
+			result += string(content[i])
+			i++
+		}
+	}
+	return result
+}
+
 func LoadConfig(path string) (*ServiceConfig, error) {
 	var cfg ServiceConfig
 	if path != "" {
-		if err := conf.Load(path, &cfg, conf.UseEnv()); err != nil {
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("read config: %w", err)
+		}
+		expanded := expandEnvDefaults(string(content))
+		if err := conf.LoadFromYamlBytes([]byte(expanded), &cfg); err != nil {
 			return nil, fmt.Errorf("load config: %w", err)
 		}
 	}

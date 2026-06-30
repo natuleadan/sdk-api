@@ -46,7 +46,17 @@ security-sast:
 	go install github.com/securego/gosec/v2/cmd/gosec@latest
 	gosec -quiet -exclude=G304,G307 -exclude-dir=testdata ./...
 
-security-audit: security-deps security-sast
+security-sbom:
+	@echo "Generating SBOM (Software Bill of Materials)..."
+	go install github.com/anchore/syft/cmd/syft@latest
+	syft . -o spdx-json > sbom.spdx.json 2>/dev/null || echo "Syft not available, install via: brew install syft"
+
+security-audit: security-deps security-sast security-sbom
 	@echo "Security audit complete"
+
+golangci:
+	@echo "Running golangci-lint..."
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	golangci-lint run ./...
 
 .DEFAULT_GOAL := all

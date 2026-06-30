@@ -356,6 +356,18 @@ func (s *Service) initServer() error {
 	}
 
 	s.srv = server.New(srvCfg, server.TelemetryConfig{}, server.SecurityConfig{}, corsCfg)
+
+	// Auto-register CSP report endpoint if configured
+	if sc.SecurityHeaders != nil && sc.SecurityHeaders.CSPReportPath != "" {
+		path := sc.SecurityHeaders.CSPReportPath
+		s.srv.App().Post(path, func(c *fiber.Ctx) error {
+			body := string(c.Body())
+			logx.Errorf("CSP violation reported: %s", body)
+			return c.SendStatus(204)
+		})
+		logx.Infof("CSP report endpoint registered at %s", path)
+	}
+
 	return nil
 }
 
@@ -512,6 +524,7 @@ func convertSecurityHeaders(cfg *SecurityHeadersConf) *middleware.SecurityHeader
 		COEP:              cfg.COEP,
 		CORP:              cfg.CORP,
 		CacheControl:      cfg.CacheControl,
+		CSPReportPath:     cfg.CSPReportPath,
 	}
 }
 

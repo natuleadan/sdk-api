@@ -113,6 +113,7 @@ type SecurityHeadersConf struct {
 	COEP              string `json:"coep,optional"`
 	CORP              string `json:"corp,optional"`
 	CacheControl      string `json:"cache_control,optional"`
+	CSPReportPath     string `json:"csp_report_path,optional"` // auto-register POST endpoint for CSP reports (e.g. "/csp-violation")
 }
 
 type CSRFConf struct {

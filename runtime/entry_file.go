@@ -25,9 +25,10 @@ func registerFile(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, pref
 		}
 	}
 
-	// Wrap with nats_publish if configured
-	if len(entry.NATSPublish) > 0 && len(brokers) > 0 {
-		h = wrapEventPublish(context.Background(), h, entry.NATSPublish, brokers)
+	// Wrap with event_publish if configured
+	targets := getPublishTargets(entry)
+	if len(targets) > 0 && len(brokers) > 0 {
+		h = wrapEventPublish(context.Background(), h, targets, entry.EventStream, brokers)
 	}
 
 	switch entry.Method {

@@ -207,13 +207,24 @@ func (s *Service) RunWithContext(ctx context.Context) error {
 		s.pools = pools
 	}
 
-	// 2. Initialize NATS connections
+	// 2. Initialize event streams (NATS legacy + event_streams)
 	if len(s.config.NATS) > 0 {
 		conns, err := initNATSList(ctx, s.config.NATS)
 		if err != nil {
 			return fmt.Errorf("nats: %w", err)
 		}
-		s.natsConns = conns
+		for k, v := range conns {
+			s.natsConns[k] = v
+		}
+	}
+	if len(s.config.EventStreams) > 0 {
+		brokers, err := initEventStreams(ctx, s.config.EventStreams)
+		if err != nil {
+			return fmt.Errorf("event_streams: %w", err)
+		}
+		for k, v := range brokers {
+			s.natsConns[k] = v
+		}
 	}
 
 	// 3. Create HTTP server
@@ -349,6 +360,56 @@ func parseServerDuration(s string, fallback time.Duration) time.Duration {
 		return d
 	}
 	return fallback
+}
+
+func initEventStreams(ctx context.Context, configs []EventStreamConnConf) (map[string]events.EventBroker, error) {
+	brokers := make(map[string]events.EventBroker, len(configs))
+	for i, cfg := range configs {
+		if err := cfg.Validate(); err != nil {
+			return nil, fmt.Errorf("event_streams[%d] (%s): %w", i, cfg.Name, err)
+		}
+		var broker events.EventBroker
+		switch cfg.Driver {
+		case "nats":
+			conn, connErr := events.Connect(ctx, events.ConnOptions{
+				Name:          cfg.Name,
+				URL:           cfg.URL,
+				MaxReconnects: cfg.MaxReconnects,
+				ReconnectWait: parseServerDuration(cfg.ReconnectWait, 2*time.Second),
+				Timeout:       parseServerDuration(cfg.Timeout, 5*time.Second),
+				RetryOnFail:   cfg.RetryOnFail,
+			})
+			if connErr != nil {
+				return nil, fmt.Errorf("%s: %w", cfg.Name, connErr)
+			}
+			for _, sd := range cfg.Streams {
+				sc := events.DefaultStreamConfig(sd.Name)
+				if sd.MaxAge != "" {
+					if d, durErr := time.ParseDuration(sd.MaxAge); durErr == nil {
+						sc.MaxAge = d
+					}
+				}
+				if sd.MaxBytes > 0 {
+					sc.MaxBytes = sd.MaxBytes
+				}
+				sc.Storage = parseNATSStorage(sd.Storage)
+				sc.Compression = parseNATSCompression(sd.Compression)
+				if err := conn.EnsureStream(sc); err != nil {
+					return nil, fmt.Errorf("%s: stream %s: %w", cfg.Name, sd.Name, err)
+				}
+			}
+			broker = conn
+		case "kafka":
+			consumerGroup := cfg.ConsumerGroup
+			if consumerGroup == "" {
+				consumerGroup = cfg.Name + "-group"
+			}
+			broker = events.NewKafkaBroker(cfg.Name, cfg.Brokers, consumerGroup)
+		}
+		brokers[cfg.Name] = broker
+		logx.Infof("event stream ready: %s driver=%s", cfg.Name, cfg.Driver)
+	}
+	return brokers, nil
 }
 
 func initNATSList(ctx context.Context, natsList []NATSConnConf) (map[string]events.EventBroker, error) {

@@ -22,7 +22,8 @@ func registerCRUD(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, pref
 	}
 
 	ctx := context.Background()
-	hasNatsPublish := len(entry.NATSPublish) > 0 && len(brokers) > 0
+	pubTargets := getPublishTargets(entry)
+	hasPublish := len(pubTargets) > 0 && len(brokers) > 0
 
 	// GET /resource — list
 	if !isDisabled(ov, ov.List) {
@@ -78,8 +79,8 @@ func registerCRUD(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, pref
 				return nil
 			}
 		}
-		if hasNatsPublish {
-			handler = wrapEventPublish(ctx, handler, entry.NATSPublish, brokers)
+		if hasPublish {
+			handler = wrapEventPublish(ctx, handler, pubTargets, entry.EventStream, brokers)
 		}
 		app.Post(base, handler)
 	}
@@ -101,8 +102,8 @@ func registerCRUD(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, pref
 				return nil
 			}
 		}
-		if hasNatsPublish {
-			handler = wrapEventPublish(ctx, handler, entry.NATSPublish, brokers)
+		if hasPublish {
+			handler = wrapEventPublish(ctx, handler, pubTargets, entry.EventStream, brokers)
 		}
 		app.Patch(base+idParam, handler)
 	}
@@ -124,8 +125,8 @@ func registerCRUD(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, pref
 				return nil
 			}
 		}
-		if hasNatsPublish {
-			handler = wrapEventPublish(ctx, handler, entry.NATSPublish, brokers)
+		if hasPublish {
+			handler = wrapEventPublish(ctx, handler, pubTargets, entry.EventStream, brokers)
 		}
 		app.Delete(base+idParam, handler)
 	}

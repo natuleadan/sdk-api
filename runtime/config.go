@@ -11,14 +11,15 @@ import (
 // ---- Top-level ----
 
 type ServiceConfig struct {
-	Name      string         `json:"name"`
-	Port      int            `json:"port,default=8080"`
-	Server    ServerConf     `json:"server,optional"`
-	Databases []DBConfig     `json:"databases,optional"`
-	NATS      []NATSConnConf `json:"nats,optional"`
-	Entry     []EntryDef     `json:"entry,optional"`
-	Exit      []ExitWorker   `json:"exit,optional"`
-	Cron      []CronJob      `json:"cron,optional"`
+	Name         string                `json:"name"`
+	Port         int                   `json:"port,default=8080"`
+	Server       ServerConf            `json:"server,optional"`
+	Databases    []DBConfig            `json:"databases,optional"`
+	NATS         []NATSConnConf        `json:"nats,optional"`
+	EventStreams []EventStreamConnConf `json:"event_streams,optional"`
+	Entry        []EntryDef            `json:"entry,optional"`
+	Exit         []ExitWorker          `json:"exit,optional"`
+	Cron         []CronJob             `json:"cron,optional"`
 }
 
 // ---- Server ----
@@ -119,7 +120,56 @@ func (d *DBConfig) Validate() error {
 	return nil
 }
 
-// ---- NATS ----
+// ---- Event Streams (NATS + Kafka) ----
+
+type EventStreamConnConf struct {
+	Name          string      `json:"name"`
+	Driver        string      `json:"driver"` // nats, kafka
+	URL           string      `json:"url,optional"`
+	Brokers       []string    `json:"brokers,optional"`
+	ConsumerGroup string      `json:"consumer_group,optional"`
+	MaxReconnects int         `json:"max_reconnects,optional"`
+	ReconnectWait string      `json:"reconnect_wait,optional"`
+	Timeout       string      `json:"timeout,optional"`
+	RetryOnFail   bool        `json:"retry_on_fail,optional"`
+	Streams       []StreamDef `json:"streams,optional"`
+}
+
+func (e *EventStreamConnConf) Validate() error {
+	if e.Name == "" {
+		return fmt.Errorf("name is required")
+	}
+	switch e.Driver {
+	case "":
+		e.Driver = "nats"
+		fallthrough
+	case "nats":
+		if e.URL == "" {
+			return fmt.Errorf("nats driver: url is required")
+		}
+		if e.MaxReconnects <= 0 {
+			e.MaxReconnects = 10
+		}
+		if e.ReconnectWait == "" {
+			e.ReconnectWait = "2s"
+		}
+		if e.Timeout == "" {
+			e.Timeout = "5s"
+		}
+	case "kafka":
+		if len(e.Brokers) == 0 {
+			return fmt.Errorf("kafka driver: brokers is required")
+		}
+		if e.ConsumerGroup == "" {
+			e.ConsumerGroup = e.Name + "-group"
+		}
+	default:
+		return fmt.Errorf("unknown event stream driver %q (use nats or kafka)", e.Driver)
+	}
+	return nil
+}
+
+// ---- NATS (legacy) ----
 
 type NATSConnConf struct {
 	Name          string      `json:"name"`
@@ -165,8 +215,12 @@ type EntryDef struct {
 	Resource  string         `json:"resource,optional"`
 	Overrides *CRUDOverrides `json:"overrides,optional"`
 
-	// NATS publish after entry
-	NATSPublish []NATSPublishTarget `json:"nats_publish,optional"`
+	// Event stream selection
+	EventStream string `json:"event_stream,optional"`
+
+	// Publish after entry — event_publish is the new name, nats_publish is legacy
+	EventPublish []EventPublishTarget `json:"event_publish,optional"`
+	NATSPublish  []EventPublishTarget `json:"nats_publish,optional"`
 
 	// File
 	AllowedTypes []string   `json:"allowed_types,optional"`
@@ -182,9 +236,12 @@ type CRUDOverrides struct {
 	Delete string `json:"delete,optional"`
 }
 
-type NATSPublishTarget struct {
-	Stream  string `json:"stream"`
-	Subject string `json:"subject,optional"`
+type NATSPublishTarget = EventPublishTarget
+
+type EventPublishTarget struct {
+	Stream      string `json:"stream"`
+	Subject     string `json:"subject,optional"`
+	EventStream string `json:"event_stream,optional"` // broker name; empty = all brokers
 }
 
 type StorageDef struct {
@@ -297,10 +354,14 @@ func (e *EntryDef) Validate() error {
 		return fmt.Errorf("unknown entry type %q (use crud, rest, webhook, websocket, sse, file, async, or graphql)", e.Type)
 	}
 
-	// Validate NATS publish targets
-	for _, p := range e.NATSPublish {
+	// Validate publish targets (check event_publish first, then nats_publish)
+	targets := e.EventPublish
+	if len(targets) == 0 {
+		targets = e.NATSPublish
+	}
+	for _, p := range targets {
 		if p.Stream == "" {
-			return fmt.Errorf("nats_publish: stream is required")
+			return fmt.Errorf("event_publish: stream is required")
 		}
 		if p.Subject == "" {
 			p.Subject = p.Stream
@@ -323,6 +384,7 @@ type ExitWorker struct {
 	PullBatch     int          `json:"pull_batch,optional"`
 	PullMaxWait   string       `json:"pull_max_wait,optional"`
 	ConsumerMode  string       `json:"consumer_mode,optional"` // push or pull
+	EventStream   string       `json:"event_stream,optional"` // broker name
 }
 
 type SubscribeDef struct {
@@ -440,6 +502,21 @@ func LoadConfig(path string) (*ServiceConfig, error) {
 			return nil, fmt.Errorf("nats[%d]: duplicate name %q", i, cfg.NATS[i].Name)
 		}
 		seenNATS[cfg.NATS[i].Name] = true
+	}
+
+	// Validate Event Streams
+	seenES := make(map[string]bool)
+	for i := range cfg.EventStreams {
+		if err := cfg.EventStreams[i].Validate(); err != nil {
+			return nil, fmt.Errorf("event_streams[%d] (%s): %w", i, cfg.EventStreams[i].Name, err)
+		}
+		if seenES[cfg.EventStreams[i].Name] {
+			return nil, fmt.Errorf("event_streams[%d]: duplicate name %q", i, cfg.EventStreams[i].Name)
+		}
+		if seenNATS[cfg.EventStreams[i].Name] {
+			return nil, fmt.Errorf("event_streams[%d]: name %q conflicts with nats entry", i, cfg.EventStreams[i].Name)
+		}
+		seenES[cfg.EventStreams[i].Name] = true
 	}
 
 	// Validate entry endpoints

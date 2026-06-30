@@ -74,7 +74,12 @@ func getCache(svc *runtime.Service) *events.Cache[models.Link] {
 			log.Println("nats not available")
 			return nil
 		}
-		kv, err := natsConn.EnsureKeyValue(events.DefaultKVConfig("url-link-cache"))
+		c, ok := natsConn.(*events.Conn)
+		if !ok {
+			log.Println("expected NATS broker")
+			return nil
+		}
+		kv, err := c.EnsureKeyValue(events.DefaultKVConfig("url-link-cache"))
 		if err != nil {
 			log.Printf("cache init: %v", err)
 			return nil

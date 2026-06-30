@@ -94,5 +94,17 @@ func registerOneEntry(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, 
 		app.Use(path, middleware.ValidateInput(entry.ValidationModel))
 	}
 
+	// Register per-entry rate limit if configured
+	if entry.RateLimit != nil && entry.RateLimit.RequestsPerSecond > 0 {
+		path := prefix + entry.Path
+		rlCfg := middleware.RateLimitConfig{
+			Global: &middleware.RateLimitEntry{
+				RequestsPerSecond: entry.RateLimit.RequestsPerSecond,
+				Burst:             entry.RateLimit.Burst,
+			},
+		}
+		app.Use(path, middleware.RateLimit(rlCfg))
+	}
+
 	return nil
 }

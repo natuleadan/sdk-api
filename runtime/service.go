@@ -349,7 +349,7 @@ func (s *Service) initServer() error {
 		APIPrefix:       sc.APIPrefix,
 		Routes:          routes,
 		SecurityHeaders: convertSecurityHeaders(sc.SecurityHeaders),
-		CSRF:            convertCSRF(sc.CSRF),
+		CSRF:            convertCSRF(sc.CSRF, sc.Cookies),
 		RateLimit:       convertRateLimit(sc.RateLimit),
 		TLS:             convertTLS(sc.TLS),
 		SSRF:            convertSSRF(sc.SSRF),
@@ -515,11 +515,11 @@ func convertSecurityHeaders(cfg *SecurityHeadersConf) *middleware.SecurityHeader
 	}
 }
 
-func convertCSRF(cfg *CSRFConf) *middleware.CSRFConfig {
+func convertCSRF(cfg *CSRFConf, cookieCfg *CookieConf) *middleware.CSRFConfig {
 	if cfg == nil || !cfg.Enabled {
 		return nil
 	}
-	return &middleware.CSRFConfig{
+	c := &middleware.CSRFConfig{
 		Enabled:      cfg.Enabled,
 		CookieName:   cfg.CookieName,
 		HeaderName:   cfg.HeaderName,
@@ -527,6 +527,14 @@ func convertCSRF(cfg *CSRFConf) *middleware.CSRFConfig {
 		Secure:       cfg.Secure,
 		ExcludePaths: cfg.ExcludePaths,
 	}
+	// Apply global cookie config if not overridden per-CSRF
+	if c.SameSite == "" && cookieCfg != nil {
+		c.SameSite = cookieCfg.SameSite
+	}
+	if !c.Secure && cookieCfg != nil {
+		c.Secure = cookieCfg.Secure
+	}
+	return c
 }
 
 func convertRateLimit(cfg *RateLimitConf) *middleware.RateLimitConfig {

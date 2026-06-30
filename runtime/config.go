@@ -48,6 +48,12 @@ type ServerConf struct {
 	RateLimit       *RateLimitConf        `json:"rate_limit,optional"`
 	TLS             *TLSConf              `json:"tls,optional"`
 	SSRF            *SSRFConf             `json:"ssrf,optional"`
+	Cookies         *CookieConf           `json:"cookies,optional"`
+}
+
+type CookieConf struct {
+	SameSite string `json:"same_site,optional"` // Strict, Lax, None
+	Secure   bool   `json:"secure,optional"`
 }
 
 type RateLimitConf struct {
@@ -305,7 +311,8 @@ type EntryDef struct {
 	Storage      *StorageDef `json:"storage,optional"`
 
 	// Security per-entry overrides
-	CSRF *bool `json:"csrf,optional"` // false = skip CSRF for this entry
+	CSRF      *bool            `json:"csrf,optional"` // false = skip CSRF for this entry
+	RateLimit *RateLimitDef    `json:"rate_limit,optional"` // per-entry rate limit
 
 	// Validation
 	ValidationModel string `json:"validate,optional"` // validation model name

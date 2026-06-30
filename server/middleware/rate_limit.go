@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"strconv"
 	"sync"
 
 	"github.com/gofiber/fiber/v2"
@@ -45,20 +46,30 @@ func RateLimit(cfg RateLimitConfig) fiber.Handler {
 	}
 
 	return func(c *fiber.Ctx) error {
+		var limit, remaining int
+
 		// Global limit
 		if store.global != nil {
+			tokens := store.global.Tokens()
 			if !store.global.Allow() {
+				setRateLimitHeaders(c, cfg.Global.RequestsPerSecond, int(tokens))
 				return rateLimitResponse(c)
 			}
+			limit = cfg.Global.RequestsPerSecond
+			remaining = int(store.global.Tokens())
 		}
 
 		// Per-IP limit
 		if cfg.PerIP != nil && cfg.PerIP.RequestsPerSecond > 0 {
 			ip := c.IP()
 			limiter := getOrCreateLimiter(store, "ip", ip, cfg.PerIP)
+			tokens := limiter.Tokens()
 			if !limiter.Allow() {
+				setRateLimitHeaders(c, cfg.PerIP.RequestsPerSecond, int(tokens))
 				return rateLimitResponse(c)
 			}
+			limit = cfg.PerIP.RequestsPerSecond
+			remaining = int(limiter.Tokens())
 		}
 
 		// Per-user limit (extracts user from JWT claims if available)
@@ -66,14 +77,26 @@ func RateLimit(cfg RateLimitConfig) fiber.Handler {
 			userID := extractUserID(c)
 			if userID != "" {
 				limiter := getOrCreateLimiter(store, "user", userID, cfg.PerUser)
+				tokens := limiter.Tokens()
 				if !limiter.Allow() {
+					setRateLimitHeaders(c, cfg.PerUser.RequestsPerSecond, int(tokens))
 					return rateLimitResponse(c)
 				}
+				limit = cfg.PerUser.RequestsPerSecond
+				remaining = int(limiter.Tokens())
 			}
 		}
 
+		setRateLimitHeaders(c, limit, remaining)
 		return c.Next()
 	}
+}
+
+func setRateLimitHeaders(c *fiber.Ctx, limit, remaining int) {
+	if limit > 0 {
+		c.Set("X-RateLimit-Limit", strconv.Itoa(limit))
+	}
+	c.Set("X-RateLimit-Remaining", strconv.Itoa(remaining))
 }
 
 func getOrCreateLimiter(store *rateLimiterStore, prefix, key string, entry *RateLimitEntry) *xrate.Limiter {

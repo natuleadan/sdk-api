@@ -15,6 +15,7 @@ type CSRFConfig struct {
 	SameSite     string   `json:"same_site,optional"`
 	Secure       bool     `json:"secure,optional"`
 	ExcludePaths []string `json:"exclude_paths,optional"`
+	JSONCheck    bool     `json:"json_check,optional"`
 }
 
 func CSRF(cfg CSRFConfig) fiber.Handler {
@@ -53,6 +54,12 @@ func CSRF(cfg CSRFConfig) fiber.Handler {
 			return c.Next()
 		}
 
+		// JSON CSRF check: if body is JSON, browser Same-Origin Policy protects it.
+		// If body is NOT JSON (e.g. form-urlencoded), CSRF is still required.
+		if cfg.JSONCheck && isJSONContentType(c) {
+			return c.Next()
+		}
+
 		headerToken := c.Get(headerName)
 		cookieToken := c.Cookies(cookieName)
 		if headerToken == "" || cookieToken == "" || headerToken != cookieToken {
@@ -62,6 +69,11 @@ func CSRF(cfg CSRFConfig) fiber.Handler {
 		}
 		return c.Next()
 	}
+}
+
+func isJSONContentType(c *fiber.Ctx) bool {
+	ct := c.Get("Content-Type")
+	return strings.HasPrefix(ct, "application/json")
 }
 
 func isExcludedPath(path string, excludePaths []string) bool {

@@ -37,25 +37,26 @@ func generateJobID() string {
 func (m *AsyncJobManager) HandleSubmit() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		id := generateJobID()
-		js := m.store.Create(id)
-		body := append([]byte{}, c.Body()...) // copy: safe for goroutine
+	js := m.store.Create(id)
+	status := js.Status
+	body := append([]byte{}, c.Body()...) // copy: safe for goroutine
 
-		if m.processor != nil {
-			go func() {
-				m.store.Update(id, JobProcessing, nil, "")
-				if err := m.processor(body, js); err != nil {
-					m.store.Update(id, JobFailed, nil, err.Error())
-				} else {
-					m.store.Update(id, JobCompleted, js.Result, "")
-				}
-			}()
-		}
+	if m.processor != nil {
+		go func() {
+			m.store.Update(id, JobProcessing, nil, "")
+			if err := m.processor(body, js); err != nil {
+				m.store.Update(id, JobFailed, nil, err.Error())
+			} else {
+				m.store.Update(id, JobCompleted, js.Result, "")
+			}
+		}()
+	}
 
-		return c.Status(202).JSON(fiber.Map{
-			"job_id":     id,
-			"status":     js.Status,
-			"status_url": fmt.Sprintf("%s/%s", c.Path(), id),
-		})
+	return c.Status(202).JSON(fiber.Map{
+		"job_id":     id,
+		"status":     status,
+		"status_url": fmt.Sprintf("%s/%s", c.Path(), id),
+	})
 	}
 }
 

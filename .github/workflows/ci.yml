@@ -123,7 +123,25 @@ jobs:
           --health-timeout 3s
           --health-retries 10
 
-
+      kafka:
+        image: bitnami/kafka:latest
+        ports:
+          - 9092:9092
+        env:
+          KAFKA_CFG_NODE_ID: 1
+          KAFKA_CFG_PROCESS_ROLES: broker,controller
+          KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+          KAFKA_CFG_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+          KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+          KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+          KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+          KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+          ALLOW_PLAINTEXT_LISTENER: yes
+        options: >-
+          --health-cmd "bash -c 'printf \"\" > /dev/tcp/localhost/9092 2>/dev/null'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
 
     steps:
       - uses: actions/checkout@v7
@@ -145,10 +163,11 @@ jobs:
             sleep 1
           done
 
-      - name: Test runtime + events + db (with PG + NATS)
+      - name: Test runtime + events + db (with PG + NATS + Kafka)
         env:
           DATABASE_URL: "postgres://dev:devpass@localhost:15432/postgres?sslmode=disable"
           NATS_URL: "nats://localhost:14222"
+          KAFKA_URL: "localhost:9092"
         run: go test -race -v -count=1 ./runtime/... ./events/... ./db/...
 
   release:

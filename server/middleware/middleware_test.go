@@ -573,3 +573,281 @@ func TestMaxBytes(t *testing.T) {
 		t.Errorf("expected 413 for large body, got %d", resp2.StatusCode)
 	}
 }
+
+// --- Security Headers Tests ---
+
+func TestSecurityHeaders_Default(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Use(SecurityHeaders(SecurityHeadersConfig{
+		FrameOptions:   "DENY",
+		ReferrerPolicy: "strict-origin-when-cross-origin",
+		HSTS:           true,
+		HSTSMaxAge:     31536000,
+	}))
+	app.Get("/test", func(c *fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	req, _ := http.NewRequest("GET", "/test", nil)
+	resp, _ := app.Test(req)
+
+	tests := []struct {
+		header string
+		want   string
+	}{
+		{"X-Content-Type-Options", "nosniff"},
+		{"X-Frame-Options", "DENY"},
+		{"Referrer-Policy", "strict-origin-when-cross-origin"},
+		{"Strict-Transport-Security", "max-age=31536000"},
+	}
+	for _, tt := range tests {
+		got := resp.Header.Get(tt.header)
+		if got != tt.want {
+			t.Errorf("%s = %q, want %q", tt.header, got, tt.want)
+		}
+	}
+}
+
+func TestSecurityHeaders_EmptyConfig(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Use(SecurityHeaders(SecurityHeadersConfig{}))
+	app.Get("/test", func(c *fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	req, _ := http.NewRequest("GET", "/test", nil)
+	resp, _ := app.Test(req)
+
+	if v := resp.Header.Get("X-Content-Type-Options"); v != "nosniff" {
+		t.Errorf("X-Content-Type-Options = %q, want nosniff", v)
+	}
+	if v := resp.Header.Get("X-Frame-Options"); v != "" {
+		t.Errorf("expected no X-Frame-Options, got %q", v)
+	}
+}
+
+func TestSecurityHeaders_CSP(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Use(SecurityHeaders(SecurityHeadersConfig{
+		CSP: "default-src 'self'; script-src 'self'; img-src 'self' data:;",
+	}))
+	app.Get("/test", func(c *fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	req, _ := http.NewRequest("GET", "/test", nil)
+	resp, _ := app.Test(req)
+
+	want := "default-src 'self'; script-src 'self'; img-src 'self' data:;"
+	if got := resp.Header.Get("Content-Security-Policy"); got != want {
+		t.Errorf("CSP = %q, want %q", got, want)
+	}
+}
+
+func TestSecurityHeaders_AllHeaders(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Use(SecurityHeaders(SecurityHeadersConfig{
+		FrameOptions:      "DENY",
+		ReferrerPolicy:    "strict-origin-when-cross-origin",
+		PermissionsPolicy: "camera=(), microphone=()",
+		HSTS:              true,
+		HSTSMaxAge:        31536000,
+		HSTSIncludeSubs:   false,
+		CSP:               "default-src 'self'",
+		COOP:              "same-origin",
+		COEP:              "require-corp",
+		CORP:              "same-origin",
+		CacheControl:      "no-store",
+	}))
+	app.Get("/test", func(c *fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	req, _ := http.NewRequest("GET", "/test", nil)
+	resp, _ := app.Test(req)
+
+	checks := map[string]string{
+		"X-Content-Type-Options":         "nosniff",
+		"X-Frame-Options":                "DENY",
+		"Referrer-Policy":                "strict-origin-when-cross-origin",
+		"Permissions-Policy":             "camera=(), microphone=()",
+		"Strict-Transport-Security":      "max-age=31536000",
+		"Content-Security-Policy":        "default-src 'self'",
+		"Cross-Origin-Opener-Policy":     "same-origin",
+		"Cross-Origin-Embedder-Policy":   "require-corp",
+		"Cross-Origin-Resource-Policy":   "same-origin",
+		"Cache-Control":                  "no-store",
+	}
+	for h, want := range checks {
+		if got := resp.Header.Get(h); got != want {
+			t.Errorf("%s = %q, want %q", h, got, want)
+		}
+	}
+}
+
+// --- CSP Builder Tests ---
+
+func TestBuildCSP_Basic(t *testing.T) {
+	csp := BuildCSP(CSPConfig{})
+	if csp == "" {
+		t.Fatal("expected non-empty CSP")
+	}
+	if !contains(csp, "default-src 'self'") {
+		t.Errorf("expected default-src 'self', got %q", csp)
+	}
+}
+
+func TestBuildCSP_Strict(t *testing.T) {
+	csp := BuildCSP(CSPConfig{Level: CSPLevelStrict})
+	if !contains(csp, "strict-dynamic") {
+		t.Errorf("expected strict-dynamic in strict CSP, got %q", csp)
+	}
+}
+
+func TestBuildCSP_Custom(t *testing.T) {
+	csp := BuildCSP(CSPConfig{
+		DefaultSrc: []string{"'none'"},
+		ScriptSrc:  []string{"'self'", "https://cdn.example.com"},
+		ImgSrc:     []string{"'self'", "data:"},
+	})
+	if !contains(csp, "default-src 'none'") {
+		t.Errorf("expected default-src 'none', got %q", csp)
+	}
+	if !contains(csp, "cdn.example.com") {
+		t.Errorf("expected cdn.example.com in script-src, got %q", csp)
+	}
+}
+
+func TestGenerateNonce(t *testing.T) {
+	n1 := GenerateNonce()
+	n2 := GenerateNonce()
+	if n1 == "" || n2 == "" {
+		t.Fatal("expected non-empty nonces")
+	}
+	if n1 == n2 {
+		t.Error("expected different nonces")
+	}
+}
+
+func contains(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
+
+// --- CSRF Tests ---
+
+func TestCSRF_InjectOnGET(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Use(CSRF(CSRFConfig{Enabled: true}))
+	app.Get("/test", func(c *fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	req, _ := http.NewRequest("GET", "/test", nil)
+	resp, _ := app.Test(req)
+
+	if resp.StatusCode != 200 {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+	cookies := resp.Header.Values("Set-Cookie")
+	found := false
+	for _, c := range cookies {
+		if contains(c, "csrf_token=") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected csrf_token cookie in Set-Cookie")
+	}
+}
+
+func TestCSRF_ValidateOnPOST(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Use(CSRF(CSRFConfig{Enabled: true, CookieName: "csrf_test", HeaderName: "X-CSRF-Test"}))
+	app.Post("/test", func(c *fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	// GET to get token
+	req1, _ := http.NewRequest("GET", "/test", nil)
+	resp1, _ := app.Test(req1)
+	cookie := resp1.Header.Get("Set-Cookie")
+
+	// POST with matching token
+	token := extractCSRFToken(cookie)
+	req2, _ := http.NewRequest("POST", "/test", nil)
+	req2.Header.Set("X-CSRF-Test", token)
+	req2.Header.Set("Cookie", extractCookieName(cookie))
+	resp2, _ := app.Test(req2)
+	if resp2.StatusCode != 200 {
+		t.Errorf("expected 200 with valid token, got %d", resp2.StatusCode)
+	}
+}
+
+func TestCSRF_RejectOnMismatch(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Use(CSRF(CSRFConfig{Enabled: true}))
+	app.Post("/test", func(c *fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	req, _ := http.NewRequest("POST", "/test", nil)
+	req.Header.Set("X-CSRF-Token", "invalid-token")
+	req.Header.Set("Cookie", "csrf_token=other-token")
+	resp, _ := app.Test(req)
+
+	if resp.StatusCode != 403 {
+		t.Errorf("expected 403 for mismatched token, got %d", resp.StatusCode)
+	}
+}
+
+func TestCSRF_SkipExcludedPath(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Use(CSRF(CSRFConfig{
+		Enabled:      true,
+		ExcludePaths: []string{"/webhooks/*"},
+	}))
+	app.Post("/webhooks/stripe", func(c *fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	req, _ := http.NewRequest("POST", "/webhooks/stripe", nil)
+	resp, _ := app.Test(req)
+
+	if resp.StatusCode != 200 {
+		t.Errorf("expected 200 for excluded path, got %d", resp.StatusCode)
+	}
+}
+
+func extractCSRFToken(setCookie string) string {
+	for _, part := range strings.Split(setCookie, ";") {
+		part = strings.TrimSpace(part)
+		if strings.HasPrefix(part, "csrf_token=") {
+			return strings.TrimPrefix(part, "csrf_token=")
+		}
+		if strings.HasPrefix(part, "csrf_test=") {
+			return strings.TrimPrefix(part, "csrf_test=")
+		}
+	}
+	return ""
+}
+
+func extractCookieName(setCookie string) string {
+	if idx := strings.Index(setCookie, ";"); idx > 0 {
+		return setCookie[:idx]
+	}
+	return setCookie
+}

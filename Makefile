@@ -1,4 +1,4 @@
-.PHONY: all build test test-unit test-integration lint clean third-party
+.PHONY: all build test test-unit test-integration lint clean third-party security-deps security-sast security-sbom security-audit
 
 all: build lint test-unit
 
@@ -33,5 +33,20 @@ third-party:
 	@go run github.com/google/go-licenses@latest csv ./... 2>/dev/null | grep -v "natuleadan" | \
 	  awk -F, '{printf "- %s (%s)\n  %s\n\n", $$1, $$3, $$2}' > ThirdPartyNotices.txt
 	@echo "Done"
+
+# --- Security Scanning ---
+
+security-deps:
+	@echo "Scanning dependencies for vulnerabilities..."
+	go install golang.org/x/vuln/cmd/govulncheck@latest
+	govulncheck ./...
+
+security-sast:
+	@echo "Running static analysis security testing (SAST)..."
+	go install github.com/securego/gosec/v2/cmd/gosec@latest
+	gosec -quiet -exclude=G304,G307 -exclude-dir=testdata ./...
+
+security-audit: security-deps security-sast
+	@echo "Security audit complete"
 
 .DEFAULT_GOAL := all

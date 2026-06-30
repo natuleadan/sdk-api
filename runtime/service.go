@@ -12,6 +12,7 @@ import (
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/natuleadan/sdk-api/infra/proc"
 	"github.com/natuleadan/sdk-api/server"
+	"github.com/natuleadan/sdk-api/server/middleware"
 )
 
 // Service is the main runtime orchestrator. It reads a service YAML,
@@ -326,6 +327,8 @@ func (s *Service) initServer() error {
 		RecoverStack:    sc.RecoverStack,
 		APIPrefix:       sc.APIPrefix,
 		Routes:          routes,
+		SecurityHeaders: convertSecurityHeaders(sc.SecurityHeaders),
+		CSRF:            convertCSRF(sc.CSRF),
 	}
 
 	s.srv = server.New(srvCfg, server.TelemetryConfig{}, server.SecurityConfig{}, corsCfg)
@@ -466,6 +469,39 @@ func parseNATSCompression(s string) events.CompressionType {
 		return events.NoCompression
 	default:
 		return events.S2Compression
+	}
+}
+
+func convertSecurityHeaders(cfg *SecurityHeadersConf) *middleware.SecurityHeadersConfig {
+	if cfg == nil {
+		return nil
+	}
+	return &middleware.SecurityHeadersConfig{
+		FrameOptions:      cfg.FrameOptions,
+		ReferrerPolicy:    cfg.ReferrerPolicy,
+		PermissionsPolicy: cfg.PermissionsPolicy,
+		HSTS:              cfg.HSTS,
+		HSTSMaxAge:        cfg.HSTSMaxAge,
+		HSTSIncludeSubs:   cfg.HSTSIncludeSubs,
+		CSP:               cfg.CSP,
+		COOP:              cfg.COOP,
+		COEP:              cfg.COEP,
+		CORP:              cfg.CORP,
+		CacheControl:      cfg.CacheControl,
+	}
+}
+
+func convertCSRF(cfg *CSRFConf) *middleware.CSRFConfig {
+	if cfg == nil || !cfg.Enabled {
+		return nil
+	}
+	return &middleware.CSRFConfig{
+		Enabled:      cfg.Enabled,
+		CookieName:   cfg.CookieName,
+		HeaderName:   cfg.HeaderName,
+		SameSite:     cfg.SameSite,
+		Secure:       cfg.Secure,
+		ExcludePaths: cfg.ExcludePaths,
 	}
 }
 

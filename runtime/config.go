@@ -25,22 +25,47 @@ type ServiceConfig struct {
 // ---- Server ----
 
 type ServerConf struct {
-	Host            string      `json:"host,default=0.0.0.0"`
-	Prefork         bool        `json:"prefork,optional"`
-	BodyLimit       int         `json:"body_limit,default=4194304"`
-	Timeout         string      `json:"timeout,default=30s"`
-	MaxConns        int         `json:"max_conns,default=1000"`
-	MaxBytes        int         `json:"max_bytes,default=4194304"`
-	MetricsPath     string      `json:"metrics_path,default=/metrics"`
-	HealthPath      string      `json:"health_path,default=/health"`
-	ShutdownTimeout string      `json:"shutdown_timeout,default=10s"`
-	RecoverStack    bool        `json:"recover_stack,default=true"`
-	APIPrefix       string      `json:"api_prefix,default=/api/v1"`
-	CORS            *CORSConf   `json:"cors,optional"`
-	Middleware      []RouteMW   `json:"middleware,optional"`
-	Static          []StaticDef `json:"static,optional"`
-	MaxConnLimit    int         `json:"max_conn_limit,default=1000"`
-	OpenAPI         *OpenAPIConf `json:"openapi,optional"`
+	Host            string                `json:"host,default=0.0.0.0"`
+	Prefork         bool                  `json:"prefork,optional"`
+	BodyLimit       int                   `json:"body_limit,default=4194304"`
+	Timeout         string                `json:"timeout,default=30s"`
+	MaxConns        int                   `json:"max_conns,default=1000"`
+	MaxBytes        int                   `json:"max_bytes,default=4194304"`
+	MetricsPath     string                `json:"metrics_path,default=/metrics"`
+	HealthPath      string                `json:"health_path,default=/health"`
+	ShutdownTimeout string                `json:"shutdown_timeout,default=10s"`
+	RecoverStack    bool                  `json:"recover_stack,default=true"`
+	APIPrefix       string                `json:"api_prefix,default=/api/v1"`
+	CORS            *CORSConf             `json:"cors,optional"`
+	Middleware      []RouteMW             `json:"middleware,optional"`
+	Static          []StaticDef           `json:"static,optional"`
+	MaxConnLimit    int                   `json:"max_conn_limit,default=1000"`
+	OpenAPI         *OpenAPIConf          `json:"openapi,optional"`
+	SecurityHeaders *SecurityHeadersConf  `json:"security_headers,optional"`
+	CSRF            *CSRFConf             `json:"csrf,optional"`
+}
+
+type SecurityHeadersConf struct {
+	FrameOptions      string `json:"frame_options,optional"`
+	ReferrerPolicy    string `json:"referrer_policy,optional"`
+	PermissionsPolicy string `json:"permissions_policy,optional"`
+	HSTS              bool   `json:"hsts,optional"`
+	HSTSMaxAge        int    `json:"hsts_max_age,optional"`
+	HSTSIncludeSubs   bool   `json:"hsts_include_subdomains,optional"`
+	CSP               string `json:"csp,optional"`
+	COOP              string `json:"coop,optional"`
+	COEP              string `json:"coep,optional"`
+	CORP              string `json:"corp,optional"`
+	CacheControl      string `json:"cache_control,optional"`
+}
+
+type CSRFConf struct {
+	Enabled     bool     `json:"enabled,optional"`
+	CookieName  string   `json:"cookie_name,optional"`
+	HeaderName  string   `json:"header_name,optional"`
+	SameSite    string   `json:"same_site,optional"`
+	Secure      bool     `json:"secure,optional"`
+	ExcludePaths []string `json:"exclude_paths,optional"`
 }
 
 type RouteMW struct {
@@ -226,6 +251,9 @@ type EntryDef struct {
 	AllowedTypes []string   `json:"allowed_types,optional"`
 	MaxSize      string     `json:"max_size,optional"`
 	Storage      *StorageDef `json:"storage,optional"`
+
+	// Security per-entry overrides
+	CSRF *bool `json:"csrf,optional"` // false = skip CSRF for this entry
 }
 
 type CRUDOverrides struct {

@@ -32,6 +32,10 @@ type Config struct {
 	RecoverStack    bool
 	APIPrefix       string
 	Routes          []RouteConfig
+
+	// Security
+	SecurityHeaders *middleware.SecurityHeadersConfig
+	CSRF            *middleware.CSRFConfig
 }
 
 type TelemetryConfig struct {
@@ -132,6 +136,16 @@ func New(cfg Config, telemetry TelemetryConfig, security SecurityConfig, corsCfg
 	}
 
 	app.Get(cfg.MetricsPath, middleware.PrometheusHandler())
+
+	// Security headers middleware (always-on if configured)
+	if cfg.SecurityHeaders != nil {
+		app.Use(middleware.SecurityHeaders(*cfg.SecurityHeaders))
+	}
+
+	// CSRF middleware (global if enabled)
+	if cfg.CSRF != nil {
+		app.Use(middleware.CSRF(*cfg.CSRF))
+	}
 
 	// Security middlewares (global if enabled)
 	if security.ContentSecurity != nil && security.ContentSecurity.Enabled {

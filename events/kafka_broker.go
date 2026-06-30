@@ -13,7 +13,6 @@ type KafkaBroker struct {
 	name          string
 	brokers       []string
 	consumerGroup string
-	writers       map[string]*kafka.Writer
 	mu            sync.Mutex
 	ensured       map[string]bool
 }
@@ -23,7 +22,6 @@ func NewKafkaBroker(name string, brokers []string, consumerGroup string) *KafkaB
 		name:          name,
 		brokers:       brokers,
 		consumerGroup: consumerGroup,
-		writers:       make(map[string]*kafka.Writer),
 		ensured:       make(map[string]bool),
 	}
 }
@@ -31,39 +29,24 @@ func NewKafkaBroker(name string, brokers []string, consumerGroup string) *KafkaB
 func (b *KafkaBroker) Name() string { return b.name }
 
 func (b *KafkaBroker) Publish(ctx context.Context, subject string, data []byte) error {
-	writer, err := b.getWriter(subject)
-	if err != nil {
-		return err
-	}
-	return writer.WriteMessages(ctx, kafka.Message{
-		Value: data,
-	})
-}
-
-func (b *KafkaBroker) getWriter(topic string) (*kafka.Writer, error) {
 	b.mu.Lock()
-	if w, ok := b.writers[topic]; ok {
-		b.mu.Unlock()
-		return w, nil
-	}
-
-	if !b.ensured[topic] {
-		if err := b.ensureTopic(topic); err != nil {
+	if !b.ensured[subject] {
+		if err := b.ensureTopic(subject); err != nil {
 			b.mu.Unlock()
-			return nil, err
+			return err
 		}
-		b.ensured[topic] = true
+		b.ensured[subject] = true
 	}
-
-	w := &kafka.Writer{
-		Addr:     kafka.TCP(b.brokers...),
-		Topic:    topic,
-		Balancer: &kafka.LeastBytes{},
-		Async:    false,
-	}
-	b.writers[topic] = w
 	b.mu.Unlock()
-	return w, nil
+
+	conn, err := kafka.DialLeader(ctx, "tcp", b.brokers[0], subject, 0)
+	if err != nil {
+		return fmt.Errorf("kafka: dial leader: %w", err)
+	}
+	defer conn.Close()
+
+	_, err = conn.WriteMessages(kafka.Message{Value: data})
+	return err
 }
 
 func (b *KafkaBroker) ensureTopic(topic string) error {
@@ -80,19 +63,19 @@ func (b *KafkaBroker) ensureTopic(topic string) error {
 	}); err != nil {
 		return fmt.Errorf("kafka: create topic %s: %w", topic, err)
 	}
-
-	// brief wait for metadata propagation
-	time.Sleep(100 * time.Millisecond)
 	return nil
 }
 
 func (b *KafkaBroker) Subscribe(ctx context.Context, subject string, durable string, handler MessageHandler) (Subscription, error) {
+	b.mu.Lock()
 	if !b.ensured[subject] {
 		if err := b.ensureTopic(subject); err != nil {
+			b.mu.Unlock()
 			return nil, err
 		}
 		b.ensured[subject] = true
 	}
+	b.mu.Unlock()
 
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers:     b.brokers,
@@ -149,13 +132,7 @@ func (b *KafkaBroker) EnsureStreams(configs ...StreamConfig) error {
 }
 
 func (b *KafkaBroker) Close() error {
-	var lastErr error
-	for topic, w := range b.writers {
-		if err := w.Close(); err != nil {
-			lastErr = fmt.Errorf("kafka: close writer %s: %w", topic, err)
-		}
-	}
-	return lastErr
+	return nil
 }
 
 type kafkaSubscription struct {

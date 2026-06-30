@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/natuleadan/sdk-api/infra/conf"
+	"github.com/natuleadan/sdk-api/infra/logx"
 )
 
 // ---- Top-level ----
@@ -43,6 +45,21 @@ type ServerConf struct {
 	OpenAPI         *OpenAPIConf          `json:"openapi,optional"`
 	SecurityHeaders *SecurityHeadersConf  `json:"security_headers,optional"`
 	CSRF            *CSRFConf             `json:"csrf,optional"`
+	RateLimit       *RateLimitConf        `json:"rate_limit,optional"`
+}
+
+type RateLimitConf struct {
+	Enabled  bool            `json:"enabled,optional"`
+	Driver   string          `json:"driver,default=memory"`
+	RedisURL string          `json:"redis_url,optional"`
+	Global   *RateLimitDef   `json:"global,optional"`
+	PerIP    *RateLimitDef   `json:"per_ip,optional"`
+	PerUser  *RateLimitDef   `json:"per_user,optional"`
+}
+
+type RateLimitDef struct {
+	RequestsPerSecond int `json:"requests_per_second"`
+	Burst             int `json:"burst"`
 }
 
 type SecurityHeadersConf struct {
@@ -575,7 +592,74 @@ func LoadConfig(path string) (*ServiceConfig, error) {
 		}
 	}
 
+	// Warn about potential plaintext secrets in config
+	checkPlaintextSecrets(&cfg)
+
 	return &cfg, nil
+}
+
+// checkPlaintextSecrets logs warnings for values that look like secrets
+// but are hardcoded instead of using ${VAR} environment variable substitution.
+func checkPlaintextSecrets(cfg *ServiceConfig) {
+	secretFields := map[string]func(*ServiceConfig) string{
+		"JWT secret":        func(c *ServiceConfig) string { return "" }, // checked via server.auth
+		"Databases URL":     func(c *ServiceConfig) string {
+			if len(cfg.Databases) > 0 {
+				return cfg.Databases[0].URL
+			}
+			return ""
+		},
+	}
+	_ = secretFields
+
+	// Check database URLs
+	for i, db := range cfg.Databases {
+		if looksLikePlaintextSecret(db.URL) {
+			logx.Errorf("config: databases[%d].url appears to contain a plaintext secret (use ${VAR} instead)", i)
+		}
+	}
+
+	// Check NATS URLs
+	for i, n := range cfg.NATS {
+		if looksLikePlaintextSecret(n.URL) {
+			logx.Errorf("config: nats[%d].url appears to contain a plaintext secret (use ${VAR} instead)", i)
+		}
+	}
+
+	// Check storage secrets (S3 access/secret keys)
+	for i, entry := range cfg.Entry {
+		if entry.Storage != nil {
+			if looksLikePlaintextSecret(entry.Storage.AccessKey) {
+				logx.Errorf("config: entry[%d].storage.access_key appears to be a plaintext secret", i)
+			}
+			if looksLikePlaintextSecret(entry.Storage.SecretKey) {
+				logx.Errorf("config: entry[%d].storage.secret_key appears to be a plaintext secret", i)
+			}
+		}
+	}
+}
+
+func looksLikePlaintextSecret(s string) bool {
+	if s == "" {
+		return false
+	}
+	if strings.HasPrefix(s, "${") && strings.HasSuffix(s, "}") {
+		return false
+	}
+	// Heuristic: if it contains common credential patterns, warn
+	lower := strings.ToLower(s)
+	if strings.Contains(lower, "password") ||
+		strings.Contains(lower, "secret") ||
+		strings.Contains(lower, "key") ||
+		strings.Contains(lower, "token") ||
+		strings.Contains(lower, "auth") {
+		return true
+	}
+	// If it looks like a JWT or base64 (long string with dots or many chars)
+	if len(s) > 40 && (strings.Contains(s, ".") || strings.Count(s, "") > 60) {
+		return true
+	}
+	return false
 }
 
 // ---- helpers ----

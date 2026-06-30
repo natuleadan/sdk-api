@@ -329,6 +329,7 @@ func (s *Service) initServer() error {
 		Routes:          routes,
 		SecurityHeaders: convertSecurityHeaders(sc.SecurityHeaders),
 		CSRF:            convertCSRF(sc.CSRF),
+		RateLimit:       convertRateLimit(sc.RateLimit),
 	}
 
 	s.srv = server.New(srvCfg, server.TelemetryConfig{}, server.SecurityConfig{}, corsCfg)
@@ -502,6 +503,39 @@ func convertCSRF(cfg *CSRFConf) *middleware.CSRFConfig {
 		SameSite:     cfg.SameSite,
 		Secure:       cfg.Secure,
 		ExcludePaths: cfg.ExcludePaths,
+	}
+}
+
+func convertRateLimit(cfg *RateLimitConf) *middleware.RateLimitConfig {
+	if cfg == nil || !cfg.Enabled {
+		return nil
+	}
+	var global, perIP, perUser *middleware.RateLimitEntry
+	if cfg.Global != nil {
+		global = &middleware.RateLimitEntry{
+			RequestsPerSecond: cfg.Global.RequestsPerSecond,
+			Burst:             cfg.Global.Burst,
+		}
+	}
+	if cfg.PerIP != nil {
+		perIP = &middleware.RateLimitEntry{
+			RequestsPerSecond: cfg.PerIP.RequestsPerSecond,
+			Burst:             cfg.PerIP.Burst,
+		}
+	}
+	if cfg.PerUser != nil {
+		perUser = &middleware.RateLimitEntry{
+			RequestsPerSecond: cfg.PerUser.RequestsPerSecond,
+			Burst:             cfg.PerUser.Burst,
+		}
+	}
+	return &middleware.RateLimitConfig{
+		Enabled:  cfg.Enabled,
+		Driver:   cfg.Driver,
+		RedisURL: cfg.RedisURL,
+		Global:   global,
+		PerIP:    perIP,
+		PerUser:  perUser,
 	}
 }
 

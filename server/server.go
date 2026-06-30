@@ -36,6 +36,7 @@ type Config struct {
 	// Security
 	SecurityHeaders *middleware.SecurityHeadersConfig
 	CSRF            *middleware.CSRFConfig
+	RateLimit       *middleware.RateLimitConfig
 }
 
 type TelemetryConfig struct {
@@ -145,6 +146,11 @@ func New(cfg Config, telemetry TelemetryConfig, security SecurityConfig, corsCfg
 	// CSRF middleware (global if enabled)
 	if cfg.CSRF != nil {
 		app.Use(middleware.CSRF(*cfg.CSRF))
+	}
+
+	// Rate limit middleware (global if configured)
+	if cfg.RateLimit != nil {
+		app.Use(middleware.RateLimit(*cfg.RateLimit))
 	}
 
 	// Security middlewares (global if enabled)

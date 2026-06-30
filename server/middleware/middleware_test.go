@@ -851,3 +851,119 @@ func extractCookieName(setCookie string) string {
 	}
 	return setCookie
 }
+
+// --- Rate Limit Tests ---
+
+func TestRateLimit_Global_UnderLimit(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Use(RateLimit(RateLimitConfig{
+		Global: &RateLimitEntry{RequestsPerSecond: 1000, Burst: 1000},
+	}))
+	app.Get("/test", func(c *fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	for i := 0; i < 5; i++ {
+		req, _ := http.NewRequest("GET", "/test", nil)
+		resp, _ := app.Test(req)
+		if resp.StatusCode != 200 {
+			t.Errorf("request %d: expected 200, got %d", i, resp.StatusCode)
+		}
+	}
+}
+
+func TestRateLimit_Global_OverLimit(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Use(RateLimit(RateLimitConfig{
+		Global: &RateLimitEntry{RequestsPerSecond: 1, Burst: 1},
+	}))
+	app.Get("/test", func(c *fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	// First request should pass (burst=1)
+	req, _ := http.NewRequest("GET", "/test", nil)
+	resp, _ := app.Test(req)
+	if resp.StatusCode != 200 {
+		t.Errorf("first request: expected 200, got %d", resp.StatusCode)
+	}
+
+	// Immediate second request should be rate limited
+	req2, _ := http.NewRequest("GET", "/test", nil)
+	resp2, _ := app.Test(req2)
+	if resp2.StatusCode != 429 {
+		t.Errorf("second request: expected 429, got %d", resp2.StatusCode)
+	}
+}
+
+func TestRateLimit_Disabled(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	// If no rate limit config is set (or not enabled), no middleware should be added.
+	// Passing empty RateLimitConfig with no entries = no limiter created, all pass.
+	app.Use(RateLimit(RateLimitConfig{}))
+	app.Get("/test", func(c *fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	for i := 0; i < 100; i++ {
+		req, _ := http.NewRequest("GET", "/test", nil)
+		resp, _ := app.Test(req)
+		if resp.StatusCode != 200 {
+			t.Errorf("request %d: expected 200, got %d", i, resp.StatusCode)
+			break
+		}
+	}
+}
+
+func TestRateLimit_PerIP(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Use(RateLimit(RateLimitConfig{
+		PerIP: &RateLimitEntry{RequestsPerSecond: 1, Burst: 1},
+	}))
+	app.Get("/test", func(c *fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	// First request passes (burst=1)
+	req, _ := http.NewRequest("GET", "/test", nil)
+	resp, _ := app.Test(req)
+	if resp.StatusCode != 200 {
+		t.Errorf("first request: expected 200, got %d", resp.StatusCode)
+	}
+
+	// Second request from same IP is rate limited
+	req2, _ := http.NewRequest("GET", "/test", nil)
+	resp2, _ := app.Test(req2)
+	if resp2.StatusCode != 429 {
+		t.Errorf("second request: expected 429, got %d", resp2.StatusCode)
+	}
+}
+
+func TestRateLimit_RetryAfterHeader(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Use(RateLimit(RateLimitConfig{
+		Global: &RateLimitEntry{RequestsPerSecond: 1, Burst: 1},
+	}))
+	app.Get("/test", func(c *fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	// First passes
+	req, _ := http.NewRequest("GET", "/test", nil)
+	app.Test(req)
+
+	// Second is rate limited
+	req2, _ := http.NewRequest("GET", "/test", nil)
+	resp2, _ := app.Test(req2)
+	if resp2.StatusCode != 429 {
+		t.Fatalf("expected 429, got %d", resp2.StatusCode)
+	}
+	if resp2.Header.Get("Retry-After") == "" {
+		t.Error("expected Retry-After header")
+	}
+}

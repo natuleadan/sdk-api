@@ -47,6 +47,7 @@ type ServerConf struct {
 	CSRF            *CSRFConf             `json:"csrf,optional"`
 	RateLimit       *RateLimitConf        `json:"rate_limit,optional"`
 	TLS             *TLSConf              `json:"tls,optional"`
+	SSRF            *SSRFConf             `json:"ssrf,optional"`
 }
 
 type RateLimitConf struct {
@@ -61,6 +62,14 @@ type RateLimitConf struct {
 type RateLimitDef struct {
 	RequestsPerSecond int `json:"requests_per_second"`
 	Burst             int `json:"burst"`
+}
+
+type SSRFConf struct {
+	Enabled       bool     `json:"enabled,optional"`
+	BlockPrivate  bool     `json:"block_private,optional"`
+	BlockLoopback bool     `json:"block_loopback,optional"`
+	BlockMetadata bool     `json:"block_metadata,optional"`
+	AllowedHosts  []string `json:"allowed_hosts,optional"`
 }
 
 type TLSConf struct {
@@ -291,6 +300,8 @@ type EntryDef struct {
 	// File
 	AllowedTypes []string   `json:"allowed_types,optional"`
 	MaxSize      string     `json:"max_size,optional"`
+	MaxFiles     int        `json:"max_files,optional"`
+	MagicBytes   bool       `json:"magic_bytes,optional"`
 	Storage      *StorageDef `json:"storage,optional"`
 
 	// Security per-entry overrides

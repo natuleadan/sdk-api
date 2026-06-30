@@ -331,6 +331,7 @@ func (s *Service) initServer() error {
 		CSRF:            convertCSRF(sc.CSRF),
 		RateLimit:       convertRateLimit(sc.RateLimit),
 		TLS:             convertTLS(sc.TLS),
+		SSRF:            convertSSRF(sc.SSRF),
 	}
 
 	s.srv = server.New(srvCfg, server.TelemetryConfig{}, server.SecurityConfig{}, corsCfg)
@@ -537,6 +538,19 @@ func convertRateLimit(cfg *RateLimitConf) *middleware.RateLimitConfig {
 		Global:   global,
 		PerIP:    perIP,
 		PerUser:  perUser,
+	}
+}
+
+func convertSSRF(cfg *SSRFConf) *middleware.SSRFConfig {
+	if cfg == nil || !cfg.Enabled {
+		return nil
+	}
+	return &middleware.SSRFConfig{
+		Enabled:       cfg.Enabled,
+		BlockPrivate:  cfg.BlockPrivate,
+		BlockLoopback: cfg.BlockLoopback,
+		BlockMetadata: cfg.BlockMetadata,
+		AllowedHosts:  cfg.AllowedHosts,
 	}
 }
 

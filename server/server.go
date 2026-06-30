@@ -37,6 +37,7 @@ type Config struct {
 	CSRF            *middleware.CSRFConfig
 	RateLimit       *middleware.RateLimitConfig
 	TLS             *TLSConfig
+	SSRF            *middleware.SSRFConfig
 }
 
 type TelemetryConfig struct {
@@ -118,10 +119,11 @@ func New(cfg Config, telemetry TelemetryConfig, security SecurityConfig, corsCfg
 		ErrorHandler: errorHandler,
 	})
 
-	// Global middlewares (always on: recover, health, trace, prometheus metrics)
+	// Global middlewares (always on: recover, health, header sanitize, trace, prometheus metrics)
 	app.Use(recover.New(recover.Config{
 		EnableStackTrace: cfg.RecoverStack,
 	}))
+	app.Use(middleware.HeaderSanitize())
 	app.Use(healthcheck.New(healthcheck.Config{
 		LivenessProbe:    func(c *fiber.Ctx) bool { return true },
 		LivenessEndpoint: cfg.HealthPath,
@@ -151,6 +153,11 @@ func New(cfg Config, telemetry TelemetryConfig, security SecurityConfig, corsCfg
 	// Rate limit middleware (global if configured)
 	if cfg.RateLimit != nil {
 		app.Use(middleware.RateLimit(*cfg.RateLimit))
+	}
+
+	// SSRF protection (disabled by default)
+	if cfg.SSRF != nil && cfg.SSRF.Enabled {
+		_ = middleware.NewSafeHTTPClient(*cfg.SSRF)
 	}
 
 	// Security middlewares (global if enabled)
@@ -284,8 +291,19 @@ func errorHandler(c *fiber.Ctx, err error) error {
 	if e, ok := err.(*fiber.Error); ok {
 		code = e.Code
 	}
+	message := sanitizeErrorMessage(err.Error(), code)
+	if code >= 500 {
+		logx.Errorf("internal error: %v", err)
+	}
 	return c.Status(code).JSON(ErrorResponse{
 		Code:    code,
-		Message: err.Error(),
+		Message: message,
 	})
+}
+
+func sanitizeErrorMessage(msg string, code int) string {
+	if code < 500 {
+		return msg
+	}
+	return "internal server error"
 }

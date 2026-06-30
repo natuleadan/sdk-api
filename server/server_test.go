@@ -241,3 +241,47 @@ func TestTLS_AutocertManager(t *testing.T) {
 		t.Error("expected GetCertificate callback")
 	}
 }
+
+// --- Error Sanitization Tests ---
+
+func TestErrorHandler_SanitizesInternalError(t *testing.T) {
+	logx.Disable()
+	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, nil)
+	app.app.Get("/db-error", func(c *fiber.Ctx) error {
+		return fiber.NewError(fiber.StatusInternalServerError, "dial tcp 10.0.0.5:5432: connection refused")
+	})
+
+	req, _ := http.NewRequest("GET", "/db-error", nil)
+	resp, _ := app.app.Test(req)
+
+	body, _ := io.ReadAll(resp.Body)
+	var errResp ErrorResponse
+	json.Unmarshal(body, &errResp)
+	if errResp.Code != 500 {
+		t.Errorf("expected code 500, got %d", errResp.Code)
+	}
+	if errResp.Message != "internal server error" {
+		t.Errorf("expected sanitized message, got %q", errResp.Message)
+	}
+}
+
+func TestErrorHandler_LeavesClientErrors(t *testing.T) {
+	logx.Disable()
+	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, nil)
+	app.app.Get("/bad-request", func(c *fiber.Ctx) error {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid input")
+	})
+
+	req, _ := http.NewRequest("GET", "/bad-request", nil)
+	resp, _ := app.app.Test(req)
+
+	body, _ := io.ReadAll(resp.Body)
+	var errResp ErrorResponse
+	json.Unmarshal(body, &errResp)
+	if errResp.Code != 400 {
+		t.Errorf("expected code 400, got %d", errResp.Code)
+	}
+	if errResp.Message != "invalid input" {
+		t.Errorf("expected original message, got %q", errResp.Message)
+	}
+}

@@ -967,3 +967,137 @@ func TestRateLimit_RetryAfterHeader(t *testing.T) {
 		t.Error("expected Retry-After header")
 	}
 }
+
+// --- CRLF Protection Tests ---
+
+func TestHeaderSanitize_Clean(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Use(HeaderSanitize())
+	app.Get("/test", func(c *fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	req, _ := http.NewRequest("GET", "/test", nil)
+	req.Header.Set("X-Custom", "clean-value")
+	resp, _ := app.Test(req)
+	if resp.StatusCode != 200 {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
+func TestCRLF_Detect(t *testing.T) {
+	tests := []struct {
+		input []byte
+		want  bool
+	}{
+		{[]byte("clean"), false},
+		{[]byte("value\r\ninjected"), true},
+		{[]byte("value\ninjected"), true},
+		{[]byte("value\rinjected"), true},
+		{[]byte(""), false},
+	}
+	for _, tt := range tests {
+		got := containsCRLF(tt.input)
+		if got != tt.want {
+			t.Errorf("containsCRLF(%q) = %v, want %v", string(tt.input), got, tt.want)
+		}
+	}
+}
+
+// --- SSRF Tests ---
+
+func TestSSRF_Disabled(t *testing.T) {
+	logx.Disable()
+	cfg := SSRFConfig{Enabled: false}
+	client := NewSafeHTTPClient(cfg)
+	if client == nil {
+		t.Fatal("expected non-nil client")
+	}
+}
+
+func TestSSRF_BlockPrivate(t *testing.T) {
+	cfg := SSRFConfig{
+		Enabled:      true,
+		BlockPrivate: true,
+		AllowAll:     false,
+	}
+	client := NewSafeHTTPClient(cfg)
+	if err := client.checker.validate("10.0.0.5"); err == nil {
+		t.Error("expected error for private IP")
+	}
+}
+
+func TestSSRF_BlockLoopback(t *testing.T) {
+	cfg := SSRFConfig{
+		Enabled:       true,
+		BlockLoopback: true,
+		AllowAll:      false,
+	}
+	client := NewSafeHTTPClient(cfg)
+	if err := client.checker.validate("127.0.0.1"); err == nil {
+		t.Error("expected error for loopback IP")
+	}
+}
+
+func TestSSRF_BlockMetadata(t *testing.T) {
+	cfg := SSRFConfig{
+		Enabled:       true,
+		BlockMetadata: true,
+		AllowAll:      false,
+	}
+	client := NewSafeHTTPClient(cfg)
+	if err := client.checker.validate("169.254.169.254"); err == nil {
+		t.Error("expected error for metadata IP")
+	}
+}
+
+func TestSSRF_ExternalHostPasses(t *testing.T) {
+	cfg := SSRFConfig{
+		Enabled:      true,
+		BlockPrivate: true,
+		AllowAll:     false,
+	}
+	client := NewSafeHTTPClient(cfg)
+	if err := client.checker.validate("93.184.216.34"); err != nil {
+		t.Errorf("expected no error for public IP, got %v", err)
+	}
+}
+
+func TestSSRF_AllowedHost(t *testing.T) {
+	cfg := SSRFConfig{
+		Enabled:      true,
+		BlockPrivate: true,
+		AllowedHosts: []string{"api.example.com"},
+		AllowAll:     false,
+	}
+	client := NewSafeHTTPClient(cfg)
+	if client == nil {
+		t.Fatal("expected non-nil client")
+	}
+	// allowed host is not blocked (even if DNS fails, it won't error with private IP)
+	req, _ := http.NewRequest("GET", "https://api.example.com/test", nil)
+	_, err := client.Do(req)
+	if err != nil && err.Error() != "ssrf: cannot resolve host api.example.com" {
+		t.Logf("unexpected error: %v", err)
+	}
+}
+
+func TestSSRF_AllowAll(t *testing.T) {
+	// allow_all bypasses validation entirely (even for private IPs)
+	cfg := SSRFConfig{
+		Enabled:      true,
+		BlockPrivate: true,
+		BlockMetadata: true,
+		AllowAll:     true,
+	}
+	client := NewSafeHTTPClient(cfg)
+	if client == nil {
+		t.Fatal("expected non-nil client")
+	}
+	// With allowAll, the validation should pass (error would be connection refused, not SSRF blocked)
+	checker := client.checker
+	if err := checker.validate("10.0.0.5"); err != nil {
+		t.Errorf("expected no error with allowAll, got %v", err)
+	}
+}

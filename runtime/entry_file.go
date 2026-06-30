@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -68,6 +69,21 @@ func fileValidator(entry *EntryDef) func(*fiber.Ctx) error {
 			maxBytes := parseMaxSize(entry.MaxSize)
 			if maxBytes > 0 && len(c.Body()) > maxBytes {
 				return fiber.NewError(413, "request body too large")
+			}
+		}
+
+		// Magic byte verification: check actual content matches declared type
+		if entry.MagicBytes && len(c.Body()) > 512 {
+			detected := http.DetectContentType(c.Body())
+			allowed := false
+			for _, t := range entry.AllowedTypes {
+				if matchContentType(detected, t) {
+					allowed = true
+					break
+				}
+			}
+			if !allowed {
+				return fiber.NewError(415, fmt.Sprintf("file content type %q does not match allowed types", detected))
 			}
 		}
 

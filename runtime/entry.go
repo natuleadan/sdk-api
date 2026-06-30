@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/natuleadan/sdk-api/db"
 	"github.com/natuleadan/sdk-api/events"
 	"github.com/natuleadan/sdk-api/server"
 )
@@ -32,24 +33,26 @@ type EntryHandlers struct {
 	SSE       map[string]SSEHandler
 	CRUD      map[string]CRUDProvider
 	Storage   map[string]server.StorageBackend
+	Async     map[string]AsyncHandler
 	Transform map[string]any // handler name → EntryHooks[T] (untyped due to generics)
 }
 
 // RegisterEntries iterates over cfg.Entry and registers all HTTP routes on app.
 // natsConns is optional — used for auto-publishing on nats_publish targets.
-func RegisterEntries(app *fiber.App, cfg *ServiceConfig, handlers *EntryHandlers, prefix string, natsConns map[string]*events.Conn) error {
+// models is optional — used for GraphQL schema generation.
+func RegisterEntries(app *fiber.App, cfg *ServiceConfig, handlers *EntryHandlers, prefix string, natsConns map[string]*events.Conn, models map[string]*db.TableInfo) error {
 	for i, entry := range cfg.Entry {
-		if err := registerOneEntry(app, &entry, handlers, prefix, natsConns); err != nil {
+		if err := registerOneEntry(app, &entry, handlers, prefix, natsConns, models); err != nil {
 			return fmt.Errorf("entry[%d] %s %s: %w", i, entry.Type, entry.Path, err)
 		}
 	}
 	return nil
 }
 
-func registerOneEntry(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, natsConns map[string]*events.Conn) error {
+func registerOneEntry(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, natsConns map[string]*events.Conn, models map[string]*db.TableInfo) error {
 	switch entry.Type {
 	case "crud":
-		return registerCRUD(app, entry, handlers, prefix)
+		return registerCRUD(app, entry, handlers, prefix, natsConns)
 	case "rest":
 		return registerREST(app, entry, handlers, prefix, natsConns)
 	case "webhook":
@@ -59,7 +62,11 @@ func registerOneEntry(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, 
 	case "sse":
 		return registerSSE(app, entry, handlers, prefix)
 	case "file":
-		return registerFile(app, entry, handlers, prefix)
+		return registerFile(app, entry, handlers, prefix, natsConns)
+	case "async":
+		return registerAsync(app, entry, handlers, prefix)
+	case "graphql":
+		return registerGraphQL(app, entry, handlers, prefix, models)
 	default:
 		return fmt.Errorf("unknown entry type %q", entry.Type)
 	}

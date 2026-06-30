@@ -280,8 +280,21 @@ func (e *EntryDef) Validate() error {
 			return fmt.Errorf("file: storage.path is required for mode=local")
 		}
 
+	case "async":
+		if e.Path == "" {
+			return fmt.Errorf("async: path is required")
+		}
+		if e.Handler == "" {
+			return fmt.Errorf("async: handler is required")
+		}
+
+	case "graphql":
+		if e.Path == "" {
+			return fmt.Errorf("graphql: path is required")
+		}
+
 	default:
-		return fmt.Errorf("unknown entry type %q (use crud, rest, webhook, websocket, sse, or file)", e.Type)
+		return fmt.Errorf("unknown entry type %q (use crud, rest, webhook, websocket, sse, file, async, or graphql)", e.Type)
 	}
 
 	// Validate NATS publish targets

@@ -162,7 +162,7 @@ entry:
 		MaxConns:  1000,
 	}
 	svc.initServer()
-	err = RegisterEntries(svc.srv.App(), svc.config, svc.handlers, "/api/v1", nil)
+	err = RegisterEntries(svc.srv.App(), svc.config, svc.handlers, "/api/v1", nil, nil)
 	if err != nil {
 		t.Fatalf("RegisterEntries: %v", err)
 	}
@@ -217,7 +217,7 @@ entry:
 		MaxConns:  1000,
 	}
 	svc.initServer()
-	err = RegisterEntries(svc.srv.App(), svc.config, svc.handlers, "/api/v1", nil)
+	err = RegisterEntries(svc.srv.App(), svc.config, svc.handlers, "/api/v1", nil, nil)
 	if err != nil {
 		t.Fatalf("RegisterEntries: %v", err)
 	}
@@ -297,7 +297,7 @@ entry:
 		MaxConns:  1000,
 	}
 	svc.initServer()
-	RegisterEntries(svc.srv.App(), svc.config, svc.handlers, "/api/v1", nil)
+	RegisterEntries(svc.srv.App(), svc.config, svc.handlers, "/api/v1", nil, nil)
 
 	app := svc.srv.App()
 	req := httptest.NewRequest("GET", "/api/v1/status", nil)

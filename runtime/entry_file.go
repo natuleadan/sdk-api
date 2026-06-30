@@ -5,9 +5,10 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/natuleadan/sdk-api/events"
 )
 
-func registerFile(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string) error {
+func registerFile(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, natsConns map[string]*events.Conn) error {
 	h := resolveHandler(handlers.Rest, entry.Handler)
 	if h == nil {
 		return fmt.Errorf("file handler %q not found", entry.Handler)
@@ -21,6 +22,11 @@ func registerFile(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, pref
 		case "POST", "PUT", "PATCH":
 			app.Use(path, validate)
 		}
+	}
+
+	// Wrap with nats_publish if configured
+	if len(entry.NATSPublish) > 0 && natsConns != nil {
+		h = wrapNATSPublish(h, entry.NATSPublish, natsConns)
 	}
 
 	switch entry.Method {

@@ -6,11 +6,13 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/gofiber/contrib/websocket"
 	"github.com/gofiber/fiber/v2"
+	"github.com/natuleadan/sdk-api/db"
 	"github.com/natuleadan/sdk-api/infra/jsonx"
 )
 
@@ -105,7 +107,7 @@ func TestRegisterEntries_CRUD_AllMethods(t *testing.T) {
 			{Type: "crud", Model: "Product", DB: "pg", Table: "products", Resource: "products", Path: "/products"},
 		},
 	}
-	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil)
+	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil)
 	if err != nil {
 		t.Fatalf("RegisterEntries: %v", err)
 	}
@@ -170,7 +172,7 @@ func TestRegisterEntries_CRUD_Overrides(t *testing.T) {
 				},
 			},
 		}
-		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil)
+		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil)
 		if err != nil {
 			t.Fatalf("RegisterEntries: %v", err)
 		}
@@ -208,7 +210,7 @@ func TestRegisterEntries_CRUD_Overrides(t *testing.T) {
 				},
 			},
 		}
-		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil)
+		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil)
 		if err != nil {
 			t.Fatalf("RegisterEntries: %v", err)
 		}
@@ -245,7 +247,7 @@ func TestRegisterEntries_REST(t *testing.T) {
 			{Type: "rest", Method: "POST", Path: "/custom", Handler: "onCustom"},
 		},
 	}
-	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil)
+	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil)
 	if err != nil {
 		t.Fatalf("RegisterEntries: %v", err)
 	}
@@ -282,7 +284,7 @@ func TestRegisterEntries_Webhook(t *testing.T) {
 			{Type: "webhook", Method: "POST", Path: "/webhooks/test", Handler: "onWebhook"},
 		},
 	}
-	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil)
+	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil)
 	if err != nil {
 		t.Fatalf("RegisterEntries: %v", err)
 	}
@@ -317,7 +319,7 @@ func TestRegisterEntries_Webhook_AllMethods(t *testing.T) {
 			{Type: "webhook", Method: "DELETE", Path: "/wh/delete", Handler: "whDelete"},
 		},
 	}
-	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil)
+	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil)
 	if err != nil {
 		t.Fatalf("RegisterEntries: %v", err)
 	}
@@ -366,7 +368,7 @@ func TestRegisterEntries_WebSocket(t *testing.T) {
 			{Type: "websocket", Path: "/ws/chat", Handler: "onChat"},
 		},
 	}
-	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil)
+	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil)
 	if err != nil {
 		t.Fatalf("RegisterEntries: %v", err)
 	}
@@ -389,7 +391,7 @@ func TestRegisterEntries_SSE(t *testing.T) {
 			{Type: "sse", Path: "/events/stream", Handler: "onStream"},
 		},
 	}
-	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil)
+	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil)
 	if err != nil {
 		t.Fatalf("RegisterEntries: %v", err)
 	}
@@ -426,7 +428,7 @@ func TestRegisterEntries_File(t *testing.T) {
 				},
 			},
 		}
-		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil)
+		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil)
 		if err != nil {
 			t.Fatalf("RegisterEntries: %v", err)
 		}
@@ -480,7 +482,7 @@ func TestRegisterEntries_File(t *testing.T) {
 				{Type: "file", Method: "GET", Path: "/files/:id/download", Handler: "onDownload"},
 			},
 		}
-		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil)
+		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil)
 		if err != nil {
 			t.Fatalf("RegisterEntries: %v", err)
 		}
@@ -509,7 +511,7 @@ func TestRegisterEntries_File(t *testing.T) {
 				{Type: "file", Method: "DELETE", Path: "/files/:id", Handler: "onDelete"},
 			},
 		}
-		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil)
+		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil)
 		if err != nil {
 			t.Fatalf("RegisterEntries: %v", err)
 		}
@@ -567,7 +569,7 @@ func TestRegisterEntries_MixedTypes(t *testing.T) {
 			{Type: "sse", Path: "/events/stream", Handler: "onStream"},
 		},
 	}
-	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil)
+	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil)
 	if err != nil {
 		t.Fatalf("RegisterEntries: %v", err)
 	}
@@ -610,7 +612,7 @@ func TestRegisterEntries_Errors(t *testing.T) {
 				{Type: "crud", Model: "Missing", DB: "pg", Table: "t", Path: "/t"},
 			},
 		}
-		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil)
+		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil)
 		if err == nil {
 			t.Error("expected error for missing CRUD provider")
 		}
@@ -626,7 +628,7 @@ func TestRegisterEntries_Errors(t *testing.T) {
 				{Type: "rest", Method: "GET", Path: "/x", Handler: "notFound"},
 			},
 		}
-		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil)
+		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil)
 		if err == nil {
 			t.Error("expected error for missing REST handler")
 		}
@@ -640,7 +642,7 @@ func TestRegisterEntries_Errors(t *testing.T) {
 				{Type: "grpc", Path: "/x"},
 			},
 		}
-		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil)
+		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil)
 		if err == nil {
 			t.Error("expected error for unknown type")
 		}
@@ -658,7 +660,7 @@ func TestRegisterEntries_Errors(t *testing.T) {
 				},
 			},
 		}
-		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil)
+		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil)
 		if err == nil {
 			t.Error("expected error for missing override handler")
 		}
@@ -812,4 +814,148 @@ func stringsReader(s string) io.Reader {
 
 func bytesReader(b []byte) io.Reader {
 	return bytes.NewReader(b)
+}
+
+func TestRegisterEntries_Async(t *testing.T) {
+	app := testApp()
+
+	handlers := &EntryHandlers{
+		Async: map[string]AsyncHandler{
+			"processReport": func(body []byte, js *JobState) error {
+				js.Result = fiber.Map{"report_url": "https://example.com/report.pdf", "input": string(body)}
+				return nil
+			},
+		},
+	}
+
+	cfg := &ServiceConfig{
+		Entry: []EntryDef{
+			{Type: "async", Path: "/jobs/reports", Handler: "processReport"},
+		},
+	}
+	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil)
+	if err != nil {
+		t.Fatalf("RegisterEntries: %v", err)
+	}
+
+	resp1, err := request(app, "POST", "/api/v1/jobs/reports", stringsReader(`{"type":"monthly"}`))
+	if err != nil {
+		t.Fatalf("POST request failed: %v", err)
+	}
+	defer resp1.Body.Close()
+
+	if resp1.StatusCode != 202 {
+		t.Fatalf("POST status = %d, want 202", resp1.StatusCode)
+	}
+
+	body1, _ := io.ReadAll(resp1.Body)
+	var submitResp struct {
+		JobID     string `json:"job_id"`
+		Status    string `json:"status"`
+		StatusURL string `json:"status_url"`
+	}
+	jsonx.Unmarshal(body1, &submitResp)
+
+	if submitResp.JobID == "" {
+		t.Fatal("job_id is empty")
+	}
+	if submitResp.Status != "pending" && submitResp.Status != "processing" && submitResp.Status != "completed" {
+		t.Fatalf("status = %q, want pending/processing/completed", submitResp.Status)
+	}
+
+	resp2, err := request(app, "GET", submitResp.StatusURL, nil)
+	if err != nil {
+		t.Fatalf("GET status request failed: %v", err)
+	}
+	defer resp2.Body.Close()
+
+	if resp2.StatusCode != 200 {
+		t.Fatalf("GET status = %d, want 200", resp2.StatusCode)
+	}
+
+	body2, _ := io.ReadAll(resp2.Body)
+	var statusResp JobState
+	jsonx.Unmarshal(body2, &statusResp)
+
+	if statusResp.ID != submitResp.JobID {
+		t.Errorf("job_id = %q, want %q", statusResp.ID, submitResp.JobID)
+	}
+
+	resp3, err := request(app, "GET", "/api/v1/jobs/reports/nonexistent", nil)
+	if err != nil {
+		t.Fatalf("GET nonexistent request failed: %v", err)
+	}
+	defer resp3.Body.Close()
+
+	if resp3.StatusCode != 404 {
+		t.Fatalf("GET nonexistent status = %d, want 404", resp3.StatusCode)
+	}
+}
+
+func TestRegisterEntries_GraphQL(t *testing.T) {
+	app := testApp()
+
+	type ProductStruct struct {
+		ID    int64  `db:"id,primary,auto"`
+		Name  string `db:"name,required"`
+		Price int    `db:"price"`
+	}
+	mInfo, _ := db.ParseStructReflect(reflect.TypeOf(ProductStruct{}))
+	models := map[string]*db.TableInfo{"Product": mInfo}
+
+	provider := &mockCRUDProvider{}
+	handlers := &EntryHandlers{
+		CRUD: map[string]CRUDProvider{"Product": provider},
+	}
+
+	cfg := &ServiceConfig{
+		Entry: []EntryDef{
+			{Type: "graphql", Path: "/graphql"},
+		},
+	}
+	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, models)
+	if err != nil {
+		t.Fatalf("RegisterEntries: %v", err)
+	}
+
+	// Introspection query — should return data
+	resp, err := request(app, "POST", "/api/v1/graphql",
+		strings.NewReader(`{"query":"{ __typename }"}`))
+	if err != nil {
+		t.Fatalf("introspection request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	t.Log("graphql endpoint registered successfully")
+
+	// Query list
+	resp2, err := request(app, "POST", "/api/v1/graphql",
+		strings.NewReader(`{"query":"{ Products { Id Name } }"}`))
+	if err != nil {
+		t.Fatalf("query request failed: %v", err)
+	}
+	defer resp2.Body.Close()
+
+	if resp2.StatusCode != 200 {
+		body, _ := io.ReadAll(resp2.Body)
+		t.Fatalf("query status = %d, body: %s", resp2.StatusCode, string(body))
+	}
+	t.Log("graphql query successful")
+
+	// Mutation
+	resp3, err := request(app, "POST", "/api/v1/graphql",
+		strings.NewReader(`{"query":"mutation { createProduct(input: {Name: \"test\"}) { Id Name } }"}`))
+	if err != nil {
+		t.Fatalf("mutation request failed: %v", err)
+	}
+	defer resp3.Body.Close()
+
+	if resp3.StatusCode != 200 {
+		body3, _ := io.ReadAll(resp3.Body)
+		t.Fatalf("mutation status = %d, body: %s", resp3.StatusCode, string(body3))
+	}
+	t.Log("graphql mutation successful")
 }

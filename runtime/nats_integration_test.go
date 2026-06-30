@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"sync/atomic"
@@ -316,6 +317,87 @@ func TestIntegration_GracefulShutdown(t *testing.T) {
 		t.Errorf("in-flight = %d, want 0 after drain", inFlight.Load())
 	}
 	t.Logf("graceful shutdown: in-flight=0, completed=%d", completed.Load())
+}
+
+func TestIntegration_CRUD_NATSPublish(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	natsURL := getNATSTestURL(t)
+
+	ctx := context.Background()
+	conn, err := events.Connect(ctx, events.ConnOptions{URL: natsURL, Timeout: 3 * time.Second})
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	defer conn.Drain()
+
+	streamName := "it-crud-pub-" + randSuffix()
+	conn.EnsureStream(events.StreamConfig{Name: streamName, Subjects: []string{streamName}})
+
+	// Subscribe to verify publishes
+	var received atomic.Int64
+	sub, _ := conn.JS.Subscribe(streamName, func(m *nats.Msg) {
+		received.Add(1)
+		m.Ack()
+	}, nats.ManualAck())
+	defer sub.Unsubscribe()
+
+	app := fiber.New(fiber.Config{
+		ErrorHandler: func(c *fiber.Ctx, err error) error {
+			code := fiber.StatusInternalServerError
+			if e, ok := err.(*fiber.Error); ok {
+				code = e.Code
+			}
+			return c.Status(code).JSON(fiber.Map{"code": code, "message": err.Error()})
+		},
+	})
+
+	provider := &mockCRUDProvider{}
+	handlers := &EntryHandlers{
+		CRUD: map[string]CRUDProvider{"Product": provider},
+	}
+
+	cfg := &ServiceConfig{
+		Entry: []EntryDef{
+			{
+				Type:        "crud",
+				Model:       "Product",
+				Resource:    "products",
+				DB:          "test",
+				Path:        "/products",
+				NATSPublish: []NATSPublishTarget{{Stream: streamName, Subject: streamName}},
+			},
+		},
+	}
+	err = RegisterEntries(app, cfg, handlers, "/api/v1", map[string]*events.Conn{"default": conn}, nil)
+	if err != nil {
+		t.Fatalf("RegisterEntries: %v", err)
+	}
+
+	// 1. POST → should publish to NATS
+	resp, _ := app.Test(httptest.NewRequest("POST", "/api/v1/products", strings.NewReader(`{"name":"test"}`)))
+	resp.Body.Close()
+	time.Sleep(100 * time.Millisecond)
+
+	// 2. PATCH → should publish to NATS
+	resp2, _ := app.Test(httptest.NewRequest("PATCH", "/api/v1/products/1", strings.NewReader(`{"name":"updated"}`)))
+	resp2.Body.Close()
+	time.Sleep(100 * time.Millisecond)
+
+	// 3. DELETE → should publish to NATS
+	resp3, _ := app.Test(httptest.NewRequest("DELETE", "/api/v1/products/1", nil))
+	resp3.Body.Close()
+	time.Sleep(100 * time.Millisecond)
+
+	// 4. GET → should NOT publish (read-only)
+	resp4, _ := app.Test(httptest.NewRequest("GET", "/api/v1/products", nil))
+	resp4.Body.Close()
+
+	if received.Load() < 3 {
+		t.Errorf("nats_publish for CRUD: received %d messages, want >= 3 (POST+PATCH+DELETE)", received.Load())
+	}
+	t.Logf("CRUD nats_publish: %d messages published", received.Load())
 }
 
 // --- Helpers ---

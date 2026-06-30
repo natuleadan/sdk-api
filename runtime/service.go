@@ -133,6 +133,15 @@ func (s *Service) WithCron(name string, handler CronJobFunc) *Service {
 	return s
 }
 
+// WithAsync registers an async job handler by name.
+func (s *Service) WithAsync(name string, handler AsyncHandler) *Service {
+	if s.handlers.Async == nil {
+		s.handlers.Async = make(map[string]AsyncHandler)
+	}
+	s.handlers.Async[name] = handler
+	return s
+}
+
 // RegisterModel registers a model for OpenAPI schema generation.
 // Usage: svc.RegisterModel("Product", (*Product)(nil)).
 func (s *Service) RegisterModel(name string, model any) *Service {
@@ -233,7 +242,7 @@ func (s *Service) RunWithContext(ctx context.Context) error {
 			}
 		}
 		prefix := s.config.Server.APIPrefix
-		if err := RegisterEntries(s.srv.App(), s.config, s.handlers, prefix, s.natsConns); err != nil {
+		if err := RegisterEntries(s.srv.App(), s.config, s.handlers, prefix, s.natsConns, s.models); err != nil {
 			return fmt.Errorf("entry routes: %w", err)
 		}
 	}

@@ -5,9 +5,10 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/natuleadan/sdk-api/events"
 )
 
-func registerCRUD(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string) error {
+func registerCRUD(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, natsConns map[string]*events.Conn) error {
 	provider, ok := handlers.CRUD[entry.Model]
 	if !ok {
 		return fmt.Errorf("crud model %q: no provider registered", entry.Model)
@@ -18,6 +19,8 @@ func registerCRUD(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, pref
 	if ov == nil {
 		ov = &CRUDOverrides{}
 	}
+
+	hasNatsPublish := len(entry.NATSPublish) > 0 && natsConns != nil
 
 	// GET /resource — list
 	if !isDisabled(ov, ov.List) {
@@ -60,60 +63,69 @@ func registerCRUD(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, pref
 
 	// POST /resource — create
 	if !isDisabled(ov, ov.Create) {
+		var handler = resolveHandler(handlers.Rest, ov.Create)
 		if isOverridden(ov, ov.Create) {
-			h := resolveHandler(handlers.Rest, ov.Create)
-			if h == nil {
+			if handler == nil {
 				return fmt.Errorf("crud create override: handler %q not found", ov.Create)
 			}
-			app.Post(base, h)
 		} else {
-			app.Post(base, func(c *fiber.Ctx) error {
+			handler = func(c *fiber.Ctx) error {
 				if err := provider.Create(c, c.Body()); err != nil {
 					return err
 				}
 				return nil
-			})
+			}
 		}
+		if hasNatsPublish {
+			handler = wrapNATSPublish(handler, entry.NATSPublish, natsConns)
+		}
+		app.Post(base, handler)
 	}
 
 	// PATCH /resource/:id — update
 	if !isDisabled(ov, ov.Update) {
 		idParam := buildIDParam(entry.Path)
+		var handler = resolveHandler(handlers.Rest, ov.Update)
 		if isOverridden(ov, ov.Update) {
-			h := resolveHandler(handlers.Rest, ov.Update)
-			if h == nil {
+			if handler == nil {
 				return fmt.Errorf("crud update override: handler %q not found", ov.Update)
 			}
-			app.Patch(base+idParam, h)
 		} else {
-			app.Patch(base+idParam, func(c *fiber.Ctx) error {
+			handler = func(c *fiber.Ctx) error {
 				id := c.Params("id")
 				if err := provider.Update(c, id, c.Body()); err != nil {
 					return err
 				}
 				return nil
-			})
+			}
 		}
+		if hasNatsPublish {
+			handler = wrapNATSPublish(handler, entry.NATSPublish, natsConns)
+		}
+		app.Patch(base+idParam, handler)
 	}
 
 	// DELETE /resource/:id — delete
 	if !isDisabled(ov, ov.Delete) {
 		idParam := buildIDParam(entry.Path)
+		var handler = resolveHandler(handlers.Rest, ov.Delete)
 		if isOverridden(ov, ov.Delete) {
-			h := resolveHandler(handlers.Rest, ov.Delete)
-			if h == nil {
+			if handler == nil {
 				return fmt.Errorf("crud delete override: handler %q not found", ov.Delete)
 			}
-			app.Delete(base+idParam, h)
 		} else {
-			app.Delete(base+idParam, func(c *fiber.Ctx) error {
+			handler = func(c *fiber.Ctx) error {
 				id := c.Params("id")
 				if err := provider.Delete(c, id); err != nil {
 					return err
 				}
 				return nil
-			})
+			}
 		}
+		if hasNatsPublish {
+			handler = wrapNATSPublish(handler, entry.NATSPublish, natsConns)
+		}
+		app.Delete(base+idParam, handler)
 	}
 
 	return nil

@@ -45,3 +45,4 @@ examples/*/nla-*-amd64
 .vscode/
 *.swp
 *.swo
+.DS_Store

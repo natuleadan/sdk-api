@@ -27,10 +27,11 @@ type Service struct {
 	hooks     map[string]any // model → EntryHooks[T]
 	exitFuncs map[string]ExitHandler
 	exitHooks map[string]ExitHooks
-	exitMgr   *ExitWorkerManager
-	cronSched *CronScheduler
-	cronFuncs map[string]CronJobFunc
-	models    map[string]*db.TableInfo
+	exitMgr    *ExitWorkerManager
+	cronSched  *CronScheduler
+	cronFuncs  map[string]CronJobFunc
+	models     map[string]*db.TableInfo
+	safeClient *middleware.SafeHTTPClient
 
 	stop context.CancelFunc
 }
@@ -187,6 +188,14 @@ func (s *Service) NATS(name string) events.EventBroker {
 	return s.natsConns[name]
 }
 
+// SafeHTTPClient returns an SSRF-protected HTTP client if configured.
+func (s *Service) SafeHTTPClient() *middleware.SafeHTTPClient {
+	if s.safeClient == nil {
+		return nil
+	}
+	return s.safeClient
+}
+
 // App returns the underlying Fiber app.
 func (s *Service) App() *fiber.App {
 	if s.srv == nil {
@@ -233,6 +242,11 @@ func (s *Service) RunWithContext(ctx context.Context) error {
 		for k, v := range brokers {
 			s.natsConns[k] = v
 		}
+	}
+
+	// 2.5 Initialize SSRF protection (disabled by default)
+	if sc := s.config.Server.SSRF; sc != nil && sc.Enabled {
+		s.safeClient = middleware.NewSafeHTTPClient(*convertSSRF(sc))
 	}
 
 	// 3. Create HTTP server

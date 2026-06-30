@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -72,6 +73,14 @@ func fileValidator(entry *EntryDef) func(*fiber.Ctx) error {
 			}
 		}
 
+		// Max files check (multipart only)
+		if entry.MaxFiles > 0 {
+			form, formErr := c.MultipartForm()
+			if formErr == nil && len(form.File) > entry.MaxFiles {
+				return fiber.NewError(413, "too many files")
+			}
+		}
+
 		// Magic byte verification: check actual content matches declared type
 		if entry.MagicBytes && len(c.Body()) > 512 {
 			detected := http.DetectContentType(c.Body())
@@ -126,4 +135,60 @@ func parseMaxSize(s string) int {
 	var n int
 	fmt.Sscanf(s, "%d", &n)
 	return n * multiplier
+}
+
+// SanitizeFilename removes dangerous characters from filenames.
+// - Removes path separators (/, \)
+// - Removes null bytes
+// - Limits length to 255 chars
+// - Only allows [a-zA-Z0-9._-]
+func SanitizeFilename(name string) string {
+	if name == "" {
+		return "untitled"
+	}
+	// Extract extension before modifying name
+	ext := filepath.Ext(name)
+	baseName := name
+	if ext != "" {
+		baseName = name[:len(name)-len(ext)]
+	}
+	// Remove path separators from base
+	baseName = strings.ReplaceAll(baseName, "/", "")
+	baseName = strings.ReplaceAll(baseName, "\\", "")
+	// Remove null bytes
+	baseName = strings.ReplaceAll(baseName, "\x00", "")
+	// Only allow safe characters in base
+	var safe strings.Builder
+	for _, r := range baseName {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') ||
+			(r >= '0' && r <= '9') || r == '.' || r == '_' || r == '-' {
+			safe.WriteRune(r)
+		}
+	}
+	result := safe.String()
+	if result == "" {
+		result = "untitled"
+	}
+	// Append extension (sanitized)
+	safeExt := sanitizeExt(ext)
+	result += safeExt
+	// Limit total length
+	if len(result) > 255 {
+		result = result[:255]
+	}
+	if result == "" {
+		return "untitled"
+	}
+	return result
+}
+
+func sanitizeExt(ext string) string {
+	var safe strings.Builder
+	for _, r := range ext {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') ||
+			(r >= '0' && r <= '9') || r == '.' || r == '_' || r == '-' {
+			safe.WriteRune(r)
+		}
+	}
+	return safe.String()
 }

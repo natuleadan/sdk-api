@@ -959,3 +959,58 @@ func TestRegisterEntries_GraphQL(t *testing.T) {
 	}
 	t.Log("graphql mutation successful")
 }
+
+// --- SanitizeFilename Tests ---
+
+func TestSanitizeFilename_Simple(t *testing.T) {
+	got := SanitizeFilename("report.pdf")
+	if got != "report.pdf" {
+		t.Errorf("got %q, want report.pdf", got)
+	}
+}
+
+func TestSanitizeFilename_RemovesPath(t *testing.T) {
+	got := SanitizeFilename("../../../etc/passwd")
+	if strings.Contains(got, "/") || strings.Contains(got, "\\") {
+		t.Errorf("should not contain path separators: %q", got)
+	}
+}
+
+func TestSanitizeFilename_RemovesNull(t *testing.T) {
+	got := SanitizeFilename("file\x00.jpg")
+	if strings.Contains(got, "\x00") {
+		t.Errorf("should not contain null bytes: %q", got)
+	}
+}
+
+func TestSanitizeFilename_Empty(t *testing.T) {
+	got := SanitizeFilename("")
+	if got != "untitled" {
+		t.Errorf("expected untitled, got %q", got)
+	}
+}
+
+func TestSanitizeFilename_UnsafeChars(t *testing.T) {
+	got := SanitizeFilename("hello<world>.txt")
+	if strings.Contains(got, "<") || strings.Contains(got, ">") {
+		t.Errorf("should not contain angle brackets: %q", got)
+	}
+}
+
+func TestSanitizeFilename_KeepsExtension(t *testing.T) {
+	got := SanitizeFilename("../../../etc/passwd.txt")
+	if !strings.HasSuffix(got, ".txt") {
+		t.Errorf("should preserve extension .txt: %q", got)
+	}
+}
+
+func TestSanitizeFilename_Truncates(t *testing.T) {
+	long := make([]byte, 300)
+	for i := range long {
+		long[i] = 'a'
+	}
+	got := SanitizeFilename(string(long) + ".txt")
+	if len(got) > 260 {
+		t.Errorf("should truncate long filenames, got %d chars", len(got))
+	}
+}

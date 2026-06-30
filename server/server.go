@@ -155,11 +155,6 @@ func New(cfg Config, telemetry TelemetryConfig, security SecurityConfig, corsCfg
 		app.Use(middleware.RateLimit(*cfg.RateLimit))
 	}
 
-	// SSRF protection (disabled by default)
-	if cfg.SSRF != nil && cfg.SSRF.Enabled {
-		_ = middleware.NewSafeHTTPClient(*cfg.SSRF)
-	}
-
 	// Security middlewares (global if enabled)
 	if security.ContentSecurity != nil && security.ContentSecurity.Enabled {
 		if key, err := middleware.ParsePublicKey(security.ContentSecurity.PublicKey); err == nil {

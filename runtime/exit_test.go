@@ -117,7 +117,7 @@ func TestExitWorkerManager_Start_NoNatsConnection(t *testing.T) {
 	exitDefs := []ExitWorker{
 		{Name: "test", Subscribe: SubscribeDef{Stream: "s"}, Handler: "h"},
 	}
-	err := mgr.Start(context.Background(), exitDefs, map[string]*events.Conn{}, map[string]ExitHandler{
+	err := mgr.Start(context.Background(), exitDefs, map[string]events.EventBroker{}, map[string]ExitHandler{
 		"h": func(ctx context.Context, msg []byte) ([]byte, error) { return nil, nil },
 	}, nil)
 	if err == nil {
@@ -131,7 +131,7 @@ func TestExitWorkerManager_MissingHandler(t *testing.T) {
 		{Name: "test", Subscribe: SubscribeDef{Stream: "s"}, Handler: "missing"},
 	}
 	conn := &events.Conn{}
-	conns := map[string]*events.Conn{"default": conn}
+	conns := map[string]events.EventBroker{"default": conn}
 	err := mgr.Start(context.Background(), exitDefs, conns, map[string]ExitHandler{}, nil)
 	if err == nil {
 		t.Error("expected error for missing handler")
@@ -177,7 +177,7 @@ func TestExitWorker_StartStop_NATS(t *testing.T) {
 		},
 	}
 
-	err = mgr.Start(ctx, exitDefs, map[string]*events.Conn{"default": conn}, map[string]ExitHandler{
+	err = mgr.Start(ctx, exitDefs, map[string]events.EventBroker{"default": conn}, map[string]ExitHandler{
 		"onReceive": func(ctx context.Context, msg []byte) ([]byte, error) {
 			received.Add(1)
 			return nil, nil

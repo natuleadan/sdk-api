@@ -7,7 +7,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/nats-io/nats.go"
 	"github.com/natuleadan/sdk-api/events"
 	"github.com/natuleadan/sdk-api/infra/logx"
 )
@@ -24,27 +23,17 @@ type exitWorker struct {
 	cfg     ExitWorker
 	handler ExitHandler
 	hooks   ExitHooks
-	sub     *nats.Subscription
+	sub     events.Subscription
 	sem     chan struct{}
 	state   *workerState
 }
 
-func startExitWorker(ctx context.Context, conn *events.Conn, cfg ExitWorker, handler ExitHandler, hooks ExitHooks) (*exitWorker, error) {
+func startExitWorker(ctx context.Context, broker events.EventBroker, cfg ExitWorker, handler ExitHandler, hooks ExitHooks) (*exitWorker, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	if handler == nil {
 		return nil, fmt.Errorf("exit %q: handler is nil", cfg.Name)
-	}
-
-	conn.JS.DeleteConsumer(cfg.Subscribe.Stream, cfg.Subscribe.Durable)
-
-	subOpts := []nats.SubOpt{
-		nats.Durable(cfg.Subscribe.Durable),
-		nats.ManualAck(),
-		nats.MaxDeliver(5),
-		nats.AckWait(30 * time.Second),
-		nats.DeliverAll(),
 	}
 
 	state := &workerState{
@@ -60,25 +49,18 @@ func startExitWorker(ctx context.Context, conn *events.Conn, cfg ExitWorker, han
 		state:   state,
 	}
 
-	var sub *nats.Subscription
-	var err error
-
 	if cfg.PullBatch > 0 || strings.ToLower(cfg.ConsumerMode) == "pull" {
-		pullCfg := events.ConsumerConfig{
-			Stream:      cfg.Subscribe.Stream,
-			Subject:     cfg.Subscribe.Subject,
-			Durable:     cfg.Subscribe.Durable,
-			PullBatch:   cfg.PullBatch,
-			PullMaxWait: parseServerDuration(cfg.PullMaxWait, 5*time.Second),
-		}
-		if pullCfg.PullBatch <= 0 {
-			pullCfg.PullBatch = 10
-		}
-		sub, err = conn.JS.PullSubscribe(cfg.Subscribe.Subject, cfg.Subscribe.Durable, subOpts...)
+		consumer, err := broker.PullSubscribe(ctx, cfg.Subscribe.Subject, cfg.Subscribe.Durable)
 		if err != nil {
 			return nil, fmt.Errorf("exit %q pull subscribe: %w", cfg.Name, err)
 		}
-		w.sub = sub
+		w.sub = consumer
+
+		pullBatch := cfg.PullBatch
+		if pullBatch <= 0 {
+			pullBatch = 10
+		}
+		pullMaxWait := parseServerDuration(cfg.PullMaxWait, 5*time.Second)
 
 		sem := w.sem
 		handler := w.handler
@@ -88,18 +70,15 @@ func startExitWorker(ctx context.Context, conn *events.Conn, cfg ExitWorker, han
 		stateW := w.state
 		shutdownCh := state.shutdownCh
 		go func() {
-			defer sub.Unsubscribe()
+			defer consumer.Unsubscribe()
 			for {
 				select {
 				case <-shutdownCh:
 					return
 				default:
 				}
-				msgs, fetchErr := sub.Fetch(pullCfg.PullBatch, nats.MaxWait(pullCfg.PullMaxWait))
+				msgs, fetchErr := consumer.Fetch(pullBatch, pullMaxWait)
 				if fetchErr != nil {
-					if fetchErr == nats.ErrTimeout {
-						continue
-					}
 					continue
 				}
 				for _, m := range msgs {
@@ -108,21 +87,10 @@ func startExitWorker(ctx context.Context, conn *events.Conn, cfg ExitWorker, han
 			}
 		}()
 	} else {
-		sem := w.sem
-		handler := w.handler
-		hooks := w.hooks
-		cfgW := w.cfg
-		nameW := w.name
-		stateW := w.state
-		if cfg.Subscribe.Durable != "" {
-			sub, err = conn.JS.Subscribe(cfg.Subscribe.Subject, func(m *nats.Msg) {
-				processMsg(stateW, sem, handler, hooks, cfgW, nameW, m)
-			}, subOpts...)
-		} else {
-			sub, err = conn.JS.Subscribe(cfg.Subscribe.Subject, func(m *nats.Msg) {
-				processMsg(stateW, sem, handler, hooks, cfgW, nameW, m)
-			}, nats.ManualAck(), nats.MaxDeliver(5), nats.AckWait(30*time.Second), nats.DeliverAll())
-		}
+		sub, err := broker.Subscribe(ctx, cfg.Subscribe.Subject, cfg.Subscribe.Durable, func(ctx context.Context, msg events.Message) error {
+			processMsg(state, w.sem, w.handler, w.hooks, w.cfg, w.name, msg)
+			return nil
+		})
 		if err != nil {
 			return nil, fmt.Errorf("exit %q subscribe: %w", cfg.Name, err)
 		}
@@ -141,7 +109,7 @@ func startExitWorker(ctx context.Context, conn *events.Conn, cfg ExitWorker, han
 	return w, nil
 }
 
-func processMsg(state *workerState, sem chan struct{}, handler ExitHandler, hooks ExitHooks, cfg ExitWorker, name string, m *nats.Msg) {
+func processMsg(state *workerState, sem chan struct{}, handler ExitHandler, hooks ExitHooks, cfg ExitWorker, name string, m events.Message) {
 	select {
 	case sem <- struct{}{}:
 	case <-state.shutdownCh:
@@ -156,10 +124,10 @@ func processMsg(state *workerState, sem chan struct{}, handler ExitHandler, hook
 			state.tasks.Add(-1)
 		}()
 
-		msg := m.Data
+		msg := m.Data()
 		if hooks != nil {
 			var err error
-			msg, err = hooks.OnMessage(context.Background(), m.Data)
+			msg, err = hooks.OnMessage(context.Background(), m.Data())
 			if err != nil {
 				logx.Errorf("exit %s onMessage hook: %v", name, err)
 				m.Nak()
@@ -231,17 +199,15 @@ func NewExitWorkerManager() *ExitWorkerManager {
 	return &ExitWorkerManager{}
 }
 
-func (m *ExitWorkerManager) Start(ctx context.Context, exitDefs []ExitWorker, natsConns map[string]*events.Conn, handlers map[string]ExitHandler, hooks map[string]ExitHooks) error {
+func (m *ExitWorkerManager) Start(ctx context.Context, exitDefs []ExitWorker, brokers map[string]events.EventBroker, handlers map[string]ExitHandler, hooks map[string]ExitHooks) error {
 	for _, cfg := range exitDefs {
-		connName := "default"
-		for name := range natsConns {
-			connName = name
+		var broker events.EventBroker
+		for _, b := range brokers {
+			broker = b
 			break
 		}
-
-		conn, ok := natsConns[connName]
-		if !ok {
-			return fmt.Errorf("exit %q: no NATS connection available", cfg.Name)
+		if broker == nil {
+			return fmt.Errorf("exit %q: no event broker available", cfg.Name)
 		}
 
 		handler, ok := handlers[cfg.Handler]
@@ -254,7 +220,7 @@ func (m *ExitWorkerManager) Start(ctx context.Context, exitDefs []ExitWorker, na
 			eh = hooks[cfg.Name]
 		}
 
-		w, err := startExitWorker(ctx, conn, cfg, handler, eh)
+		w, err := startExitWorker(ctx, broker, cfg, handler, eh)
 		if err != nil {
 			return fmt.Errorf("exit %q: %w", cfg.Name, err)
 		}

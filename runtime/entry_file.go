@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -8,7 +9,7 @@ import (
 	"github.com/natuleadan/sdk-api/events"
 )
 
-func registerFile(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, natsConns map[string]*events.Conn) error {
+func registerFile(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker) error {
 	h := resolveHandler(handlers.Rest, entry.Handler)
 	if h == nil {
 		return fmt.Errorf("file handler %q not found", entry.Handler)
@@ -25,8 +26,8 @@ func registerFile(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, pref
 	}
 
 	// Wrap with nats_publish if configured
-	if len(entry.NATSPublish) > 0 && natsConns != nil {
-		h = wrapNATSPublish(h, entry.NATSPublish, natsConns)
+	if len(entry.NATSPublish) > 0 && len(brokers) > 0 {
+		h = wrapEventPublish(context.Background(), h, entry.NATSPublish, brokers)
 	}
 
 	switch entry.Method {

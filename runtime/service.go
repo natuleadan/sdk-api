@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/nats-io/nats.go"
 	"github.com/natuleadan/sdk-api/db"
 	"github.com/natuleadan/sdk-api/events"
 	"github.com/natuleadan/sdk-api/infra/logx"
@@ -22,7 +21,7 @@ type Service struct {
 	config    *ServiceConfig
 	srv       *server.Server
 	pools     map[string]any
-	natsConns map[string]*events.Conn
+	natsConns map[string]events.EventBroker
 	handlers  *EntryHandlers
 	hooks     map[string]any // model → EntryHooks[T]
 	exitFuncs map[string]ExitHandler
@@ -44,7 +43,7 @@ func New(configPath string) (*Service, error) {
 	return &Service{
 		config:    cfg,
 		pools:     make(map[string]any),
-		natsConns: make(map[string]*events.Conn),
+		natsConns: make(map[string]events.EventBroker),
 		handlers:  &EntryHandlers{},
 		exitMgr:   NewExitWorkerManager(),
 	}, nil
@@ -175,8 +174,8 @@ func (s *Service) PoolPG(name string) any {
 	return PoolPG(s.pools, name)
 }
 
-// NATS returns a NATS connection by name.
-func (s *Service) NATS(name string) *events.Conn {
+// NATS returns a event broker connection by name.
+func (s *Service) NATS(name string) events.EventBroker {
 	return s.natsConns[name]
 }
 
@@ -333,8 +332,8 @@ func (s *Service) shutdown() {
 	if s.exitMgr != nil {
 		s.exitMgr.Shutdown(5 * time.Second)
 	}
-	for name, conn := range s.natsConns {
-		conn.Drain()
+	for name, broker := range s.natsConns {
+		broker.Close()
 		logx.Infof("nats %s drained", name)
 	}
 	for name, pool := range s.pools {
@@ -352,13 +351,14 @@ func parseServerDuration(s string, fallback time.Duration) time.Duration {
 	return fallback
 }
 
-func initNATSList(ctx context.Context, natsList []NATSConnConf) (map[string]*events.Conn, error) {
-	conns := make(map[string]*events.Conn, len(natsList))
+func initNATSList(ctx context.Context, natsList []NATSConnConf) (map[string]events.EventBroker, error) {
+	conns := make(map[string]events.EventBroker, len(natsList))
 	for i, natsCfg := range natsList {
 		if err := natsCfg.Validate(); err != nil {
 			return nil, fmt.Errorf("nats[%d] (%s): %w", i, natsCfg.Name, err)
 		}
 		conn, err := events.Connect(ctx, events.ConnOptions{
+			Name:          natsCfg.Name,
 			URL:           natsCfg.URL,
 			MaxReconnects: natsCfg.MaxReconnects,
 			ReconnectWait: parseServerDuration(natsCfg.ReconnectWait, 2*time.Second),
@@ -390,21 +390,21 @@ func initNATSList(ctx context.Context, natsList []NATSConnConf) (map[string]*eve
 	return conns, nil
 }
 
-func parseNATSStorage(s string) nats.StorageType {
+func parseNATSStorage(s string) events.StorageType {
 	switch s {
 	case "memory":
-		return nats.MemoryStorage
+		return events.MemoryStorage
 	default:
-		return nats.FileStorage
+		return events.FileStorage
 	}
 }
 
-func parseNATSCompression(s string) nats.StoreCompression {
+func parseNATSCompression(s string) events.CompressionType {
 	switch s {
 	case "none":
-		return nats.NoCompression
+		return events.NoCompression
 	default:
-		return nats.S2Compression
+		return events.S2Compression
 	}
 }
 

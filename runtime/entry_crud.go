@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -8,7 +9,7 @@ import (
 	"github.com/natuleadan/sdk-api/events"
 )
 
-func registerCRUD(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, natsConns map[string]*events.Conn) error {
+func registerCRUD(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker) error {
 	provider, ok := handlers.CRUD[entry.Model]
 	if !ok {
 		return fmt.Errorf("crud model %q: no provider registered", entry.Model)
@@ -20,7 +21,8 @@ func registerCRUD(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, pref
 		ov = &CRUDOverrides{}
 	}
 
-	hasNatsPublish := len(entry.NATSPublish) > 0 && natsConns != nil
+	ctx := context.Background()
+	hasNatsPublish := len(entry.NATSPublish) > 0 && len(brokers) > 0
 
 	// GET /resource — list
 	if !isDisabled(ov, ov.List) {
@@ -77,7 +79,7 @@ func registerCRUD(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, pref
 			}
 		}
 		if hasNatsPublish {
-			handler = wrapNATSPublish(handler, entry.NATSPublish, natsConns)
+			handler = wrapEventPublish(ctx, handler, entry.NATSPublish, brokers)
 		}
 		app.Post(base, handler)
 	}
@@ -100,7 +102,7 @@ func registerCRUD(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, pref
 			}
 		}
 		if hasNatsPublish {
-			handler = wrapNATSPublish(handler, entry.NATSPublish, natsConns)
+			handler = wrapEventPublish(ctx, handler, entry.NATSPublish, brokers)
 		}
 		app.Patch(base+idParam, handler)
 	}
@@ -123,7 +125,7 @@ func registerCRUD(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, pref
 			}
 		}
 		if hasNatsPublish {
-			handler = wrapNATSPublish(handler, entry.NATSPublish, natsConns)
+			handler = wrapEventPublish(ctx, handler, entry.NATSPublish, brokers)
 		}
 		app.Delete(base+idParam, handler)
 	}

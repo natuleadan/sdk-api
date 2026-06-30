@@ -38,31 +38,31 @@ type EntryHandlers struct {
 }
 
 // RegisterEntries iterates over cfg.Entry and registers all HTTP routes on app.
-// natsConns is optional — used for auto-publishing on nats_publish targets.
+// brokers is optional — used for auto-publishing on nats_publish targets.
 // models is optional — used for GraphQL schema generation.
-func RegisterEntries(app *fiber.App, cfg *ServiceConfig, handlers *EntryHandlers, prefix string, natsConns map[string]*events.Conn, models map[string]*db.TableInfo) error {
+func RegisterEntries(app *fiber.App, cfg *ServiceConfig, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, models map[string]*db.TableInfo) error {
 	for i, entry := range cfg.Entry {
-		if err := registerOneEntry(app, &entry, handlers, prefix, natsConns, models); err != nil {
+		if err := registerOneEntry(app, &entry, handlers, prefix, brokers, models); err != nil {
 			return fmt.Errorf("entry[%d] %s %s: %w", i, entry.Type, entry.Path, err)
 		}
 	}
 	return nil
 }
 
-func registerOneEntry(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, natsConns map[string]*events.Conn, models map[string]*db.TableInfo) error {
+func registerOneEntry(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, models map[string]*db.TableInfo) error {
 	switch entry.Type {
 	case "crud":
-		return registerCRUD(app, entry, handlers, prefix, natsConns)
+		return registerCRUD(app, entry, handlers, prefix, brokers)
 	case "rest":
-		return registerREST(app, entry, handlers, prefix, natsConns)
+		return registerREST(app, entry, handlers, prefix, brokers)
 	case "webhook":
-		return registerREST(app, entry, handlers, prefix, natsConns)
+		return registerREST(app, entry, handlers, prefix, brokers)
 	case "websocket":
 		return registerWebSocket(app, entry, handlers, prefix)
 	case "sse":
 		return registerSSE(app, entry, handlers, prefix)
 	case "file":
-		return registerFile(app, entry, handlers, prefix, natsConns)
+		return registerFile(app, entry, handlers, prefix, brokers)
 	case "async":
 		return registerAsync(app, entry, handlers, prefix)
 	case "graphql":

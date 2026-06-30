@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/gofiber/fiber/v2"
@@ -8,13 +9,14 @@ import (
 	"github.com/natuleadan/sdk-api/infra/logx"
 )
 
-func registerREST(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, natsConns map[string]*events.Conn) error {
+func registerREST(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker) error {
 	h := resolveHandler(handlers.Rest, entry.Handler)
 	if h == nil {
 		return fmt.Errorf("rest handler %q not found", entry.Handler)
 	}
-	if len(entry.NATSPublish) > 0 && natsConns != nil {
-		h = wrapNATSPublish(h, entry.NATSPublish, natsConns)
+	ctx := context.Background()
+	if len(entry.NATSPublish) > 0 && len(brokers) > 0 {
+		h = wrapEventPublish(ctx, h, entry.NATSPublish, brokers)
 	}
 	path := prefix + entry.Path
 	switch entry.Method {
@@ -34,7 +36,7 @@ func registerREST(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, pref
 	return nil
 }
 
-func wrapNATSPublish(handler func(*fiber.Ctx) error, targets []NATSPublishTarget, natsConns map[string]*events.Conn) func(*fiber.Ctx) error {
+func wrapEventPublish(ctx context.Context, handler func(*fiber.Ctx) error, targets []NATSPublishTarget, brokers map[string]events.EventBroker) func(*fiber.Ctx) error {
 	return func(c *fiber.Ctx) error {
 		err := handler(c)
 		if err == nil && c.Response().StatusCode() < 400 {
@@ -43,8 +45,8 @@ func wrapNATSPublish(handler func(*fiber.Ctx) error, targets []NATSPublishTarget
 				if subject == "" {
 					subject = target.Stream
 				}
-				for _, conn := range natsConns {
-					if _, pubErr := conn.JS.Publish(subject, c.Body()); pubErr != nil {
+				for _, broker := range brokers {
+					if pubErr := broker.Publish(ctx, subject, c.Body()); pubErr != nil {
 						logx.Errorf("nats_publish %s: %v", subject, pubErr)
 					}
 				}

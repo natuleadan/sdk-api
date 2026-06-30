@@ -10,19 +10,16 @@ import (
 	"github.com/robfig/cron/v3"
 )
 
-// CronJobFunc is a handler called on cron schedule. Returns error on failure.
 type CronJobFunc func(ctx context.Context) error
 
-// CronScheduler manages periodic jobs defined in cron:[].
 type CronScheduler struct {
 	cron      *cron.Cron
 	jobs      map[string]cron.EntryID
-	natsConns map[string]*events.Conn
+	brokers   map[string]events.EventBroker
 	mu        sync.Mutex
 	started   bool
 }
 
-// NewCronScheduler creates a new scheduler.
 func NewCronScheduler() *CronScheduler {
 	return &CronScheduler{
 		cron:  cron.New(),
@@ -30,9 +27,7 @@ func NewCronScheduler() *CronScheduler {
 	}
 }
 
-// AddJob registers a cron job from config. handler is only used for mode=handler.
-// nats is used for mode=nats to publish on schedule.
-func (s *CronScheduler) AddJob(cfg CronJob, natsConn *events.Conn, handler CronJobFunc) error {
+func (s *CronScheduler) AddJob(cfg CronJob, broker events.EventBroker, handler CronJobFunc) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -48,18 +43,16 @@ func (s *CronScheduler) AddJob(cfg CronJob, natsConn *events.Conn, handler CronJ
 
 	switch cfg.Mode {
 	case "nats":
-		if natsConn == nil {
-			return fmt.Errorf("cron %q mode=nats requires NATS connection", cfg.Name)
+		if broker == nil {
+			return fmt.Errorf("cron %q mode=nats requires event broker", cfg.Name)
 		}
-		stream := cfg.Publish.Stream
 		subject := cfg.Publish.Subject
 		if subject == "" {
-			subject = stream
+			subject = cfg.Publish.Stream
 		}
-		js := natsConn.JS
+		b := broker
 		entryID, err = s.cron.AddFunc(cfg.Schedule, func() {
-			_, pubErr := js.Publish(subject, nil)
-			if pubErr != nil {
+			if pubErr := b.Publish(context.Background(), subject, nil); pubErr != nil {
 				logx.Errorf("cron %s publish %s: %v", cfg.Name, subject, pubErr)
 			} else {
 				logx.Infof("cron %s published to %s", cfg.Name, subject)
@@ -95,12 +88,10 @@ func (s *CronScheduler) AddJob(cfg CronJob, natsConn *events.Conn, handler CronJ
 	return nil
 }
 
-// AddAll registers all cron jobs from config.
-func (s *CronScheduler) AddAll(cronDefs []CronJob, natsConns map[string]*events.Conn, handlers map[string]CronJobFunc) error {
-	// Select the first NATS connection as default for nats-mode jobs
-	var defaultNats *events.Conn
-	for _, conn := range natsConns {
-		defaultNats = conn
+func (s *CronScheduler) AddAll(cronDefs []CronJob, brokers map[string]events.EventBroker, handlers map[string]CronJobFunc) error {
+	var defaultBroker events.EventBroker
+	for _, b := range brokers {
+		defaultBroker = b
 		break
 	}
 
@@ -111,14 +102,13 @@ func (s *CronScheduler) AddAll(cronDefs []CronJob, natsConns map[string]*events.
 				handler = handlers[cfg.Handler]
 			}
 		}
-		if err := s.AddJob(cfg, defaultNats, handler); err != nil {
+		if err := s.AddJob(cfg, defaultBroker, handler); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// Start begins executing scheduled jobs.
 func (s *CronScheduler) Start() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -129,7 +119,6 @@ func (s *CronScheduler) Start() {
 	}
 }
 
-// Stop stops the scheduler and waits for running jobs to finish.
 func (s *CronScheduler) Stop() {
 	s.mu.Lock()
 	defer s.mu.Unlock()

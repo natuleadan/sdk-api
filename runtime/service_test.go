@@ -311,7 +311,7 @@ func TestService_Shutdown(t *testing.T) {
 	svc := &Service{
 		config:    &ServiceConfig{Name: "test", Port: 19099},
 		pools:     make(map[string]any),
-		natsConns: make(map[string]*events.Conn),
+		natsConns: make(map[string]events.EventBroker),
 	}
 
 	// shutdown on empty state should not panic

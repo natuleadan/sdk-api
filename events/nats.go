@@ -8,27 +8,8 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-type StreamConfig struct {
-	Name        string
-	Subjects    []string
-	MaxAge      time.Duration
-	MaxBytes    int64
-	Storage     nats.StorageType
-	Compression nats.StoreCompression
-}
-
-func DefaultStreamConfig(name string) StreamConfig {
-	return StreamConfig{
-		Name:        name,
-		Subjects:    []string{name, name + ".>"},
-		MaxAge:      24 * time.Hour,
-		MaxBytes:    1 * 1024 * 1024 * 1024,
-		Storage:     nats.FileStorage,
-		Compression: nats.S2Compression,
-	}
-}
-
 type ConnOptions struct {
+	Name            string
 	URL             string
 	MaxReconnects   int
 	ReconnectWait   time.Duration
@@ -37,10 +18,11 @@ type ConnOptions struct {
 }
 
 type Conn struct {
-	NC  *nats.Conn
-	JS  nats.JetStreamContext
-	ctx context.Context
-	kvs map[string]nats.KeyValue
+	name string
+	NC   *nats.Conn
+	JS   nats.JetStreamContext
+	ctx  context.Context
+	kvs  map[string]nats.KeyValue
 }
 
 func Connect(ctx context.Context, opts ConnOptions) (*Conn, error) {
@@ -76,17 +58,50 @@ func Connect(ctx context.Context, opts ConnOptions) (*Conn, error) {
 		return nil, fmt.Errorf("events: jetstream: %w", err)
 	}
 
-	return &Conn{NC: nc, JS: js, ctx: ctx, kvs: make(map[string]nats.KeyValue)}, nil
+	return &Conn{NC: nc, JS: js, ctx: ctx, kvs: make(map[string]nats.KeyValue), name: opts.Name}, nil
+}
+
+func (c *Conn) Name() string { return c.name }
+
+func (c *Conn) Publish(ctx context.Context, subject string, data []byte) error {
+	_, err := c.JS.Publish(subject, data)
+	return err
+}
+
+func (c *Conn) Subscribe(ctx context.Context, subject string, durable string, handler MessageHandler) (Subscription, error) {
+	sub, err := c.JS.Subscribe(subject, func(m *nats.Msg) {
+		handler(ctx, &natsMessage{msg: m})
+	}, nats.Durable(durable), nats.ManualAck(), nats.MaxDeliver(5), nats.AckWait(30*time.Second), nats.DeliverAll())
+	if err != nil {
+		return nil, err
+	}
+	return &natsSubscription{sub: sub}, nil
+}
+
+func (c *Conn) PullSubscribe(ctx context.Context, subject string, durable string) (PullConsumer, error) {
+	sub, err := c.JS.PullSubscribe(subject, durable, nats.ManualAck(), nats.MaxDeliver(5), nats.AckWait(30*time.Second), nats.DeliverAll())
+	if err != nil {
+		return nil, err
+	}
+	return &natsPullConsumer{sub: sub}, nil
+}
+
+func (c *Conn) Request(ctx context.Context, subject string, data []byte, timeout time.Duration) ([]byte, error) {
+	msg, err := c.NC.RequestWithContext(ctx, subject, data)
+	if err != nil {
+		return nil, err
+	}
+	return msg.Data, nil
 }
 
 func (c *Conn) EnsureStream(cfg StreamConfig) error {
 	_, err := c.JS.AddStream(&nats.StreamConfig{
 		Name:        cfg.Name,
 		Subjects:    cfg.Subjects,
-		Storage:     cfg.Storage,
+		Storage:     convertStorage(cfg.Storage),
 		MaxAge:      cfg.MaxAge,
 		MaxBytes:    cfg.MaxBytes,
-		Compression: cfg.Compression,
+		Compression: convertCompression(cfg.Compression),
 		AllowMsgTTL: true,
 	})
 	if err != nil && err != nats.ErrStreamNameAlreadyInUse {
@@ -104,12 +119,30 @@ func (c *Conn) EnsureStreams(configs ...StreamConfig) error {
 	return nil
 }
 
+func convertStorage(s StorageType) nats.StorageType {
+	switch s {
+	case MemoryStorage:
+		return nats.MemoryStorage
+	default:
+		return nats.FileStorage
+	}
+}
+
+func convertCompression(c CompressionType) nats.StoreCompression {
+	switch c {
+	case NoCompression:
+		return nats.NoCompression
+	default:
+		return nats.S2Compression
+	}
+}
+
 type KVConfig struct {
 	Bucket      string
 	Description string
 	TTL         time.Duration
 	MaxBytes    int64
-	Storage     nats.StorageType
+	Storage     StorageType
 }
 
 func DefaultKVConfig(bucket string) KVConfig {
@@ -118,7 +151,7 @@ func DefaultKVConfig(bucket string) KVConfig {
 		Description: bucket + " KV store",
 		TTL:         5 * time.Minute,
 		MaxBytes:    256 * 1024 * 1024,
-		Storage:     nats.MemoryStorage,
+		Storage:     MemoryStorage,
 	}
 }
 
@@ -131,7 +164,7 @@ func (c *Conn) EnsureKeyValue(cfg KVConfig) (nats.KeyValue, error) {
 		Description: cfg.Description,
 		TTL:         cfg.TTL,
 		MaxBytes:    cfg.MaxBytes,
-		Storage:     cfg.Storage,
+		Storage:     convertStorage(cfg.Storage),
 	})
 	if err != nil && err != nats.ErrStreamNameAlreadyInUse {
 		return nil, fmt.Errorf("events: kv %s: %w", cfg.Bucket, err)
@@ -152,6 +185,14 @@ func (c *Conn) Drain() {
 	}
 	c.NC.Drain()
 	c.NC.Close()
+}
+
+func (c *Conn) Close() error {
+	if c.NC != nil {
+		c.NC.Drain()
+		c.NC.Close()
+	}
+	return nil
 }
 
 func (c *Conn) Context() context.Context {
@@ -175,3 +216,43 @@ func WaitForNATS(ctx context.Context, url string, retries int, delay time.Durati
 	}
 	return fmt.Errorf("events: NATS not reachable after %d retries", retries)
 }
+
+type natsMessage struct {
+	msg *nats.Msg
+}
+
+func (m *natsMessage) Data() []byte                     { return m.msg.Data }
+func (m *natsMessage) Subject() string                  { return m.msg.Subject }
+func (m *natsMessage) Ack() error                       { return m.msg.Ack() }
+func (m *natsMessage) Nak(delay ...time.Duration) error {
+	if len(delay) > 0 {
+		return m.msg.NakWithDelay(delay[0])
+	}
+	return m.msg.Nak()
+}
+func (m *natsMessage) Term() error                      { return m.msg.Term() }
+func (m *natsMessage) Respond(data []byte) error        { return m.msg.Respond(data) }
+
+type natsSubscription struct {
+	sub *nats.Subscription
+}
+
+func (s *natsSubscription) Unsubscribe() error { return s.sub.Unsubscribe() }
+
+type natsPullConsumer struct {
+	sub *nats.Subscription
+}
+
+func (c *natsPullConsumer) Fetch(batch int, maxWait time.Duration) ([]Message, error) {
+	msgs, err := c.sub.Fetch(batch, nats.MaxWait(maxWait))
+	if err != nil {
+		return nil, err
+	}
+	result := make([]Message, len(msgs))
+	for i, m := range msgs {
+		result[i] = &natsMessage{msg: m}
+	}
+	return result, nil
+}
+
+func (c *natsPullConsumer) Unsubscribe() error { return c.sub.Unsubscribe() }

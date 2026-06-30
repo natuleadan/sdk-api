@@ -42,7 +42,7 @@ func TestIntegration_ExitWorker_Push(t *testing.T) {
 			Handler:       "onMsg",
 			MaxConcurrent: 2,
 		},
-	}, map[string]*events.Conn{"default": conn}, map[string]ExitHandler{
+	}, map[string]events.EventBroker{"default": conn}, map[string]ExitHandler{
 		"onMsg": func(ctx context.Context, msg []byte) ([]byte, error) {
 			received.Add(1)
 			return nil, nil
@@ -95,7 +95,7 @@ func TestIntegration_ExitWorker_Reply(t *testing.T) {
 			MaxConcurrent: 1,
 			Reply:         true,
 		},
-	}, map[string]*events.Conn{"default": conn}, map[string]ExitHandler{
+	}, map[string]events.EventBroker{"default": conn}, map[string]ExitHandler{
 		"onValidate": func(ctx context.Context, msg []byte) ([]byte, error) {
 			processed.Add(1)
 			return []byte(`{"valid":true}`), nil
@@ -291,7 +291,7 @@ func TestIntegration_GracefulShutdown(t *testing.T) {
 			Handler:       "onSlow",
 			MaxConcurrent: 2,
 		},
-	}, map[string]*events.Conn{"default": conn}, map[string]ExitHandler{
+	}, map[string]events.EventBroker{"default": conn}, map[string]ExitHandler{
 		"onSlow": func(ctx context.Context, msg []byte) ([]byte, error) {
 			inFlight.Add(1)
 			time.Sleep(500 * time.Millisecond)
@@ -370,7 +370,7 @@ func TestIntegration_CRUD_NATSPublish(t *testing.T) {
 			},
 		},
 	}
-	err = RegisterEntries(app, cfg, handlers, "/api/v1", map[string]*events.Conn{"default": conn}, nil)
+	err = RegisterEntries(app, cfg, handlers, "/api/v1", map[string]events.EventBroker{"default": conn}, nil)
 	if err != nil {
 		t.Fatalf("RegisterEntries: %v", err)
 	}

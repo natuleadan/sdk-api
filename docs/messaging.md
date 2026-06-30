@@ -1,32 +1,52 @@
-# Messaging (NATS JetStream)
+# Messaging (NATS JetStream + Kafka)
 
-NATS JetStream powers all messaging in sdk-api: entry endpoints can auto-publish, exit workers consume and process, and cron jobs can publish on schedule.
+sdk-api supports two event stream brokers: **NATS JetStream** (default) and **Kafka**. The `EventBroker` interface provides a unified abstraction — endpoints can publish to any broker, and workers can consume from any broker.
 
 ## Connection
+
+### Legacy NATS config
 
 ```yaml
 nats:
   - name: primary
     url: "${NATS_URL}"
-    max_reconnects: 10
-    reconnect_wait: 2s
-    timeout: 5s
-    retry_on_fail: true
+    streams:
+      - name: orders
+```
+
+### Unified event streams config
+
+```yaml
+event_streams:
+  - name: default
+    driver: nats
+    url: "${NATS_URL}"
     streams:
       - name: orders
         max_age: 24h
         storage: file
+
+  - name: analytics
+    driver: kafka
+    brokers: ["localhost:9092"]
+    consumer_group: sdk-api
+    streams:
+      - name: page-views
 ```
 
-Multiple NATS connections are supported. Each is referenced internally by name.
+Both `nats:` and `event_streams:` config sections are supported. They are merged at startup. New projects should use `event_streams:`.
 
-### Stream Default Subjects
+### Stream Default Subjects (NATS)
 
-A stream named `orders` automatically monitors subjects `[orders, orders.>]` (wildcard for all sub-subjects).
+A NATS stream named `orders` monitors subjects `[orders, orders.>]` (wildcard for all sub-subjects).
 
-## Auto-Publish (Entry → NATS)
+### Kafka Topics
 
-Entry endpoints (rest, webhook) can auto-publish to NATS after handling a request:
+Kafka topics are auto-created on first publish. The `streams:` array defines declared topics for documentation, but explicit creation is handled by the broker.
+
+## Auto-Publish (Entry → Event Stream)
+
+Entry endpoints can auto-publish to event streams after handling a request:
 
 ```yaml
 entry:
@@ -34,18 +54,25 @@ entry:
     method: POST
     path: /orders
     handler: onCreateOrder
-    nats_publish:
+    event_stream: default                    # Publish to "default" broker
+    event_publish:
       - stream: orders
-        subject: orders.created
+        subject: order.created
+
+  - type: crud
+    resource: products
+    model: Product
+    event_stream: analytics                 # Publish to Kafka broker
+    event_publish:
+      - stream: page-views
+        subject: page.view
 ```
 
-When the handler returns successfully (status < 400), the SDK publishes `c.Body()` to the subject. Errors are logged but don't fail the HTTP request.
+The `nats_publish:` field is a deprecated alias for `event_publish:`.
 
-## Exit Workers (NATS → Handler)
+## Exit Workers (Event → Handler)
 
-### Push Consumer (Default)
-
-NATS pushes messages to the worker as they arrive:
+Exit workers consume from event streams and process messages:
 
 ```yaml
 exit:
@@ -55,105 +82,96 @@ exit:
       subject: orders.confirmed
     handler: onOrderConfirmed
     max_concurrent: 10
+    event_stream: default                    # Consume from NATS
+
+  - name: page-view-processor
+    subscribe:
+      stream: page-views
+    handler: onPageView
+    event_stream: analytics                 # Consume from Kafka
 ```
+
+When `event_stream` is not specified, the first available broker is used.
+
+## Producer API
+
+For programmatic access, use the `events.Producer[T]` generic type:
 
 ```go
-svc.WithExit("onOrderConfirmed", func(ctx context.Context, msg []byte) ([]byte, error) {
-    // Process message
-    return nil, nil
-})
+import "github.com/natuleadan/sdk-api/events"
+
+type OrderEvent struct {
+    OrderID string  `json:"order_id"`
+    Amount  float64 `json:"amount"`
+}
+
+nc, _ := events.Connect(ctx, events.ConnOptions{URL: natsURL})
+js, _ := nc.JS()
+producer := events.NewProducer[OrderEvent](nc, js, "orders.created")
+
+// Publish
+producer.Publish(OrderEvent{OrderID: "123", Amount: 99.99})
+
+// Publish with idempotency key
+producer.PublishWithID(OrderEvent{}, "idempotency-key-123")
+
+// Publish and wait for reply (request-reply)
+reply, _ := producer.PublishAndWait(ctx, OrderEvent{}, 5*time.Second)
 ```
 
-### Pull Consumer
+## EventBroker Interface
 
-Worker fetches messages in batches:
+The `EventBroker` abstraction allows switching between NATS and Kafka without code changes:
+
+```go
+type EventBroker interface {
+    Name() string
+    Publish(ctx context.Context, subject string, data []byte) error
+    Subscribe(ctx context.Context, subject string, durable string, handler MessageHandler) (Subscription, error)
+    EnsureStream(cfg StreamConfig) error
+    Close() error
+}
+```
+
+Access a broker by name:
+
+```go
+broker := svc.NATS("default")
+broker.Publish(ctx, "orders.created", data)
+```
+
+## Cron Publish
 
 ```yaml
-exit:
-  - name: batch-worker
-    subscribe:
-      stream: orders
-      subject: orders.batch
-    handler: onBatch
-    pull_batch: 10
-    consumer_mode: pull           # push | pull
+cron:
+  - name: daily-report
+    schedule: "0 6 * * *"
+    mode: nats
+    publish:
+      stream: cron
+      subject: cron.daily-report
 ```
 
-### Reply Mode
+Cron jobs use the first available event broker for `mode: nats`.
 
-When `reply: true`, the handler's return value is sent back via `msg.Respond()`:
+## KV Store (NATS only)
 
-```yaml
-exit:
-  - name: order-validator
-    subscribe:
-      stream: orders
-      subject: orders.validate
-    handler: onValidate
-    reply: true
-    reply_timeout: 30s
-```
+NATS Key-Value store for shared state:
 
 ```go
-svc.WithExit("onValidate", func(ctx context.Context, msg []byte) ([]byte, error) {
-    var req Request
-    json.Unmarshal(msg, &req)
-    result, _ := json.Marshal(Result{Valid: req.ID != ""})
-    return result, nil  // SDK calls msg.Respond(result)
-})
+conn := events.Connect(ctx, events.ConnOptions{...})
+kv, _ := conn.EnsureKeyValue(events.DefaultKVConfig("sessions"))
+kv.Put("user:123", []byte(`{"name":"Alice"}`))
 ```
 
-Publishing side (request-reply):
+Typed cache wrapper:
 
 ```go
-producer := events.NewProducer[MyType](nc, js, "orders.validate")
-resp, err := producer.PublishAndWait(ctx, myData, 5*time.Second)
+cache := events.NewCache[User](kv, 5*time.Minute)
+user, _ := cache.Get(ctx, "user:123")
+cache.Set(ctx, "user:123", user)
 ```
 
-## Producers
+## Graceful Shutdown
 
-```go
-producer := events.NewProducer[MyType](nc, js, "orders.created")
-
-// Fire-and-forget
-producer.Publish(event)
-
-// Deduplicated publish
-producer.PublishWithID(event, "unique-id")
-
-// Request-reply
-resp, err := producer.PublishAndWait(ctx, data, 5*time.Second)
-
-// Raw bytes request-reply
-rawResp, err := producer.PublishAndWaitRaw(ctx, []byte(`{}`), 5*time.Second)
-```
-
-## KV Cache
-
-Typed, TTL-backed cache built on NATS KeyValue:
-
-```go
-kv, _ := conn.EnsureKeyValue(events.DefaultKVConfig("my-cache"))
-cache := events.NewCache[MyType](kv, 5*time.Minute)
-
-val, err := cache.Get(ctx, "key.1")
-cache.Set(ctx, "key.1", myData)
-cache.Delete(ctx, "key.1")
-
-// Lazy initialization
-val, err := cache.GetOrSet(ctx, "key.lazy", func() (*MyType, error) {
-    v := computeExpensive()
-    return &v, nil
-})
-```
-
-Bucket naming defaults to `"events"` stream name. TTL applies per-key.
-
-## Achieve delivery guarantees
-
-| Mechanism | Guarantee | Configuration |
-|-----------|-----------|---------------|
-| Manual ack | At-least-once | `ManualAck()` in subscription |
-| Nak + backoff | Retry with delay | `BackOff` in consumer config |
-| Term | Stop retrying | `Term` ack action in handler |
-| Dedup ID | Exactly-once | `nats.MsgId(id)` via `PublishWithID` |
+On shutdown, all event stream connections are drained (in-flight messages are processed before exit).

@@ -1,6 +1,6 @@
 # Runtime
 
-The `Service` struct is the core orchestrator. It loads YAML config, initializes databases and NATS connections, registers HTTP routes (entry), starts NATS consumers (exit), and schedules cron jobs — all from a single `Run()` call.
+The `Service` struct is the core orchestrator. It loads YAML config, initializes databases and event streams, registers HTTP routes (entry), starts workers (exit), schedules cron jobs, and configures security — all from a single `Run()` call.
 
 ## Service API
 
@@ -13,11 +13,13 @@ svc.WithCRUD("Product", provider)           // CRUD auto-routes
 svc.WithRest("hello", func(c) { ... })      // REST endpoints
 svc.WithWS("chat", chatHandler)             // WebSocket
 svc.WithSSE("stream", sseHandler)           // SSE
+svc.WithAsync("processReport", handler)     // Async job (202 Accepted)
+svc.RegisterValidation("CreateProduct", CreateProductInput{})  // Input validation
 
 // Register entry hooks
 svc.WithHooks("Product", &ProductHooks{})
 
-// Register exit handlers (NATS workers)
+// Register exit handlers (event workers)
 svc.WithExit("onOrderConfirmed", handler)
 
 // Register exit hooks
@@ -26,14 +28,15 @@ svc.WithExitHooks(map[string]runtime.ExitHooks{...})
 // Register cron handlers
 svc.WithCron("onCleanup", handler)
 
-// Register models for OpenAPI schema generation
+// Register models for OpenAPI/GraphQL schema generation
 svc.RegisterModel("Product", (*Product)(nil))
 
-// Access databases and NATS
-svc.Pool("pg-main")      // any — returns the pool by name
-svc.PoolPG("pg-main")   // *pgxpool.Pool — typed access
-svc.NATS("primary")      // *events.Conn — NATS connection
-svc.App()                // *fiber.App — raw Fiber access
+// Access databases and event streams
+svc.Pool("pg-main")              // any — returns the pool by name
+svc.PoolPG("pg-main")            // *pgxpool.Pool — typed access
+svc.NATS("primary")              // events.EventBroker — event broker
+svc.SafeHTTPClient()             // *middleware.SafeHTTPClient — SSRF-protected HTTP client
+svc.App()                        // *fiber.App — raw Fiber access
 
 // Start everything
 svc.Run()
@@ -44,18 +47,68 @@ svc.Run()
 ```
 New(configPath) → LoadConfig + validate
   → Run()
-    1. initDatabases()    — connect PG/Turso/MySQL pools
-    2. initNATSList()     — connect NATS + create streams
-    3. initServer()       — Fiber HTTP + middlewares + CORS
-    4. RegisterEntries()  — register all entry routes
-    5. Static files
-    6. registerDocs()     — OpenAPI + Scalar UI
-    7. initExit()         — start all NATS workers
-    8. initCron()         — start cron scheduler
+    1. initDatabases()        — connect PG/Turso/MySQL pools
+    2. initEventStreams()     — connect NATS/Kafka + create streams
+    3. initSSRF()             — SafeHTTPClient (if configured)
+    4. initServer()           — Fiber HTTP + middlewares + TLS + security headers + CSRF + rate limit
+    5. RegisterEntries()      — register all entry routes (9 types)
+    6. Static files
+    7. registerDocs()         — OpenAPI + Scalar UI
+    8. initExit()             — start all event workers
+    9. initCron()             — start cron scheduler
     → HTTP server starts
 ```
 
 All steps are optional. No databases? Skip `databases:` in YAML. No HTTP? Only define `exit:` and `cron:`.
+
+## Async Jobs
+
+```go
+svc.WithAsync("processReport", func(body []byte, job *runtime.JobState) error {
+    // Process the job
+    job.Result = fiber.Map{"report_url": "https://..."}
+    return nil
+})
+```
+
+- POST `/path` → `202 Accepted` with `job_id` + `status_url`
+- GET `/path/:job_id` → JSON with job status and result
+- Job states: `pending` → `processing` → `completed` / `failed`
+
+## GraphQL
+
+```go
+svc.RegisterModel("Product", (*Product)(nil))
+```
+
+- Auto-generates schema from registered `CRUDProvider` instances
+- Queries: `Products`, `Product(id)`
+- Mutations: `createProduct`, `updateProduct`, `deleteProduct`
+- POST `/graphql` endpoint
+
+## Validation
+
+```go
+type CreateProductInput struct {
+    Name  string  `json:"name" validate:"required,min=3,max=100"`
+    Price float64 `json:"price" validate:"required,gt=0"`
+}
+
+svc.RegisterValidation("CreateProductInput", CreateProductInput{})
+```
+
+When `entry[].validate` is set in YAML, the input body is validated before the handler runs. Returns `422` with field-level errors on failure.
+
+## SSRF Protection
+
+```go
+client := svc.SafeHTTPClient()
+if client != nil {
+    resp, err := client.Do(req)  // Blocks private/internal IPs
+}
+```
+
+Returns `nil` if SSRF protection is not configured in YAML (`server.ssrf.enabled: true`).
 
 ## Graceful Shutdown
 
@@ -63,7 +116,7 @@ On SIGINT/SIGTERM:
 
 1. Stop cron scheduler (waits for running jobs)
 2. Drain exit workers (waits for in-flight handlers, 5s timeout)
-3. Drain all NATS connections
+3. Drain all event broker connections
 4. Close all DB pools
 5. Stop HTTP server
 
@@ -71,7 +124,7 @@ No manual cleanup needed.
 
 ## RegisterModel
 
-For OpenAPI schema generation, register Go struct types:
+For OpenAPI and GraphQL schema generation, register Go struct types:
 
 ```go
 type Product struct {
@@ -82,7 +135,7 @@ type Product struct {
 svc.RegisterModel("Product", (*Product)(nil))
 ```
 
-The function parses struct tags (`db`, `json`) to build OpenAPI property schemas. Multiple models can be registered, one per entry endpoint.
+The function parses struct tags (`db`, `json`) to build property schemas.
 
 ## Hooks
 
@@ -103,7 +156,7 @@ type EntryHooks[T any] interface {
 
 Embed `DefaultHooks[T]` to implement only the methods you need.
 
-### Exit Hooks (NATS lifecycle)
+### Exit Hooks (event lifecycle)
 
 ```go
 type ExitHooks interface {
@@ -129,8 +182,6 @@ svc.WithRest("convert", runtime.WrapTransformHandler(
 
 ## CRUD Provider
 
-The `CRUDProvider` interface bridges typed `db.Table[T]` to the router:
-
 ```go
 type CRUDProvider interface {
     List(ctx, params) error
@@ -142,21 +193,21 @@ type CRUDProvider interface {
 ```
 
 Three implementations:
-- `NewCRUDProvider[T](table, hooks)` — PostgreSQL (`db.Table[T]`)
-- `NewMySQLCRUDProvider[T](table, hooks)` — MySQL (`db.MySQLTable[T]`)
-- `NewTursoCRUDProvider[T](table, hooks)` — Turso (`db.TursoTable[T]`)
+- `NewCRUDProvider[T](table, hooks)` — PostgreSQL
+- `NewMySQLCRUDProvider[T](table, hooks)` — MySQL
+- `NewTursoCRUDProvider[T](table, hooks)` — Turso
 
 ## Pool helpers
 
 ```go
-runtime.Pool(pools, name)      // any → returns pool by name
-runtime.PoolPG(pools, name)    // *pgxpool.Pool for PostgreSQL
+runtime.Pool(pools, name)      // any — returns pool by name
+runtime.PoolPG(pools, name)    // *pgxpool.Pool
 runtime.PoolSQL(pools, name)   // *sql.DB for Turso/MySQL
-runtime.TableFor[T](pools, poolName, tableName)  // *db.Table[T] from pool
+runtime.TableFor[T](pools, poolName, tableName)  // *db.Table[T]
 
 // On the Service:
-svc.Pool("pg-main")           // any
-svc.PoolPG("pg-main")         // any (type assertion hidden)
+svc.Pool("pg-main")
+svc.PoolPG("pg-main")
 ```
 
 ## Database-backed pooling formula
@@ -193,4 +244,4 @@ store, _ := server.NewS3Storage(server.S3Config{
 })
 ```
 
-Storage backends in YAML are auto-created when `entry[].storage` is specified. The backend is stored in `EntryHandlers.Storage[keyed by path]`.
+Storage backends in YAML are auto-created when `entry[].storage` is specified.

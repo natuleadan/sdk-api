@@ -16,7 +16,7 @@
   <a href="https://conventionalcommits.org"><img src="https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg?style=for-the-badge"></a>
 </p>
 
-A production-ready Go SDK for building event-driven microservices and monoliths. **Fork of [go-zero](https://github.com/zeromicro/go-zero)** with **Fiber** (fasthttp), **pgx** (PostgreSQL), **NATS JetStream** (messaging), per-route middleware, and YAML-driven configuration.
+A production-ready Go SDK for building event-driven microservices and monoliths. **Fork of [go-zero](https://github.com/zeromicro/go-zero)** with **Fiber** (fasthttp), **pgx** (PostgreSQL), **NATS JetStream** + **Kafka** (messaging), per-route middleware, security, and YAML-driven configuration.
 
 ---
 
@@ -88,9 +88,18 @@ curl http://localhost:8080/health
 | | `websocket` | WebSocket upgrade handler |
 | | `sse` | Server-Sent Events streaming |
 | | `file` | Upload/download/delete, S3 or local storage |
-| **Exit workers** | NATS JetStream | Push/pull consumers, reply support, graceful shutdown |
-| | `nats_publish` | Auto-publish HTTP requests to NATS streams |
-| | Request-Reply | `PublishAndWait` + `reply: true` for RPC patterns |
+| | `async` | 202 Accepted + status polling for long-running jobs |
+| | `graphql` | Auto-generated schema + CRUD resolvers |
+| **Event streams** | NATS JetStream | Push/pull consumers, KV, request-reply |
+| | Kafka | Topic-based pub/sub, consumer groups |
+| | `EventBroker` | Unified interface for NATS/Kafka duality |
+| **Security** | Security headers | X-Frame-Options, CSP, HSTS, Permissions-Policy, etc. |
+| | CSRF | Double-submit cookie pattern |
+| | Rate limiting | Token bucket (memory or Redis), per IP/user/global |
+| | TLS | Manual certs or Let's Encrypt autocert |
+| | SSRF protection | Blocks private/loopback/metadata IPs |
+| | Input validation | Struct tag validation via `go-playground/validator/v10` |
+| | Error sanitization | Generic 500 messages, no internal leak |
 | **Cron** | `nats` mode | Publish message to NATS on schedule |
 | | `handler` mode | Call a Go function on schedule |
 | | `internal` mode | System tick without handler |
@@ -100,6 +109,9 @@ curl http://localhost:8080/health
 | | Multi-DB | Each entry/exit can use a different database |
 | **Server** | 14 built-in middlewares | Logger, breaker, JWT, CORS, tracing, shedding, timeout, etc. |
 | | Per-route middleware | Configure middlewares per path in YAML |
+| | Security headers + CSRF + Rate limit | YAML-driven security layers |
+| | TLS (manual + autocert) | HTTPS + HTTP→HTTPS redirect |
+| | Error sanitization + CRLF protection | Built-in, always on |
 | | OpenAPI 3.0.3 + Scalar | Auto-generated spec + UI `/docs` |
 | | Health + Metrics | `/health`, `/metrics` |
 | **Storage** | S3-compatible | MinIO, R2, AWS S3 |
@@ -165,6 +177,8 @@ resp, _ := client.Request("orders", "orders.transform", []byte(`{"id": 1}`))
 | `websocket` | GET (upgrade) | WS handler | No |
 | `sse` | GET | SSE handler | No |
 | `file` | GET, POST, PUT, PATCH, DELETE | Upload handler | No |
+| `async` | POST, GET | Async handler | No |
+| `graphql` | POST | Nothing | No |
 
 ### Exit worker fields
 
@@ -208,17 +222,20 @@ Packages involved:
 
 | File | Contents |
 |------|----------|
-| [docs/api-patterns.md](docs/api-patterns.md) | All 6 entry types, exit workers, cron, hooks with YAML + Go examples |
-| [docs/configuration.md](docs/configuration.md) | Full YAML schema reference (databases, entry, exit, cron, server, storage) |
-| [docs/runtime.md](docs/runtime.md) | Runtime API: `Service`, `CRUDProvider`, `RegisterModel`, `Hooks` |
-| [docs/http-server.md](docs/http-server.md) | Server config, 14 middlewares, per-route middleware, OpenAPI |
+| [docs/configuration.md](docs/configuration.md) | Full YAML schema reference (all entry types, event streams, security) |
+| [docs/security.md](docs/security.md) | Consolidated security guide (headers, CSRF, rate limit, TLS, SSRF, validation) |
+| [docs/http-server.md](docs/http-server.md) | Server config, middlewares, TLS, security headers, CSRF, rate limit |
+| [docs/runtime.md](docs/runtime.md) | Runtime API: `Service`, `CRUDProvider`, `RegisterValidation`, `SafeHTTPClient` |
+| [docs/messaging.md](docs/messaging.md) | NATS + Kafka, EventBroker, producers, exit workers, KV cache |
 | [docs/database.md](docs/database.md) | PG/Turso/MySQL, pool sizing, multi-DB, Table[T] CRUD |
-| [docs/messaging.md](docs/messaging.md) | Producers, exit workers, request-reply, KV cache |
+| [docs/entry-graphql.md](docs/entry-graphql.md) | Auto-generated GraphQL schema + resolvers |
+| [docs/entry-async.md](docs/entry-async.md) | Async jobs: 202 Accepted + status polling |
+| [docs/secrets.md](docs/secrets.md) | Secrets management: ${VAR}, SOPS/age, best practices |
+| [docs/api-patterns.md](docs/api-patterns.md) | Entry types, exit workers, cron, hooks with YAML + Go examples |
 | [docs/best-practices.md](docs/best-practices.md) | Gotchas, patterns, anti-patterns |
 | [docs/cli.md](docs/cli.md) | `sdk-api new/docker/kube/client` subcommands |
 | [docs/benchmarks.md](docs/benchmarks.md) | Full benchmark results and methodology |
 | [docs/architecture.md](docs/architecture.md) | Architecture, entry router, exit system, cron design |
-| [docs/conventional-commits.md](docs/conventional-commits.md) | Commit rules, versioning, release flow |
 | [docs/getting-started.md](docs/getting-started.md) | Step-by-step tutorial for first service |
 
 ## 8. Examples

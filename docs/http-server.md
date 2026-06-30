@@ -1,6 +1,6 @@
 # HTTP Server
 
-The HTTP server wraps **Fiber v2** (fasthttp) with 14 built-in middlewares, per-route middleware configuration, and auto-generated OpenAPI documentation.
+The HTTP server wraps **Fiber v2** (fasthttp) with 14 built-in middlewares, per-route middleware configuration, security headers, CSRF, rate limiting, TLS support, and auto-generated OpenAPI documentation.
 
 ## Configuration
 
@@ -16,6 +16,7 @@ server:
   health_path: /health
   metrics_path: /metrics
   shutdown_timeout: 10s
+  recover_stack: true       # Show stack traces on panic
 ```
 
 | Field | Default | Description |
@@ -30,19 +31,165 @@ server:
 | `health_path` | `/health` | Kubernetes liveness probe endpoint |
 | `metrics_path` | `/metrics` | Prometheus metrics endpoint |
 | `shutdown_timeout` | `10s` | Graceful shutdown wait time |
+| `recover_stack` | `true` | When true, stack traces appear in 500 responses (dev). Error messages are sanitized for internal errors. |
 
 ## Entry Types
 
-The server auto-registers routes from `entry:` in YAML. Six types:
+The server auto-registers routes from `entry:` in YAML. Nine types:
 
 | Type | HTTP Methods | What you write | Description |
 |------|-------------|----------------|-------------|
 | `crud` | GET, POST, PATCH, DELETE | Nothing | Auto-generated CRUD |
 | `rest` | Any | Single handler | Custom handler, any method |
-| `webhook` | Any (default POST) | Single handler | Webhook receiver, no JWT by default |
+| `webhook` | Any (default POST) | Single handler | Webhook receiver |
 | `websocket` | GET (upgrade) | WS handler | WebSocket upgrade |
 | `sse` | GET | SSE handler | SSE streaming |
 | `file` | GET, POST, PUT, PATCH, DELETE | Upload handler | File upload/download/delete |
+| `async` | POST, GET | Async handler | 202 Accepted + status polling |
+| `graphql` | POST | Nothing | Auto-generated GraphQL schema |
+
+## Security Headers
+
+Global middleware that injects security headers into every response. Configured via `server.security_headers`:
+
+```yaml
+server:
+  security_headers:
+    frame_options: DENY
+    referrer_policy: strict-origin-when-cross-origin
+    permissions_policy: "camera=(), microphone=()"
+    hsts: true
+    hsts_max_age: 31536000
+    hsts_include_subdomains: true
+    csp: "default-src 'self'"
+    csp_report_path: /csp-violation
+    coop: same-origin
+    coep: require-corp
+    corp: same-origin
+    cache_control: "no-store"
+```
+
+| Header | Config field | Always set? |
+|--------|-------------|-------------|
+| `X-Content-Type-Options: nosniff` | — | ✅ Always |
+| `X-Frame-Options` | `frame_options` | Only if configured |
+| `Referrer-Policy` | `referrer_policy` | Only if configured |
+| `Permissions-Policy` | `permissions_policy` | Only if configured |
+| `Strict-Transport-Security` | `hsts` | Only if configured |
+| `Content-Security-Policy` | `csp` | Only if configured |
+| `Cross-Origin-Opener-Policy` | `coop` | Only if configured |
+| `Cross-Origin-Embedder-Policy` | `coep` | Only if configured |
+| `Cross-Origin-Resource-Policy` | `corp` | Only if configured |
+| `Cache-Control` | `cache_control` | Only if configured |
+
+**CSP Report Endpoint:** When `csp_report_path` is set (e.g. `/csp-violation`), a `POST` endpoint is auto-registered that logs violation reports via `logx.Errorf`.
+
+## CSRF Protection
+
+Double-submit cookie pattern. Configured via `server.csrf`:
+
+```yaml
+server:
+  csrf:
+    enabled: true
+    cookie_name: csrf_token
+    header_name: X-CSRF-Token
+    same_site: Strict
+    secure: true
+    exclude_paths:
+      - /webhooks/*
+```
+
+- Token generated on `GET`/`HEAD`/`OPTIONS` responses, set as non-HttpOnly cookie
+- Validated on `POST`/`PUT`/`PATCH`/`DELETE` by comparing cookie vs header
+- Returns `403` on mismatch
+- Per-entry override: `entry[].csrf: false`
+
+## Rate Limiting
+
+Configured via `server.rate_limit`:
+
+```yaml
+server:
+  rate_limit:
+    enabled: true
+    driver: memory            # memory | redis (requires redis_url)
+    global:
+      requests_per_second: 1000
+      burst: 2000
+    per_ip:
+      requests_per_second: 200
+      burst: 300
+    per_user:
+      requests_per_second: 100
+      burst: 150
+```
+
+- Uses token bucket algorithm
+- `memory` driver: in-process, goroutine-safe
+- `redis` driver: shared counters via `infra/limit/TokenLimiter` (Redis required)
+- Returns `429 Too Many Requests` + `Retry-After` header
+- Returns `X-RateLimit-Limit` and `X-RateLimit-Remaining` headers
+- Per-entry override: `entry[].rate_limit`
+
+## TLS
+
+Configured via `server.tls`:
+
+```yaml
+server:
+  tls:
+    enabled: true
+    manual:
+      cert_file: /etc/certs/cert.pem
+      key_file: /etc/certs/key.pem
+    autocert:
+      domains:
+        - api.example.com
+      email: admin@example.com
+    min_version: "1.2"
+    max_version: "1.3"
+    curve_preferences:
+      - X25519
+      - P-256
+    cipher_suites:
+      - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+    redirect_http: true
+    redirect_port: 80
+```
+
+Three modes:
+- **Off** (no `tls:` section) — HTTP only
+- **Manual** — Loads cert/key files
+- **Autocert** — Let's Encrypt automatic certificates via `golang.org/x/crypto/acme/autocert`
+
+When `redirect_http: true`, a goroutine listens on `redirect_port` (default 80) and issues `308 Permanent Redirect` to HTTPS.
+
+## Error Handler
+
+All Fiber errors return JSON. Internal errors (500+) are sanitized:
+
+```json
+{"code": 500, "message": "internal server error"}
+```
+
+Client errors (400-499) pass through as-is. Real error details are logged server-side.
+
+## CORS
+
+```yaml
+server:
+  cors:
+    origins:
+      - "https://app.example.com"
+    methods:
+      - GET
+      - POST
+    credentials: true
+    max_age: 86400
+```
+
+When `cors` is omitted, CORS defaults to same-origin only (secure default).
 
 ## Built-in Middlewares (14)
 
@@ -65,7 +212,7 @@ The server auto-registers routes from `entry:` in YAML. Six types:
 
 ## Per-route Middleware
 
-When `server.middleware` is specified, only `Recovery` + `Health` are global. All others apply per-path:
+When `server.middleware` is specified, only `Recovery` + `Health` + `HeaderSanitize` are global. All others apply per-path:
 
 ```yaml
 server:
@@ -80,29 +227,22 @@ server:
 
 Without `middleware:`, all 14 middlewares apply globally (backwards compatible).
 
-## JWT
+## CRLF Header Protection
 
-Configured via `auth` in config. When `auth.secret` is set, JWT middleware is added globally:
+Built-in global middleware (always on, no config). Rejects requests containing `\r` or `\n` bytes in header values, preventing HTTP response splitting attacks.
 
-```yaml
-auth:
-  secret: my-secret
-  prev_secret: old-secret        # Key rotation support
-  token_lookup: header:Authorization
-  context_key: claims
+## SSRF Protection
+
+Disabled by default. When enabled via `server.ssrf`, provides a protected HTTP client:
+
+```go
+client := svc.SafeHTTPClient()
+resp, err := client.Do(req)
 ```
 
-## Error Handler
-
-All Fiber errors return JSON:
-
-```json
-{"code": 500, "message": "internal server error"}
-```
+Blocks requests to private IPs (`10.x`, `172.16-31.x`, `192.168.x`), loopback (`127.0.0.1`, `::1`), and cloud metadata (`169.254.169.254`).
 
 ## OpenAPI & Scalar UI
-
-Auto-generated API documentation (when `server.openapi.enabled` is `true`):
 
 ```yaml
 server:
@@ -139,7 +279,7 @@ Every service exposes a liveness probe at `health_path` (default: `/health`):
 {"status": "ok"}
 ```
 
-Returns `200 OK` as long as the process is alive. Compatible with Kubernetes, AWS ALB, GCP LB, Traefik, Caddy, Nginx.
+Returns `200 OK` as long as the process is alive.
 
 ## Metrics
 
@@ -154,6 +294,8 @@ go_requests_active{...,method="GET",path="/api/v1/products"}
 ## Graceful Shutdown
 
 The server shuts down in order:
-1. Close HTTP listener (no new connections)
-2. Wait for in-flight requests up to `shutdown_timeout`
-3. After server, runtime drains NATS, closes DB pools
+1. Stop cron scheduler
+2. Drain exit workers (waits for in-flight handlers)
+3. Drain NATS connections
+4. Close DB pools
+5. Stop HTTP server

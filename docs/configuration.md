@@ -1,6 +1,6 @@
 # Configuration
 
-sdk-api is **YAML-driven**. Everything is declared in a single `service.yaml` — no code scaffolding for config, no magic. The YAML defines databases, NATS connections, entry endpoints (HTTP), exit workers (NATS consumers), cron jobs, and server settings.
+sdk-api is **YAML-driven**. Everything is declared in a single `service.yaml` — no code scaffolding for config, no magic. The YAML defines databases, NATS connections, entry endpoints (HTTP), exit workers (NATS consumers), cron jobs, server settings, and security features.
 
 ## Full Schema
 
@@ -14,27 +14,38 @@ databases:
     driver: postgres          # postgres | turso | mysql
     url: "${DATABASE_URL}"    # Connection string (env interpolation)
     pool:
-      max_conns: 10           # Auto-calculated from PG_SERVER_MAX_CONNS if <= 0
+      max_conns: 10
       min_conns: 2
       max_conn_lifetime: 30m
       max_conn_idle_time: 5m
       health_check_period: 1m
       reserved_conns: 10
 
-# ---- NATS (multiple connections) ----
+# ---- NATS (multiple connections, legacy) ----
 nats:
-  - name: primary             # Reference name used by exit workers
+  - name: primary
     url: "${NATS_URL}"
     max_reconnects: 10
     reconnect_wait: 2s
     timeout: 5s
     retry_on_fail: true
     streams:
-      - name: orders          # Stream name
+      - name: orders
         max_age: 24h
-        max_bytes: 1073741824 # 1GB
-        storage: file          # file | memory
-        compression: s2       # s2 | none
+        max_bytes: 1073741824
+
+# ---- Event Streams (NATS + Kafka) ----
+event_streams:
+  - name: default
+    driver: nats
+    url: "${NATS_URL}"
+    streams:
+      - name: orders
+
+  - name: analytics
+    driver: kafka
+    brokers: ["localhost:9092"]
+    consumer_group: sdk-api
 
 # ---- Entry endpoints (HTTP) ----
 entry:
@@ -43,29 +54,27 @@ entry:
     model: Product
     db: pg-main
     table: products
-    path: /products            # Defaults to /{resource}
-    overrides:
-      list: ~                 # ~ = use default handler
-      get: "onCustomGet"      # Use custom handler from Rest map
-      create: "-"             # "-" = disable this endpoint
-      update: ~
-      delete: ~
+    path: /products
+    event_stream: default
+    event_publish:
+      - stream: orders
+        subject: order.created
 
   # REST — single endpoint, no auto-generation
   - type: rest
     method: GET
     path: /products/:id/transform
     handler: onTransformProduct
-    auth: true                 # JWT required
-    nats_publish:              # Auto-publish to NATS after handler
+    auth: true
+    event_publish:
       - stream: orders
         subject: orders.transformed
 
-  # Webhook — POST endpoint (JWT not required by default)
+  # Webhook
   - type: webhook
     path: /webhooks/sendgrid
     handler: onInboundEmail
-    nats_publish:
+    event_publish:
       - stream: email
         subject: email.received
 
@@ -89,50 +98,50 @@ entry:
       - image/jpeg
       - application/pdf
     max_size: 10MB
+    max_files: 5
+    magic_bytes: true
     storage:
-      mode: s3                  # s3 | local
+      mode: s3
       bucket: uploads
       endpoint: "http://minio:9000"
       access_key: "${MINIO_ACCESS_KEY}"
       secret_key: "${MINIO_SECRET_KEY}"
 
-# ---- Exit workers (NATS consumers) ----
+  # Async job — 202 Accepted + polling
+  - type: async
+    path: /jobs/reports
+    handler: processReport
+
+  # GraphQL — auto-generated schema + resolvers
+  - type: graphql
+    path: /graphql
+
+# ---- Exit workers ----
 exit:
   - name: email-sender
     subscribe:
-      stream: orders           # NATS stream name
-      subject: orders.confirmed # defaults to stream name
+      stream: orders
+      subject: orders.confirmed
     handler: onOrderConfirmed
-    max_concurrent: 10          # Goroutine pool per worker
-    db: pg-main                 # Workers can also access databases
-    reply: false                # true = handler returns data via Respond()
-    reply_timeout: 30s
-    pull_batch: 0               # > 0 = use pull consumer (fetch batch)
-    consumer_mode: push         # push | pull
+    max_concurrent: 10
+    db: pg-main
+    reply: false
+    consumer_mode: push
 
 # ---- Cron (scheduled jobs) ----
 cron:
   - name: daily-report
-    schedule: "0 6 * * *"       # Standard 5-field cron
-    mode: nats                  # nats | handler | internal
+    schedule: "0 6 * * *"
+    mode: nats
     publish:
       stream: cron
       subject: cron.daily-report
 
-  - name: cleanup-expired
-    schedule: "0 */4 * * *"
-    mode: handler               # Calls Go handler
-    handler: onCleanupExpired
-
-  - name: health-check
-    schedule: "@every 1h"
-    mode: internal              # Internal system tick (log only)
-
 # ---- Server config ----
 server:
   host: "0.0.0.0"
-  prefork: false               # Fiber SO_REUSEPORT
-  body_limit: 4194304          # 4 MB
+  prefork: false
+  body_limit: 4194304
   timeout: 30s
   max_conns: 1000
   max_bytes: 4194304
@@ -143,15 +152,68 @@ server:
   api_prefix: /api/v1
   cors:
     origins:
-      - "*"
+      - "https://app.example.com"   # Never "*" in production
     methods:
       - GET
       - POST
       - PUT
       - PATCH
       - DELETE
-    credentials: false
-    max_age: 300
+    credentials: true
+    max_age: 86400
+
+  # Security headers
+  security_headers:
+    frame_options: DENY
+    referrer_policy: strict-origin-when-cross-origin
+    permissions_policy: "camera=(), microphone=()"
+    hsts: true
+    hsts_max_age: 31536000
+    csp: "default-src 'self'; script-src 'self'"
+    csp_report_path: /csp-violation
+
+  # CSRF protection
+  csrf:
+    enabled: true
+    cookie_name: csrf_token
+    header_name: X-CSRF-Token
+    same_site: Strict
+    exclude_paths:
+      - /webhooks/*
+
+  # Rate limiting
+  rate_limit:
+    enabled: true
+    driver: memory                 # memory | redis
+    global:
+      requests_per_second: 1000
+      burst: 2000
+    per_ip:
+      requests_per_second: 200
+      burst: 300
+
+  # TLS
+  tls:
+    enabled: true
+    manual:
+      cert_file: /etc/certs/cert.pem
+      key_file: /etc/certs/key.pem
+    min_version: "1.2"
+    max_version: "1.3"
+    redirect_http: true
+
+  # SSRF protection (disabled by default)
+  ssrf:
+    enabled: false
+    block_private: true
+    block_loopback: true
+    block_metadata: true
+
+  # Global cookie settings
+  cookies:
+    same_site: Lax
+    secure: true
+
   static:
     - prefix: /static
       dir: ./public
@@ -161,7 +223,7 @@ server:
         - logger
         - breaker
         - cors
-  openapi:                     # Auto-generated API docs
+  openapi:
     enabled: true
     version: "1.0.0"
     spec_path: /openapi.json
@@ -176,17 +238,15 @@ server:
 |-------|------|---------|-------------|
 | `name` | string | — | Service name (required) |
 | `port` | int | `8080` | HTTP port. Overridden by `$PORT` env var |
-| `databases` | array | `[]` | Database connections (see below) |
-| `nats` | array | `[]` | NATS connections (see below) |
-| `entry` | array | `[]` | HTTP endpoint definitions (6 types) |
-| `exit` | array | `[]` | NATS worker definitions |
+| `databases` | array | `[]` | Database connections |
+| `nats` | array | `[]` | NATS connections (legacy, see `event_streams`) |
+| `event_streams` | array | `[]` | Event stream connections (NATS or Kafka) |
+| `entry` | array | `[]` | HTTP endpoint definitions |
+| `exit` | array | `[]` | Worker definitions |
 | `cron` | array | `[]` | Scheduled job definitions |
-| `server` | object | (defaults) | HTTP server configuration |
-| `telemetry` | object | — | OpenTelemetry (not yet wired) |
+| `server` | object | (defaults) | HTTP server + security configuration |
 
 ## Databases
-
-Each entry in `databases:` connects one database. Multiple entries = multiple databases.
 
 ```yaml
 databases:
@@ -203,11 +263,8 @@ databases:
 | `name` | Reference name. Used by `entry[].db` and `exit[].db` |
 | `driver` | `postgres` (or `pg`), `turso`, `mysql` |
 | `url` | Connection string. Supports `${VAR}` env interpolation |
-| `pool.max_conns` | Max connections. If `<= 0`, auto-calculated: `max(1, (PG_SERVER_MAX_CONNS - reserved) / REPLICA_COUNT)` |
-| `pool.min_conns` | Min idle connections |
-| `pool.reserved_conns` | Reserved connections for other services |
 
-## NATS
+## NATS (legacy)
 
 ```yaml
 nats:
@@ -217,24 +274,40 @@ nats:
       - name: orders
 ```
 
+Backwards compatible. See `event_streams` below for the new unified format.
+
+## Event Streams
+
+```yaml
+event_streams:
+  - name: default
+    driver: nats
+    url: "${NATS_URL}"
+    streams:
+      - name: orders
+
+  - name: analytics
+    driver: kafka
+    brokers: ["localhost:9092"]
+    consumer_group: sdk-api
+```
+
 | Field | Description |
 |-------|-------------|
-| `name` | Reference name. Used internally |
-| `url` | NATS server URL |
-| `streams[].name` | Stream name. Created on startup if not exists |
-| `streams[].max_age` | Message max age (default: `24h`) |
-| `streams[].max_bytes` | Stream max bytes (default: 1GB) |
-| `streams[].storage` | `file` (default) or `memory` |
-| `streams[].compression` | `s2` (default) or `none` |
+| `name` | Reference name. Used by `entry[].event_stream` |
+| `driver` | `nats` or `kafka` |
+| `url` | NATS URL (required for `driver: nats`) |
+| `brokers` | Kafka broker list (required for `driver: kafka`) |
+| `consumer_group` | Kafka consumer group (defaults to `{name}-group`) |
 
-Default subjects for a stream named `orders`: `[orders, orders.>]` (wildcard for all sub-subjects).
+Default subjects for a NATS stream named `orders`: `[orders, orders.>]`.
 
 ## Entry (HTTP endpoints)
 
-6 types of entry endpoints:
+9 types of entry endpoints:
 
 ### `type: crud`
-Auto-generates 5 endpoints for a model:
+Auto-generates 5 endpoints for a model.
 
 | Method | Path | Behavior |
 |--------|------|----------|
@@ -244,21 +317,31 @@ Auto-generates 5 endpoints for a model:
 | PATCH | `/resource/:id` | Partial update |
 | DELETE | `/resource/:id` | Delete |
 
-CRUD overrides control individual endpoints:
-
 ```yaml
-overrides:
-  list: ~              # (empty) → use auto-generated handler
-  get: "onCustomGet"   # string → override with custom handler
-  create: "-"          # "-" → disable this endpoint
-  update: ~
-  delete: "-"
+- type: crud
+  model: Product
+  db: pg-main
+  table: products
+  event_stream: default                # Optional: broker for event_publish
+  event_publish:
+    - stream: orders
+      subject: order.created
+  overrides:
+    list: ~
+    get: "onCustomGet"
+    create: "-"
 ```
 
-Required fields: `model`, `db`, `table`. Auto-resolves `path` from `resource`, `resource` from `table` (pluralizes).
+| Field | Description |
+|-------|-------------|
+| `model` | Model name (registered via CRUDProvider) |
+| `db` | Database reference |
+| `table` | Table name. Defaults to snake_case of model |
+| `event_stream` | Broker name for event publishing |
+| `overrides` | CRUD override controls |
 
 ### `type: rest`
-Single endpoint with any HTTP method. No auto-generation.
+Single endpoint with any HTTP method.
 
 ```yaml
 - type: rest
@@ -266,12 +349,10 @@ Single endpoint with any HTTP method. No auto-generation.
   path: /products/:id/transform
   handler: onTransformProduct
   auth: true
-  nats_publish:
+  event_publish:
     - stream: orders
       subject: orders.transformed
 ```
-
-Required: `method`, `path`, `handler`. Optional: `auth`, `nats_publish`.
 
 ### `type: webhook`
 Defaults to POST if omitted. No JWT validation by default.
@@ -280,24 +361,19 @@ Defaults to POST if omitted. No JWT validation by default.
 - type: webhook
   path: /webhooks/slack
   handler: onSlackCommand
-  nats_publish:
+  event_publish:
     - stream: events
       subject: events.slack
 ```
 
-Required: `path`, `handler`.
-
 ### `type: websocket`
-Upgrades HTTP to WebSocket via `gofiber/contrib/websocket`.
+Upgrades HTTP to WebSocket.
 
 ```yaml
 - type: websocket
   path: /ws/chat
   handler: onChat
-  auth: true
 ```
-
-Required: `path`, `handler`.
 
 ### `type: sse`
 Server-Sent Events streaming endpoint.
@@ -306,10 +382,7 @@ Server-Sent Events streaming endpoint.
 - type: sse
   path: /events/stream
   handler: onStream
-  auth: true
 ```
-
-Required: `path`, `handler`.
 
 ### `type: file`
 File upload/download with middleware validation.
@@ -321,26 +394,74 @@ File upload/download with middleware validation.
   handler: onFileUpload
   allowed_types:
     - image/png
-    - application/pdf
+    - image/jpeg
   max_size: 10MB
+  max_files: 5
+  magic_bytes: true
   storage:
-    mode: local          # s3 | local
+    mode: local
     path: /data/uploads
 ```
 
 | Field | Description |
 |-------|-------------|
-| `allowed_types` | Content-Type whitelist. Supports `type/*` wildcard. Returns 415 on mismatch |
-| `max_size` | Max body size. Supports `KB`, `MB`, `GB` suffixes. Returns 413 if exceeded |
-| `storage.mode` | `s3` (minio-compatible: AWS S3, R2, MinIO) or `local` (filesystem) |
-| `storage.bucket` | S3 bucket name (required for `mode: s3`) |
-| `storage.path` | Filesystem path (required for `mode: local`) |
+| `allowed_types` | Content-Type whitelist. Returns 415 on mismatch |
+| `max_size` | Max body size. Supports `KB`, `MB`, `GB` suffixes |
+| `max_files` | Max files per multipart request |
+| `magic_bytes` | Verify file content matches declared type (body > 512 bytes) |
+| `storage.mode` | `s3` or `local` |
 
-Required: `method`, `path`, `handler`, `storage`.
+### `type: async`
+Async job with 202 Accepted + status polling.
 
-## Exit (NATS workers)
+```yaml
+- type: async
+  path: /jobs/reports
+  handler: processReport
+```
 
-Each exit worker subscribes to a NATS JetStream subject and processes messages:
+| Method | Path | Behavior |
+|--------|------|----------|
+| POST | `/path` | Submit job → 202 + `job_id` + `status_url` |
+| GET | `/path/:job_id` | Poll job status → JSON |
+
+Handler signature: `func(body []byte, job *JobState) error`. Set `job.Result` for status response.
+
+### `type: graphql`
+Auto-generated GraphQL schema from registered models.
+
+```yaml
+- type: graphql
+  path: /graphql
+```
+
+Queries and mutations are auto-generated from `CRUDProvider` registrations. Models must be registered via `svc.RegisterModel()`.
+
+### Common entry fields
+
+| Field | Applies to | Description |
+|-------|-----------|-------------|
+| `auth` | crud, rest, webhook, file | JWT authentication required |
+| `csrf` | crud, rest, webhook, file | CSRF protection override (`true`/`false`) |
+| `rate_limit` | crud, rest, webhook | Per-entry rate limit |
+| `event_stream` | crud, rest, webhook, file | Event broker name for publishes |
+| `event_publish` | crud, rest, webhook, file | Publish targets (replaces `nats_publish`) |
+| `nats_publish` | crud, rest, webhook, file | Deprecated alias for `event_publish` |
+| `validate` | crud, rest, webhook | Validation model name |
+
+### event_publish targets
+
+```yaml
+event_publish:
+  - stream: orders                # Stream/topic name
+    subject: order.created        # Subject (defaults to stream)
+    event_stream: default         # Optional: broker name override
+```
+
+When `event_stream` is specified per-target, the message is published only to that broker.
+When omitted, the message is published to all available brokers (backward compatible).
+
+## Exit (workers)
 
 ```yaml
 exit:
@@ -351,25 +472,12 @@ exit:
     handler: onOrderConfirmed
     max_concurrent: 10
     db: pg-main
-    reply: false
-    reply_timeout: 30s
-    pull_batch: 0
-    consumer_mode: push
+    event_stream: default
 ```
 
 | Field | Description |
 |-------|-------------|
-| `name` | Worker name (must be unique) |
-| `subscribe.stream` | NATS stream to consume from |
-| `subscribe.subject` | Subject within stream. Defaults to stream name |
-| `subscribe.durable` | Durable name. Defaults to `{name}-worker` |
-| `handler` | Go function name registered via `svc.WithExit()` |
-| `max_concurrent` | Max concurrent goroutines (default: 1) |
-| `db` | Optional database reference for worker access |
-| `reply` | If `true`, handler response is sent via `msg.Respond()` |
-| `reply_timeout` | Timeout for reply (default: `30s`) |
-| `pull_batch` | If `> 0`, uses pull consumer fetching this many messages per batch |
-| `consumer_mode` | `push` (default) or `pull`. Overridden by `pull_batch` |
+| `event_stream` | Broker name to consume from (nats or kafka) |
 
 ## Cron
 
@@ -383,35 +491,162 @@ cron:
       subject: cron.daily-report
 ```
 
-| Mode | Behavior | Requires |
-|------|----------|----------|
-| `nats` | Publishes to NATS on schedule | `publish.stream` |
-| `handler` | Calls Go function directly | `handler` |
-| `internal` | System tick (logs only) | Nothing |
-
-Schedule format: standard 5-field cron (`min hour dom month dow`) or `@every 1s`, `@every 1h`, etc.
+| Mode | Behavior |
+|------|----------|
+| `nats` | Publishes to event stream on schedule |
+| `handler` | Calls Go function directly |
+| `internal` | System tick (logs only) |
 
 ## Server
 
+### Server options
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `host` | `0.0.0.0` | Bind address |
+| `prefork` | `false` | Fiber prefork (SO_REUSEPORT) |
+| `body_limit` | `4194304` | Max body size (Fiber level) |
+| `timeout` | `30s` | Read/write/idle timeout |
+| `api_prefix` | `/api/v1` | Prefix prepended to all entry paths |
+| `recover_stack` | `true` | Show stack traces on panic |
+
+### CORS
+
 ```yaml
 server:
-  host: "0.0.0.0"
-  api_prefix: /api/v1
   cors:
-    origins: ["*"]
-  static:
-    - prefix: /static
-      dir: ./public
-  middleware:
-    - path: "/api/v1/*"
-      apply:
-        - logger
-        - breaker
-        - cors
-  openapi:
-    enabled: true
-    theme: moon
+    origins:
+      - "https://app.example.com"
+    methods:
+      - GET
+      - POST
+    credentials: true
+    max_age: 86400
 ```
+
+When `cors` section is omitted, CORS defaults to same-origin only (secure default).
+Never use `"*"` in production when `credentials: true`.
+
+### Security Headers
+
+Global middleware that injects security headers into every response.
+
+```yaml
+server:
+  security_headers:
+    frame_options: DENY                        # X-Frame-Options
+    referrer_policy: strict-origin-when-cross-origin
+    permissions_policy: "camera=(), microphone=()"
+    hsts: true                                 # HTTP Strict Transport Security
+    hsts_max_age: 31536000
+    hsts_include_subdomains: true
+    csp: "default-src 'self'"                  # Content-Security-Policy
+    csp_report_path: /csp-violation            # Auto-registers POST endpoint
+    coop: same-origin                          # Cross-Origin-Opener-Policy
+    coep: require-corp                         # Cross-Origin-Embedder-Policy
+    corp: same-origin                          # Cross-Origin-Resource-Policy
+    cache_control: "no-store, no-cache"
+```
+
+`X-Content-Type-Options: nosniff` is always set.
+When `csp_report_path` is configured, a `POST /{path}` endpoint is auto-registered to log CSP violation reports.
+
+### CSRF
+
+```yaml
+server:
+  csrf:
+    enabled: true
+    cookie_name: csrf_token
+    header_name: X-CSRF-Token
+    same_site: Strict
+    secure: true
+    exclude_paths:
+      - /webhooks/*
+```
+
+Double-submit cookie pattern. Token generated on GET responses, validated on POST/PUT/PATCH/DELETE.
+Per-entry override: `entry[].csrf: false`.
+
+### Rate Limit
+
+```yaml
+server:
+  rate_limit:
+    enabled: true
+    driver: memory                    # memory | redis
+    redis_url: "${REDIS_URL}"         # Required for driver: redis
+    global:
+      requests_per_second: 1000
+      burst: 2000
+    per_ip:
+      requests_per_second: 200
+      burst: 300
+    per_user:
+      requests_per_second: 100       # Requires JWT with "sub" claim
+      burst: 150
+```
+
+Rate-limited requests receive `429 Too Many Requests` with `Retry-After` and `X-RateLimit-*` headers.
+
+Per-entry override: `entry[].rate_limit`.
+
+### TLS
+
+```yaml
+server:
+  tls:
+    enabled: true
+    manual:
+      cert_file: /etc/certs/cert.pem
+      key_file: /etc/certs/key.pem
+    autocert:                           # Alternative to manual
+      domains:
+        - api.example.com
+      email: admin@example.com
+    min_version: "1.2"
+    max_version: "1.3"
+    curve_preferences:
+      - X25519
+      - P-256
+    cipher_suites:
+      - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+    redirect_http: true
+    redirect_port: 80
+```
+
+Three modes:
+- **Off** (no `tls:` section) — HTTP only
+- **Manual** — `cert_file` + `key_file`
+- **Autocert** — Let's Encrypt automatic certificates
+
+When `redirect_http: true`, a separate goroutine listens on `redirect_port` (default 80) and issues 308 redirects to HTTPS.
+
+### SSRF Protection
+
+```yaml
+server:
+  ssrf:
+    enabled: true                      # Disabled by default
+    block_private: true                # 10.x, 172.16-31.x, 192.168.x
+    block_loopback: true               # 127.0.0.1, ::1
+    block_metadata: true               # 169.254.169.254 (cloud metadata)
+    allowed_hosts:
+      - api.stripe.com
+```
+
+Disabled by default to avoid breaking external HTTP calls. When enabled, access `svc.SafeHTTPClient()` to make protected HTTP requests.
+
+### Cookie Settings
+
+```yaml
+server:
+  cookies:
+    same_site: Lax
+    secure: true
+```
+
+Global defaults for SameSite and Secure flags. Applied to CSRF tokens and can be applied to other cookies.
 
 ### Middleware
 
@@ -428,15 +663,11 @@ Available middleware names for `apply:`:
 | `prometheus` | In-process metrics collector |
 | `cors` | CORS headers |
 | `trace` | OpenTelemetry tracing |
-| `jwt` | JWT auth (configured separately) |
+| `jwt` | JWT auth |
 | `content_security` | RSA body signature verification |
 | `cryption` | AES-CFB body decryption |
 
-When `middleware:` is NOT specified, all middlewares apply globally (backwards compatible). When specified, only `recover` + `health` are global; rest are per-path.
-
 ### OpenAPI
-
-Enables auto-generated API documentation:
 
 ```yaml
 server:
@@ -446,27 +677,35 @@ server:
     spec_path: /openapi.json
     docs_path: /docs
     theme: moon
-    dark_mode: true
 ```
-
-- `GET /openapi.json` — OpenAPI 3.0.3 spec (auto-generated from entry definitions and registered models)
-- `GET /docs` — Scalar UI documentation browser
-- Models must be registered via `svc.RegisterModel("Product", (*Product)(nil))` for schema generation
 
 ## Environment variable interpolation
 
-All `url` fields and any string in the YAML support `${VAR}` interpolation:
+### Basic `${VAR}`
 
 ```yaml
 url: "${DATABASE_URL}"
-url: "nats://${NATS_HOST}:4222"
 ```
 
-Variables are expanded at load time from the process environment. No file-based `.env` loading.
+### With default value
+
+```yaml
+url: "${DATABASE_URL:postgres://localhost:5432/mydb}"
+max_conns: "${DB_MAX_CONNS:10}"
+```
+
+If the environment variable is not set, the default value after the colon is used.
+If no default is provided and the variable is not set, a warning is logged.
+
+## CRUD Override values
+
+| YAML value | Behavior |
+|------------|----------|
+| `""` or `~` | Use default auto-generated handler |
+| `"-"` | Do not register this endpoint |
+| `"handlerName"` | Use custom handler from Rest map |
 
 ## Pool auto-sizing
-
-When `pool.max_conns` is `<= 0` or not specified, the pool size is auto-calculated:
 
 ```
 max(1, (PG_SERVER_MAX_CONNS - RESERVED_CONNS) / REPLICA_COUNT)
@@ -476,5 +715,3 @@ max(1, (PG_SERVER_MAX_CONNS - RESERVED_CONNS) / REPLICA_COUNT)
 |---------|---------|
 | `PG_SERVER_MAX_CONNS` | `100` |
 | `REPLICA_COUNT` | `1` |
-
-`RESERVED_CONNS` comes from `pool.reserved_conns` (default: `10`).

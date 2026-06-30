@@ -2,22 +2,28 @@
 
 ## Overview
 
-General-purpose Go SDK for event-driven microservices and monoliths. YAML-driven, entry/exit architecture.
+General-purpose Go SDK for event-driven microservices and monoliths. YAML-driven, entry/exit architecture, security built-in.
 
-**Stack:** Fiber (fasthttp) + pgxpool (PostgreSQL) + NATS JetStream + go-zero infra (45+ packages)
+**Stack:** Fiber (fasthttp) + pgxpool (PostgreSQL) + NATS JetStream + Kafka + go-zero infra (45+ packages)
+
+**Security:** Security headers, CSRF, rate limiting, TLS (manual + autocert), SSRF protection, input validation, error sanitization, column whitelist, secrets validation — all YAML-driven.
 
 ## Quick reference
 
 | Topic | Location |
 |-------|----------|
-| Full documentation | `docs/` (14 files) |
-| API patterns (6 entry types, exit, cron, hooks) | `docs/api-patterns.md` |
-| YAML config schema | `docs/configuration.md` |
-| Runtime API (Service, CRUDProvider, RegisterModel) | `docs/runtime.md` |
-| HTTP server & per-route middleware | `docs/http-server.md` |
+| Full documentation | `docs/` (17 files) |
+| YAML config schema (all entry types, security) | `docs/configuration.md` |
+| Security guide (headers, CSRF, rate limit, TLS, SSRF, validation) | `docs/security.md` |
+| HTTP server & middlewares | `docs/http-server.md` |
+| Runtime API | `docs/runtime.md` |
+| NATS + Kafka messaging | `docs/messaging.md` |
 | Database drivers & CRUD | `docs/database.md` |
-| NATS messaging & exit workers | `docs/messaging.md` |
-| CLI (new/docker/kube/client) | `docs/cli.md` |
+| GraphQL entry type | `docs/entry-graphql.md` |
+| Async jobs entry type | `docs/entry-async.md` |
+| Secrets management | `docs/secrets.md` |
+| API patterns (all entry types) | `docs/api-patterns.md` |
+| CLI commands | `docs/cli.md` |
 | Best practices & gotchas | `docs/best-practices.md` |
 | Live examples (dockerized) | `examples/` |
 
@@ -35,13 +41,14 @@ General-purpose Go SDK for event-driven microservices and monoliths. YAML-driven
 ```
  ┌──────────┬─────────────┬──────────────┬─────────────┬───────────┐
  │   db/    │   server/   │   events/    │  runtime/   │  infra/   │
- │  (pgx)   │  (Fiber)    │  (NATS JS)   │ (orchestr.) │ (go-zero) │
- │          │             │              │             │           │
- │ Table[T] │ 14 middle-  │  Producers   │ Service     │ 45+ pkgs  │
- │ CRUD     │ wares       │  Exit Workers│ YAML cfg    │ conf,logx │
- │ AutoInit │ JWT/CORS    │  KV Cache    │ Entry routes│ trace,brk │
- │ PG/Turso │ SSE/WS      │  PublishAnd  │ Exit workers│ redis,mon │
- │ MySQL    │ OpenAPI      │  Wait        │ Cron        │ discov    │
+ │  (pgx)   │  (Fiber)    │  (NATS+      │ (orchestr.) │ (go-zero) │
+ │          │             │   Kafka)     │             │           │
+ │ Table[T] │ 15 middle-  │  EventBroker │ Service     │ 45+ pkgs  │
+ │ CRUD     │ wares       │  Producers   │ YAML cfg    │ conf,logx │
+ │ AutoInit │ Security    │  Exit Workers│ Entry routes│ trace,brk │
+ │ PG/Turso │ Headers     │  KV Cache    │ 9 entry     │ redis,mon │
+ │ MySQL    │ CSRF/RL/TLS │  Request-    │ types       │ discov    │
+ │          │ SSRF/Valid  │  Reply       │ Security    │           │
  └──────────┴─────────────┴──────────────┴─────────────┴───────────┘
 ```
 
@@ -88,3 +95,8 @@ go test ./...                 # All tests (requires Docker: PG + NATS)
 - **Prefork + cache** — each process has its own memory. Use NATS KV (shared) or disable prefork.
 - **Cron** — 5-field expressions only (`min hour dom month dow`). No seconds support.
 - **OpenAPI** — requires `RegisterModel()` for schema generation. Without it, paths exist but schemas are empty.
+- **Auth: `entry.auth` flag is dead code** — JWT middleware is not yet wired per-entry (planned).
+- **SSRF is disabled by default** — enable via `server.ssrf.enabled: true` to activate `SafeHTTPClient()`.
+- **Rate limit `driver: redis`** — requires `redis_url` configured and Redis running.
+- **CSRF excludes webhooks** — use `entry[].csrf: false` or `server.csrf.exclude_paths`.
+- **Secrets warning** — the SDK logs when values look like plaintext secrets. Always use `${VAR}`.

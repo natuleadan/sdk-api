@@ -359,3 +359,39 @@ func TestTableExecRaw(t *testing.T) {
 	}
 }
 
+// --- Column Validation Tests ---
+
+func TestValidColumnValid(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	table, _ := NewTable[testProduct](pool, "test_column_valid")
+	defer pool.Exec(ctx, "DROP TABLE IF EXISTS test_column_valid")
+
+	_, err := table.validColumn("name")
+	if err != nil {
+		t.Errorf("expected 'name' to be valid, got %v", err)
+	}
+
+	_, err = table.validColumn("price")
+	if err != nil {
+		t.Errorf("expected 'price' to be valid, got %v", err)
+	}
+}
+
+func TestValidColumnInvalid(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	table, _ := NewTable[testProduct](pool, "test_column_invalid")
+	defer pool.Exec(ctx, "DROP TABLE IF EXISTS test_column_invalid")
+
+	_, err := table.validColumn("nonexistent")
+	if err == nil {
+		t.Error("expected error for invalid column")
+	}
+
+	_, err = table.validColumn("'; DROP TABLE users; --")
+	if err == nil {
+		t.Error("expected error for SQL injection attempt")
+	}
+}
+

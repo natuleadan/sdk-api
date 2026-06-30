@@ -306,6 +306,9 @@ type EntryDef struct {
 
 	// Security per-entry overrides
 	CSRF *bool `json:"csrf,optional"` // false = skip CSRF for this entry
+
+	// Validation
+	ValidationModel string `json:"validate,optional"` // validation model name
 }
 
 type CRUDOverrides struct {

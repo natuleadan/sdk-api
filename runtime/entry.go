@@ -7,6 +7,7 @@ import (
 	"github.com/natuleadan/sdk-api/db"
 	"github.com/natuleadan/sdk-api/events"
 	"github.com/natuleadan/sdk-api/server"
+	"github.com/natuleadan/sdk-api/server/middleware"
 )
 
 // CRUDProvider abstracts typed Table[T] operations for the router.
@@ -52,22 +53,46 @@ func RegisterEntries(app *fiber.App, cfg *ServiceConfig, handlers *EntryHandlers
 func registerOneEntry(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, models map[string]*db.TableInfo) error {
 	switch entry.Type {
 	case "crud":
-		return registerCRUD(app, entry, handlers, prefix, brokers)
+		if err := registerCRUD(app, entry, handlers, prefix, brokers); err != nil {
+			return err
+		}
 	case "rest":
-		return registerREST(app, entry, handlers, prefix, brokers)
+		if err := registerREST(app, entry, handlers, prefix, brokers); err != nil {
+			return err
+		}
 	case "webhook":
-		return registerREST(app, entry, handlers, prefix, brokers)
+		if err := registerREST(app, entry, handlers, prefix, brokers); err != nil {
+			return err
+		}
 	case "websocket":
-		return registerWebSocket(app, entry, handlers, prefix)
+		if err := registerWebSocket(app, entry, handlers, prefix); err != nil {
+			return err
+		}
 	case "sse":
-		return registerSSE(app, entry, handlers, prefix)
+		if err := registerSSE(app, entry, handlers, prefix); err != nil {
+			return err
+		}
 	case "file":
-		return registerFile(app, entry, handlers, prefix, brokers)
+		if err := registerFile(app, entry, handlers, prefix, brokers); err != nil {
+			return err
+		}
 	case "async":
-		return registerAsync(app, entry, handlers, prefix)
+		if err := registerAsync(app, entry, handlers, prefix); err != nil {
+			return err
+		}
 	case "graphql":
-		return registerGraphQL(app, entry, handlers, prefix, models)
+		if err := registerGraphQL(app, entry, handlers, prefix, models); err != nil {
+			return err
+		}
 	default:
 		return fmt.Errorf("unknown entry type %q", entry.Type)
 	}
+
+	// Register validation middleware if configured (for methods that accept body)
+	if entry.ValidationModel != "" && (entry.Type == "crud" || entry.Type == "rest" || entry.Type == "webhook") {
+		path := prefix + entry.Path
+		app.Use(path, middleware.ValidateInput(entry.ValidationModel))
+	}
+
+	return nil
 }

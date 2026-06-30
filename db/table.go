@@ -97,6 +97,9 @@ func (t *Table[T]) Get(ctx context.Context, id any) (*T, error) {
 }
 
 func (t *Table[T]) FindBy(ctx context.Context, column string, value any) (*T, error) {
+	if _, err := t.validColumn(column); err != nil {
+		return nil, err
+	}
 	query := fmt.Sprintf("SELECT %s FROM %s WHERE %s = $1", t.columnsList(), t.tableName, column)
 	rows, err := t.pool.Query(ctx, query, value)
 	if err != nil {
@@ -168,6 +171,9 @@ func (t *Table[T]) Update(ctx context.Context, id any, patch map[string]any) (*T
 	var sets []string
 	args := make([]any, 0, len(patch)+1)
 	for col, val := range patch {
+		if _, err := t.validColumn(col); err != nil {
+			return nil, err
+		}
 		sets = append(sets, fmt.Sprintf("%s = $%d", col, idx))
 		args = append(args, val)
 		idx++
@@ -209,6 +215,15 @@ func (t *Table[T]) Delete(ctx context.Context, id any) error {
 	return nil
 }
 
+func (t *Table[T]) validColumn(col string) (string, error) {
+	for _, f := range t.info.Fields {
+		if f.Column == col {
+			return col, nil
+		}
+	}
+	return "", fmt.Errorf("db: invalid column %q", col)
+}
+
 func (t *Table[T]) ResolveColumn(jsonKey string) string {
 	for _, f := range t.info.Fields {
 		tag := f.Tags.Get("json")
@@ -246,6 +261,9 @@ func (t *Table[T]) Count(ctx context.Context, where ...ColumnValue) (int64, erro
 	query := fmt.Sprintf("SELECT COUNT(*) FROM %s", t.tableName)
 	var args []any
 	if len(where) > 0 {
+		if _, err := t.validColumn(where[0].col); err != nil {
+			return 0, err
+		}
 		query += " WHERE " + where[0].col + " = $1"
 		args = append(args, where[0].val)
 	}
@@ -258,6 +276,9 @@ func (t *Table[T]) Count(ctx context.Context, where ...ColumnValue) (int64, erro
 }
 
 func (t *Table[T]) Exists(ctx context.Context, column string, value any) (bool, error) {
+	if _, err := t.validColumn(column); err != nil {
+		return false, err
+	}
 	query := fmt.Sprintf("SELECT 1 FROM %s WHERE %s = $1 LIMIT 1", t.tableName, column)
 	rows, err := t.pool.Query(ctx, query, value)
 	if err != nil {
@@ -268,6 +289,9 @@ func (t *Table[T]) Exists(ctx context.Context, column string, value any) (bool, 
 }
 
 func (t *Table[T]) Increment(ctx context.Context, id any, column string, amount int64) error {
+	if _, err := t.validColumn(column); err != nil {
+		return err
+	}
 	query := fmt.Sprintf("UPDATE %s SET %s = %s + $1 WHERE %s = $2",
 		t.tableName, column, column, t.info.PrimaryKey)
 	tag, err := t.pool.Exec(ctx, query, amount, id)
@@ -359,6 +383,8 @@ func (t *Table[T]) QueryPaginated(ctx context.Context, page, size int, orderBy s
 	}
 	if orderBy == "" {
 		orderBy = t.info.PrimaryKey
+	} else if _, err := t.validColumn(orderBy); err != nil {
+		return nil, 0, err
 	}
 	offset := (page - 1) * size
 
@@ -383,6 +409,9 @@ func (t *Table[T]) QueryPaginated(ctx context.Context, page, size int, orderBy s
 }
 
 func (t *Table[T]) Upsert(ctx context.Context, entity *T, conflictColumn string) error {
+	if _, err := t.validColumn(conflictColumn); err != nil {
+		return err
+	}
 	v := reflect.ValueOf(entity).Elem()
 	var cols []string
 	var vals []any
@@ -435,11 +464,16 @@ func (t *Table[T]) Upsert(ctx context.Context, entity *T, conflictColumn string)
 func (t *Table[T]) QueryWhere(ctx context.Context, where map[string]any, orderBy string, limit, offset int) ([]T, error) {
 	if orderBy == "" {
 		orderBy = t.info.PrimaryKey
+	} else if _, err := t.validColumn(orderBy); err != nil {
+		return nil, err
 	}
 	query := fmt.Sprintf("SELECT %s FROM %s", t.columnsList(), t.tableName)
 	var args []any
 	idx := 1
 	for col, val := range where {
+		if _, err := t.validColumn(col); err != nil {
+			return nil, err
+		}
 		if idx == 1 {
 			query += " WHERE " + col + " = $" + fmt.Sprintf("%d", idx)
 		} else {

@@ -142,6 +142,13 @@ func (s *Service) WithAsync(name string, handler AsyncHandler) *Service {
 	return s
 }
 
+// RegisterValidation registers a validation model by name for input validation.
+// Usage: svc.RegisterValidation("CreateProduct", CreateProductInput{}).
+func (s *Service) RegisterValidation(name string, model any) *Service {
+	middleware.RegisterValidation(name, model)
+	return s
+}
+
 // RegisterModel registers a model for OpenAPI schema generation.
 // Usage: svc.RegisterModel("Product", (*Product)(nil)).
 func (s *Service) RegisterModel(name string, model any) *Service {

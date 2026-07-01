@@ -36,7 +36,9 @@ func NewServer(config Config) *Server {
 func (s *Server) addRoutes(c Config) {
 	// route path, routes list
 	s.handleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
-		_ = json.NewEncoder(w).Encode(s.routes)
+		if err := json.NewEncoder(w).Encode(s.routes); err != nil {
+		logx.Errorf("devserver: encode error: %v", err)
+	}
 	})
 
 	// health

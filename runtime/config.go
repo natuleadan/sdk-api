@@ -778,17 +778,6 @@ func validateConfigCron(cfg *ServiceConfig) error {
 }
 
 func checkPlaintextSecrets(cfg *ServiceConfig) {
-	secretFields := map[string]func(*ServiceConfig) string{
-		"JWT secret": func(c *ServiceConfig) string { return "" }, // checked via server.auth
-		"Databases URL": func(c *ServiceConfig) string {
-			if len(c.Databases) > 0 {
-				return c.Databases[0].URL
-			}
-			return ""
-		},
-	}
-	_ = secretFields
-
 	// Check database URLs
 	for i, db := range cfg.Databases {
 		if looksLikePlaintextSecret(db.URL) {

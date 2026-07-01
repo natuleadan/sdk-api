@@ -93,7 +93,9 @@ func gracefulStop(signals chan os.Signal, sig syscall.Signal) {
 
 	time.Sleep(remainingTime)
 	logx.Infof("Still alive after %v, going to force kill the process...", waitTime)
-	_ = syscall.Kill(syscall.Getpid(), sig)
+	if err := syscall.Kill(syscall.Getpid(), sig); err != nil {
+		logx.Errorf("shutdown: kill error: %v", err)
+	}
 }
 
 type listenerManager struct {

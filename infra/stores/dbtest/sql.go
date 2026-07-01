@@ -3,6 +3,7 @@ package dbtest
 import (
 	"context"
 	"database/sql"
+	"github.com/natuleadan/sdk-api/infra/logx"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -16,7 +17,9 @@ func RunTest(t *testing.T, fn func(db *sql.DB, mock sqlmock.Sqlmock)) {
 		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
 	}
 	defer func() {
-		_ = db.Close()
+		if err := db.Close(); err != nil {
+		logx.Errorf("dbtest: close error: %v", err)
+	}
 	}()
 
 	fn(db, mock)

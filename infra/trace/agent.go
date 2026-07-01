@@ -29,7 +29,9 @@ var (
 	tp             *sdktrace.TracerProvider
 	shutdownOnceFn = sync.OnceFunc(func() {
 		if tp != nil {
-			_ = tp.Shutdown(context.Background())
+			if err := tp.Shutdown(context.Background()); err != nil {
+		logx.Errorf("trace: shutdown error: %v", err)
+	}
 		}
 	})
 )

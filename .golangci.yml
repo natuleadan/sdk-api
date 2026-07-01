@@ -1,10 +1,11 @@
+version: "2"
 run:
   timeout: 5m
 
 linters:
+  default: none
   enable:
     - errcheck
-    - gosimple
     - govet
     - ineffassign
     - staticcheck
@@ -19,25 +20,22 @@ linters:
     - unconvert
     - unparam
 
-linters-settings:
-  gosec:
-    severity: medium
-    confidence: high
-  gocyclo:
-    min-complexity: 15
+  settings:
+    gosec:
+      severity: medium
+      confidence: high
+    gocyclo:
+      min-complexity: 15
 
-issues:
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - gosec
-        - errcheck
-        - bodyclose
-    - path: _test\.go
-      text: "SA5008"
-    - path: .*\.pb\.go
-      linters:
-        - all
-    - path: internal/mock/
-      linters:
-        - all
+  exclusions:
+    paths:
+      - .*\.pb\.go
+      - internal/mock/
+    rules:
+      - path: _test\.go
+        linters:
+          - gosec
+          - errcheck
+          - bodyclose
+      - path: _test\.go
+        text: "SA5008"

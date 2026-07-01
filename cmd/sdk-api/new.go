@@ -96,8 +96,6 @@ func runNew(args []string) error {
 			i = handleExitFlag(rest, i, &cfg)
 		case "--cron":
 			i = handleCronFlag(rest, i, &cfg)
-		case "--db":
-			i = handleDBFlag(rest, i, &cfg)
 		case "--dir":
 			i = handleDirFlag(rest, i, &cfg)
 		}
@@ -241,15 +239,6 @@ func handleCronFlag(args []string, i int, cfg *newConfig) int {
 			}
 			cfg.CronJobs = append(cfg.CronJobs, cj)
 		}
-	}
-	return i
-}
-
-func handleDBFlag(args []string, i int, _ *newConfig) int {
-	// Placeholder for future --db flag handling
-	if i+1 < len(args) {
-		i++
-		_ = args[i]
 	}
 	return i
 }

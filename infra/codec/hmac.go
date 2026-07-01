@@ -4,13 +4,16 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
+	"fmt"
 	"io"
 )
 
 // Hmac returns HMAC bytes for body with the given key.
 func Hmac(key []byte, body string) []byte {
 	h := hmac.New(sha256.New, key)
-	io.WriteString(h, body)
+	if _, err := io.WriteString(h, body); err != nil {
+		fmt.Printf("hmac write: %v\n", err)
+	}
 	return h.Sum(nil)
 }
 

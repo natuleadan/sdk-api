@@ -50,7 +50,9 @@ func (p *Profile) startBlockProfile() {
 	runtime.SetBlockProfileRate(1)
 	logx.Infof("profile: block profiling enabled, %s", fn)
 	p.closers = append(p.closers, func() {
-		pprof.Lookup("block").WriteTo(f, 0)
+		if err := pprof.Lookup("block").WriteTo(f, 0); err != nil {
+			logx.Errorf("profile: block write error: %v", err)
+		}
 		f.Close()
 		runtime.SetBlockProfileRate(0)
 		logx.Infof("profile: block profiling disabled, %s", fn)
@@ -66,7 +68,9 @@ func (p *Profile) startCpuProfile() {
 	}
 
 	logx.Infof("profile: cpu profiling enabled, %s", fn)
-	pprof.StartCPUProfile(f)
+	if err := pprof.StartCPUProfile(f); err != nil {
+		logx.Errorf("profile: cpu start error: %v", err)
+	}
 	p.closers = append(p.closers, func() {
 		pprof.StopCPUProfile()
 		f.Close()
@@ -86,7 +90,9 @@ func (p *Profile) startMemProfile() {
 	runtime.MemProfileRate = DefaultMemProfileRate
 	logx.Infof("profile: memory profiling enabled (rate %d), %s", runtime.MemProfileRate, fn)
 	p.closers = append(p.closers, func() {
-		pprof.Lookup("heap").WriteTo(f, 0)
+		if err := pprof.Lookup("heap").WriteTo(f, 0); err != nil {
+			logx.Errorf("profile: heap write error: %v", err)
+		}
 		f.Close()
 		runtime.MemProfileRate = old
 		logx.Infof("profile: memory profiling disabled, %s", fn)
@@ -105,7 +111,9 @@ func (p *Profile) startMutexProfile() {
 	logx.Infof("profile: mutex profiling enabled, %s", fn)
 	p.closers = append(p.closers, func() {
 		if mp := pprof.Lookup("mutex"); mp != nil {
-			mp.WriteTo(f, 0)
+			if err := mp.WriteTo(f, 0); err != nil {
+				logx.Errorf("profile: mutex write error: %v", err)
+			}
 		}
 		f.Close()
 		runtime.SetMutexProfileFraction(0)
@@ -124,7 +132,9 @@ func (p *Profile) startThreadCreateProfile() {
 	logx.Infof("profile: threadcreate profiling enabled, %s", fn)
 	p.closers = append(p.closers, func() {
 		if mp := pprof.Lookup("threadcreate"); mp != nil {
-			mp.WriteTo(f, 0)
+			if err := mp.WriteTo(f, 0); err != nil {
+				logx.Errorf("profile: threadcreate write error: %v", err)
+			}
 		}
 		f.Close()
 		logx.Infof("profile: threadcreate profiling disabled, %s", fn)
@@ -187,7 +197,9 @@ func StartProfile() Stopper {
 		prof.Stop()
 
 		signal.Reset()
-		syscall.Kill(os.Getpid(), syscall.SIGINT)
+		if err := syscall.Kill(os.Getpid(), syscall.SIGINT); err != nil {
+		logx.Errorf("profile: kill error: %v", err)
+	}
 	}()
 
 	return &prof

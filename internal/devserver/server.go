@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"sync"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/natuleadan/sdk-api/infra/logx"
@@ -69,7 +70,13 @@ func (s *Server) StartAsync(c Config) {
 	threading.GoSafe(func() {
 		addr := fmt.Sprintf("%s:%d", s.config.Host, s.config.Port)
 		logx.Infof("Starting dev http server at %s", addr)
-		if err := http.ListenAndServe(addr, s.server); err != nil {
+		srv := &http.Server{
+			Addr:         addr,
+			Handler:      s.server,
+			ReadTimeout:  5 * time.Second,
+			WriteTimeout: 10 * time.Second,
+		}
+		if err := srv.ListenAndServe(); err != nil {
 			logx.Error(err)
 		}
 	})

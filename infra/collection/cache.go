@@ -85,7 +85,9 @@ func (c *Cache) Del(key string) {
 	// RemoveTimer is called outside the lock to avoid performance impact from this
 	// potentially time-consuming operation. Data integrity is maintained by lruCache,
 	// which will eventually evict any remaining entries when capacity is exceeded.
-	c.timingWheel.RemoveTimer(key)
+	if err := c.timingWheel.RemoveTimer(key); err != nil {
+		logx.Errorf("cache: remove timer error: %v", err)
+	}
 }
 
 // Get returns the item with the given key from c.
@@ -115,9 +117,13 @@ func (c *Cache) SetWithExpire(key string, value any, expire time.Duration) {
 
 	expiry := c.unstableExpiry.AroundDuration(expire)
 	if ok {
-		c.timingWheel.MoveTimer(key, expiry)
+		if err := c.timingWheel.MoveTimer(key, expiry); err != nil {
+		logx.Errorf("cache: move timer error: %v", err)
+	}
 	} else {
-		c.timingWheel.SetTimer(key, value, expiry)
+		if err := c.timingWheel.SetTimer(key, value, expiry); err != nil {
+		logx.Errorf("cache: set timer error: %v", err)
+	}
 	}
 }
 
@@ -176,7 +182,9 @@ func (c *Cache) doGet(key string) (any, bool) {
 func (c *Cache) onEvict(key string) {
 	// already locked
 	delete(c.data, key)
-	c.timingWheel.RemoveTimer(key)
+	if err := c.timingWheel.RemoveTimer(key); err != nil {
+		logx.Errorf("cache: remove timer error: %v", err)
+	}
 }
 
 func (c *Cache) size() int {

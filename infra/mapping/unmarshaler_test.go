@@ -136,9 +136,7 @@ func TestUnmarshalWithoutTagNameWithCanonicalKeyOptionalDep(t *testing.T) {
 	}
 
 	var in inner
-	unmarshaler := NewUnmarshaler(defaultKeyName, WithCanonicalKeyFunc(func(s string) string {
-		return strings.ToLower(s)
-	}))
+	unmarshaler := NewUnmarshaler(defaultKeyName, WithCanonicalKeyFunc(strings.ToLower))
 	if assert.NoError(t, unmarshaler.Unmarshal(m, &in)) {
 		assert.Equal(t, "go", in.FirstName)
 		assert.Equal(t, "zero", in.LastName)

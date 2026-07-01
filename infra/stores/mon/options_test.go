@@ -59,7 +59,7 @@ func TestWithRegistryForTimestampRegisterType(t *testing.T) {
 	opts := options.Client()
 
 	// mongoDateTimeEncoder allow user convert time.Time to primitive.DateTime.
-	var mongoDateTimeEncoder bson.ValueEncoderFunc = func(ect bson.EncodeContext,
+	var mongoDateTimeEncoder bson.ValueEncoderFunc = func(etc bson.EncodeContext,
 		w bson.ValueWriter, value reflect.Value) error {
 		// Use reflect, determine if it can be converted to time.Time.
 		dec, ok := value.Interface().(time.Time)
@@ -70,7 +70,7 @@ func TestWithRegistryForTimestampRegisterType(t *testing.T) {
 	}
 
 	// mongoDateTimeEncoder allow user convert primitive.DateTime to time.Time.
-	var mongoDateTimeDecoder bson.ValueDecoderFunc = func(ect bson.DecodeContext,
+	var mongoDateTimeDecoder bson.ValueDecoderFunc = func(etc bson.DecodeContext,
 		r bson.ValueReader, value reflect.Value) error {
 		primTime, err := r.ReadDateTime()
 		if err != nil {

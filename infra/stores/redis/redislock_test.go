@@ -10,7 +10,7 @@ import (
 )
 
 func TestRedisLock(t *testing.T) {
-	testFn := func(ctx context.Context) func(client *Redis) {
+	testFn := func(_ context.Context) func(client *Redis) {
 		return func(client *Redis) {
 			key := stringx.Rand()
 			firstLock := NewRedisLock(client, key)

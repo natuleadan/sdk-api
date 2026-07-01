@@ -3,6 +3,7 @@ package codec
 import (
 	"bytes"
 	"compress/gzip"
+	"fmt"
 	"io"
 )
 
@@ -13,8 +14,12 @@ func Gzip(bs []byte) []byte {
 	var b bytes.Buffer
 
 	w := gzip.NewWriter(&b)
-	w.Write(bs)
-	w.Close()
+	if _, err := w.Write(bs); err != nil {
+		fmt.Printf("gzip write: %v\n", err)
+	}
+	if err := w.Close(); err != nil {
+		fmt.Printf("gzip close: %v\n", err)
+	}
 
 	return b.Bytes()
 }

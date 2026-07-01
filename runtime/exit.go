@@ -109,11 +109,17 @@ func startExitWorker(ctx context.Context, broker events.EventBroker, cfg ExitWor
 	return w, nil
 }
 
+func nakWithLog(m events.Message, name, context string) {
+	if err := m.Nak(); err != nil {
+		logx.Errorf("exit %s nak error (%s): %v", name, context, err)
+	}
+}
+
 func processMsg(state *workerState, sem chan struct{}, handler ExitHandler, hooks ExitHooks, cfg ExitWorker, name string, m events.Message) {
 	select {
 	case sem <- struct{}{}:
 	case <-state.shutdownCh:
-		_ = m.Nak()
+		nakWithLog(m, name, "shutdown")
 		return
 	}
 
@@ -130,7 +136,7 @@ func processMsg(state *workerState, sem chan struct{}, handler ExitHandler, hook
 			msg, err = hooks.OnMessage(context.Background(), m.Data())
 			if err != nil {
 				logx.Errorf("exit %s onMessage hook: %v", name, err)
-				_ = m.Nak()
+				nakWithLog(m, name, "hook")
 				return
 			}
 		}
@@ -141,7 +147,7 @@ func processMsg(state *workerState, sem chan struct{}, handler ExitHandler, hook
 				hooks.OnError(context.Background(), err)
 			}
 			logx.Errorf("exit %s handler error: %v", name, err)
-			_ = m.Nak()
+			nakWithLog(m, name, "handler")
 			return
 		}
 
@@ -152,12 +158,14 @@ func processMsg(state *workerState, sem chan struct{}, handler ExitHandler, hook
 		if cfg.Reply && len(resp) > 0 {
 			if rErr := m.Respond(resp); rErr != nil {
 				logx.Errorf("exit %s reply error: %v", name, rErr)
-				_ = m.Nak()
+				nakWithLog(m, name, "reply")
 				return
 			}
 		}
 
-		_ = m.Ack()
+		if err := m.Ack(); err != nil {
+			logx.Errorf("exit %s ack error: %v", name, err)
+		}
 	}()
 }
 

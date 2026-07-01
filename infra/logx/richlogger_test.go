@@ -15,6 +15,8 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
+type logCtxKey string
+
 func TestTraceLog(t *testing.T) {
 	SetLevel(InfoLevel)
 	w := new(mockWriter)
@@ -72,7 +74,7 @@ func TestTraceDebug(t *testing.T) {
 	validate(t, w.String(), true, true)
 	w.Reset()
 	l.WithDuration(time.Second).Debugv(testobj)
-	validateContentType(t, w.String(), map[string]any{}, true, true)
+	validateContentType(t, w.String(), map[string]any{})
 	w.Reset()
 	l.WithDuration(time.Second).Debugw(testlog, Field("foo", "bar"))
 	validate(t, w.String(), true, true)
@@ -117,7 +119,7 @@ func TestTraceError(t *testing.T) {
 	validate(t, w.String(), true, true)
 	w.Reset()
 	l.WithDuration(time.Second).Errorv(testobj)
-	validateContentType(t, w.String(), map[string]any{}, true, true)
+	validateContentType(t, w.String(), map[string]any{})
 	w.Reset()
 	l.WithDuration(time.Second).Errorw(testlog, Field("basket", "ball"))
 	validate(t, w.String(), true, true)
@@ -159,7 +161,7 @@ func TestTraceInfo(t *testing.T) {
 	validate(t, w.String(), true, true)
 	w.Reset()
 	l.WithDuration(time.Second).Infov(testobj)
-	validateContentType(t, w.String(), map[string]any{}, true, true)
+	validateContentType(t, w.String(), map[string]any{})
 	w.Reset()
 	l.WithDuration(time.Second).Infow(testlog, Field("basket", "ball"))
 	validate(t, w.String(), true, true)
@@ -199,7 +201,7 @@ func TestTraceInfoConsole(t *testing.T) {
 	validate(t, w.String(), true, true)
 	w.Reset()
 	l.WithDuration(time.Second).Infov(testobj)
-	validateContentType(t, w.String(), map[string]any{}, true, true)
+	validateContentType(t, w.String(), map[string]any{})
 }
 
 func TestTraceSlow(t *testing.T) {
@@ -237,7 +239,7 @@ func TestTraceSlow(t *testing.T) {
 	validate(t, w.String(), true, true)
 	w.Reset()
 	l.WithDuration(time.Second).Slowv(testobj)
-	validateContentType(t, w.String(), map[string]any{}, true, true)
+	validateContentType(t, w.String(), map[string]any{})
 	w.Reset()
 	l.WithDuration(time.Second).Sloww(testlog, Field("basket", "ball"))
 	validate(t, w.String(), true, true)
@@ -318,7 +320,7 @@ func TestLogWithCallerSkipCopy(t *testing.T) {
 
 func TestLogWithContextCopy(t *testing.T) {
 	c1 := context.Background()
-	c2 := context.WithValue(context.Background(), "foo", "bar")
+	c2 := context.WithValue(context.Background(), logCtxKey("foo"), "bar")
 	log1 := WithContext(c1)
 	log2 := log1.WithContext(c2)
 	assert.Equal(t, c1, log1.(*richLogger).ctx)
@@ -394,7 +396,7 @@ func validate(t *testing.T, body string, expectedTrace, expectedSpan bool) {
 	assert.Equal(t, expectedSpan, len(val.Span) > 0, body)
 }
 
-func validateContentType(t *testing.T, body string, expectedType any, expectedTrace, expectedSpan bool) {
+func validateContentType(t *testing.T, body string, expectedType any) {
 	var val mockValue
 	dec := json.NewDecoder(strings.NewReader(body))
 
@@ -413,8 +415,8 @@ func validateContentType(t *testing.T, body string, expectedType any, expectedTr
 	}
 
 	assert.IsType(t, expectedType, val.Content, body)
-	assert.Equal(t, expectedTrace, len(val.Trace) > 0, body)
-	assert.Equal(t, expectedSpan, len(val.Span) > 0, body)
+	assert.Equal(t, true, len(val.Trace) > 0, body)
+	assert.Equal(t, true, len(val.Span) > 0, body)
 }
 
 type mockValue struct {

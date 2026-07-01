@@ -70,9 +70,7 @@ type (
 var (
 	once sync.Once
 
-	newProfiler = func(c Config) profiler {
-		return newPyroscopeProfiler(c)
-	}
+	newProfiler = newPyroscopeProfiler
 )
 
 // Start initializes the pyroscope profiler with the given configuration.

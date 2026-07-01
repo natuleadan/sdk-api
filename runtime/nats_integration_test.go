@@ -245,7 +245,7 @@ func TestIntegration_Service_CronNATS(t *testing.T) {
 	}, nats.ManualAck())
 
 	s := NewCronScheduler()
-	err = s.AddJob(CronJob{
+	err = s.AddJob(context.Background(), CronJob{
 		Name:     "fast-cron",
 		Schedule: "@every 1s", // every second
 		Mode:     "nats",

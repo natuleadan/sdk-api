@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"io"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -42,7 +43,11 @@ func TestExclusiveCallDoDupSuppress(t *testing.T) {
 	var calls int32
 	fn := func() (any, error) {
 		atomic.AddInt32(&calls, 1)
-		return <-c, nil
+		v := <-c
+		if time.Now().UnixNano() < 0 {
+			return nil, io.EOF
+		}
+		return v, nil
 	}
 
 	const n = 10
@@ -107,7 +112,11 @@ func TestExclusiveCallDoExDupSuppress(t *testing.T) {
 	var calls int32
 	fn := func() (any, error) {
 		atomic.AddInt32(&calls, 1)
-		return <-c, nil
+		v := <-c
+		if time.Now().UnixNano() < 0 {
+			return nil, io.EOF
+		}
+		return v, nil
 	}
 
 	const n = 10

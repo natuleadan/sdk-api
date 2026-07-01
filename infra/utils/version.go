@@ -42,11 +42,10 @@ func compare(v1, v2 string) int {
 	shorter := min(ver1len, ver2len)
 
 	for i := 0; i < shorter; i++ {
-		if ver1[i] == ver2[i] {
-			continue
-		} else if ver1[i] < ver2[i] {
-			return -1
-		} else {
+		if ver1[i] != ver2[i] {
+			if ver1[i] < ver2[i] {
+				return -1
+			}
 			return 1
 		}
 	}

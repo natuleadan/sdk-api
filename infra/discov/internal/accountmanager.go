@@ -47,11 +47,15 @@ func AddTLS(endpoints []string, certFile, certKeyFile, caFile string, insecureSk
 
 	lock.Lock()
 	defer lock.Unlock()
-	tlsConfigs[getClusterKey(endpoints)] = &tls.Config{
-		Certificates:       []tls.Certificate{cert},
-		RootCAs:            pool,
-		InsecureSkipVerify: insecureSkipVerify,
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		RootCAs:      pool,
+		MinVersion:   tls.VersionTLS12,
 	}
+	if insecureSkipVerify {
+		tlsConfig.InsecureSkipVerify = true
+	}
+	tlsConfigs[getClusterKey(endpoints)] = tlsConfig
 
 	return nil
 }

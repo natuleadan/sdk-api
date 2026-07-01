@@ -1,8 +1,15 @@
 package sysx
 
-import "go.uber.org/automaxprocs/maxprocs"
+import (
+	"fmt"
+	"os"
+
+	"go.uber.org/automaxprocs/maxprocs"
+)
 
 // Automatically set GOMAXPROCS to match Linux container CPU quota.
 func init() {
-	maxprocs.Set(maxprocs.Logger(nil))
+	if _, err := maxprocs.Set(maxprocs.Logger(nil)); err != nil {
+		fmt.Fprintf(os.Stderr, "sysx: automaxprocs error: %v\n", err)
+	}
 }

@@ -50,8 +50,10 @@ func TestWithFields(t *testing.T) {
 	assert.EqualValues(t, []LogField{Field("a", 1), Field("b", 2)}, fields)
 }
 
+type ctxKey string
+
 func TestWithFieldsAppend(t *testing.T) {
-	var dummyKey struct{}
+	var dummyKey ctxKey = ctxKey("dummy")
 	ctx := context.WithValue(context.Background(), dummyKey, "dummy")
 	ctx = ContextWithFields(ctx, Field("a", 1), Field("b", 2))
 	ctx = ContextWithFields(ctx, Field("c", 3), Field("d", 4))

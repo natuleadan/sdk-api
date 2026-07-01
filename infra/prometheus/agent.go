@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/natuleadan/sdk-api/infra/logx"
@@ -38,7 +39,13 @@ func StartAgent(c Config) {
 			http.Handle(c.Path, promhttp.Handler())
 			addr := fmt.Sprintf("%s:%d", c.Host, c.Port)
 			logx.Infof("Starting prometheus agent at %s", addr)
-			if err := http.ListenAndServe(addr, nil); err != nil {
+			srv := &http.Server{
+				Addr:         addr,
+				Handler:      nil,
+				ReadTimeout:  5 * time.Second,
+				WriteTimeout: 10 * time.Second,
+			}
+			if err := srv.ListenAndServe(); err != nil {
 				logx.Error(err)
 			}
 		})

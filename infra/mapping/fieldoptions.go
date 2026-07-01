@@ -71,9 +71,10 @@ func (o *fieldOptions) toOptionsWithContext(key string, m Valuer, fullName strin
 	var optional bool
 	if o.optional() {
 		dep := o.optionalDep()
-		if len(dep) == 0 {
+		switch {
+		case len(dep) == 0:
 			optional = true
-		} else if dep[0] == notSymbol {
+		case dep[0] == notSymbol:
 			dep = dep[1:]
 			if len(dep) == 0 {
 				return nil, fmt.Errorf("wrong optional value for %q in %q", key, fullName)
@@ -86,7 +87,7 @@ func (o *fieldOptions) toOptionsWithContext(key string, m Valuer, fullName strin
 			}
 
 			optional = baseOn
-		} else {
+		default:
 			_, baseOn := m.Value(dep)
 			_, selfOn := m.Value(key)
 			if baseOn != selfOn {

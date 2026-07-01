@@ -608,11 +608,12 @@ func expandEnvDefaults(content string) (string, error) {
 			parts := strings.SplitN(expr, ":", 2)
 			envName := parts[0]
 			envVal := os.Getenv(envName)
-			if envVal != "" {
+		switch {
+			case envVal != "":
 				result += envVal
-			} else if len(parts) > 1 {
+			case len(parts) > 1:
 				result += parts[1]
-			} else {
+			default:
 				missing = append(missing, envName)
 				result += "${" + envName + "}"
 			}

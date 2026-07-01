@@ -34,7 +34,9 @@ func dumpGoroutines(ctor creator) {
 		logx.Errorf("Failed to dump goroutine profile, error: %v", err)
 	} else {
 		defer f.Close()
-		pprof.Lookup(goroutineProfile).WriteTo(f, debugLevel)
+		if err := pprof.Lookup(goroutineProfile).WriteTo(f, debugLevel); err != nil {
+			logx.Errorf("Failed to write goroutine profile, error: %v", err)
+		}
 	}
 }
 

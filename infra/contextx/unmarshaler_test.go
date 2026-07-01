@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type ctxKey string
+
 func TestUnmarshalContext(t *testing.T) {
 	type Person struct {
 		Name string `ctx:"name"`
@@ -14,8 +16,8 @@ func TestUnmarshalContext(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	ctx = context.WithValue(ctx, "name", "kevin")
-	ctx = context.WithValue(ctx, "age", 20)
+	ctx = context.WithValue(ctx, ctxKey("name"), "kevin")
+	ctx = context.WithValue(ctx, ctxKey("age"), 20)
 
 	var person Person
 	err := For(ctx, &person)
@@ -32,7 +34,7 @@ func TestUnmarshalContextWithOptional(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	ctx = context.WithValue(ctx, "name", "kevin")
+	ctx = context.WithValue(ctx, ctxKey("name"), "kevin")
 
 	var person Person
 	err := For(ctx, &person)

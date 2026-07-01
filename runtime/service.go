@@ -317,12 +317,12 @@ func (s *Service) startExitWorkers(ctx context.Context) error {
 	return s.exitMgr.Start(ctx, s.config.Exit, s.natsConns, s.exitFuncs, s.exitHooks)
 }
 
-func (s *Service) startCron(_ context.Context) error {
+func (s *Service) startCron(ctx context.Context) error {
 	if len(s.config.Cron) == 0 {
 		return nil
 	}
 	s.cronSched = NewCronScheduler()
-	if err := s.cronSched.AddAll(s.config.Cron, s.natsConns, s.cronFuncs); err != nil {
+	if err := s.cronSched.AddAll(ctx, s.config.Cron, s.natsConns, s.cronFuncs); err != nil {
 		return fmt.Errorf("cron: %w", err)
 	}
 	s.cronSched.Start()

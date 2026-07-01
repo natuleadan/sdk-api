@@ -2,6 +2,7 @@ package stat
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -39,7 +40,12 @@ func (rw *RemoteWriter) Write(report *StatReport) error {
 	client := &http.Client{
 		Timeout: httpTimeout,
 	}
-	resp, err := client.Post(rw.endpoint, jsonContentType, bytes.NewReader(bs))
+	req, err := http.NewRequestWithContext(context.Background(), "POST", rw.endpoint, bytes.NewReader(bs))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", jsonContentType)
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}

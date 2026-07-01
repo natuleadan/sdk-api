@@ -1,6 +1,10 @@
 package logx
 
-import "io"
+import (
+	"fmt"
+	"io"
+	"os"
+)
 
 type lessWriter struct {
 	*limitedExecutor
@@ -16,7 +20,9 @@ func newLessWriter(writer io.Writer, milliseconds int) *lessWriter {
 
 func (w *lessWriter) Write(p []byte) (n int, err error) {
 	w.logOrDiscard(func() {
-		w.writer.Write(p)
+		if _, err := w.writer.Write(p); err != nil {
+		fmt.Fprintf(os.Stderr, "logx: lesswriter write error: %v\n", err)
+	}
 	})
 	return len(p), nil
 }

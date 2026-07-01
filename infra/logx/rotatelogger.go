@@ -408,7 +408,9 @@ func (l *RotateLogger) write(v []byte) {
 		}
 	}
 	if l.fp != nil {
-		l.fp.Write(v)
+		if _, err := l.fp.Write(v); err != nil {
+		fmt.Fprintf(os.Stderr, "logx: rotatelogger write error: %v\n", err)
+	}
 		l.currentSize += int64(len(v))
 	}
 }

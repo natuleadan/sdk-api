@@ -2,6 +2,7 @@ package health
 
 import (
 	"io"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -124,7 +125,8 @@ func TestCreateHttpHandler(t *testing.T) {
 	srv := httptest.NewServer(CreateHttpHandler("OK"))
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL)
+	req, _ := http.NewRequestWithContext(context.Background(), "GET", srv.URL, nil)
+	resp, err := http.DefaultClient.Do(req)
 	assert.Nil(t, err)
 	_ = resp.Body.Close()
 	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
@@ -132,7 +134,8 @@ func TestCreateHttpHandler(t *testing.T) {
 	hm := NewHealthManager(probeName)
 	defaultHealthManager.addProbe(hm)
 
-	resp, err = http.Get(srv.URL)
+	req, _ = http.NewRequestWithContext(context.Background(), "GET", srv.URL, nil)
+	resp, err = http.DefaultClient.Do(req)
 	assert.Nil(t, err)
 	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
 	content, _ := io.ReadAll(resp.Body)
@@ -140,7 +143,8 @@ func TestCreateHttpHandler(t *testing.T) {
 	_ = resp.Body.Close()
 
 	hm.MarkReady()
-	resp, err = http.Get(srv.URL)
+	req, _ = http.NewRequestWithContext(context.Background(), "GET", srv.URL, nil)
+	resp, err = http.DefaultClient.Do(req)
 	assert.Nil(t, err)
 	_ = resp.Body.Close()
 	assert.Equal(t, http.StatusOK, resp.StatusCode)

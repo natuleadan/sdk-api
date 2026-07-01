@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"context"
 	"testing"
 	"time"
 
@@ -27,7 +28,8 @@ func TestRedisMetric(t *testing.T) {
 	metricSlowCount.Inc("test-cmd")
 
 	url := "http://127.0.0.1:6060/metrics"
-	resp, err := http.Get(url)
+	req, _ := http.NewRequestWithContext(context.Background(), "GET", url, nil)
+	resp, err := http.DefaultClient.Do(req)
 	assert.Nil(t, err)
 	defer resp.Body.Close()
 	s, err := io.ReadAll(resp.Body)

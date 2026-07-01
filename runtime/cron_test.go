@@ -11,7 +11,7 @@ func TestCronScheduler_AddJob_Handler(t *testing.T) {
 	s := NewCronScheduler()
 	var called atomic.Int64
 
-	err := s.AddJob(CronJob{
+	err := s.AddJob(context.Background(), CronJob{
 		Name:     "test",
 		Schedule: "@every 1s",
 		Mode:     "handler",
@@ -36,14 +36,14 @@ func TestCronScheduler_AddJob_Handler(t *testing.T) {
 
 func TestCronScheduler_AddJob_Duplicate(t *testing.T) {
 	s := NewCronScheduler()
-	err := s.AddJob(CronJob{
+	err := s.AddJob(context.Background(), CronJob{
 		Name: "dup", Schedule: "@every 1s", Mode: "handler",
 	}, nil, func(ctx context.Context) error { return nil })
 	if err != nil {
 		t.Fatalf("first AddJob: %v", err)
 	}
 
-	err = s.AddJob(CronJob{
+	err = s.AddJob(context.Background(), CronJob{
 		Name: "dup", Schedule: "@every 1s", Mode: "handler",
 	}, nil, func(ctx context.Context) error { return nil })
 	if err == nil {
@@ -56,7 +56,7 @@ func TestCronScheduler_AddAfterStart(t *testing.T) {
 	s.Start()
 	defer s.Stop()
 
-	err := s.AddJob(CronJob{
+	err := s.AddJob(context.Background(), CronJob{
 		Name: "late", Schedule: "@every 1s", Mode: "handler",
 	}, nil, func(ctx context.Context) error { return nil })
 	if err == nil {
@@ -66,7 +66,7 @@ func TestCronScheduler_AddAfterStart(t *testing.T) {
 
 func TestCronScheduler_ModeNats_RequiresConnection(t *testing.T) {
 	s := NewCronScheduler()
-	err := s.AddJob(CronJob{
+	err := s.AddJob(context.Background(), CronJob{
 		Name: "nats-job", Schedule: "@every 1s", Mode: "nats",
 		Publish: &CronPublish{Stream: "s", Subject: "s"},
 	}, nil, nil) // nil NATS conn
@@ -77,7 +77,7 @@ func TestCronScheduler_ModeNats_RequiresConnection(t *testing.T) {
 
 func TestCronScheduler_ModeHandler_RequiresFunc(t *testing.T) {
 	s := NewCronScheduler()
-	err := s.AddJob(CronJob{
+	err := s.AddJob(context.Background(), CronJob{
 		Name: "no-func", Schedule: "@every 1s", Mode: "handler",
 	}, nil, nil) // nil handler
 	if err == nil {
@@ -87,7 +87,7 @@ func TestCronScheduler_ModeHandler_RequiresFunc(t *testing.T) {
 
 func TestCronScheduler_InternalMode(t *testing.T) {
 	s := NewCronScheduler()
-	err := s.AddJob(CronJob{
+	err := s.AddJob(context.Background(), CronJob{
 		Name: "internal", Schedule: "@every 1h", Mode: "internal",
 	}, nil, nil)
 	if err != nil {
@@ -98,7 +98,7 @@ func TestCronScheduler_InternalMode(t *testing.T) {
 
 func TestCronScheduler_UnknownMode(t *testing.T) {
 	s := NewCronScheduler()
-	err := s.AddJob(CronJob{
+	err := s.AddJob(context.Background(), CronJob{
 		Name: "bad", Schedule: "@every 1s", Mode: "unknown",
 	}, nil, nil)
 	if err == nil {
@@ -121,7 +121,7 @@ func TestCronScheduler_AddAll(t *testing.T) {
 		},
 	}
 
-	err := s.AddAll(cronDefs, nil, handlers)
+	err := s.AddAll(context.Background(), cronDefs, nil, handlers)
 	if err != nil {
 		t.Fatalf("AddAll: %v", err)
 	}
@@ -139,7 +139,7 @@ func TestCronScheduler_StopWait(t *testing.T) {
 	s := NewCronScheduler()
 	var running atomic.Int64
 
-	err := s.AddJob(CronJob{
+	err := s.AddJob(context.Background(), CronJob{
 		Name:     "wait",
 		Schedule: "@every 1s",
 		Mode:     "handler",

@@ -46,7 +46,7 @@ func (s *Server) listenTLS() error {
 
 	if tlsCfg.Manual != nil && tlsCfg.Manual.CertFile != "" {
 		if tlsCfg.RedirectHTTP {
-			go startRedirectServer(tlsCfg.RedirectPort, addr)
+			go startRedirectServer(tlsCfg.RedirectPort)
 		}
 		logx.Infof("server listening on %s (HTTPS manual)", addr)
 		return s.app.ListenTLS(addr, tlsCfg.Manual.CertFile, tlsCfg.Manual.KeyFile)
@@ -71,7 +71,7 @@ func (s *Server) listenTLS() error {
 		tlsLn := tls.NewListener(ln, tlsCfgOut)
 
 		if tlsCfg.RedirectHTTP {
-			go startRedirectServer(tlsCfg.RedirectPort, addr)
+			go startRedirectServer(tlsCfg.RedirectPort)
 		}
 		logx.Infof("server listening on %s (HTTPS autocert)", addr)
 		return s.app.Listener(tlsLn)
@@ -152,7 +152,7 @@ func parseCiphers(ciphers []string) []uint16 {
 	return ids
 }
 
-func startRedirectServer(port int, _ string) {
+func startRedirectServer(port int) {
 	if port <= 0 {
 		port = 80
 	}

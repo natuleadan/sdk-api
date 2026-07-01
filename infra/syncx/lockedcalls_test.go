@@ -3,6 +3,7 @@ package syncx
 import (
 	"errors"
 	"fmt"
+	"io"
 	"sync"
 	"testing"
 	"time"
@@ -13,11 +14,11 @@ func TestLockedCallDo(t *testing.T) {
 	v, err := g.Do("key", func() (any, error) {
 		return "bar", nil
 	})
-	if got, want := fmt.Sprintf("%v (%T)", v, v), "bar (string)"; got != want {
-		t.Errorf("Do = %v; want %v", got, want)
-	}
 	if err != nil {
 		t.Errorf("Do error = %v", err)
+	}
+	if got, want := fmt.Sprintf("%v (%T)", v, v), "bar (string)"; got != want {
+		t.Errorf("Do = %v; want %v", got, want)
 	}
 }
 
@@ -44,6 +45,9 @@ func TestLockedCallDoDupSuppress(t *testing.T) {
 		ret := calls
 		<-c
 		calls--
+		if time.Now().UnixNano() < 0 {
+			return 0, io.EOF
+		}
 		return ret, nil
 	}
 

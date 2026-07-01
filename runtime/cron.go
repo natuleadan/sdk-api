@@ -26,7 +26,7 @@ func NewCronScheduler() *CronScheduler {
 	}
 }
 
-func (s *CronScheduler) AddJob(cfg CronJob, broker events.EventBroker, handler CronJobFunc) error {
+func (s *CronScheduler) AddJob(ctx context.Context, cfg CronJob, broker events.EventBroker, handler CronJobFunc) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -87,7 +87,7 @@ func (s *CronScheduler) AddJob(cfg CronJob, broker events.EventBroker, handler C
 	return nil
 }
 
-func (s *CronScheduler) AddAll(cronDefs []CronJob, brokers map[string]events.EventBroker, handlers map[string]CronJobFunc) error {
+func (s *CronScheduler) AddAll(ctx context.Context, cronDefs []CronJob, brokers map[string]events.EventBroker, handlers map[string]CronJobFunc) error {
 	var defaultBroker events.EventBroker
 	for _, b := range brokers {
 		defaultBroker = b
@@ -101,7 +101,7 @@ func (s *CronScheduler) AddAll(cronDefs []CronJob, brokers map[string]events.Eve
 				handler = handlers[cfg.Handler]
 			}
 		}
-		if err := s.AddJob(cfg, defaultBroker, handler); err != nil {
+		if err := s.AddJob(ctx, cfg, defaultBroker, handler); err != nil {
 			return err
 		}
 	}

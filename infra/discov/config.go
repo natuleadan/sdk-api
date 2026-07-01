@@ -39,11 +39,12 @@ func (c EtcdConf) HasTLS() bool {
 
 // Validate validates c.
 func (c EtcdConf) Validate() error {
-	if len(c.Hosts) == 0 {
+	switch {
+	case len(c.Hosts) == 0:
 		return errEmptyEtcdHosts
-	} else if len(c.Key) == 0 {
+	case len(c.Key) == 0:
 		return errEmptyEtcdKey
-	} else {
+	default:
 		return nil
 	}
 }

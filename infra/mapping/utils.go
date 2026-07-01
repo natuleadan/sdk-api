@@ -217,7 +217,8 @@ func implicitValueRequiredStruct(tag string, tp reflect.Type) (bool, error) {
 			return false, err
 		}
 
-		if opts == nil {
+		switch {
+		case opts == nil:
 			if childField.Type.Kind() != reflect.Struct {
 				return true, nil
 			}
@@ -227,9 +228,9 @@ func implicitValueRequiredStruct(tag string, tp reflect.Type) (bool, error) {
 			} else if required {
 				return true, nil
 			}
-		} else if !opts.Optional && len(opts.Default) == 0 {
+		case !opts.Optional && len(opts.Default) == 0:
 			return true, nil
-		} else if len(opts.OptionalDep) > 0 && opts.OptionalDep[0] == notSymbol {
+		case len(opts.OptionalDep) > 0 && opts.OptionalDep[0] == notSymbol:
 			return true, nil
 		}
 	}

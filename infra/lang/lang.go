@@ -23,8 +23,7 @@ func Repr(v any) string {
 	}
 
 	// if func (v *Type) String() string, we can't use Elem()
-	switch vt := v.(type) {
-	case fmt.Stringer:
+	if vt, ok := v.(fmt.Stringer); ok {
 		return vt.String()
 	}
 

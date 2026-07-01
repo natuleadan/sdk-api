@@ -45,7 +45,7 @@ func flushRepeatedly() {
 }
 
 func report(name string, duration time.Duration) {
-	slot := loadOrStoreSlot(name, duration)
+	slot := loadOrStoreSlot(name)
 
 	atomic.AddInt64(&slot.lifecount, 1)
 	atomic.AddInt64(&slot.lastcount, 1)
@@ -53,7 +53,7 @@ func report(name string, duration time.Duration) {
 	atomic.AddInt64(&slot.lastcycle, int64(duration))
 }
 
-func loadOrStoreSlot(name string, duration time.Duration) *profileSlot {
+func loadOrStoreSlot(name string) *profileSlot {
 	pc.lock.RLock()
 	slot, ok := pc.slots[name]
 	pc.lock.RUnlock()

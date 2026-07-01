@@ -62,12 +62,13 @@ func (rl *RedisLock) AcquireCtx(ctx context.Context) (bool, error) {
 	resp, err := rl.store.ScriptRunCtx(ctx, lockScript, []string{rl.key}, []string{
 		rl.id, strconv.Itoa(int(seconds)*millisPerSecond + tolerance),
 	})
-	if errors.Is(err, red.Nil) {
+	switch {
+	case errors.Is(err, red.Nil):
 		return false, nil
-	} else if err != nil {
+	case err != nil:
 		logx.Errorf("Error on acquiring lock for %s, %s", rl.key, err.Error())
 		return false, err
-	} else if resp == nil {
+	case resp == nil:
 		return false, nil
 	}
 

@@ -308,7 +308,11 @@ func runningInUserNS() bool {
 			// This kernel-provided file only exists if user namespaces are supported
 			return
 		}
-		defer file.Close()
+		defer func() {
+			if err := file.Close(); err != nil {
+				fmt.Fprintf(os.Stderr, "stat: cgroup file close error: %v\n", err)
+			}
+		}()
 
 		buf := bufio.NewReader(file)
 		l, _, err := buf.ReadLine()

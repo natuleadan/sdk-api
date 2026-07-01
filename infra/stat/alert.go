@@ -44,14 +44,14 @@ func Report(msg string) {
 	if fn != nil {
 		reported := lessExecutor.DoOrDiscard(func() {
 			var builder strings.Builder
-			builder.WriteString(fmt.Sprintln(time.Now().Format(time.DateTime)))
+			fmt.Fprintln(&builder, time.Now().Format(time.DateTime))
 			if len(clusterName) > 0 {
-				builder.WriteString(fmt.Sprintf("cluster: %s\n", clusterName))
+				fmt.Fprintf(&builder, "cluster: %s\n", clusterName)
 			}
-			builder.WriteString(fmt.Sprintf("host: %s\n", sysx.Hostname()))
+			fmt.Fprintf(&builder, "host: %s\n", sysx.Hostname())
 			dp := atomic.SwapInt32(&dropped, 0)
 			if dp > 0 {
-				builder.WriteString(fmt.Sprintf("dropped: %d\n", dp))
+				fmt.Fprintf(&builder, "dropped: %d\n", dp)
 			}
 			builder.WriteString(strings.TrimSpace(msg))
 			fn(builder.String())

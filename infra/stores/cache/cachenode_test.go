@@ -70,10 +70,10 @@ func TestCacheNode_DelCache(t *testing.T) {
 		r, err := miniredis.Run()
 		assert.NoError(t, err)
 		defer r.Close()
-		r.SetError("mock error")
 
 		node := NewNode(redis.MustNewRedis(redis.RedisConf{Host: r.Addr(), Type: redis.ClusterType}), syncx.NewSingleFlight(),
 			NewStat("any"), errTestNotFound)
+		r.SetError("mock error")
 		assert.NoError(t, node.Del("foo", "bar"))
 		ticker.Tick()
 		runtime.Gosched()
@@ -101,7 +101,7 @@ func TestCacheNode_InvalidCache(t *testing.T) {
 	defer s.Close()
 
 	cn := cacheNode{
-		rds:            redis.MustNewRedis(redis.RedisConf{Host: s.Addr()}),
+		rds:            redis.MustNewRedis(redis.RedisConf{Host: s.Addr(), Type: redis.NodeType}),
 		r:              rand.New(rand.NewSource(time.Now().UnixNano())),
 		lock:           new(sync.Mutex),
 		unstableExpiry: mathx.NewUnstable(expiryDeviation),
@@ -153,10 +153,10 @@ func TestCacheNode_TakeBadRedis(t *testing.T) {
 	r, err := miniredis.Run()
 	assert.NoError(t, err)
 	defer r.Close()
-	r.SetError("mock error")
 
-	cn := NewNode(redis.MustNewRedis(redis.RedisConf{Host: r.Addr()}), syncx.NewSingleFlight(), NewStat("any"),
+	cn := NewNode(redis.MustNewRedis(redis.RedisConf{Host: r.Addr(), Type: redis.NodeType}), syncx.NewSingleFlight(), NewStat("any"),
 		errTestNotFound, WithExpiry(time.Second), WithNotFoundExpiry(time.Second))
+	r.SetError("mock error")
 	var str string
 	assert.Error(t, cn.Take(&str, "any", func(v any) error {
 		*v.(*string) = "value"

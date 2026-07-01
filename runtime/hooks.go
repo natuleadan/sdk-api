@@ -12,10 +12,10 @@ import (
 type EntryHooks[T any] interface {
 	BeforeCreate(ctx context.Context, req T) (T, error)
 	AfterCreate(ctx context.Context, entity *T) error
-	BeforeUpdate(ctx context.Context, id any, patch map[string]any) (map[string]any, error)
+	BeforeUpdate(ctx context.Context, id string, patch map[string]any) (map[string]any, error)
 	AfterUpdate(ctx context.Context, entity *T) error
-	BeforeDelete(ctx context.Context, id any) error
-	AfterDelete(ctx context.Context, id any) error
+	BeforeDelete(ctx context.Context, id string) error
+	AfterDelete(ctx context.Context, id string) error
 	BeforeTransform(ctx context.Context, req T) (T, error)
 	AfterTransform(ctx context.Context, result any) error
 }
@@ -24,12 +24,12 @@ type DefaultHooks[T any] struct{}
 
 func (DefaultHooks[T]) BeforeCreate(_ context.Context, req T) (T, error)           { return req, nil }
 func (DefaultHooks[T]) AfterCreate(_ context.Context, _ *T) error                  { return nil }
-func (DefaultHooks[T]) BeforeUpdate(_ context.Context, _ any, patch map[string]any) (map[string]any, error) {
+func (DefaultHooks[T]) BeforeUpdate(_ context.Context, _ string, patch map[string]any) (map[string]any, error) {
 	return patch, nil
 }
 func (DefaultHooks[T]) AfterUpdate(_ context.Context, _ *T) error  { return nil }
-func (DefaultHooks[T]) BeforeDelete(_ context.Context, _ any) error { return nil }
-func (DefaultHooks[T]) AfterDelete(_ context.Context, _ any) error  { return nil }
+func (DefaultHooks[T]) BeforeDelete(_ context.Context, _ string) error { return nil }
+func (DefaultHooks[T]) AfterDelete(_ context.Context, _ string) error  { return nil }
 func (DefaultHooks[T]) BeforeTransform(_ context.Context, req T) (T, error) { return req, nil }
 func (DefaultHooks[T]) AfterTransform(_ context.Context, _ any) error       { return nil }
 

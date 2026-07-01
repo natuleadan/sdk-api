@@ -39,7 +39,7 @@ func (h *trackingHooks) AfterUpdate(_ context.Context, _ *testModel) error {
 	return nil
 }
 
-func (h *trackingHooks) AfterDelete(_ context.Context, _ any) error {
+func (h *trackingHooks) AfterDelete(_ context.Context, _ string) error {
 	h.deleted = true
 	h.deleteCalls++
 	return nil
@@ -78,7 +78,7 @@ func (h *validationHooks) BeforeCreate(_ context.Context, req testModel) (testMo
 	return req, nil
 }
 
-func (h *validationHooks) BeforeDelete(_ context.Context, _ any) error {
+func (h *validationHooks) BeforeDelete(_ context.Context, _ string) error {
 	if h.rejectDelete {
 		return context.DeadlineExceeded
 	}

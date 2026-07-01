@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -663,7 +664,7 @@ func loadConfigFile(path string, cfg *ServiceConfig) error {
 	if path == "" {
 		return nil
 	}
-	content, err := os.ReadFile(path)
+	content, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return fmt.Errorf("read config: %w", err)
 	}

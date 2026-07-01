@@ -200,11 +200,7 @@ func doParseKeyAndOptions(field reflect.StructField, value string) (string, *fie
 // ensureValue ensures nested members not to be nil.
 // If pointer value is nil, set to a new value.
 func ensureValue(v reflect.Value) reflect.Value {
-	for {
-		if v.Kind() != reflect.Pointer {
-			break
-		}
-
+	for v.Kind() == reflect.Pointer {
 		if v.IsNil() {
 			v.Set(reflect.New(v.Type().Elem()))
 		}

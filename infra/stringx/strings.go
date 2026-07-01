@@ -18,6 +18,7 @@ var (
 
 // Contains checks if str is in list.
 //
+//
 // Deprecated: use slices.Contains instead.
 func Contains(list []string, str string) bool {
 	return slices.Contains(list, str)
@@ -142,6 +143,7 @@ func Substr(str string, start, stop int) (string, error) {
 }
 
 // TakeOne returns valid string if not empty or later one.
+//
 // Deprecated: use cmp.Or instead.
 func TakeOne(valid, or string) string {
 	if len(valid) > 0 {

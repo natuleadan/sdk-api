@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 )
 
 // OffsetRange represents a content block of a file.
@@ -31,7 +32,7 @@ func SplitLineChunks(filename string, chunks int) ([]OffsetRange, error) {
 		}, nil
 	}
 
-	file, err := os.Open(filename)
+	file, err := os.Open(filepath.Clean(filename))
 	if err != nil {
 		return nil, err
 	}

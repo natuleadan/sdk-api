@@ -59,7 +59,7 @@ func newRateLimiterStore(driver, redisURL string) *rateLimiterStore {
 		perUser: make(map[string]limiter),
 	}
 	if driver == "redis" && redisURL != "" {
-		s.rdb = redis.New(redisURL)
+		s.rdb = redis.MustNewRedis(redis.RedisConf{Host: redisURL})
 	}
 	return s
 }

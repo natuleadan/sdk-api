@@ -163,7 +163,7 @@ func (cb *circuitBreaker) DoWithAcceptableCtx(ctx context.Context, req func() er
 }
 
 func (cb *circuitBreaker) DoWithFallback(req func() error, fallback Fallback) error {
-	return cb.throttle.doReq(req, fallback, defaultAcceptable)
+	return cb.doReq(req, fallback, defaultAcceptable)
 }
 
 func (cb *circuitBreaker) DoWithFallbackCtx(ctx context.Context, req func() error,
@@ -178,7 +178,7 @@ func (cb *circuitBreaker) DoWithFallbackCtx(ctx context.Context, req func() erro
 
 func (cb *circuitBreaker) DoWithFallbackAcceptable(req func() error, fallback Fallback,
 	acceptable Acceptable) error {
-	return cb.throttle.doReq(req, fallback, acceptable)
+	return cb.doReq(req, fallback, acceptable)
 }
 
 func (cb *circuitBreaker) DoWithFallbackAcceptableCtx(ctx context.Context, req func() error,

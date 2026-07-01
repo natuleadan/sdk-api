@@ -16,5 +16,5 @@ func CreateRedis(t *testing.T) *redis.Redis {
 // CreateRedisWithClean returns an in process redis.Redis and a clean function.
 func CreateRedisWithClean(t *testing.T) (r *redis.Redis, clean func()) {
 	mr := miniredis.RunT(t)
-	return redis.New(mr.Addr()), mr.Close
+	return redis.MustNewRedis(redis.RedisConf{Host: mr.Addr()}), mr.Close
 }

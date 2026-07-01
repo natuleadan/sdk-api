@@ -57,13 +57,13 @@ func FuzzMapReduce(f *testing.F) {
 
 		if genPanic || mapperPanic || reducerPanic {
 			var buf strings.Builder
-			buf.WriteString(fmt.Sprintf("n: %d", n))
-			buf.WriteString(fmt.Sprintf(", genPanic: %t", genPanic))
-			buf.WriteString(fmt.Sprintf(", mapperPanic: %t", mapperPanic))
-			buf.WriteString(fmt.Sprintf(", reducerPanic: %t", reducerPanic))
-			buf.WriteString(fmt.Sprintf(", genIdx: %d", genIdx))
-			buf.WriteString(fmt.Sprintf(", mapperIdx: %d", mapperIdx))
-			buf.WriteString(fmt.Sprintf(", reducerIdx: %d", reducerIdx))
+			fmt.Fprintf(&buf, "n: %d", n)
+			fmt.Fprintf(&buf, ", genPanic: %t", genPanic)
+			fmt.Fprintf(&buf, ", mapperPanic: %t", mapperPanic)
+			fmt.Fprintf(&buf, ", reducerPanic: %t", reducerPanic)
+			fmt.Fprintf(&buf, ", genIdx: %d", genIdx)
+			fmt.Fprintf(&buf, ", mapperIdx: %d", mapperIdx)
+			fmt.Fprintf(&buf, ", reducerIdx: %d", reducerIdx)
 			assert.Panicsf(t, func() { fn() }, buf.String())
 		} else {
 			val, err := fn()

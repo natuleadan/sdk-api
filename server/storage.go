@@ -112,7 +112,7 @@ func (l *LocalStorage) Upload(ctx context.Context, key string, reader io.Reader,
 		return fmt.Errorf("local upload mkdir: %w", err)
 	}
 
-	f, err := os.Create(fullPath)
+	f, err := os.Create(filepath.Clean(fullPath))
 	if err != nil {
 		return fmt.Errorf("local upload create: %w", err)
 	}
@@ -127,7 +127,7 @@ func (l *LocalStorage) Upload(ctx context.Context, key string, reader io.Reader,
 func (l *LocalStorage) Download(ctx context.Context, key string) (io.ReadCloser, error) {
 	key = sanitizeKey(key)
 	fullPath := filepath.Join(l.root, key)
-	f, err := os.Open(fullPath)
+	f, err := os.Open(filepath.Clean(fullPath))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, fmt.Errorf("file not found: %s", key)

@@ -44,7 +44,7 @@ func TestMustNewNodeModel(t *testing.T) {
 	defer logx.ExitOnFatal.Set(original)
 
 	assert.Panics(t, func() {
-		MustNewNodeModel("foo", "db", "collectino", redis.New(s.Addr()))
+		MustNewNodeModel("foo", "db", "collectino", redis.MustNewRedis(redis.RedisConf{Host: s.Addr()}))
 	})
 }
 
@@ -518,7 +518,7 @@ func createModel(t *testing.T, coll mon.Collection) *Model {
 	s, err := miniredis.Run()
 	assert.Nil(t, err)
 	if atomic.AddInt32(&index, 1)%2 == 0 {
-		return mustNewTestNodeModel(coll, redis.New(s.Addr()))
+		return mustNewTestNodeModel(coll, redis.MustNewRedis(redis.RedisConf{Host: s.Addr()}))
 	} else {
 		return mustNewTestModel(coll, cache.CacheConf{
 			cache.NodeConf{

@@ -89,13 +89,13 @@ func generateReport() string {
 
 	pc.lock.Lock()
 	for key, slot := range pc.slots {
-		builder.WriteString(fmt.Sprintf("%s,%d,%s,%d,%s\n",
+		fmt.Fprintf(&builder, "%s,%d,%s,%d,%s\n",
 			key,
 			slot.lifecount,
 			calcFn(slot.lifecycle, slot.lifecount),
 			slot.lastcount,
 			calcFn(slot.lastcycle, slot.lastcount),
-		))
+		)
 
 		// reset last cycle stats
 		atomic.StoreInt64(&slot.lastcount, 0)

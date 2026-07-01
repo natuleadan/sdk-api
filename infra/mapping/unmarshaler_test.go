@@ -5626,7 +5626,7 @@ func TestFillDefaultUnmarshal(t *testing.T) {
 		var st2 St2
 		err := fillDefaultUnmarshal.Unmarshal(map[string]any{}, &st2)
 		assert.NoError(t, err)
-		assert.Equal(t, "a", st2.St.A)
+		assert.Equal(t, "a", st2.A)
 		assert.Equal(t, "a", st2.St1.A)
 		assert.Nil(t, st2.St3)
 		assert.Equal(t, "c", st2.C)

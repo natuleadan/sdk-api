@@ -30,7 +30,7 @@ func FuzzReplacerReplace(f *testing.F) {
 			}
 		}()
 		val := rep.Replace(text)
-		keys := rep.(*replacer).node.find([]rune(val))
+		keys := rep.(*replacer).find([]rune(val))
 		if len(keys) > 0 {
 			t.Errorf("mapping: %s\ntext: %s\nresult: %s\nmatch: %v",
 				printableKeywords(), text, val, keys)

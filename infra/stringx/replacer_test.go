@@ -174,7 +174,7 @@ func TestFuzzReplacerCase1(t *testing.T) {
 	rep := NewReplacer(keywords)
 	text := "yjF8fyqJiiqrczOCVyoYbLvrMpnkj"
 	val := rep.Replace(text)
-	keys := rep.(*replacer).node.find([]rune(val))
+	keys := rep.(*replacer).find([]rune(val))
 	if len(keys) > 0 {
 		t.Errorf("result: %s, match: %v", val, keys)
 	}
@@ -206,7 +206,7 @@ func TestFuzzReplacerCase2(t *testing.T) {
 	rep := NewReplacer(keywords)
 	text := "AoRxrdKWsGhFpXwVqMLWRL74OukwjBuBh0g7pSrk"
 	val := rep.Replace(text)
-	keys := rep.(*replacer).node.find([]rune(val))
+	keys := rep.(*replacer).find([]rune(val))
 	if len(keys) > 0 {
 		t.Errorf("result: %s, match: %v", val, keys)
 	}

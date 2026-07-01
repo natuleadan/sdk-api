@@ -131,9 +131,9 @@ func (p *comboHealthManager) verboseInfo() string {
 	var info strings.Builder
 	for _, probe := range p.probes {
 		if probe.IsReady() {
-			info.WriteString(fmt.Sprintf("%s is ready\n", probe.Name()))
+			fmt.Fprintf(&info, "%s is ready\n", probe.Name())
 		} else {
-			info.WriteString(fmt.Sprintf("%s is not ready\n", probe.Name()))
+			fmt.Fprintf(&info, "%s is not ready\n", probe.Name())
 		}
 	}
 

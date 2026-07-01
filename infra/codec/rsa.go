@@ -9,6 +9,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"os"
+	"path/filepath"
 )
 
 var (
@@ -51,7 +52,7 @@ type (
 // PKCS#1 v1.5 padding is vulnerable to padding oracle attacks.
 // Use NewRsaOAEPDecrypter instead.
 func NewRsaDecrypter(file string) (RsaDecrypter, error) {
-	content, err := os.ReadFile(file)
+	content, err := os.ReadFile(filepath.Clean(file))
 	if err != nil {
 		return nil, err
 	}
@@ -148,16 +149,16 @@ func (r *rsaBase) crypt(input []byte, cryptFn func([]byte) ([]byte, error)) ([]b
 }
 
 func rsaDecryptBlock(privateKey *rsa.PrivateKey, block []byte) ([]byte, error) {
-	return rsa.DecryptPKCS1v15(rand.Reader, privateKey, block)
+	return rsa.DecryptOAEP(sha256.New(), rand.Reader, privateKey, block, nil)
 }
 
 func rsaEncryptBlock(publicKey *rsa.PublicKey, msg []byte) ([]byte, error) {
-	return rsa.EncryptPKCS1v15(rand.Reader, publicKey, msg)
+	return rsa.EncryptOAEP(sha256.New(), rand.Reader, publicKey, msg, nil)
 }
 
 // NewRsaOAEPDecrypter returns a RsaDecrypter using OAEP with SHA-256.
 func NewRsaOAEPDecrypter(file string) (RsaDecrypter, error) {
-	content, err := os.ReadFile(file)
+	content, err := os.ReadFile(filepath.Clean(file))
 	if err != nil {
 		return nil, err
 	}

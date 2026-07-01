@@ -114,6 +114,7 @@ func MustNewRedis(conf RedisConf, opts ...Option) *Redis {
 }
 
 // New returns a Redis with given options.
+//
 // Deprecated: use MustNewRedis or NewRedis instead.
 func New(addr string, opts ...Option) *Redis {
 	return newRedis(addr, opts...)
@@ -2323,6 +2324,7 @@ func (s *Redis) ZrangeWithScoresByFloatCtx(ctx context.Context, key string, star
 }
 
 // ZRevRangeWithScores is the implementation of redis zrevrange command with scores.
+//
 // Deprecated: use ZrevrangeWithScores instead.
 func (s *Redis) ZRevRangeWithScores(key string, start, stop int64) ([]Pair, error) {
 	return s.ZrevrangeWithScoresCtx(context.Background(), key, start, stop)
@@ -2334,6 +2336,7 @@ func (s *Redis) ZrevrangeWithScores(key string, start, stop int64) ([]Pair, erro
 }
 
 // ZRevRangeWithScoresCtx is the implementation of redis zrevrange command with scores.
+//
 // Deprecated: use ZrevrangeWithScoresCtx instead.
 func (s *Redis) ZRevRangeWithScoresCtx(ctx context.Context, key string, start, stop int64) (
 	[]Pair, error) {
@@ -2357,6 +2360,7 @@ func (s *Redis) ZrevrangeWithScoresCtx(ctx context.Context, key string, start, s
 }
 
 // ZRevRangeWithScoresByFloat is the implementation of redis zrevrange command with scores by float.
+//
 // Deprecated: use ZrevrangeWithScoresByFloat instead.
 func (s *Redis) ZRevRangeWithScoresByFloat(key string, start, stop int64) ([]FloatPair, error) {
 	return s.ZrevrangeWithScoresByFloatCtx(context.Background(), key, start, stop)
@@ -2368,6 +2372,7 @@ func (s *Redis) ZrevrangeWithScoresByFloat(key string, start, stop int64) ([]Flo
 }
 
 // ZRevRangeWithScoresByFloatCtx is the implementation of redis zrevrange command with scores by float.
+//
 // Deprecated: use ZrevrangeWithScoresByFloatCtx instead.
 func (s *Redis) ZRevRangeWithScoresByFloatCtx(ctx context.Context, key string, start, stop int64) (
 	[]FloatPair, error) {

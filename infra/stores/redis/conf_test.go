@@ -55,10 +55,10 @@ func TestRedisConf(t *testing.T) {
 	for _, test := range tests {
 		t.Run(stringx.RandId(), func(t *testing.T) {
 			if test.ok {
-				assert.Nil(t, test.RedisConf.Validate())
-				assert.NotNil(t, test.RedisConf.NewRedis())
+				assert.Nil(t, test.Validate())
+				assert.NotNil(t, test.NewRedis())
 			} else {
-				assert.NotNil(t, test.RedisConf.Validate())
+				assert.NotNil(t, test.Validate())
 			}
 		})
 	}
@@ -111,9 +111,9 @@ func TestRedisKeyConf(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			if test.ok {
-				assert.Nil(t, test.RedisKeyConf.Validate())
+				assert.Nil(t, test.Validate())
 			} else {
-				assert.NotNil(t, test.RedisKeyConf.Validate())
+				assert.NotNil(t, test.Validate())
 			}
 		})
 	}

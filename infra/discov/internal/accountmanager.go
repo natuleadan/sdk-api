@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"os"
+	"path/filepath"
 	"sync"
 )
 
@@ -37,7 +38,7 @@ func AddTLS(endpoints []string, certFile, certKeyFile, caFile string, insecureSk
 		return err
 	}
 
-	caData, err := os.ReadFile(caFile)
+	caData, err := os.ReadFile(filepath.Clean(caFile))
 	if err != nil {
 		return err
 	}

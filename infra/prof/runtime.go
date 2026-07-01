@@ -8,6 +8,8 @@ import (
 	"runtime/debug"
 	"runtime/metrics"
 	"time"
+
+	"github.com/natuleadan/sdk-api/infra/logx"
 )
 
 const (
@@ -51,8 +53,10 @@ func displayStatsWithWriter(writer io.Writer, interval ...time.Duration) {
 			}
 			var stats debug.GCStats
 			debug.ReadGCStats(&stats)
-			fmt.Fprintf(writer, "Goroutines: %d, Alloc: %vm, TotalAlloc: %vm, Sys: %vm, NumGC: %v\n",
-				runtime.NumGoroutine(), alloc/mega, totalAlloc/mega, sys/mega, stats.NumGC)
+			if _, err := fmt.Fprintf(writer, "Goroutines: %d, Alloc: %vm, TotalAlloc: %vm, Sys: %vm, NumGC: %v\n",
+				runtime.NumGoroutine(), alloc/mega, totalAlloc/mega, sys/mega, stats.NumGC); err != nil {
+				logx.Errorf("prof: write error: %v", err)
+			}
 		}
 	}()
 }

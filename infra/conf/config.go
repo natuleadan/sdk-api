@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"path"
 	"reflect"
 	"strings"
@@ -45,7 +46,7 @@ func FillDefault(v any) error {
 
 // Load loads config into v from file, .json, .json5, .toml, .yaml and .yml are acceptable.
 func Load(file string, v any, opts ...Option) error {
-	content, err := os.ReadFile(file)
+	content, err := os.ReadFile(filepath.Clean(file))
 	if err != nil {
 		return err
 	}
@@ -68,6 +69,7 @@ func Load(file string, v any, opts ...Option) error {
 }
 
 // LoadConfig loads config into v from file, .json, .json5, .toml, .yaml and .yml are acceptable.
+//
 //
 // Deprecated: use Load instead.
 func LoadConfig(file string, v any, opts ...Option) error {
@@ -97,6 +99,7 @@ func LoadFromJsonBytes(content []byte, v any) error {
 }
 
 // LoadConfigFromJsonBytes loads config into v from content json bytes.
+//
 //
 // Deprecated: use LoadFromJsonBytes instead.
 func LoadConfigFromJsonBytes(content []byte, v any) error {
@@ -134,6 +137,7 @@ func LoadFromJson5Bytes(content []byte, v any) error {
 }
 
 // LoadConfigFromYamlBytes loads config into v from content yaml bytes.
+//
 // Deprecated: use LoadFromYamlBytes instead.
 func LoadConfigFromYamlBytes(content []byte, v any) error {
 	return LoadFromYamlBytes(content, v)

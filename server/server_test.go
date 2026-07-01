@@ -12,11 +12,20 @@ import (
 	"golang.org/x/crypto/acme/autocert"
 )
 
+func testRequest(method, path string, body io.Reader) (*http.Request, error) {
+	req, err := http.NewRequest(method, path, body)
+	if err != nil {
+		return nil, err
+	}
+	req.Host = "test.com"
+	return req, nil
+}
+
 func TestHealthEndpoint(t *testing.T) {
 	logx.Disable()
 	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, nil)
 
-	req, _ := http.NewRequest("GET", "/health", nil)
+	req, _ := testRequest("GET", "/health", nil)
 	resp, err := app.app.Test(req)
 	if err != nil {
 		t.Fatalf("health request failed: %v", err)
@@ -33,7 +42,7 @@ func TestErrorHandler(t *testing.T) {
 		return fiber.NewError(fiber.StatusInternalServerError, "something went wrong")
 	})
 
-	req, _ := http.NewRequest("GET", "/error", nil)
+	req, _ := testRequest("GET", "/error", nil)
 	resp, err := app.app.Test(req)
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
@@ -59,7 +68,7 @@ func TestCustomRoute(t *testing.T) {
 		return c.JSON(map[string]string{"message": "hello"})
 	})
 
-	req, _ := http.NewRequest("GET", "/api/v1/hello", nil)
+	req, _ := testRequest("GET", "/api/v1/hello", nil)
 	resp, err := app.app.Test(req)
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
@@ -93,7 +102,7 @@ func TestRecoveryMiddleware(t *testing.T) {
 		panic("test panic")
 	})
 
-	req, _ := http.NewRequest("GET", "/panic", nil)
+	req, _ := testRequest("GET", "/panic", nil)
 	resp, err := app.app.Test(req)
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
@@ -107,7 +116,7 @@ func TestNotFound(t *testing.T) {
 	logx.Disable()
 	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, nil)
 
-	req, _ := http.NewRequest("GET", "/nonexistent", nil)
+	req, _ := testRequest("GET", "/nonexistent", nil)
 	resp, err := app.app.Test(req)
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
@@ -126,7 +135,7 @@ func TestTLS_Disabled(t *testing.T) {
 	app.app.Get("/ping", func(c *fiber.Ctx) error {
 		return c.SendString("pong")
 	})
-	req, _ := http.NewRequest("GET", "/ping", nil)
+	req, _ := testRequest("GET", "/ping", nil)
 	resp, err := app.app.Test(req)
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
@@ -251,7 +260,7 @@ func TestErrorHandler_SanitizesInternalError(t *testing.T) {
 		return fiber.NewError(fiber.StatusInternalServerError, "dial tcp 10.0.0.5:5432: connection refused")
 	})
 
-	req, _ := http.NewRequest("GET", "/db-error", nil)
+	req, _ := testRequest("GET", "/db-error", nil)
 	resp, _ := app.app.Test(req)
 
 	body, _ := io.ReadAll(resp.Body)
@@ -272,7 +281,7 @@ func TestErrorHandler_LeavesClientErrors(t *testing.T) {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid input")
 	})
 
-	req, _ := http.NewRequest("GET", "/bad-request", nil)
+	req, _ := testRequest("GET", "/bad-request", nil)
 	resp, _ := app.app.Test(req)
 
 	body, _ := io.ReadAll(resp.Body)

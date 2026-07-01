@@ -17,6 +17,15 @@ import (
 	"github.com/natuleadan/sdk-api/infra/logx"
 )
 
+func testRequest(method, path string, body io.Reader) (*http.Request, error) {
+	req, err := http.NewRequest(method, path, body)
+	if err != nil {
+		return nil, err
+	}
+	req.Host = "test.com"
+	return req, nil
+}
+
 func tokenFor(secret string) string {
 	t, _ := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{"sub": "123"}).SignedString([]byte(secret))
 	return t
@@ -31,7 +40,7 @@ func TestJWTValid(t *testing.T) {
 		return c.JSON(fiber.Map{"claims": claims})
 	})
 
-	req, _ := http.NewRequest("GET", "/protected", nil)
+	req, _ := testRequest("GET", "/protected", nil)
 	req.Header.Set("Authorization", "Bearer "+tokenFor("secret123"))
 	resp, _ := app.Test(req)
 	if resp.StatusCode != http.StatusOK {
@@ -47,7 +56,7 @@ func TestJWTMissing(t *testing.T) {
 		return c.SendString("ok")
 	})
 
-	req, _ := http.NewRequest("GET", "/protected", nil)
+	req, _ := testRequest("GET", "/protected", nil)
 	resp, _ := app.Test(req)
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("expected 401, got %d", resp.StatusCode)
@@ -62,7 +71,7 @@ func TestJWTInvalid(t *testing.T) {
 		return c.SendString("ok")
 	})
 
-	req, _ := http.NewRequest("GET", "/protected", nil)
+	req, _ := testRequest("GET", "/protected", nil)
 	req.Header.Set("Authorization", "Bearer invalid-token")
 	resp, _ := app.Test(req)
 	if resp.StatusCode != http.StatusUnauthorized {
@@ -81,7 +90,7 @@ func TestJWTSecretRotation(t *testing.T) {
 		return c.JSON(fiber.Map{"ok": true})
 	})
 
-	req, _ := http.NewRequest("GET", "/protected", nil)
+	req, _ := testRequest("GET", "/protected", nil)
 	req.Header.Set("Authorization", "Bearer "+tokenFor("old-secret"))
 	resp, _ := app.Test(req)
 	if resp.StatusCode != http.StatusOK {
@@ -97,7 +106,7 @@ func TestCORS(t *testing.T) {
 		return c.SendString("ok")
 	})
 
-	req, _ := http.NewRequest("GET", "/test", nil)
+	req, _ := testRequest("GET", "/test", nil)
 	req.Header.Set("Origin", "https://example.com")
 	resp, _ := app.Test(req)
 	if resp.Header.Get("Access-Control-Allow-Origin") != "*" {
@@ -113,7 +122,7 @@ func TestLogger(t *testing.T) {
 		return c.SendString("ok")
 	})
 
-	req, _ := http.NewRequest("GET", "/test", nil)
+	req, _ := testRequest("GET", "/test", nil)
 	resp, _ := app.Test(req)
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
@@ -128,7 +137,7 @@ func TestRecovery(t *testing.T) {
 		panic("oops")
 	})
 
-	req, _ := http.NewRequest("GET", "/panic", nil)
+	req, _ := testRequest("GET", "/panic", nil)
 	resp, _ := app.Test(req)
 	if resp.StatusCode != http.StatusInternalServerError {
 		t.Errorf("expected 500, got %d", resp.StatusCode)
@@ -151,7 +160,7 @@ func TestMaxConns(t *testing.T) {
 	})
 
 	for range 5 {
-		req, _ := http.NewRequest("GET", "/test", nil)
+		req, _ := testRequest("GET", "/test", nil)
 		resp, _ := app.Test(req)
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("expected 200 within limit, got %d", resp.StatusCode)
@@ -167,7 +176,7 @@ func TestGunzip(t *testing.T) {
 		return c.Send(c.Body())
 	})
 
-	req, _ := http.NewRequest("POST", "/test", strings.NewReader(`{"hello":"world"}`))
+	req, _ := testRequest("POST", "/test", strings.NewReader(`{"hello":"world"}`))
 	resp, _ := app.Test(req)
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
@@ -186,7 +195,7 @@ func TestGunzipNoEncoding(t *testing.T) {
 		return c.Send(c.Body())
 	})
 
-	req, _ := http.NewRequest("POST", "/test", strings.NewReader("plain-text"))
+	req, _ := testRequest("POST", "/test", strings.NewReader("plain-text"))
 	resp, _ := app.Test(req)
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
@@ -204,7 +213,7 @@ func TestSSE(t *testing.T) {
 		return c.SendString("ok")
 	})
 
-	req, _ := http.NewRequest("GET", "/events", nil)
+	req, _ := testRequest("GET", "/events", nil)
 	resp, _ := app.Test(req)
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
@@ -225,7 +234,7 @@ func TestShedding(t *testing.T) {
 		return c.SendString("ok")
 	})
 
-	req, _ := http.NewRequest("GET", "/test", nil)
+	req, _ := testRequest("GET", "/test", nil)
 	resp, _ := app.Test(req)
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
@@ -240,7 +249,7 @@ func TestBreaker(t *testing.T) {
 		return c.SendString("ok")
 	})
 
-	req, _ := http.NewRequest("GET", "/test", nil)
+	req, _ := testRequest("GET", "/test", nil)
 	resp, _ := app.Test(req)
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
@@ -255,7 +264,7 @@ func TestBreakerClientError(t *testing.T) {
 		return c.Status(400).SendString("bad")
 	})
 
-	req, _ := http.NewRequest("GET", "/test", nil)
+	req, _ := testRequest("GET", "/test", nil)
 	resp, _ := app.Test(req)
 	// Client errors should be accepted by breaker (not trip it)
 	if resp.StatusCode != 400 {
@@ -271,7 +280,7 @@ func TestTimeout(t *testing.T) {
 		return c.SendString("ok")
 	})
 
-	req, _ := http.NewRequest("GET", "/fast", nil)
+	req, _ := testRequest("GET", "/fast", nil)
 	resp, _ := app.Test(req)
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
@@ -286,7 +295,7 @@ func TestTrace(t *testing.T) {
 		return c.SendString("ok")
 	})
 
-	req, _ := http.NewRequest("GET", "/test", nil)
+	req, _ := testRequest("GET", "/test", nil)
 	resp, _ := app.Test(req)
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
@@ -311,7 +320,7 @@ func TestContentSecurityStrict(t *testing.T) {
 		return c.SendString("ok")
 	})
 
-	req, _ := http.NewRequest("POST", "/test", strings.NewReader(`{"hello":"world"}`))
+	req, _ := testRequest("POST", "/test", strings.NewReader(`{"hello":"world"}`))
 	req.Header.Set("Content-Type", "application/json")
 	resp, _ := app.Test(req)
 	if resp.StatusCode != http.StatusForbidden {
@@ -328,7 +337,7 @@ func TestContentSecurityNonStrict(t *testing.T) {
 		return c.SendString("ok")
 	})
 
-	req, _ := http.NewRequest("POST", "/test", strings.NewReader(`{"hello":"world"}`))
+	req, _ := testRequest("POST", "/test", strings.NewReader(`{"hello":"world"}`))
 	req.Header.Set("Content-Type", "application/json")
 	resp, _ := app.Test(req)
 	if resp.StatusCode != http.StatusOK {
@@ -350,7 +359,7 @@ func TestContentSecurityValidSignature(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	req, _ := http.NewRequest("POST", "/test", strings.NewReader(body))
+	req, _ := testRequest("POST", "/test", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Content-Security", sig)
 	resp, _ := app.Test(req)
@@ -369,7 +378,7 @@ func TestContentSecurityInvalidSignature(t *testing.T) {
 	})
 
 	body := `{"hello":"world"}`
-	req, _ := http.NewRequest("POST", "/test", strings.NewReader(body))
+	req, _ := testRequest("POST", "/test", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Content-Security", "invalid-sig")
 	resp, _ := app.Test(req)
@@ -392,7 +401,7 @@ func TestCryption(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	req, _ := http.NewRequest("POST", "/test", strings.NewReader(string(encrypted)))
+	req, _ := testRequest("POST", "/test", strings.NewReader(string(encrypted)))
 	req.Header.Set("Content-Type", "application/json")
 	resp, _ := app.Test(req)
 	if resp.StatusCode != http.StatusOK {
@@ -409,7 +418,7 @@ func TestCryptionInvalidBody(t *testing.T) {
 		return c.SendString("ok")
 	})
 
-	req, _ := http.NewRequest("POST", "/test", strings.NewReader("not-encoded-raw-data"))
+	req, _ := testRequest("POST", "/test", strings.NewReader("not-encoded-raw-data"))
 	req.Header.Set("Content-Type", "application/json")
 	resp, _ := app.Test(req)
 	if resp.StatusCode != http.StatusBadRequest {
@@ -426,7 +435,7 @@ func TestCryptionEmptyBody(t *testing.T) {
 		return c.SendString("ok")
 	})
 
-	req, _ := http.NewRequest("POST", "/test", nil)
+	req, _ := testRequest("POST", "/test", nil)
 	req.Header.Set("Content-Type", "application/json")
 	resp, _ := app.Test(req)
 	if resp.StatusCode != http.StatusOK {
@@ -443,7 +452,7 @@ func TestCryptionInvalidKey(t *testing.T) {
 		return c.SendString("ok")
 	})
 
-	req, _ := http.NewRequest("POST", "/test", strings.NewReader("some-body"))
+	req, _ := testRequest("POST", "/test", strings.NewReader("some-body"))
 	req.Header.Set("Content-Type", "application/json")
 	resp, _ := app.Test(req)
 	if resp.StatusCode != http.StatusBadRequest {
@@ -460,13 +469,13 @@ func TestPrometheus(t *testing.T) {
 		return c.SendString("ok")
 	})
 
-	req, _ := http.NewRequest("GET", "/test", nil)
+	req, _ := testRequest("GET", "/test", nil)
 	resp, _ := app.Test(req)
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
 	}
 
-	req2, _ := http.NewRequest("GET", "/metrics", nil)
+	req2, _ := testRequest("GET", "/metrics", nil)
 	resp2, _ := app.Test(req2)
 	if resp2.StatusCode != http.StatusOK {
 		t.Errorf("expected 200 for /metrics, got %d", resp2.StatusCode)
@@ -490,14 +499,14 @@ func TestPrometheusMultipleRequests(t *testing.T) {
 	})
 
 	for range 3 {
-		req, _ := http.NewRequest("GET", "/ping", nil)
+		req, _ := testRequest("GET", "/ping", nil)
 		resp, _ := app.Test(req)
 		if resp.StatusCode != 200 {
 			t.Fatalf("expected 200, got %d", resp.StatusCode)
 		}
 	}
 
-	req, _ := http.NewRequest("GET", "/metrics", nil)
+	req, _ := testRequest("GET", "/metrics", nil)
 	resp, _ := app.Test(req)
 	body, _ := io.ReadAll(resp.Body)
 	if !strings.Contains(string(body), `path="/ping"`) {
@@ -517,7 +526,7 @@ func TestTimeoutShort(t *testing.T) {
 		return c.SendString("too late")
 	})
 
-	req, _ := http.NewRequest("GET", "/slow", nil)
+	req, _ := testRequest("GET", "/slow", nil)
 	resp, _ := app.Test(req)
 	if resp.StatusCode != http.StatusRequestTimeout {
 		t.Errorf("expected 408 for timeout, got %d", resp.StatusCode)
@@ -559,14 +568,14 @@ func TestMaxBytes(t *testing.T) {
 		return c.SendString("ok")
 	})
 
-	req, _ := http.NewRequest("POST", "/test", strings.NewReader(`{"a":1}`))
+	req, _ := testRequest("POST", "/test", strings.NewReader(`{"a":1}`))
 	req.Header.Set("Content-Type", "application/json")
 	resp, _ := app.Test(req)
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200 for small body, got %d", resp.StatusCode)
 	}
 
-	req2, _ := http.NewRequest("POST", "/test", strings.NewReader(`{"a":"0123456789"}`))
+	req2, _ := testRequest("POST", "/test", strings.NewReader(`{"a":"0123456789"}`))
 	req2.Header.Set("Content-Type", "application/json")
 	resp2, _ := app.Test(req2)
 	if resp2.StatusCode != http.StatusRequestEntityTooLarge {
@@ -589,7 +598,7 @@ func TestSecurityHeaders_Default(t *testing.T) {
 		return c.SendString("ok")
 	})
 
-	req, _ := http.NewRequest("GET", "/test", nil)
+	req, _ := testRequest("GET", "/test", nil)
 	resp, _ := app.Test(req)
 
 	tests := []struct {
@@ -617,7 +626,7 @@ func TestSecurityHeaders_EmptyConfig(t *testing.T) {
 		return c.SendString("ok")
 	})
 
-	req, _ := http.NewRequest("GET", "/test", nil)
+	req, _ := testRequest("GET", "/test", nil)
 	resp, _ := app.Test(req)
 
 	if v := resp.Header.Get("X-Content-Type-Options"); v != "nosniff" {
@@ -638,7 +647,7 @@ func TestSecurityHeaders_CSP(t *testing.T) {
 		return c.SendString("ok")
 	})
 
-	req, _ := http.NewRequest("GET", "/test", nil)
+	req, _ := testRequest("GET", "/test", nil)
 	resp, _ := app.Test(req)
 
 	want := "default-src 'self'; script-src 'self'; img-src 'self' data:;"
@@ -667,7 +676,7 @@ func TestSecurityHeaders_AllHeaders(t *testing.T) {
 		return c.SendString("ok")
 	})
 
-	req, _ := http.NewRequest("GET", "/test", nil)
+	req, _ := testRequest("GET", "/test", nil)
 	resp, _ := app.Test(req)
 
 	checks := map[string]string{
@@ -752,7 +761,7 @@ func TestCSRF_InjectOnGET(t *testing.T) {
 		return c.SendString("ok")
 	})
 
-	req, _ := http.NewRequest("GET", "/test", nil)
+	req, _ := testRequest("GET", "/test", nil)
 	resp, _ := app.Test(req)
 
 	if resp.StatusCode != 200 {
@@ -780,13 +789,13 @@ func TestCSRF_ValidateOnPOST(t *testing.T) {
 	})
 
 	// GET to get token
-	req1, _ := http.NewRequest("GET", "/test", nil)
+	req1, _ := testRequest("GET", "/test", nil)
 	resp1, _ := app.Test(req1)
 	cookie := resp1.Header.Get("Set-Cookie")
 
 	// POST with matching token
 	token := extractCSRFToken(cookie)
-	req2, _ := http.NewRequest("POST", "/test", nil)
+	req2, _ := testRequest("POST", "/test", nil)
 	req2.Header.Set("X-CSRF-Test", token)
 	req2.Header.Set("Cookie", extractCookieName(cookie))
 	resp2, _ := app.Test(req2)
@@ -803,7 +812,7 @@ func TestCSRF_RejectOnMismatch(t *testing.T) {
 		return c.SendString("ok")
 	})
 
-	req, _ := http.NewRequest("POST", "/test", nil)
+	req, _ := testRequest("POST", "/test", nil)
 	req.Header.Set("X-CSRF-Token", "invalid-token")
 	req.Header.Set("Cookie", "csrf_token=other-token")
 	resp, _ := app.Test(req)
@@ -824,7 +833,7 @@ func TestCSRF_SkipExcludedPath(t *testing.T) {
 		return c.SendString("ok")
 	})
 
-	req, _ := http.NewRequest("POST", "/webhooks/stripe", nil)
+	req, _ := testRequest("POST", "/webhooks/stripe", nil)
 	resp, _ := app.Test(req)
 
 	if resp.StatusCode != 200 {
@@ -865,7 +874,7 @@ func TestRateLimit_Global_UnderLimit(t *testing.T) {
 	})
 
 	for i := 0; i < 5; i++ {
-		req, _ := http.NewRequest("GET", "/test", nil)
+		req, _ := testRequest("GET", "/test", nil)
 		resp, _ := app.Test(req)
 		if resp.StatusCode != 200 {
 			t.Errorf("request %d: expected 200, got %d", i, resp.StatusCode)
@@ -884,14 +893,14 @@ func TestRateLimit_Global_OverLimit(t *testing.T) {
 	})
 
 	// First request should pass (burst=1)
-	req, _ := http.NewRequest("GET", "/test", nil)
+	req, _ := testRequest("GET", "/test", nil)
 	resp, _ := app.Test(req)
 	if resp.StatusCode != 200 {
 		t.Errorf("first request: expected 200, got %d", resp.StatusCode)
 	}
 
 	// Immediate second request should be rate limited
-	req2, _ := http.NewRequest("GET", "/test", nil)
+	req2, _ := testRequest("GET", "/test", nil)
 	resp2, _ := app.Test(req2)
 	if resp2.StatusCode != 429 {
 		t.Errorf("second request: expected 429, got %d", resp2.StatusCode)
@@ -909,7 +918,7 @@ func TestRateLimit_Disabled(t *testing.T) {
 	})
 
 	for i := 0; i < 100; i++ {
-		req, _ := http.NewRequest("GET", "/test", nil)
+		req, _ := testRequest("GET", "/test", nil)
 		resp, _ := app.Test(req)
 		if resp.StatusCode != 200 {
 			t.Errorf("request %d: expected 200, got %d", i, resp.StatusCode)
@@ -929,14 +938,14 @@ func TestRateLimit_PerIP(t *testing.T) {
 	})
 
 	// First request passes (burst=1)
-	req, _ := http.NewRequest("GET", "/test", nil)
+	req, _ := testRequest("GET", "/test", nil)
 	resp, _ := app.Test(req)
 	if resp.StatusCode != 200 {
 		t.Errorf("first request: expected 200, got %d", resp.StatusCode)
 	}
 
 	// Second request from same IP is rate limited
-	req2, _ := http.NewRequest("GET", "/test", nil)
+	req2, _ := testRequest("GET", "/test", nil)
 	resp2, _ := app.Test(req2)
 	if resp2.StatusCode != 429 {
 		t.Errorf("second request: expected 429, got %d", resp2.StatusCode)
@@ -954,11 +963,11 @@ func TestRateLimit_RetryAfterHeader(t *testing.T) {
 	})
 
 	// First passes
-	req, _ := http.NewRequest("GET", "/test", nil)
+	req, _ := testRequest("GET", "/test", nil)
 	app.Test(req)
 
 	// Second is rate limited
-	req2, _ := http.NewRequest("GET", "/test", nil)
+	req2, _ := testRequest("GET", "/test", nil)
 	resp2, _ := app.Test(req2)
 	if resp2.StatusCode != 429 {
 		t.Fatalf("expected 429, got %d", resp2.StatusCode)
@@ -978,7 +987,7 @@ func TestHeaderSanitize_Clean(t *testing.T) {
 		return c.SendString("ok")
 	})
 
-	req, _ := http.NewRequest("GET", "/test", nil)
+	req, _ := testRequest("GET", "/test", nil)
 	req.Header.Set("X-Custom", "clean-value")
 	resp, _ := app.Test(req)
 	if resp.StatusCode != 200 {
@@ -1076,7 +1085,7 @@ func TestSSRF_AllowedHost(t *testing.T) {
 		t.Fatal("expected non-nil client")
 	}
 	// allowed host is not blocked (even if DNS fails, it won't error with private IP)
-	req, _ := http.NewRequest("GET", "https://api.example.com/test", nil)
+	req, _ := testRequest("GET", "https://api.example.com/test", nil)
 	_, err := client.Do(req)
 	if err != nil && err.Error() != "ssrf: cannot resolve host api.example.com" {
 		t.Logf("unexpected error: %v", err)

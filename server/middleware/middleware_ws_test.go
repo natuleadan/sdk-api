@@ -3,7 +3,6 @@
 package middleware
 
 import (
-	"net/http"
 	"testing"
 
 	"github.com/gofiber/contrib/websocket"
@@ -18,7 +17,7 @@ func TestWebSocketHandler(t *testing.T) {
 		c.WriteMessage(websocket.TextMessage, []byte("hello"))
 	}))
 
-	req, _ := http.NewRequest("GET", "/ws", nil)
+	req, _ := testRequest("GET", "/ws", nil)
 	req.Header.Set("Connection", "Upgrade")
 	req.Header.Set("Upgrade", "websocket")
 	req.Header.Set("Sec-WebSocket-Version", "13")
@@ -39,7 +38,7 @@ func TestWebSocketWithConfig(t *testing.T) {
 		c.WriteMessage(websocket.TextMessage, []byte("ok"))
 	}))
 
-	req, _ := http.NewRequest("GET", "/ws", nil)
+	req, _ := testRequest("GET", "/ws", nil)
 	resp, _ := app.Test(req)
 	if resp.StatusCode == 404 {
 		t.Error("expected WebSocket route to be registered, got 404")

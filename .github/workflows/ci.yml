@@ -101,7 +101,7 @@ jobs:
         run: |
           for ex in examples/*/; do
             echo "Building $ex..."
-            (cd "$ex" && go build ./...)
+            (cd "$ex" && go mod tidy && go build ./...)
           done
 
   integration:
@@ -227,7 +227,7 @@ jobs:
 
       - name: Run GoReleaser
         if: steps.version.outputs.skip != 'true'
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
           version: latest

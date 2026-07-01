@@ -330,13 +330,7 @@ func TestLoadConfig_Defaults(t *testing.T) {
 	cfg := &ServiceConfig{}
 	// manual default since we're not loading from file
 	cfg.Port = 8080
-
-	if cfg.Databases == nil {
-		// nil is fine
-	}
-	if len(cfg.NATS) != 0 {
-		// empty is fine
-	}
+	_ = cfg
 }
 
 func TestDBConfig_Validate(t *testing.T) {

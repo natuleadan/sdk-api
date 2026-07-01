@@ -169,7 +169,15 @@ func (t *TursoTable[T]) columnField(column string) *FieldInfo {
 }
 
 func (t *TursoTable[T]) List(ctx context.Context) ([]T, error) {
-	query := fmt.Sprintf("SELECT %s FROM %s ORDER BY %s", t.columnsList(), t.tableName, t.info.PrimaryKey)
+	var b strings.Builder
+	b.Grow(128)
+	b.WriteString("SELECT ")
+	b.WriteString(t.columnsList())
+	b.WriteString(" FROM ")
+	b.WriteString(t.tableName)
+	b.WriteString(" ORDER BY ")
+	b.WriteString(t.info.PrimaryKey)
+	query := b.String()
 	rows, err := t.db.QueryContext(ctx, query)
 	if err != nil { return nil, fmt.Errorf("db: turso list: %w", err) }
 	defer rows.Close()
@@ -177,7 +185,16 @@ func (t *TursoTable[T]) List(ctx context.Context) ([]T, error) {
 }
 
 func (t *TursoTable[T]) Get(ctx context.Context, id any) (*T, error) {
-	query := fmt.Sprintf("SELECT %s FROM %s WHERE %s = ?", t.columnsList(), t.tableName, t.info.PrimaryKey)
+	var b strings.Builder
+	b.Grow(128)
+	b.WriteString("SELECT ")
+	b.WriteString(t.columnsList())
+	b.WriteString(" FROM ")
+	b.WriteString(t.tableName)
+	b.WriteString(" WHERE ")
+	b.WriteString(t.info.PrimaryKey)
+	b.WriteString(" = ?")
+	query := b.String()
 	row := t.db.QueryRowContext(ctx, query, id)
 	var entity T
 	if err := t.scanRow(row, &entity); err != nil {
@@ -200,7 +217,16 @@ func (t *TursoTable[T]) Create(ctx context.Context, entity *T) error {
 		vals = append(vals, fv.Interface())
 	}
 
-	query := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", t.tableName, strings.Join(cols, ", "), t.placeholder(len(cols)))
+	var b strings.Builder
+	b.Grow(128)
+	b.WriteString("INSERT INTO ")
+	b.WriteString(t.tableName)
+	b.WriteString(" (")
+	b.WriteString(strings.Join(cols, ", "))
+	b.WriteString(") VALUES (")
+	b.WriteString(t.placeholder(len(cols)))
+	b.WriteString(")")
+	query := b.String()
 	res, err := t.db.ExecContext(ctx, query, vals...)
 	if err != nil { return fmt.Errorf("db: turso create: %w", err) }
 
@@ -220,7 +246,17 @@ func (t *TursoTable[T]) Update(ctx context.Context, id any, patch map[string]any
 		args = append(args, val)
 	}
 	args = append(args, id)
-	query := fmt.Sprintf("UPDATE %s SET %s WHERE %s = ? RETURNING %s", t.tableName, strings.Join(sets, ", "), t.info.PrimaryKey, t.columnsList())
+	var b strings.Builder
+	b.Grow(128)
+	b.WriteString("UPDATE ")
+	b.WriteString(t.tableName)
+	b.WriteString(" SET ")
+	b.WriteString(strings.Join(sets, ", "))
+	b.WriteString(" WHERE ")
+	b.WriteString(t.info.PrimaryKey)
+	b.WriteString(" = ? RETURNING ")
+	b.WriteString(t.columnsList())
+	query := b.String()
 	// SQLite supports RETURNING since 3.35.0
 	row := t.db.QueryRowContext(ctx, query, args...)
 	var entity T

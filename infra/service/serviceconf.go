@@ -32,15 +32,15 @@ type (
 	ServiceConf struct {
 		Name       string
 		Log        logx.LogConf
-		Mode       string `json:",default=pro,options=dev|test|rt|pre|pro"`
-		MetricsUrl string `json:",optional"`
+		Mode       string `config:",default=pro,options=dev|test|rt|pre|pro"`
+		MetricsUrl string `config:",optional"`
 		// Deprecated: please use DevServer
-		Prometheus prometheus.Config `json:",optional"`
-		Telemetry  trace.Config      `json:",optional"`
-		DevServer  DevServerConfig   `json:",optional"`
-		Shutdown   proc.ShutdownConf `json:",optional"`
+		Prometheus prometheus.Config `config:",optional"`
+		Telemetry  trace.Config      `config:",optional"`
+		DevServer  DevServerConfig   `config:",optional"`
+		Shutdown   proc.ShutdownConf `config:",optional"`
 		// Profiling is the configuration for continuous profiling.
-		Profiling profiling.Config `json:",optional"`
+		Profiling profiling.Config `config:",optional"`
 	}
 )
 

@@ -10,11 +10,11 @@ import (
 
 type SSRFConfig struct {
 	Enabled        bool     `json:"enabled"`
-	BlockPrivate   bool     `json:"block_private,optional"`
-	BlockLoopback  bool     `json:"block_loopback,optional"`
-	BlockMetadata  bool     `json:"block_metadata,optional"`
-	AllowedHosts   []string `json:"allowed_hosts,optional"`
-	AllowAll       bool     `json:"allow_all,optional"`
+	BlockPrivate   bool     `json:"block_private" config:",optional"`
+	BlockLoopback  bool     `json:"block_loopback" config:",optional"`
+	BlockMetadata  bool     `json:"block_metadata" config:",optional"`
+	AllowedHosts   []string `json:"allowed_hosts" config:",optional"`
+	AllowAll       bool     `json:"allow_all" config:",optional"`
 }
 
 var privateRanges = []string{

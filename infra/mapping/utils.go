@@ -201,6 +201,14 @@ func implicitValueRequiredStruct(tag string, tp reflect.Type) (bool, error) {
 	for i := 0; i < numFields; i++ {
 		childField := tp.Field(i)
 		if usingDifferentKeys(tag, childField) {
+			// Check fallback tag "config" for optional/default
+			if tag != "config" {
+				if opts, err := parseFallbackOptions(childField); err != nil {
+					return false, err
+				} else if opts != nil && (opts.Optional || len(opts.Default) > 0) {
+					continue
+				}
+			}
 			return true, nil
 		}
 
@@ -271,6 +279,13 @@ func parseGroupedSegments(val string) []string {
 func parseKeyAndOptions(tagName string, field reflect.StructField) (string, *fieldOptions, error) {
 	value := strings.TrimSpace(field.Tag.Get(tagName))
 	if len(value) == 0 {
+		if tagName != "config" {
+			if opts, err := parseFallbackOptions(field); err != nil {
+				return "", nil, err
+			} else if opts != nil {
+				return field.Name, opts, nil
+			}
+		}
 		return field.Name, nil, nil
 	}
 
@@ -278,7 +293,15 @@ func parseKeyAndOptions(tagName string, field reflect.StructField) (string, *fie
 	cache, ok := optionsCache[value]
 	cacheLock.RUnlock()
 	if ok {
-		return cmp.Or(cache.key, field.Name), cache.options, cache.err
+		key, opts := cmp.Or(cache.key, field.Name), cache.options
+		if opts == nil && tagName != "config" {
+			if fallback, err := parseFallbackOptions(field); err != nil {
+				return "", nil, err
+			} else if fallback != nil {
+				return key, fallback, nil
+			}
+		}
+		return key, opts, cache.err
 	}
 
 	key, options, err := doParseKeyAndOptions(field, value)
@@ -290,7 +313,24 @@ func parseKeyAndOptions(tagName string, field reflect.StructField) (string, *fie
 	}
 	cacheLock.Unlock()
 
-	return cmp.Or(key, field.Name), options, err
+	resultKey := cmp.Or(key, field.Name)
+	if options == nil && tagName != "config" {
+		if fallback, fbErr := parseFallbackOptions(field); fbErr != nil {
+			return "", nil, fbErr
+		} else if fallback != nil {
+			return resultKey, fallback, nil
+		}
+	}
+	return resultKey, options, err
+}
+
+func parseFallbackOptions(field reflect.StructField) (*fieldOptions, error) {
+	fallback := strings.TrimSpace(field.Tag.Get("config"))
+	if len(fallback) == 0 {
+		return nil, nil
+	}
+	_, opts, err := doParseKeyAndOptions(field, fallback)
+	return opts, err
 }
 
 // support below notations:

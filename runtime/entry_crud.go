@@ -170,12 +170,12 @@ func parseListParams(c *fiber.Ctx) ListParams {
 	sort := c.Query("sort", "id")
 
 	filters := make(map[string]string)
-	c.Request().URI().QueryArgs().VisitAll(func(key, value []byte) {
+	for key, value := range c.Request().URI().QueryArgs().All() {
 		k := string(key)
 		if k != "page" && k != "size" && k != "sort" {
 			filters[k] = string(value)
 		}
-	})
+	}
 
 	return ListParams{
 		Page:    page,

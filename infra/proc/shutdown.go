@@ -32,9 +32,9 @@ var (
 // ShutdownConf defines the shutdown configuration for the process.
 type ShutdownConf struct {
 	// WrapUpTime is the time to wait before calling shutdown listeners.
-	WrapUpTime time.Duration `json:",default=1s"`
+	WrapUpTime time.Duration `config:",default=1s"`
 	// WaitTime is the time to wait before force quitting.
-	WaitTime time.Duration `json:",default=5.5s"`
+	WaitTime time.Duration `config:",default=5.5s"`
 }
 
 // AddShutdownListener adds fn as a shutdown listener.

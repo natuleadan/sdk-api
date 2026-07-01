@@ -41,28 +41,38 @@ func Cryption(key []byte) fiber.Handler {
 
 func aesDecrypt(data, key []byte) ([]byte, error) {
 	block, err := aes.NewCipher(key)
-	if err != nil { return nil, err }
-	if len(data) < aes.BlockSize { return nil, fmt.Errorf("too short") }
-	iv := data[:aes.BlockSize]
-	data = data[aes.BlockSize:]
-	stream := cipher.NewCFBDecrypter(block, iv)
-	stream.XORKeyStream(data, data)
-	return data, nil
+	if err != nil {
+		return nil, err
+	}
+	aead, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+	nonceSize := aead.NonceSize()
+	if len(data) < nonceSize {
+		return nil, fmt.Errorf("too short")
+	}
+	nonce, ciphertext := data[:nonceSize], data[nonceSize:]
+	return aead.Open(nil, nonce, ciphertext, nil)
 }
 
 func AESEncrypt(data, key []byte) ([]byte, error) {
 	block, err := aes.NewCipher(key)
-	if err != nil { return nil, err }
-	ciphertext := make([]byte, aes.BlockSize+len(data))
-	iv := ciphertext[:aes.BlockSize]
-	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
+	if err != nil {
 		return nil, err
 	}
-	stream := cipher.NewCFBEncrypter(block, iv)
-	stream.XORKeyStream(ciphertext[aes.BlockSize:], data)
+	aead, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+	nonce := make([]byte, aead.NonceSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return nil, err
+	}
+	ciphertext := aead.Seal(nonce, nonce, data, nil)
 	var buf bytes.Buffer
 	encoder := base64.NewEncoder(base64.StdEncoding, &buf)
-	encoder.Write(ciphertext)
-	encoder.Close()
+	_, _ = encoder.Write(ciphertext)
+	_ = encoder.Close()
 	return buf.Bytes(), nil
 }

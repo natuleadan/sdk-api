@@ -139,10 +139,6 @@ type PaginatedResponse struct {
 	Size  int   `json:"size"`
 }
 
-func jsonUnmarshal(data []byte, v any) error {
-	return json.Unmarshal(data, v)
-}
-
 // ---- MySQL CRUDProvider ----
 
 func NewMySQLCRUDProvider[T any](table *db.MySQLTable[T], hooks EntryHooks[T]) CRUDProvider {
@@ -207,7 +203,7 @@ func (t *mysqlCRUD[T]) Create(ctx *fiber.Ctx, body []byte) error {
 	if err := t.table.Create(ctx.UserContext(), &entity); err != nil {
 		return fiber.NewError(500, err.Error())
 	}
-	t.hooks.AfterCreate(ctx.UserContext(), &entity)
+	_ = t.hooks.AfterCreate(ctx.UserContext(), &entity)
 	return ctx.Status(201).JSON(entity)
 }
 
@@ -227,7 +223,7 @@ func (t *mysqlCRUD[T]) Update(ctx *fiber.Ctx, id string, body []byte) error {
 		}
 		return fiber.NewError(500, err.Error())
 	}
-	t.hooks.AfterUpdate(ctx.UserContext(), entity)
+	_ = t.hooks.AfterUpdate(ctx.UserContext(), entity)
 	return ctx.JSON(entity)
 }
 
@@ -241,7 +237,7 @@ func (t *mysqlCRUD[T]) Delete(ctx *fiber.Ctx, id string) error {
 		}
 		return fiber.NewError(500, err.Error())
 	}
-	t.hooks.AfterDelete(ctx.UserContext(), id)
+	_ = t.hooks.AfterDelete(ctx.UserContext(), id)
 	return ctx.SendStatus(204)
 }
 
@@ -309,7 +305,7 @@ func (t *tursoCRUD[T]) Create(ctx *fiber.Ctx, body []byte) error {
 	if err := t.table.Create(ctx.UserContext(), &entity); err != nil {
 		return fiber.NewError(500, err.Error())
 	}
-	t.hooks.AfterCreate(ctx.UserContext(), &entity)
+	_ = t.hooks.AfterCreate(ctx.UserContext(), &entity)
 	return ctx.Status(201).JSON(entity)
 }
 
@@ -329,7 +325,7 @@ func (t *tursoCRUD[T]) Update(ctx *fiber.Ctx, id string, body []byte) error {
 		}
 		return fiber.NewError(500, err.Error())
 	}
-	t.hooks.AfterUpdate(ctx.UserContext(), entity)
+	_ = t.hooks.AfterUpdate(ctx.UserContext(), entity)
 	return ctx.JSON(entity)
 }
 
@@ -343,6 +339,6 @@ func (t *tursoCRUD[T]) Delete(ctx *fiber.Ctx, id string) error {
 		}
 		return fiber.NewError(500, err.Error())
 	}
-	t.hooks.AfterDelete(ctx.UserContext(), id)
+	_ = t.hooks.AfterDelete(ctx.UserContext(), id)
 	return ctx.SendStatus(204)
 }

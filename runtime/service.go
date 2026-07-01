@@ -250,9 +250,7 @@ func (s *Service) RunWithContext(ctx context.Context) error {
 	}
 
 	// 3. Create HTTP server
-	if err := s.initServer(); err != nil {
-		return fmt.Errorf("server: %w", err)
-	}
+	s.initServer()
 
 	// 4. Register entry routes
 	if len(s.config.Entry) > 0 {
@@ -312,7 +310,7 @@ func (s *Service) RunWithContext(ctx context.Context) error {
 	return s.srv.Start()
 }
 
-func (s *Service) initServer() error {
+func (s *Service) initServer() {
 	sc := s.config.Server
 
 	var corsCfg *server.CORSConfig
@@ -368,7 +366,6 @@ func (s *Service) initServer() error {
 		logx.Infof("CSP report endpoint registered at %s", path)
 	}
 
-	return nil
 }
 
 func (s *Service) shutdown() {

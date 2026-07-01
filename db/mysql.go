@@ -116,11 +116,12 @@ func (t *MySQLTable[T]) buildColumnDef(f FieldInfo) string {
 		case reflect.Bool:
 			parts = append(parts, "TINYINT(1)")
 		default:
-			if f.FieldType.Kind() == reflect.Slice || f.FieldType.Kind() == reflect.Map {
+			switch {
+			case f.FieldType.Kind() == reflect.Slice || f.FieldType.Kind() == reflect.Map:
 				parts = append(parts, "JSON")
-			} else if f.FieldType.Name() == "Time" {
+			case f.FieldType.Name() == "Time":
 				parts = append(parts, "DATETIME(3)")
-			} else {
+			default:
 				parts = append(parts, "VARCHAR(255)")
 			}
 		}
@@ -183,7 +184,15 @@ func (t *MySQLTable[T]) scanRows(rows *sql.Rows) ([]T, error) {
 }
 
 func (t *MySQLTable[T]) List(ctx context.Context) ([]T, error) {
-	query := fmt.Sprintf("SELECT %s FROM %s ORDER BY %s", t.columnsList(), t.tableName, t.info.PrimaryKey)
+	var b strings.Builder
+	b.Grow(128)
+	b.WriteString("SELECT ")
+	b.WriteString(t.columnsList())
+	b.WriteString(" FROM ")
+	b.WriteString(t.tableName)
+	b.WriteString(" ORDER BY ")
+	b.WriteString(t.info.PrimaryKey)
+	query := b.String()
 	rows, err := t.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("db: mysql list: %w", err)
@@ -193,7 +202,16 @@ func (t *MySQLTable[T]) List(ctx context.Context) ([]T, error) {
 }
 
 func (t *MySQLTable[T]) Get(ctx context.Context, id any) (*T, error) {
-	query := fmt.Sprintf("SELECT %s FROM %s WHERE %s = ?", t.columnsList(), t.tableName, t.info.PrimaryKey)
+	var b strings.Builder
+	b.Grow(128)
+	b.WriteString("SELECT ")
+	b.WriteString(t.columnsList())
+	b.WriteString(" FROM ")
+	b.WriteString(t.tableName)
+	b.WriteString(" WHERE ")
+	b.WriteString(t.info.PrimaryKey)
+	b.WriteString(" = ?")
+	query := b.String()
 	row := t.db.QueryRowContext(ctx, query, id)
 	var entity T
 	if err := t.scanRow(row, &entity); err != nil {
@@ -224,7 +242,16 @@ func (t *MySQLTable[T]) Create(ctx context.Context, entity *T) error {
 		vals = append(vals, fv.Interface())
 	}
 
-	query := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", t.tableName, strings.Join(cols, ", "), t.placeholder(len(cols)))
+	var b strings.Builder
+	b.Grow(128)
+	b.WriteString("INSERT INTO ")
+	b.WriteString(t.tableName)
+	b.WriteString(" (")
+	b.WriteString(strings.Join(cols, ", "))
+	b.WriteString(") VALUES (")
+	b.WriteString(t.placeholder(len(cols)))
+	b.WriteString(")")
+	query := b.String()
 	res, err := t.db.ExecContext(ctx, query, vals...)
 	if err != nil {
 		return fmt.Errorf("db: mysql create: %w", err)
@@ -257,7 +284,16 @@ func (t *MySQLTable[T]) Update(ctx context.Context, id any, patch map[string]any
 	}
 	args = append(args, id)
 
-	query := fmt.Sprintf("UPDATE %s SET %s WHERE %s = ?", t.tableName, strings.Join(sets, ", "), t.info.PrimaryKey)
+	var b strings.Builder
+	b.Grow(128)
+	b.WriteString("UPDATE ")
+	b.WriteString(t.tableName)
+	b.WriteString(" SET ")
+	b.WriteString(strings.Join(sets, ", "))
+	b.WriteString(" WHERE ")
+	b.WriteString(t.info.PrimaryKey)
+	b.WriteString(" = ?")
+	query := b.String()
 	if _, err := t.db.ExecContext(ctx, query, args...); err != nil {
 		return nil, fmt.Errorf("db: mysql update: %w", err)
 	}

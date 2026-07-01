@@ -70,7 +70,7 @@ func startExitWorker(ctx context.Context, broker events.EventBroker, cfg ExitWor
 		stateW := w.state
 		shutdownCh := state.shutdownCh
 		go func() {
-			defer consumer.Unsubscribe()
+			defer func() { _ = consumer.Unsubscribe() }()
 			for {
 				select {
 				case <-shutdownCh:
@@ -99,7 +99,7 @@ func startExitWorker(ctx context.Context, broker events.EventBroker, cfg ExitWor
 		shutdownCh := state.shutdownCh
 		go func() {
 			<-shutdownCh
-			sub.Unsubscribe()
+			_ = sub.Unsubscribe()
 		}()
 	}
 
@@ -113,7 +113,7 @@ func processMsg(state *workerState, sem chan struct{}, handler ExitHandler, hook
 	select {
 	case sem <- struct{}{}:
 	case <-state.shutdownCh:
-		m.Nak()
+		_ = m.Nak()
 		return
 	}
 
@@ -130,7 +130,7 @@ func processMsg(state *workerState, sem chan struct{}, handler ExitHandler, hook
 			msg, err = hooks.OnMessage(context.Background(), m.Data())
 			if err != nil {
 				logx.Errorf("exit %s onMessage hook: %v", name, err)
-				m.Nak()
+				_ = m.Nak()
 				return
 			}
 		}
@@ -141,7 +141,7 @@ func processMsg(state *workerState, sem chan struct{}, handler ExitHandler, hook
 				hooks.OnError(context.Background(), err)
 			}
 			logx.Errorf("exit %s handler error: %v", name, err)
-			m.Nak()
+			_ = m.Nak()
 			return
 		}
 
@@ -152,12 +152,12 @@ func processMsg(state *workerState, sem chan struct{}, handler ExitHandler, hook
 		if cfg.Reply && len(resp) > 0 {
 			if rErr := m.Respond(resp); rErr != nil {
 				logx.Errorf("exit %s reply error: %v", name, rErr)
-				m.Nak()
+				_ = m.Nak()
 				return
 			}
 		}
 
-		m.Ack()
+		_ = m.Ack()
 	}()
 }
 

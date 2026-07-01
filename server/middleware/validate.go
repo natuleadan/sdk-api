@@ -78,7 +78,7 @@ func validationError(e validator.FieldError) string {
 	case "url":
 		return fmt.Sprintf("%s must be a valid URL", e.Field())
 	case "oneof":
-		return fmt.Sprintf("%s must be one of %s", e.Field(), strings.Replace(e.Param(), " ", ", ", -1))
+		return fmt.Sprintf("%s must be one of %s", e.Field(), strings.ReplaceAll(e.Param(), " ", ", "))
 	case "alphanum":
 		return fmt.Sprintf("%s must be alphanumeric", e.Field())
 	default:

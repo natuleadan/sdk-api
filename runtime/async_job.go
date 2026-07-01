@@ -29,7 +29,7 @@ func NewAsyncJobManager(store JobStore, processor AsyncHandler) *AsyncJobManager
 
 func generateJobID() string {
 	b := make([]byte, 12)
-	rand.Read(b)
+	_, _ = rand.Read(b)
 	return "j_" + hex.EncodeToString(b)
 }
 

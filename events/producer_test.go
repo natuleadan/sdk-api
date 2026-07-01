@@ -63,7 +63,7 @@ func TestProducer_PublishAndWait(t *testing.T) {
 		// Response comes on inbox, subject is the inbox prefix
 		t.Logf("raw response subject: %s", respRaw.Subject)
 	}
-	if respRaw.Data == nil || len(respRaw.Data) == 0 {
+	if len(respRaw.Data) == 0 {
 		t.Error("empty raw response")
 	}
 }

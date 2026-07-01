@@ -13,13 +13,13 @@ var (
 type EtcdConf struct {
 	Hosts              []string
 	Key                string
-	ID                 int64  `json:",optional"`
-	User               string `json:",optional"`
-	Pass               string `json:",optional"`
-	CertFile           string `json:",optional"`
-	CertKeyFile        string `json:",optional=CertFile"`
-	CACertFile         string `json:",optional=CertFile"`
-	InsecureSkipVerify bool   `json:",optional"`
+	ID                 int64  `config:",optional"`
+	User               string `config:",optional"`
+	Pass               string `config:",optional"`
+	CertFile           string `config:",optional"`
+	CertKeyFile        string `config:",optional=CertFile"`
+	CACertFile         string `config:",optional=CertFile"`
+	InsecureSkipVerify bool   `config:",optional"`
 }
 
 // HasAccount returns if account provided.

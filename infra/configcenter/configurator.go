@@ -31,9 +31,9 @@ type (
 	// Config is the configuration for Configurator.
 	Config struct {
 		// Type is the value type, yaml, json or toml.
-		Type string `json:",default=yaml,options=[yaml,json,toml]"`
+		Type string `config:",default=yaml,options=[yaml,json,toml]"`
 		// Log is the flag to control logging.
-		Log bool `json:",default=true"`
+		Log bool `config:",default=true"`
 	}
 
 	configCenter[T any] struct {

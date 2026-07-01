@@ -19,7 +19,7 @@ func registerWebSocket(app *fiber.App, entry *EntryDef, handlers *EntryHandlers,
 	path := prefix + entry.Path
 	handler := h
 	app.Get(path, sm.WebSocket(func(c *websocket.Conn) {
-		handler(context.Background(), c)
+		_ = handler(context.Background(), c)
 	}))
 	return nil
 }
@@ -38,11 +38,11 @@ func registerSSE(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefi
 		ctx := c.UserContext()
 		c.Context().SetBodyStreamWriter(func(w *bufio.Writer) {
 			send := func(data string) {
-				w.WriteString(data)
-				w.WriteString("\n")
-				w.Flush()
+				_, _ = w.WriteString(data)
+				_, _ = w.WriteString("\n")
+				_ = w.Flush()
 			}
-			handler(ctx, send)
+			_ = handler(ctx, send)
 		})
 		return nil
 	})

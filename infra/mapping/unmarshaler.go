@@ -569,7 +569,13 @@ func (u *Unmarshaler) processAnonymousStructFieldOptional(fieldType reflect.Type
 func (u *Unmarshaler) processField(field reflect.StructField, value reflect.Value,
 	m valuerWithParent, fullName string) error {
 	if usingDifferentKeys(u.key, field) {
-		return nil
+		if u.key != "config" {
+			if _, ok := field.Tag.Lookup("config"); !ok {
+				return nil
+			}
+		} else {
+			return nil
+		}
 	}
 
 	if field.Anonymous {

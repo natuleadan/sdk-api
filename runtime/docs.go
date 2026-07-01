@@ -36,10 +36,6 @@ func registerDocs(app *fiber.App, cfg *ServiceConfig, models map[string]*db.Tabl
 		return c.Send(jsonData)
 	})
 
-	theme := oai.Theme
-	if theme == "" {
-		theme = "moon"
-	}
 	opts := []scalargo.Option{
 		scalargo.WithSpecBytes(jsonData),
 		scalargo.WithDefaultFonts(),

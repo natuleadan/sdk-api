@@ -53,17 +53,8 @@ func registerFile(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, pref
 func fileValidator(entry *EntryDef) func(*fiber.Ctx) error {
 	return func(c *fiber.Ctx) error {
 		contentType := string(c.Request().Header.ContentType())
-		if len(entry.AllowedTypes) > 0 {
-			allowed := false
-			for _, t := range entry.AllowedTypes {
-				if matchContentType(contentType, t) {
-					allowed = true
-					break
-				}
-			}
-			if !allowed {
-				return fiber.NewError(415, fmt.Sprintf("content-type %q not allowed", contentType))
-			}
+		if len(entry.AllowedTypes) > 0 && !isContentTypeAllowed(contentType, entry.AllowedTypes) {
+			return fiber.NewError(415, fmt.Sprintf("content-type %q not allowed", contentType))
 		}
 
 		if entry.MaxSize != "" {
@@ -73,7 +64,6 @@ func fileValidator(entry *EntryDef) func(*fiber.Ctx) error {
 			}
 		}
 
-		// Max files check (multipart only)
 		if entry.MaxFiles > 0 {
 			form, formErr := c.MultipartForm()
 			if formErr == nil && len(form.File) > entry.MaxFiles {
@@ -81,23 +71,24 @@ func fileValidator(entry *EntryDef) func(*fiber.Ctx) error {
 			}
 		}
 
-		// Magic byte verification: check actual content matches declared type
 		if entry.MagicBytes && len(c.Body()) > 512 {
 			detected := http.DetectContentType(c.Body())
-			allowed := false
-			for _, t := range entry.AllowedTypes {
-				if matchContentType(detected, t) {
-					allowed = true
-					break
-				}
-			}
-			if !allowed {
+			if !isContentTypeAllowed(detected, entry.AllowedTypes) {
 				return fiber.NewError(415, fmt.Sprintf("file content type %q does not match allowed types", detected))
 			}
 		}
 
 		return c.Next()
 	}
+}
+
+func isContentTypeAllowed(contentType string, allowed []string) bool {
+	for _, t := range allowed {
+		if matchContentType(contentType, t) {
+			return true
+		}
+	}
+	return false
 }
 
 func matchContentType(contentType, allowed string) bool {
@@ -133,7 +124,7 @@ func parseMaxSize(s string) int {
 		s = strings.TrimSuffix(s, "b")
 	}
 	var n int
-	fmt.Sscanf(s, "%d", &n)
+	_, _ = fmt.Sscanf(s, "%d", &n)
 	return n * multiplier
 }
 
@@ -146,22 +137,17 @@ func SanitizeFilename(name string) string {
 	if name == "" {
 		return "untitled"
 	}
-	// Extract extension before modifying name
 	ext := filepath.Ext(name)
 	baseName := name
 	if ext != "" {
 		baseName = name[:len(name)-len(ext)]
 	}
-	// Remove path separators from base
 	baseName = strings.ReplaceAll(baseName, "/", "")
 	baseName = strings.ReplaceAll(baseName, "\\", "")
-	// Remove null bytes
 	baseName = strings.ReplaceAll(baseName, "\x00", "")
-	// Only allow safe characters in base
 	var safe strings.Builder
 	for _, r := range baseName {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') ||
-			(r >= '0' && r <= '9') || r == '.' || r == '_' || r == '-' {
+		if isSafeFileChar(r) {
 			safe.WriteRune(r)
 		}
 	}
@@ -169,10 +155,8 @@ func SanitizeFilename(name string) string {
 	if result == "" {
 		result = "untitled"
 	}
-	// Append extension (sanitized)
 	safeExt := sanitizeExt(ext)
 	result += safeExt
-	// Limit total length
 	if len(result) > 255 {
 		result = result[:255]
 	}
@@ -180,6 +164,11 @@ func SanitizeFilename(name string) string {
 		return "untitled"
 	}
 	return result
+}
+
+func isSafeFileChar(r rune) bool {
+	return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') ||
+		(r >= '0' && r <= '9') || r == '.' || r == '_' || r == '-'
 }
 
 func sanitizeExt(ext string) string {

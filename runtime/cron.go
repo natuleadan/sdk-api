@@ -13,11 +13,10 @@ import (
 type CronJobFunc func(ctx context.Context) error
 
 type CronScheduler struct {
-	cron      *cron.Cron
-	jobs      map[string]cron.EntryID
-	brokers   map[string]events.EventBroker
-	mu        sync.Mutex
-	started   bool
+	cron    *cron.Cron
+	jobs    map[string]cron.EntryID
+	mu      sync.Mutex
+	started bool
 }
 
 func NewCronScheduler() *CronScheduler {

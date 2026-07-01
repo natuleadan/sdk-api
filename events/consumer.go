@@ -83,7 +83,7 @@ func consumerSubOpts(cfg ConsumerConfig) []nats.SubOpt {
 }
 
 func ConsumePull[T any](ctx context.Context, js nats.JetStreamContext, cfg ConsumerConfig, handler Handler[T]) error {
-	js.DeleteConsumer(cfg.Stream, cfg.Durable)
+	_ = js.DeleteConsumer(cfg.Stream, cfg.Durable)
 	opts := consumerSubOpts(cfg)
 
 	sub, err := js.PullSubscribe(cfg.Subject, cfg.Durable, opts...)
@@ -97,7 +97,7 @@ func ConsumePull[T any](ctx context.Context, js nats.JetStreamContext, cfg Consu
 	if pullMaxWait <= 0 { pullMaxWait = 5 * time.Second }
 
 	go func() {
-		defer sub.Unsubscribe()
+		defer func() { _ = sub.Unsubscribe() }()
 		for {
 			msgs, err := sub.Fetch(pullBatch, nats.MaxWait(pullMaxWait))
 			if err != nil {
@@ -126,7 +126,7 @@ func ConsumePull[T any](ctx context.Context, js nats.JetStreamContext, cfg Consu
 }
 
 func ConsumePush[T any](ctx context.Context, js nats.JetStreamContext, cfg ConsumerConfig, handler Handler[T]) error {
-	js.DeleteConsumer(cfg.Stream, cfg.Durable)
+	_ = js.DeleteConsumer(cfg.Stream, cfg.Durable)
 
 	opts := append([]nats.SubOpt{
 		nats.Durable(cfg.Durable),
@@ -153,7 +153,7 @@ func ConsumePush[T any](ctx context.Context, js nats.JetStreamContext, cfg Consu
 
 	go func() {
 		<-ctx.Done()
-		sub.Unsubscribe()
+		_ = sub.Unsubscribe()
 	}()
 
 	return nil
@@ -162,7 +162,7 @@ func ConsumePush[T any](ctx context.Context, js nats.JetStreamContext, cfg Consu
 func processMsg[T any](ctx context.Context, m *nats.Msg, handler Handler[T], cfg ConsumerConfig) {
 	var data T
 	if err := json.Unmarshal(m.Data, &data); err != nil {
-		m.Term()
+		_ = m.Term()
 		return
 	}
 
@@ -177,20 +177,20 @@ func processMsg[T any](ctx context.Context, m *nats.Msg, handler Handler[T], cfg
 
 	action, err := handler(ctx, msg)
 	if err != nil {
-		m.Nak()
+		_ = m.Nak()
 		return
 	}
 
 	switch action {
 	case Ack:
-		m.Ack()
+		_ = m.Ack()
 	case Nak:
-		m.Nak()
+		_ = m.Nak()
 	case NakDelay:
-		m.NakWithDelay(getNakDelay(cfg))
+		_ = m.NakWithDelay(getNakDelay(cfg))
 	case Term:
-		m.Term()
+		_ = m.Term()
 	default:
-		m.Ack()
+		_ = m.Ack()
 	}
 }

@@ -95,7 +95,7 @@ func (b *KafkaBroker) Subscribe(ctx context.Context, subject string, durable str
 			}
 			km := &kafkaMessage{msg: &msg, reader: reader}
 			if err := handler(ctx, km); err == nil {
-				km.Ack()
+				_ = km.Ack()
 			}
 		}
 	}()
@@ -143,12 +143,4 @@ func (s *kafkaSubscription) Unsubscribe() error {
 	return s.reader.Close()
 }
 
-type kafkaPullConsumer struct{}
 
-func (c *kafkaPullConsumer) Fetch(_ int, _ time.Duration) ([]Message, error) {
-	return nil, fmt.Errorf("kafka: pull not supported")
-}
-
-func (c *kafkaPullConsumer) Unsubscribe() error {
-	return nil
-}

@@ -13,14 +13,14 @@ import (
 
 type TLSConfig struct {
 	Enabled        bool           `json:"enabled"`
-	Manual         *ManualTLS     `json:"manual,optional"`
-	Autocert       *AutocertTLS   `json:"autocert,optional"`
-	MinVersion     string         `json:"min_version,optional"`
-	MaxVersion     string         `json:"max_version,optional"`
-	CurvePrefs     []string       `json:"curve_preferences,optional"`
-	CipherSuites   []string       `json:"cipher_suites,optional"`
-	RedirectHTTP   bool           `json:"redirect_http,optional"`
-	RedirectPort   int            `json:"redirect_port,optional"`
+	Manual         *ManualTLS     `json:"manual" config:",optional"`
+	Autocert       *AutocertTLS   `json:"autocert" config:",optional"`
+	MinVersion     string         `json:"min_version" config:",optional"`
+	MaxVersion     string         `json:"max_version" config:",optional"`
+	CurvePrefs     []string       `json:"curve_preferences" config:",optional"`
+	CipherSuites   []string       `json:"cipher_suites" config:",optional"`
+	RedirectHTTP   bool           `json:"redirect_http" config:",optional"`
+	RedirectPort   int            `json:"redirect_port" config:",optional"`
 }
 
 type ManualTLS struct {
@@ -31,8 +31,8 @@ type ManualTLS struct {
 type AutocertTLS struct {
 	Domains  []string `json:"domains"`
 	Email    string   `json:"email"`
-	CacheDir string   `json:"cache_dir,optional"`
-	Staging  bool     `json:"staging,optional"`
+	CacheDir string   `json:"cache_dir" config:",optional"`
+	Staging  bool     `json:"staging" config:",optional"`
 }
 
 func (s *Server) listenTLS() error {
@@ -80,14 +80,6 @@ func (s *Server) listenTLS() error {
 	// Enabled but no config → fallback to HTTP
 	logx.Infof("server listening on %s (HTTP)", addr)
 	return s.app.Listen(addr)
-}
-
-func buildTLSConfig(cfg *TLSConfig) *tls.Config {
-	tlsCfg := &tls.Config{
-		PreferServerCipherSuites: true,
-	}
-	applyTLSConfig(tlsCfg, cfg)
-	return tlsCfg
 }
 
 func applyTLSConfig(tlsCfg *tls.Config, cfg *TLSConfig) {
@@ -160,7 +152,7 @@ func parseCiphers(ciphers []string) []uint16 {
 	return ids
 }
 
-func startRedirectServer(port int, targetAddr string) {
+func startRedirectServer(port int, _ string) {
 	if port <= 0 {
 		port = 80
 	}

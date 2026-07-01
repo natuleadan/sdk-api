@@ -70,7 +70,7 @@ func (c *Conn) Publish(ctx context.Context, subject string, data []byte) error {
 
 func (c *Conn) Subscribe(ctx context.Context, subject string, durable string, handler MessageHandler) (Subscription, error) {
 	sub, err := c.JS.Subscribe(subject, func(m *nats.Msg) {
-		handler(ctx, &natsMessage{msg: m})
+		_ = handler(ctx, &natsMessage{msg: m})
 	}, nats.Durable(durable), nats.ManualAck(), nats.MaxDeliver(5), nats.AckWait(30*time.Second), nats.DeliverAll())
 	if err != nil {
 		return nil, err
@@ -183,13 +183,13 @@ func (c *Conn) Drain() {
 	if c.NC == nil {
 		return
 	}
-	c.NC.Drain()
+	_ = c.NC.Drain()
 	c.NC.Close()
 }
 
 func (c *Conn) Close() error {
 	if c.NC != nil {
-		c.NC.Drain()
+		_ = c.NC.Drain()
 		c.NC.Close()
 	}
 	return nil

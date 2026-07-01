@@ -5,18 +5,18 @@ import (
 )
 
 type SecurityHeadersConfig struct {
-	FrameOptions      string   `json:"frame_options,optional"`
-	ReferrerPolicy    string   `json:"referrer_policy,optional"`
-	PermissionsPolicy string   `json:"permissions_policy,optional"`
-	HSTS              bool     `json:"hsts,optional"`
-	HSTSMaxAge        int      `json:"hsts_max_age,optional"`
-	HSTSIncludeSubs   bool     `json:"hsts_include_subdomains,optional"`
-	CSP               string   `json:"csp,optional"`
-	COOP              string   `json:"coop,optional"`
-	COEP              string   `json:"coep,optional"`
-	CORP              string   `json:"corp,optional"`
-	CacheControl      string   `json:"cache_control,optional"`
-	CSPReportPath     string   `json:"csp_report_path,optional"`
+	FrameOptions      string   `json:"frame_options" config:",optional"`
+	ReferrerPolicy    string   `json:"referrer_policy" config:",optional"`
+	PermissionsPolicy string   `json:"permissions_policy" config:",optional"`
+	HSTS              bool     `json:"hsts" config:",optional"`
+	HSTSMaxAge        int      `json:"hsts_max_age" config:",optional"`
+	HSTSIncludeSubs   bool     `json:"hsts_include_subdomains" config:",optional"`
+	CSP               string   `json:"csp" config:",optional"`
+	COOP              string   `json:"coop" config:",optional"`
+	COEP              string   `json:"coep" config:",optional"`
+	CORP              string   `json:"corp" config:",optional"`
+	CacheControl      string   `json:"cache_control" config:",optional"`
+	CSPReportPath     string   `json:"csp_report_path" config:",optional"`
 }
 
 func SecurityHeaders(cfg SecurityHeadersConfig) fiber.Handler {

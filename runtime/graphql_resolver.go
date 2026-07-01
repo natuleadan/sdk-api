@@ -15,7 +15,7 @@ func callCRUDGet(provider CRUDProvider, id string) (any, error) {
 	if err := provider.Get(fctx, id); err != nil {
 		return nil, err
 	}
-	return parseCRUDResponse(fctx)
+	return parseCRUDResponse(fctx), nil
 }
 
 func callCRUDList(provider CRUDProvider, page, size int, sort string) (any, error) {
@@ -59,7 +59,7 @@ func callCRUDCreate(provider CRUDProvider, input any) (any, error) {
 	if err := provider.Create(fctx, body); err != nil {
 		return nil, err
 	}
-	return parseCRUDResponse(fctx)
+	return parseCRUDResponse(fctx), nil
 }
 
 func callCRUDUpdate(provider CRUDProvider, id string, input any) (any, error) {
@@ -73,7 +73,7 @@ func callCRUDUpdate(provider CRUDProvider, id string, input any) (any, error) {
 	if err := provider.Update(fctx, id, body); err != nil {
 		return nil, err
 	}
-	return parseCRUDResponse(fctx)
+	return parseCRUDResponse(fctx), nil
 }
 
 func callCRUDDelete(provider CRUDProvider, id string) error {
@@ -84,14 +84,14 @@ func callCRUDDelete(provider CRUDProvider, id string) error {
 	return provider.Delete(fctx, id)
 }
 
-func parseCRUDResponse(c *fiber.Ctx) (any, error) {
+func parseCRUDResponse(c *fiber.Ctx) any {
 	body := c.Response().Body()
 	if len(body) > 0 {
 		var result any
 		if err := json.Unmarshal(body, &result); err != nil {
-			return string(body), nil
+			return string(body)
 		}
-		return result, nil
+		return result
 	}
-	return nil, nil
+	return nil
 }

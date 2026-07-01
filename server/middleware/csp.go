@@ -15,19 +15,19 @@ const (
 
 // CSPConfig configures Content-Security-Policy generation.
 type CSPConfig struct {
-	Level              CSPLevel `json:"level,default=basic"`
-	DefaultSrc         []string `json:"default_src,optional"`
-	ScriptSrc          []string `json:"script_src,optional"`
-	StyleSrc           []string `json:"style_src,optional"`
-	ImgSrc             []string `json:"img_src,optional"`
-	ConnectSrc         []string `json:"connect_src,optional"`
-	FontSrc            []string `json:"font_src,optional"`
-	FrameSrc           []string `json:"frame_src,optional"`
-	FrameAncestors     []string `json:"frame_ancestors,optional"`
-	ObjectSrc          []string `json:"object_src,optional"`
-	BaseURI            []string `json:"base_uri,optional"`
-	FormAction         []string `json:"form_action,optional"`
-	UpgradeInsecureReq bool     `json:"upgrade_insecure_requests,optional"`
+	Level        CSPLevel `json:"level" config:",default=basic"`
+	DefaultSrc      []string `json:"default_src" config:",optional"`
+	ScriptSrc       []string `json:"script_src" config:",optional"`
+	StyleSrc        []string `json:"style_src" config:",optional"`
+	ImgSrc          []string `json:"img_src" config:",optional"`
+	ConnectSrc      []string `json:"connect_src" config:",optional"`
+	FontSrc         []string `json:"font_src" config:",optional"`
+	FrameSrc        []string `json:"frame_src" config:",optional"`
+	FrameAncestors     []string `json:"frame_ancestors" config:",optional"`
+	ObjectSrc          []string `json:"object_src" config:",optional"`
+	BaseURI            []string `json:"base_uri" config:",optional"`
+	FormAction         []string `json:"form_action" config:",optional"`
+	UpgradeInsecureReq bool     `json:"upgrade_insecure_requests" config:",optional"`
 }
 
 // BuildCSP generates a Content-Security-Policy string from config.
@@ -81,6 +81,6 @@ func joinDirective(name string, values []string, defaults string) string {
 // GenerateNonce creates a CSP nonce (base64 random 32 bytes).
 func GenerateNonce() string {
 	b := make([]byte, 32)
-	rand.Read(b)
+	_, _ = rand.Read(b)
 	return base64.RawURLEncoding.EncodeToString(b)
 }

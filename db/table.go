@@ -359,7 +359,7 @@ func (t *Table[T]) Transaction(ctx context.Context, fn func(tx pgx.Tx) error) er
 	if err != nil {
 		return fmt.Errorf("db: tx begin: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	if err := fn(tx); err != nil {
 		return fmt.Errorf("db: tx: %w", err)
 	}

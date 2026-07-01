@@ -71,8 +71,8 @@ func PrometheusHandler() fiber.Handler {
 			b.WriteString(fmt.Sprintf("http_server_request_duration_ms{method=%q,path=%q,quantile=\"0.99\"} %.2f\n", parts[0], parts[1], val))
 		}
 		b.WriteString("\n")
-		b.WriteString(fmt.Sprintf("# HELP http_server_requests_active Active requests\n"))
-		b.WriteString(fmt.Sprintf("# TYPE http_server_requests_active gauge\n"))
+		b.WriteString("# HELP http_server_requests_active Active requests\n")
+		b.WriteString("# TYPE http_server_requests_active gauge\n")
 		b.WriteString(fmt.Sprintf("http_server_requests_active %d\n", metrics.active))
 
 		c.Set("Content-Type", "text/plain; version=0.0.4")

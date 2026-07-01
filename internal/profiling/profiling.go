@@ -21,21 +21,21 @@ const (
 type (
 	Config struct {
 		// Name is the name of the application.
-		Name string `json:",optional,inherit"`
+		Name string `config:",optional,inherit"`
 		// ServerAddr is the address of the profiling server.
 		ServerAddr string
 		// AuthUser is the username for basic authentication.
-		AuthUser string `json:",optional"`
+		AuthUser string `config:",optional"`
 		// AuthPassword is the password for basic authentication.
-		AuthPassword string `json:",optional"`
+		AuthPassword string `config:",optional"`
 		// UploadRate is the duration for which profiling data is uploaded.
-		UploadRate time.Duration `json:",default=15s"`
+		UploadRate time.Duration `config:",default=15s"`
 		// CheckInterval is the interval to check if profiling should start.
-		CheckInterval time.Duration `json:",default=10s"`
+		CheckInterval time.Duration `config:",default=10s"`
 		// ProfilingDuration is the duration for which profiling data is collected.
-		ProfilingDuration time.Duration `json:",default=2m"`
+		ProfilingDuration time.Duration `config:",default=2m"`
 		// CpuThreshold the collection is allowed only when the current service cpu > CpuThreshold
-		CpuThreshold int64 `json:",default=700,range=[0:1000)"`
+		CpuThreshold int64 `config:",default=700,range=[0:1000)"`
 
 		// ProfileType is the type of profiling to be performed.
 		ProfileType ProfileType
@@ -43,17 +43,17 @@ type (
 
 	ProfileType struct {
 		// Logger is a flag to enable or disable logging.
-		Logger bool `json:",default=false"`
+		Logger bool `config:",default=false"`
 		// CPU is a flag to disable CPU profiling.
-		CPU bool `json:",default=true"`
+		CPU bool `config:",default=true"`
 		// Goroutines is a flag to disable goroutine profiling.
-		Goroutines bool `json:",default=true"`
+		Goroutines bool `config:",default=true"`
 		// Memory is a flag to disable memory profiling.
-		Memory bool `json:",default=true"`
+		Memory bool `config:",default=true"`
 		// Mutex is a flag to disable mutex profiling.
-		Mutex bool `json:",default=false"`
+		Mutex bool `config:",default=false"`
 		// Block is a flag to disable block profiling.
-		Block bool `json:",default=false"`
+		Block bool `config:",default=false"`
 	}
 
 	profiler interface {

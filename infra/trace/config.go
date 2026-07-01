@@ -5,20 +5,20 @@ const TraceName = "go-zero"
 
 // A Config is an opentelemetry config.
 type Config struct {
-	Name     string  `json:",optional"`
-	Endpoint string  `json:",optional"`
-	Sampler  float64 `json:",default=1.0"`
-	Batcher  string  `json:",default=otlpgrpc,options=zipkin|otlpgrpc|otlphttp|file"`
+	Name     string  `config:",optional"`
+	Endpoint string  `config:",optional"`
+	Sampler  float64 `config:",default=1.0"`
+	Batcher  string  `config:",default=otlpgrpc,options=zipkin|otlpgrpc|otlphttp|file"`
 	// OtlpHeaders represents the headers for OTLP gRPC or HTTP transport.
 	// For example:
 	//  uptrace-dsn: 'http://project2_secret_token@localhost:14317/2'
-	OtlpHeaders map[string]string `json:",optional"`
+	OtlpHeaders map[string]string `config:",optional"`
 	// OtlpHttpPath represents the path for OTLP HTTP transport.
 	// For example
 	// /v1/traces
-	OtlpHttpPath string `json:",optional"`
+	OtlpHttpPath string `config:",optional"`
 	// OtlpHttpSecure represents the scheme to use for OTLP HTTP transport.
-	OtlpHttpSecure bool `json:",optional"`
+	OtlpHttpSecure bool `config:",optional"`
 	// Disabled indicates whether StartAgent starts the agent.
-	Disabled bool `json:",optional"`
+	Disabled bool `config:",optional"`
 }

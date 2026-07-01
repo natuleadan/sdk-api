@@ -15,6 +15,7 @@ import (
 
 const (
 	jsonTagKey = "json"
+	configTagKey = "config"
 	jsonTagSep = ','
 )
 
@@ -349,7 +350,11 @@ func toLowerCaseKeyMap(m map[string]any, info *fieldInfo) map[string]any {
 		} else if info.mapField != nil {
 			res[k] = toLowerCaseInterface(v, info.mapField)
 		} else if vv, ok := v.(map[string]any); ok {
-			res[k] = toLowerCaseKeyMap(vv, info)
+			if info.children == nil {
+				res[k] = v
+			} else {
+				res[k] = toLowerCaseKeyMap(vv, info)
+			}
 		} else {
 			res[k] = v
 		}

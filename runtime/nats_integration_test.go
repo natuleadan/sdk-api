@@ -204,8 +204,10 @@ server:
 	defer svc.shutdown()
 
 	// POST to webhook → should auto-publish to NATS
-	resp, err := http.Post("http://localhost:19901/webhooks/test", "application/json",
+	req, _ := http.NewRequestWithContext(context.Background(), "POST", "http://localhost:19901/webhooks/test",
 		strings.NewReader(`{"event":"test"}`))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("POST: %v", err)
 	}

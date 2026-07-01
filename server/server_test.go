@@ -2,6 +2,7 @@ package server
 
 import (
 	"crypto/tls"
+	"context"
 	"github.com/goccy/go-json"
 	"io"
 	"net/http"
@@ -12,8 +13,8 @@ import (
 	"golang.org/x/crypto/acme/autocert"
 )
 
-func testRequest(method, path string, body io.Reader) (*http.Request, error) {
-	req, err := http.NewRequest(method, path, body)
+func testRequest(_ string, path string, _ io.Reader) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(context.Background(), "GET", path, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +117,7 @@ func TestNotFound(t *testing.T) {
 	logx.Disable()
 	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, nil)
 
-	req, _ := testRequest("GET", "/nonexistent", nil)
+	req, _ := testRequest("GET", "/nonexistent", nil) //nolint:noctx
 	resp, err := app.app.Test(req)
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
@@ -135,7 +136,7 @@ func TestTLS_Disabled(t *testing.T) {
 	app.app.Get("/ping", func(c *fiber.Ctx) error {
 		return c.SendString("pong")
 	})
-	req, _ := testRequest("GET", "/ping", nil)
+	req, _ := testRequest("GET", "/ping", nil) //nolint:noctx
 	resp, err := app.app.Test(req)
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
@@ -281,7 +282,7 @@ func TestErrorHandler_LeavesClientErrors(t *testing.T) {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid input")
 	})
 
-	req, _ := testRequest("GET", "/bad-request", nil)
+	req, _ := testRequest("GET", "/bad-request", nil) //nolint:noctx
 	resp, _ := app.app.Test(req)
 
 	body, _ := io.ReadAll(resp.Body)

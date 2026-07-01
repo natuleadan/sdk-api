@@ -9,13 +9,13 @@ import (
 )
 
 type CSRFConfig struct {
-	Enabled      bool     `json:"enabled,optional"`
-	CookieName   string   `json:"cookie_name,optional"`
-	HeaderName   string   `json:"header_name,optional"`
-	SameSite     string   `json:"same_site,optional"`
-	Secure       bool     `json:"secure,optional"`
-	ExcludePaths []string `json:"exclude_paths,optional"`
-	JSONCheck    bool     `json:"json_check,optional"`
+	Enabled      bool     `json:"enabled" config:",optional"`
+	CookieName   string   `json:"cookie_name" config:",optional"`
+	HeaderName   string   `json:"header_name" config:",optional"`
+	SameSite     string   `json:"same_site" config:",optional"`
+	Secure       bool     `json:"secure" config:",optional"`
+	ExcludePaths []string `json:"exclude_paths" config:",optional"`
+	JSONCheck    bool     `json:"json_check" config:",optional"`
 }
 
 func CSRF(cfg CSRFConfig) fiber.Handler {

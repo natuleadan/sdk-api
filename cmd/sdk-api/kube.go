@@ -43,9 +43,9 @@ func runKube(args []string) error {
 		case "--image":
 			if i+1 < len(args) { i++; cfg.Image = args[i] }
 		case "--port":
-			if i+1 < len(args) { i++; fmt.Sscanf(args[i], "%d", &cfg.Port) }
+			if i+1 < len(args) { i++; _, _ = fmt.Sscanf(args[i], "%d", &cfg.Port) }
 		case "--replicas":
-			if i+1 < len(args) { i++; fmt.Sscanf(args[i], "%d", &cfg.Replicas) }
+			if i+1 < len(args) { i++; _, _ = fmt.Sscanf(args[i], "%d", &cfg.Replicas) }
 		}
 	}
 

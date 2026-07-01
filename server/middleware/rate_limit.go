@@ -32,12 +32,12 @@ func (l *redisLimiter) Remaining() int {
 }
 
 type RateLimitConfig struct {
-	Enabled       bool            `json:"enabled,optional"`
-	Driver        string          `json:"driver,default=memory"`
-	RedisURL      string          `json:"redis_url,optional"`
-	Global        *RateLimitEntry `json:"global,optional"`
-	PerIP         *RateLimitEntry `json:"per_ip,optional"`
-	PerUser       *RateLimitEntry `json:"per_user,optional"`
+	Enabled       bool            `json:"enabled" config:",optional"`
+	Driver        string          `json:"driver" config:",default=memory"`
+	RedisURL      string          `json:"redis_url" config:",optional"`
+	Global        *RateLimitEntry `json:"global" config:",optional"`
+	PerIP         *RateLimitEntry `json:"per_ip" config:",optional"`
+	PerUser       *RateLimitEntry `json:"per_user" config:",optional"`
 }
 
 type RateLimitEntry struct {
@@ -138,10 +138,8 @@ func getOrCreateLimiter(store *rateLimiterStore, prefix, key string, entry *Rate
 			store.perIP = make(map[string]limiter)
 		}
 		m = store.perIP
-	} else {
-		if store.perUser == nil {
-			store.perUser = make(map[string]limiter)
-		}
+	} else if store.perUser == nil {
+		store.perUser = make(map[string]limiter)
 	}
 
 	if l, ok := m[key]; ok {

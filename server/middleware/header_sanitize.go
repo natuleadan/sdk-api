@@ -9,11 +9,11 @@ import (
 func HeaderSanitize() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		var hasInvalid bool
-		c.Request().Header.VisitAll(func(key, value []byte) {
+		for _, value := range c.Request().Header.All() {
 			if containsCRLF(value) {
 				hasInvalid = true
 			}
-		})
+		}
 		if hasInvalid {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"code":    400,

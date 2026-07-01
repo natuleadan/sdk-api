@@ -8,6 +8,7 @@ require (
 	github.com/bdpiprava/scalar-go v0.13.0
 	github.com/fatih/color v1.19.0
 	github.com/getkin/kin-openapi v0.140.0
+	github.com/go-playground/validator/v10 v10.30.3
 	github.com/go-sql-driver/mysql v1.10.0
 	github.com/goccy/go-json v0.10.6
 	github.com/gofiber/contrib/websocket v1.3.4
@@ -50,7 +51,7 @@ require (
 	gopkg.in/h2non/gock.v1 v1.1.2
 	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/utils v0.0.0-20260626114624-be93311217bd
-	turso.tech/database/tursogo v0.7.0-pre.13
+	turso.tech/database/tursogo v0.7.0-pre.14
 )
 
 require (
@@ -73,7 +74,6 @@ require (
 	github.com/go-openapi/swag/jsonname v0.25.5 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
-	github.com/go-playground/validator/v10 v10.30.3 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/grafana/pyroscope-go/godeltaprof v0.1.11 // indirect
@@ -109,7 +109,7 @@ require (
 	github.com/savsgio/gotils v0.0.0-20240303185622-093b76447511 // indirect
 	github.com/stretchr/objx v0.5.3 // indirect
 	github.com/tinylib/msgp v1.6.1 // indirect
-	github.com/tursodatabase/turso-go-platform-libs v0.7.0-pre.13 // indirect
+	github.com/tursodatabase/turso-go-platform-libs v0.7.0-pre.14 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/tcplisten v1.0.0 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect

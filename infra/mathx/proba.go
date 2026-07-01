@@ -1,9 +1,8 @@
 package mathx
 
 import (
-	"math/rand"
+	"math/rand/v2"
 	"sync"
-	"time"
 )
 
 // A Proba is used to test if true on given probability.
@@ -16,7 +15,7 @@ type Proba struct {
 // NewProba returns a Proba.
 func NewProba() *Proba {
 	return &Proba{
-		r: rand.New(rand.NewSource(time.Now().UnixNano())),
+		r: rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
 	}
 }
 

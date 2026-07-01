@@ -1,7 +1,7 @@
 package mathx
 
 import (
-	"math/rand"
+	"math/rand/v2"
 	"sync"
 	"time"
 )
@@ -23,7 +23,7 @@ func NewUnstable(deviation float64) Unstable {
 	}
 	return Unstable{
 		deviation: deviation,
-		r:         rand.New(rand.NewSource(time.Now().UnixNano())),
+		r:         rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
 		lock:      new(sync.Mutex),
 	}
 }

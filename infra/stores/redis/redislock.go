@@ -103,5 +103,8 @@ func (rl *RedisLock) ReleaseCtx(ctx context.Context) (bool, error) {
 
 // SetExpire sets the expiration.
 func (rl *RedisLock) SetExpire(seconds int) {
+	if seconds < 0 {
+		return
+	}
 	atomic.StoreUint32(&rl.seconds, uint32(seconds))
 }

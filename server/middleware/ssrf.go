@@ -90,10 +90,18 @@ func NewSafeHTTPClient(cfg SSRFConfig) *SafeHTTPClient {
 
 // Do performs an HTTP request with SSRF validation.
 func (c *SafeHTTPClient) Do(req *http.Request) (*http.Response, error) {
-	if err := c.checker.validate(req.URL.Hostname()); err != nil {
+	host := req.URL.Hostname()
+	if err := c.checker.validate(host); err != nil {
 		return nil, err
 	}
-	return c.client.Do(req)
+	u := *req.URL
+	u.Host = host
+	if p := req.URL.Port(); p != "" {
+		u.Host = net.JoinHostPort(host, p)
+	}
+	reqCopy := req.Clone(req.Context())
+	reqCopy.URL = &u
+	return c.client.Do(reqCopy)
 }
 
 func (c *ssrfChecker) validate(host string) error {

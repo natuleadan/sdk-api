@@ -94,6 +94,9 @@ func initialize() error {
 		return err
 	}
 
+	if cpus < 0 {
+		return nil
+	}
 	cores = uint64(cpus)
 	limit = float64(cpus)
 	quota, err := cpuQuota()

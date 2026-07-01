@@ -17,9 +17,9 @@ import (
 )
 
 const (
-	tokenFormat     = "{%s}.tokens"
-	timestampFormat = "{%s}.ts"
-	pingInterval    = time.Millisecond * 100
+	redisTokenKeyFormat     = "{%s}.tokens"
+	redisTimestampKeyFormat = "{%s}.ts"
+	pingInterval            = time.Millisecond * 100
 )
 
 var (
@@ -44,8 +44,8 @@ type TokenLimiter struct {
 // NewTokenLimiter returns a new TokenLimiter that allows events up to rate and permits
 // bursts of at most burst tokens.
 func NewTokenLimiter(rate, burst int, store *redis.Redis, key string) *TokenLimiter {
-	tokenKey := fmt.Sprintf(tokenFormat, key)
-	timestampKey := fmt.Sprintf(timestampFormat, key)
+	tokenKey := fmt.Sprintf(redisTokenKeyFormat, key)
+	timestampKey := fmt.Sprintf(redisTimestampKeyFormat, key)
 
 	return &TokenLimiter{
 		rate:          rate,

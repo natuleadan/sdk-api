@@ -117,7 +117,11 @@ func (h *ConsistentHash) Get(v any) (any, bool) {
 		return nodes[0], true
 	default:
 		innerIndex := h.hashFunc([]byte(innerRepr(v)))
-		pos := int(innerIndex % uint64(len(nodes)))
+		n := len(nodes)
+		if n == 0 {
+			return nil, false
+		}
+		pos := int(innerIndex % uint64(n))
 		return nodes[pos], true
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"runtime"
 
 	red "github.com/redis/go-redis/v9"
+	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/natuleadan/sdk-api/infra/syncx"
 )
 
@@ -27,6 +28,9 @@ func getClient(r *Redis) (*red.Client, error) {
 		if r.tls {
 			tlsConfig = &tls.Config{
 				InsecureSkipVerify: r.tlsSkipVerify,
+			}
+			if r.tlsSkipVerify {
+				logx.Errorf("redis: TLS InsecureSkipVerify enabled for %s (node)", r.Addr)
 			}
 		}
 		store := red.NewClient(&red.Options{

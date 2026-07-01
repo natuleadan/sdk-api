@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"math/rand"
+	"math/rand/v2"
 	"sync"
 	"time"
 
@@ -53,7 +53,7 @@ func NewNode(rds *redis.Redis, barrier syncx.SingleFlight, st *Stat,
 		expiry:         o.Expiry,
 		notFoundExpiry: o.NotFoundExpiry,
 		barrier:        barrier,
-		r:              rand.New(rand.NewSource(time.Now().UnixNano())),
+		r:              rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
 		lock:           new(sync.Mutex),
 		unstableExpiry: mathx.NewUnstable(expiryDeviation),
 		stat:           st,

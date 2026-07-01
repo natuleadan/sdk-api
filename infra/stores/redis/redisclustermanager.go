@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	red "github.com/redis/go-redis/v9"
+	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/natuleadan/sdk-api/infra/syncx"
 )
 
@@ -24,6 +25,9 @@ func getCluster(r *Redis) (*red.ClusterClient, error) {
 		if r.tls {
 			tlsConfig = &tls.Config{
 				InsecureSkipVerify: r.tlsSkipVerify,
+			}
+			if r.tlsSkipVerify {
+				logx.Errorf("redis: TLS InsecureSkipVerify enabled for %s (cluster)", r.Addr)
 			}
 		}
 		store := red.NewClusterClient(&red.ClusterOptions{

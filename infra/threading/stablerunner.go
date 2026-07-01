@@ -59,7 +59,7 @@ func (r *StableRunner[I, O]) Get() (O, error) {
 	defer atomic.AddUint64(&r.consumedIndex, 1)
 
 	index := atomic.LoadUint64(&r.consumedIndex)
-	offset := index % uint64(bufSize)
+	offset := int(index % uint64(bufSize))
 	holder := r.ring[offset]
 
 	select {
@@ -83,7 +83,7 @@ func (r *StableRunner[I, O]) Push(v I) error {
 		return ErrRunnerClosed
 	default:
 		index := atomic.AddUint64(&r.writtenIndex, 1)
-		offset := (index - 1) % uint64(bufSize)
+		offset := int((index - 1) % uint64(bufSize))
 		holder := r.ring[offset]
 		holder.lock.Lock()
 		r.runner.Schedule(func() {

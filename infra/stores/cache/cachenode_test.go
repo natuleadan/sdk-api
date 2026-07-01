@@ -3,7 +3,7 @@ package cache
 import (
 	"errors"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"runtime"
 	"strconv"
 	"sync"
@@ -38,7 +38,7 @@ func TestCacheNode_DelCache(t *testing.T) {
 
 		cn := cacheNode{
 			rds:            store,
-			r:              rand.New(rand.NewSource(time.Now().UnixNano())),
+r: rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
 			lock:           new(sync.Mutex),
 			unstableExpiry: mathx.NewUnstable(expiryDeviation),
 			stat:           NewStat("any"),
@@ -86,7 +86,7 @@ func TestCacheNode_DelCacheWithErrors(t *testing.T) {
 
 	cn := cacheNode{
 		rds:            store,
-		r:              rand.New(rand.NewSource(time.Now().UnixNano())),
+		r: rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
 		lock:           new(sync.Mutex),
 		unstableExpiry: mathx.NewUnstable(expiryDeviation),
 		stat:           NewStat("any"),
@@ -102,7 +102,7 @@ func TestCacheNode_InvalidCache(t *testing.T) {
 
 	cn := cacheNode{
 		rds:            redis.MustNewRedis(redis.RedisConf{Host: s.Addr(), Type: redis.NodeType}),
-		r:              rand.New(rand.NewSource(time.Now().UnixNano())),
+		r: rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
 		lock:           new(sync.Mutex),
 		unstableExpiry: mathx.NewUnstable(expiryDeviation),
 		stat:           NewStat("any"),
@@ -121,7 +121,7 @@ func TestCacheNode_SetWithExpire(t *testing.T) {
 
 	cn := cacheNode{
 		rds:            store,
-		r:              rand.New(rand.NewSource(time.Now().UnixNano())),
+		r: rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
 		barrier:        syncx.NewSingleFlight(),
 		lock:           new(sync.Mutex),
 		unstableExpiry: mathx.NewUnstable(expiryDeviation),
@@ -170,7 +170,7 @@ func TestCacheNode_TakeNotFound(t *testing.T) {
 
 		cn := cacheNode{
 			rds:            store,
-			r:              rand.New(rand.NewSource(time.Now().UnixNano())),
+r: rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
 			barrier:        syncx.NewSingleFlight(),
 			lock:           new(sync.Mutex),
 			unstableExpiry: mathx.NewUnstable(expiryDeviation),
@@ -214,7 +214,7 @@ func TestCacheNode_TakeNotFound(t *testing.T) {
 
 		cn := cacheNode{
 			rds:            store,
-			r:              rand.New(rand.NewSource(time.Now().UnixNano())),
+r: rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
 			barrier:        syncx.NewSingleFlight(),
 			lock:           new(sync.Mutex),
 			unstableExpiry: mathx.NewUnstable(expiryDeviation),
@@ -243,7 +243,7 @@ func TestCacheNode_TakeCtxWithRedisError(t *testing.T) {
 
 		cn := cacheNode{
 			rds:            store,
-			r:              rand.New(rand.NewSource(time.Now().UnixNano())),
+r: rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
 			barrier:        syncx.NewSingleFlight(),
 			lock:           new(sync.Mutex),
 			unstableExpiry: mathx.NewUnstable(expiryDeviation),
@@ -265,7 +265,7 @@ func TestCacheNode_TakeNotFoundButChangedByOthers(t *testing.T) {
 
 	cn := cacheNode{
 		rds:            store,
-		r:              rand.New(rand.NewSource(time.Now().UnixNano())),
+		r: rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
 		barrier:        syncx.NewSingleFlight(),
 		lock:           new(sync.Mutex),
 		unstableExpiry: mathx.NewUnstable(expiryDeviation),
@@ -292,7 +292,7 @@ func TestCacheNode_TakeWithExpire(t *testing.T) {
 
 	cn := cacheNode{
 		rds:            store,
-		r:              rand.New(rand.NewSource(time.Now().UnixNano())),
+		r: rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
 		barrier:        syncx.NewSingleFlight(),
 		lock:           new(sync.Mutex),
 		unstableExpiry: mathx.NewUnstable(expiryDeviation),
@@ -317,7 +317,7 @@ func TestCacheNode_String(t *testing.T) {
 
 	cn := cacheNode{
 		rds:            store,
-		r:              rand.New(rand.NewSource(time.Now().UnixNano())),
+		r: rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
 		barrier:        syncx.NewSingleFlight(),
 		lock:           new(sync.Mutex),
 		unstableExpiry: mathx.NewUnstable(expiryDeviation),
@@ -332,7 +332,7 @@ func TestCacheValueWithBigInt(t *testing.T) {
 
 	cn := cacheNode{
 		rds:            store,
-		r:              rand.New(rand.NewSource(time.Now().UnixNano())),
+		r: rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
 		barrier:        syncx.NewSingleFlight(),
 		lock:           new(sync.Mutex),
 		unstableExpiry: mathx.NewUnstable(expiryDeviation),

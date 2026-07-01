@@ -38,6 +38,6 @@ func CountLines(file string) (int, error) {
 			return count, err
 		}
 
-		noEol = c > 0 && buf[c-1] != '\n'
+		noEol = c > 0 && c <= len(buf) && buf[c-1] != '\n'
 	}
 }

@@ -197,7 +197,9 @@ func (t *mysqlCRUD[T]) Create(ctx *fiber.Ctx, body []byte) error {
 	if err := t.table.Create(ctx.UserContext(), &entity); err != nil {
 		return fiber.NewError(500, err.Error())
 	}
-	_ = t.hooks.AfterCreate(ctx.UserContext(), &entity)
+	if err := t.hooks.AfterCreate(ctx.UserContext(), &entity); err != nil {
+		logx.Errorf("crud: after create hook error: %v", err)
+	}
 	return ctx.Status(201).JSON(entity)
 }
 
@@ -217,7 +219,9 @@ func (t *mysqlCRUD[T]) Update(ctx *fiber.Ctx, id string, body []byte) error {
 		}
 		return fiber.NewError(500, err.Error())
 	}
-	_ = t.hooks.AfterUpdate(ctx.UserContext(), entity)
+	if err := t.hooks.AfterUpdate(ctx.UserContext(), entity); err != nil {
+		logx.Errorf("crud: after update hook error: %v", err)
+	}
 	return ctx.JSON(entity)
 }
 
@@ -231,7 +235,9 @@ func (t *mysqlCRUD[T]) Delete(ctx *fiber.Ctx, id string) error {
 		}
 		return fiber.NewError(500, err.Error())
 	}
-	_ = t.hooks.AfterDelete(ctx.UserContext(), id)
+	if err := t.hooks.AfterDelete(ctx.UserContext(), id); err != nil {
+		logx.Errorf("crud: after delete hook error: %v", err)
+	}
 	return ctx.SendStatus(204)
 }
 
@@ -293,7 +299,9 @@ func (t *tursoCRUD[T]) Create(ctx *fiber.Ctx, body []byte) error {
 	if err := t.table.Create(ctx.UserContext(), &entity); err != nil {
 		return fiber.NewError(500, err.Error())
 	}
-	_ = t.hooks.AfterCreate(ctx.UserContext(), &entity)
+	if err := t.hooks.AfterCreate(ctx.UserContext(), &entity); err != nil {
+		logx.Errorf("crud: after create hook error: %v", err)
+	}
 	return ctx.Status(201).JSON(entity)
 }
 
@@ -313,7 +321,9 @@ func (t *tursoCRUD[T]) Update(ctx *fiber.Ctx, id string, body []byte) error {
 		}
 		return fiber.NewError(500, err.Error())
 	}
-	_ = t.hooks.AfterUpdate(ctx.UserContext(), entity)
+	if err := t.hooks.AfterUpdate(ctx.UserContext(), entity); err != nil {
+		logx.Errorf("crud: after update hook error: %v", err)
+	}
 	return ctx.JSON(entity)
 }
 
@@ -327,6 +337,8 @@ func (t *tursoCRUD[T]) Delete(ctx *fiber.Ctx, id string) error {
 		}
 		return fiber.NewError(500, err.Error())
 	}
-	_ = t.hooks.AfterDelete(ctx.UserContext(), id)
+	if err := t.hooks.AfterDelete(ctx.UserContext(), id); err != nil {
+		logx.Errorf("crud: after delete hook error: %v", err)
+	}
 	return ctx.SendStatus(204)
 }

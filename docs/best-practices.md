@@ -128,3 +128,33 @@ Run benchmarks inside Docker with wrk. Running benchmarks on host + Docker data 
 | OpenAPI without models | OpenAPI auto-generation requires `RegisterModel`. Without it, paths are generated but schemas are empty. |
 | Cron with seconds | `robfig/cron` uses 5-field expressions. `"0 6 * * *"` works, `"*/10 * * * * *"` (6 fields) does NOT. |
 | Service config validation | `LoadConfig` validates that `entry[].db` references exist in `databases:`. If using no databases, reference is skipped. |
+
+## Error Handling
+
+All errors must be handled explicitly. Silent ignores (`_ = funcCall()`, `_, _ = funcCall()`) are prohibited.
+
+| Pattern | Allowed? | Alternative |
+|---------|----------|-------------|
+| `_ = funcCall()` | ❌ | `if err := funcCall(); err != nil { logx.Errorf(...) }` |
+| `_, _ = funcCall()` | ❌ | `if _, err := funcCall(); err != nil { logx.Errorf(...) }` |
+| `if _, err := funcCall(); err != nil { return }` | ✅ | — |
+| `if err := funcCall(); err != nil { logx.Errorf(...) }` | ✅ | — |
+
+- **HTTP handlers**: return the error to Fiber's error handler
+- **Background goroutines**: log via `logx.Errorf` — cannot propagate
+- **NATS message processing**: log via `logx.Errorf`, then Nak or Ack appropriately
+- **Interface implementations**: if the interface requires unused params, use the param name (not `_`) and document why
+- **`crypto/rand` failures**: log via `logx.Errorf` — extremely rare but should not silently produce zero bytes
+
+## Linting Rules
+
+The project enforces these rules via `golangci-lint`:
+
+| Rule | Enforced by | Why |
+|------|-------------|-----|
+| 0 `//nolint` comments | Project policy | Every issue must be fixed, not silenced |
+| 0 `_ =` error ignores | `errcheck` | Every error must be handled or logged |
+| 0 unused params | `unparam` | Dead parameters removed or used |
+| Complexity < 15 | `gocyclo` | Functions must be testable and maintainable |
+| No deprecated APIs | `staticcheck` SA1019 | Prevent build breaks on dependency upgrades |
+| Custom context keys | `staticcheck` SA1029 | Prevent key collisions across packages |

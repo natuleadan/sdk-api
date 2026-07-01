@@ -9,6 +9,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 
 	sm "github.com/natuleadan/sdk-api/server/middleware"
+	"github.com/natuleadan/sdk-api/infra/logx"
 )
 
 func registerWebSocket(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string) error {
@@ -19,7 +20,9 @@ func registerWebSocket(app *fiber.App, entry *EntryDef, handlers *EntryHandlers,
 	path := prefix + entry.Path
 	handler := h
 	app.Get(path, sm.WebSocket(func(c *websocket.Conn) {
-		_ = handler(context.Background(), c)
+		if err := handler(context.Background(), c); err != nil {
+			logx.Errorf("websocket handler error: %v", err)
+		}
 	}))
 	return nil
 }
@@ -38,11 +41,19 @@ func registerSSE(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefi
 		ctx := c.UserContext()
 		c.Context().SetBodyStreamWriter(func(w *bufio.Writer) {
 			send := func(data string) {
-				_, _ = w.WriteString(data)
-				_, _ = w.WriteString("\n")
-				_ = w.Flush()
+				if _, err := w.WriteString(data); err != nil {
+					logx.Errorf("sse write string error: %v", err)
+				}
+				if _, err := w.WriteString("\n"); err != nil {
+					logx.Errorf("sse write newline error: %v", err)
+				}
+				if err := w.Flush(); err != nil {
+					logx.Errorf("sse flush error: %v", err)
+				}
 			}
-			_ = handler(ctx, send)
+			if err := handler(ctx, send); err != nil {
+				logx.Errorf("sse handler error: %v", err)
+			}
 		})
 		return nil
 	})

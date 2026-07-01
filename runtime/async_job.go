@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/natuleadan/sdk-api/infra/logx"
 )
 
 // AsyncHandler is a function that processes an async job.
@@ -29,7 +30,9 @@ func NewAsyncJobManager(store JobStore, processor AsyncHandler) *AsyncJobManager
 
 func generateJobID() string {
 	b := make([]byte, 12)
-	_, _ = rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		logx.Errorf("async: generate job id error: %v", err)
+	}
 	return "j_" + hex.EncodeToString(b)
 }
 

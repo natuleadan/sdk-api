@@ -7,6 +7,7 @@ import (
 
 	"github.com/goccy/go-json"
 	"github.com/nats-io/nats.go"
+	"github.com/natuleadan/sdk-api/infra/logx"
 )
 
 type AckAction int
@@ -83,7 +84,9 @@ func consumerSubOpts(cfg ConsumerConfig) []nats.SubOpt {
 }
 
 func ConsumePull[T any](ctx context.Context, js nats.JetStreamContext, cfg ConsumerConfig, handler Handler[T]) error {
-	_ = js.DeleteConsumer(cfg.Stream, cfg.Durable)
+	if err := js.DeleteConsumer(cfg.Stream, cfg.Durable); err != nil {
+		logx.Errorf("events: delete consumer error: %v", err)
+	}
 	opts := consumerSubOpts(cfg)
 
 	sub, err := js.PullSubscribe(cfg.Subject, cfg.Durable, opts...)
@@ -97,7 +100,11 @@ func ConsumePull[T any](ctx context.Context, js nats.JetStreamContext, cfg Consu
 	if pullMaxWait <= 0 { pullMaxWait = 5 * time.Second }
 
 	go func() {
-		defer func() { _ = sub.Unsubscribe() }()
+		defer func() {
+		if err := sub.Unsubscribe(); err != nil {
+			logx.Errorf("events: unsubscribe error: %v", err)
+		}
+	}()
 		for {
 			msgs, err := sub.Fetch(pullBatch, nats.MaxWait(pullMaxWait))
 			if err != nil {
@@ -126,7 +133,9 @@ func ConsumePull[T any](ctx context.Context, js nats.JetStreamContext, cfg Consu
 }
 
 func ConsumePush[T any](ctx context.Context, js nats.JetStreamContext, cfg ConsumerConfig, handler Handler[T]) error {
-	_ = js.DeleteConsumer(cfg.Stream, cfg.Durable)
+	if err := js.DeleteConsumer(cfg.Stream, cfg.Durable); err != nil {
+		logx.Errorf("events: delete consumer error: %v", err)
+	}
 
 	opts := append([]nats.SubOpt{
 		nats.Durable(cfg.Durable),
@@ -153,7 +162,9 @@ func ConsumePush[T any](ctx context.Context, js nats.JetStreamContext, cfg Consu
 
 	go func() {
 		<-ctx.Done()
-		_ = sub.Unsubscribe()
+		if err := sub.Unsubscribe(); err != nil {
+			logx.Errorf("events: unsubscribe error: %v", err)
+		}
 	}()
 
 	return nil
@@ -162,7 +173,9 @@ func ConsumePush[T any](ctx context.Context, js nats.JetStreamContext, cfg Consu
 func processMsg[T any](ctx context.Context, m *nats.Msg, handler Handler[T], cfg ConsumerConfig) {
 	var data T
 	if err := json.Unmarshal(m.Data, &data); err != nil {
-		_ = m.Term()
+		if err := m.Term(); err != nil {
+		logx.Errorf("events: term error: %v", err)
+	}
 		return
 	}
 
@@ -177,20 +190,32 @@ func processMsg[T any](ctx context.Context, m *nats.Msg, handler Handler[T], cfg
 
 	action, err := handler(ctx, msg)
 	if err != nil {
-		_ = m.Nak()
+		if err := m.Nak(); err != nil {
+		logx.Errorf("events: nak error: %v", err)
+	}
 		return
 	}
 
 	switch action {
 	case Ack:
-		_ = m.Ack()
+		if err := m.Ack(); err != nil {
+		logx.Errorf("events: ack error: %v", err)
+	}
 	case Nak:
-		_ = m.Nak()
+		if err := m.Nak(); err != nil {
+		logx.Errorf("events: nak error: %v", err)
+	}
 	case NakDelay:
-		_ = m.NakWithDelay(getNakDelay(cfg))
+		if err := m.NakWithDelay(getNakDelay(cfg)); err != nil {
+		logx.Errorf("events: nak delay error: %v", err)
+	}
 	case Term:
-		_ = m.Term()
+		if err := m.Term(); err != nil {
+		logx.Errorf("events: term error: %v", err)
+	}
 	default:
-		_ = m.Ack()
+		if err := m.Ack(); err != nil {
+		logx.Errorf("events: ack error: %v", err)
+	}
 	}
 }

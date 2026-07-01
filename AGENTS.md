@@ -12,7 +12,7 @@ General-purpose Go SDK for event-driven microservices and monoliths. YAML-driven
 
 | Topic | Location |
 |-------|----------|
-| Full documentation | `docs/` (17 files) |
+| Full documentation | `docs/` (18 files) |
 | YAML config schema (all entry types, security) | `docs/configuration.md` |
 | Security guide (headers, CSRF, rate limit, TLS, SSRF, validation) | `docs/security.md` |
 | HTTP server & middlewares | `docs/http-server.md` |
@@ -100,3 +100,26 @@ go test ./...                 # All tests (requires Docker: PG + NATS)
 - **Rate limit `driver: redis`** — requires `redis_url` configured and Redis running.
 - **CSRF excludes webhooks** — use `entry[].csrf: false` or `server.csrf.exclude_paths`.
 - **Secrets warning** — the SDK logs when values look like plaintext secrets. Always use `${VAR}`.
+
+## Linting Rules
+
+The project enforces strict lint rules. All must pass before commit:
+
+| Rule | Enforced by | Policy |
+|------|-------------|--------|
+| 0 `//nolint` comments | Project policy | Every issue fixed, not silenced |
+| 0 `_ =` error ignores | `errcheck` | Errors logged via `logx.Errorf` or propagated |
+| 0 unused params | `unparam` | Dead parameters removed |
+| Complexity < 15 | `gocyclo` | Functions testable and maintainable |
+| No deprecated APIs | `staticcheck` SA1019 | Prevent build breaks on dep upgrades |
+| Custom context keys | `staticcheck` SA1029 | `ctxKey` type, not bare `string` |
+| Go version pinned | CI config | `go-version: "1.26.x"` in all workflows |
+
+## Crypto
+
+| Component | Algorithm | Notes |
+|-----------|-----------|-------|
+| Config defaults | SHA-256 (via `hash.Md5`/`hash.Md5Hex`) | Functions named Md5 for backward compat, use SHA-256 internally |
+| Request body en/decryption | AES-256-GCM | `server.middleware.cryption.go` — 12-byte nonce |
+| TLS minimum | 1.2 | `MinVersion: tls.VersionTLS12` |
+| CSP nonce | 32 random bytes | `crypto/rand` via `middleware.GenerateNonce()` |

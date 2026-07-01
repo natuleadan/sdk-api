@@ -72,7 +72,11 @@ func AESEncrypt(data, key []byte) ([]byte, error) {
 	ciphertext := aead.Seal(nonce, nonce, data, nil)
 	var buf bytes.Buffer
 	encoder := base64.NewEncoder(base64.StdEncoding, &buf)
-	_, _ = encoder.Write(ciphertext)
-	_ = encoder.Close()
+	if _, err := encoder.Write(ciphertext); err != nil {
+		logx.Errorf("cryption: encoder write error: %v", err)
+	}
+	if err := encoder.Close(); err != nil {
+		logx.Errorf("cryption: encoder close error: %v", err)
+	}
 	return buf.Bytes(), nil
 }

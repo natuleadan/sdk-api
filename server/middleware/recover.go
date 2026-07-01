@@ -10,10 +10,12 @@ func Recovery() fiber.Handler {
 		defer func() {
 			if r := recover(); r != nil {
 				logx.Errorf("panic recovered: %v", r)
-				_ = c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				if err := c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 					"code":    500,
 					"message": "internal server error",
-				})
+				}); err != nil {
+					logx.Errorf("recover: json error response failed: %v", err)
+				}
 			}
 		}()
 		return c.Next()

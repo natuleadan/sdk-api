@@ -4,6 +4,8 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"strings"
+
+	"github.com/natuleadan/sdk-api/infra/logx"
 )
 
 // CSPLevel defines pre-built CSP policies.
@@ -83,6 +85,8 @@ func joinDirective(name string, values []string, defaults string) string {
 // GenerateNonce creates a CSP nonce (base64 random 32 bytes).
 func GenerateNonce() string {
 	b := make([]byte, 32)
-	_, _ = rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		logx.Errorf("csp: generate nonce error: %v", err)
+	}
 	return base64.RawURLEncoding.EncodeToString(b)
 }

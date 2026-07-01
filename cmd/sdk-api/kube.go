@@ -43,9 +43,13 @@ func runKube(args []string) error {
 		case "--image":
 			if i+1 < len(args) { i++; cfg.Image = args[i] }
 		case "--port":
-			if i+1 < len(args) { i++; _, _ = fmt.Sscanf(args[i], "%d", &cfg.Port) }
+			if i+1 < len(args) { i++; if _, err := fmt.Sscanf(args[i], "%d", &cfg.Port); err != nil {
+			fmt.Fprintf(os.Stderr, "kube: parse port error: %v\n", err)
+		} }
 		case "--replicas":
-			if i+1 < len(args) { i++; _, _ = fmt.Sscanf(args[i], "%d", &cfg.Replicas) }
+			if i+1 < len(args) { i++; if _, err := fmt.Sscanf(args[i], "%d", &cfg.Replicas); err != nil {
+			fmt.Fprintf(os.Stderr, "kube: parse replicas error: %v\n", err)
+		} }
 		}
 	}
 

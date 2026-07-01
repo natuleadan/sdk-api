@@ -34,7 +34,9 @@ func runDocker(args []string) error {
 		case "--name":
 			if i+1 < len(args) { i++; cfg.ExeName = args[i] }
 		case "--port":
-			if i+1 < len(args) { i++; _, _ = fmt.Sscanf(args[i], "%d", &cfg.Port) }
+			if i+1 < len(args) { i++; if _, err := fmt.Sscanf(args[i], "%d", &cfg.Port); err != nil {
+			fmt.Fprintf(os.Stderr, "docker: parse port error: %v\n", err)
+		}   }
 		case "--base":
 			if i+1 < len(args) { i++; cfg.Base = args[i] }
 		}

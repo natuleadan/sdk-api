@@ -70,7 +70,11 @@ func startExitWorker(ctx context.Context, broker events.EventBroker, cfg ExitWor
 		stateW := w.state
 		shutdownCh := state.shutdownCh
 		go func() {
-			defer func() { _ = consumer.Unsubscribe() }()
+			defer func() {
+			if err := consumer.Unsubscribe(); err != nil {
+				logx.Errorf("exit: consumer unsubscribe error: %v", err)
+			}
+		}()
 			for {
 				select {
 				case <-shutdownCh:
@@ -99,7 +103,9 @@ func startExitWorker(ctx context.Context, broker events.EventBroker, cfg ExitWor
 		shutdownCh := state.shutdownCh
 		go func() {
 			<-shutdownCh
-			_ = sub.Unsubscribe()
+			if err := sub.Unsubscribe(); err != nil {
+		logx.Errorf("exit: sub unsubscribe error: %v", err)
+	}
 		}()
 	}
 

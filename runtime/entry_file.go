@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/natuleadan/sdk-api/events"
 )
 
@@ -124,7 +125,9 @@ func parseMaxSize(s string) int {
 		s = strings.TrimSuffix(s, "b")
 	}
 	var n int
-	_, _ = fmt.Sscanf(s, "%d", &n)
+	if _, err := fmt.Sscanf(s, "%d", &n); err != nil {
+		logx.Errorf("entry_file: parse size error: %v", err)
+	}
 	return n * multiplier
 }
 

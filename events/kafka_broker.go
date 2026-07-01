@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/segmentio/kafka-go"
 )
 
@@ -95,7 +96,9 @@ func (b *KafkaBroker) Subscribe(ctx context.Context, subject string, durable str
 			}
 			km := &kafkaMessage{msg: &msg, reader: reader}
 			if err := handler(ctx, km); err == nil {
-				_ = km.Ack()
+				if err := km.Ack(); err != nil {
+		logx.Errorf("kafka: ack error: %v", err)
+	}
 			}
 		}
 	}()

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
+	"github.com/natuleadan/sdk-api/infra/logx"
 )
 
 type ConnOptions struct {
@@ -70,7 +71,9 @@ func (c *Conn) Publish(ctx context.Context, subject string, data []byte) error {
 
 func (c *Conn) Subscribe(ctx context.Context, subject string, durable string, handler MessageHandler) (Subscription, error) {
 	sub, err := c.JS.Subscribe(subject, func(m *nats.Msg) {
-		_ = handler(ctx, &natsMessage{msg: m})
+		if err := handler(ctx, &natsMessage{msg: m}); err != nil {
+		logx.Errorf("nats: handler error: %v", err)
+	}
 	}, nats.Durable(durable), nats.ManualAck(), nats.MaxDeliver(5), nats.AckWait(30*time.Second), nats.DeliverAll())
 	if err != nil {
 		return nil, err
@@ -183,13 +186,17 @@ func (c *Conn) Drain() {
 	if c.NC == nil {
 		return
 	}
-	_ = c.NC.Drain()
+	if err := c.NC.Drain(); err != nil {
+		logx.Errorf("nats: drain error: %v", err)
+	}
 	c.NC.Close()
 }
 
 func (c *Conn) Close() error {
 	if c.NC != nil {
-		_ = c.NC.Drain()
+		if err := c.NC.Drain(); err != nil {
+		logx.Errorf("nats: drain error: %v", err)
+	}
 		c.NC.Close()
 	}
 	return nil

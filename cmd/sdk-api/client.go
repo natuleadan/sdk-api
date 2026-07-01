@@ -43,7 +43,9 @@ func runClient(args []string) error {
 	fields := fs.String("fields", "", "Field definitions: \"name:string,price:float64\"")
 	lang := fs.String("lang", "ts", "Target language: ts, py, dart, java, kotlin")
 	output := fs.String("output", "", "Output file (default: stdout)")
-	_ = fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 
 	if *model == "" || *fields == "" {
 		fmt.Fprintln(os.Stderr, "Usage: sdk-api client --model Product --fields \"name:string,price:float64\" --lang ts --output ./sdk.ts")

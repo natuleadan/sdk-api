@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"text/template"
+
+	"github.com/natuleadan/sdk-api/infra/logx"
 )
 
 //go:embed templates/main.go.tmpl
@@ -130,7 +132,9 @@ func handleModelFlag(args []string, i int, cfg *newConfig) int {
 func handlePortFlag(args []string, i int, cfg *newConfig) int {
 	if i+1 < len(args) {
 		i++
-		_, _ = fmt.Sscanf(args[i], "%d", &cfg.Port)
+		if _, err := fmt.Sscanf(args[i], "%d", &cfg.Port); err != nil {
+			logx.Errorf("new: parse port error: %v", err)
+		}
 	}
 	return i
 }

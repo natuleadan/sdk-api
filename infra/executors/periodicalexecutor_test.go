@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/proc"
 	"github.com/natuleadan/sdk-api/infra/timex"
+	"github.com/stretchr/testify/assert"
 )
 
 const threshold = 10
@@ -87,7 +87,7 @@ func TestPeriodicalExecutor_Bulk(t *testing.T) {
 	exec.newTicker = func(d time.Duration) timex.Ticker {
 		return ticker
 	}
-	for i := 0; i < threshold*10; i++ {
+	for i := range threshold * 10 {
 		if i%threshold == 5 {
 			time.Sleep(time.Millisecond * idleRound * 2)
 		}
@@ -99,7 +99,7 @@ func TestPeriodicalExecutor_Bulk(t *testing.T) {
 	ticker.Tick()
 	ticker.Wait(time.Millisecond * idleRound)
 	var expect []int
-	for i := 0; i < threshold*10; i++ {
+	for i := range threshold * 10 {
 		expect = append(expect, i)
 	}
 
@@ -129,7 +129,7 @@ func TestPeriodicalExecutor_Panic(t *testing.T) {
 	executor.newTicker = func(duration time.Duration) timex.Ticker {
 		return ticker
 	}
-	for i := 0; i < 30; i++ {
+	for i := range 30 {
 		executor.Add(i)
 		expected = append(expected, i)
 	}
@@ -156,7 +156,7 @@ func TestPeriodicalExecutor_FlushPanic(t *testing.T) {
 			panic("flush panic")
 		}
 	}))
-	for i := 0; i < 8; i++ {
+	for i := range 8 {
 		executor.Add(i)
 		expected = append(expected, i)
 	}
@@ -173,7 +173,7 @@ func TestPeriodicalExecutor_Wait(t *testing.T) {
 		defer lock.Unlock()
 		time.Sleep(10 * time.Millisecond)
 	}, WithBulkTasks(1), WithBulkInterval(time.Second))
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		executor.Add(1)
 	}
 	executor.Flush()
@@ -192,7 +192,7 @@ func TestPeriodicalExecutor_WaitFast(t *testing.T) {
 		defer lock.Unlock()
 		time.Sleep(10 * time.Millisecond)
 	}, WithBulkTasks(1), WithBulkInterval(10*time.Millisecond))
-	for i := 0; i < total; i++ {
+	for range total {
 		executor.Add(2)
 	}
 	executor.Flush()
@@ -203,7 +203,7 @@ func TestPeriodicalExecutor_WaitFast(t *testing.T) {
 func TestPeriodicalExecutor_Deadlock(t *testing.T) {
 	executor := NewBulkExecutor(func(tasks []any) {
 	}, WithBulkTasks(1), WithBulkInterval(time.Millisecond))
-	for i := 0; i < 1e5; i++ {
+	for range int(1e5) {
 		executor.Add(1)
 	}
 }

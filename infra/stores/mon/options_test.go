@@ -82,7 +82,7 @@ func TestWithRegistryForTimestampRegisterType(t *testing.T) {
 
 	codecs := []TypeCodec{
 		{
-			ValueType: reflect.TypeOf(time.Time{}),
+			ValueType: reflect.TypeFor[time.Time](),
 			Encoder:   mongoDateTimeEncoder,
 			Decoder:   mongoDateTimeDecoder,
 		},

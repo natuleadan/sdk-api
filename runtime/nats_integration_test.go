@@ -55,8 +55,8 @@ func TestIntegration_ExitWorker_Push(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	// Publish messages
-	for i := 0; i < 5; i++ {
-		conn.JS.Publish(streamName, []byte(fmt.Sprintf(`{"n":%d}`, i)))
+	for i := range 5 {
+		conn.JS.Publish(streamName, fmt.Appendf(nil, `{"n":%d}`, i))
 	}
 	time.Sleep(500 * time.Millisecond)
 
@@ -108,8 +108,8 @@ func TestIntegration_ExitWorker_Reply(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	// Publish via core NATS — JetStream will deliver to consumer
-	for i := 0; i < 3; i++ {
-		conn.NC.Publish(streamName, []byte(fmt.Sprintf(`{"n":%d}`, i)))
+	for i := range 3 {
+		conn.NC.Publish(streamName, fmt.Appendf(nil, `{"n":%d}`, i))
 	}
 	time.Sleep(500 * time.Millisecond)
 
@@ -164,7 +164,7 @@ func TestIntegration_Service_WebhookNATSPublish(t *testing.T) {
 
 	dir := t.TempDir()
 	cfgPath := dir + "/service.yaml"
-	os.WriteFile(cfgPath, []byte(fmt.Sprintf(`name: wh-test
+	os.WriteFile(cfgPath, fmt.Appendf(nil, `name: wh-test
 port: 19901
 nats:
   - name: primary
@@ -186,7 +186,7 @@ server:
   middleware:
     - path: "/*"
       apply: []
-`, natsURL)), 0644)
+`, natsURL), 0644)
 
 	svc, err := New(cfgPath)
 	if err != nil {

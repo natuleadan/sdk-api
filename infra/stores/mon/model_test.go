@@ -11,6 +11,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"go.mongodb.org/mongo-driver/v2/x/mongo/driver/drivertest"
+	"go.mongodb.org/mongo-driver/v2/x/mongo/driver/xoptions"
 	"go.uber.org/mock/gomock"
 )
 
@@ -221,7 +222,9 @@ func Test_newModel(t *testing.T) {
 func Test_mockMonClient_StartSession(t *testing.T) {
 	md := drivertest.NewMockDeployment()
 	opts := options.Client()
-	opts.Deployment = md
+	if err := xoptions.SetInternalClientOptions(opts, "deployment", md); err != nil {
+		t.Fatalf("set deployment: %v", err)
+	}
 	client, err := mongo.Connect(opts)
 	assert.Nil(t, err)
 	m := wrappedMonClient{

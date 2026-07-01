@@ -55,9 +55,8 @@ func TestLockedCallDoDupSuppress(t *testing.T) {
 	var results []int
 	var lock sync.Mutex
 	var wg sync.WaitGroup
-	for i := 0; i < n; i++ {
-		wg.Add(1)
-		go func() {
+	for range n {
+		wg.Go(func() {
 			v, err := g.Do("key", fn)
 			if err != nil {
 				t.Errorf("Do error: %v", err)
@@ -66,11 +65,10 @@ func TestLockedCallDoDupSuppress(t *testing.T) {
 			lock.Lock()
 			results = append(results, v.(int))
 			lock.Unlock()
-			wg.Done()
-		}()
+		})
 	}
 	time.Sleep(100 * time.Millisecond) // let goroutines above block
-	for i := 0; i < n; i++ {
+	for range n {
 		c <- "bar"
 	}
 	wg.Wait()

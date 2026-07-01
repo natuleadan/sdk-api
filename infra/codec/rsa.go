@@ -135,12 +135,7 @@ func (r *rsaBase) crypt(input []byte, cryptFn func([]byte) ([]byte, error)) ([]b
 
 	for i := 0; i*r.bytesLimit < inputLen; i++ {
 		start := r.bytesLimit * i
-		var stop int
-		if r.bytesLimit*(i+1) > inputLen {
-			stop = inputLen
-		} else {
-			stop = r.bytesLimit * (i + 1)
-		}
+		stop := min(r.bytesLimit*(i+1), inputLen)
 		bs, err := cryptFn(input[start:stop])
 		if err != nil {
 			return nil, err

@@ -13,7 +13,7 @@ func TestTrueOnProba(t *testing.T) {
 	const epsilon = 0.05
 	var count int
 	p := NewProba()
-	for i := 0; i < total; i++ {
+	for range total {
 		if p.TrueOnProba(proba) {
 			count++
 		}

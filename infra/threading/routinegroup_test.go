@@ -5,14 +5,14 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/logx/logtest"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestRoutineGroupRun(t *testing.T) {
 	var count int32
 	group := NewRoutineGroup()
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		group.Run(func() {
 			atomic.AddInt32(&count, 1)
 		})
@@ -29,7 +29,7 @@ func TestRoutingGroupRunSafe(t *testing.T) {
 	var count int32
 	group := NewRoutineGroup()
 	var once sync.Once
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		group.RunSafe(func() {
 			once.Do(func() {
 				panic("")

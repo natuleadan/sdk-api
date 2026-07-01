@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/stat"
+	"github.com/stretchr/testify/assert"
 )
 
 func init() {
@@ -30,7 +30,7 @@ func TestBreakersDo(t *testing.T) {
 
 func TestBreakersDoWithAcceptable(t *testing.T) {
 	errDummy := errors.New("anyone")
-	for i := 0; i < 10000; i++ {
+	for range 10000 {
 		assert.Equal(t, errDummy, GetBreaker("anyone").DoWithAcceptable(func() error {
 			return errDummy
 		}, func(err error) bool {
@@ -50,7 +50,7 @@ func TestBreakersDoWithAcceptable(t *testing.T) {
 		}) == nil
 	})
 
-	for i := 0; i < 10000; i++ {
+	for range 10000 {
 		err := DoWithAcceptable("another", func() error {
 			return errDummy
 		}, func(err error) bool {
@@ -68,7 +68,7 @@ func TestBreakersDoWithAcceptable(t *testing.T) {
 func TestBreakersNoBreakerFor(t *testing.T) {
 	NoBreakerFor("any")
 	errDummy := errors.New("any")
-	for i := 0; i < 10000; i++ {
+	for range 10000 {
 		assert.Equal(t, errDummy, GetBreaker("any").Do(func() error {
 			return errDummy
 		}))
@@ -80,7 +80,7 @@ func TestBreakersNoBreakerFor(t *testing.T) {
 
 func TestBreakersFallback(t *testing.T) {
 	errDummy := errors.New("any")
-	for i := 0; i < 10000; i++ {
+	for range 10000 {
 		err := DoWithFallback("fallback", func() error {
 			return errDummy
 		}, func(err error) error {
@@ -103,7 +103,7 @@ func TestBreakersFallback(t *testing.T) {
 
 func TestBreakersAcceptableFallback(t *testing.T) {
 	errDummy := errors.New("any")
-	for i := 0; i < 5000; i++ {
+	for range 5000 {
 		err := DoWithFallbackAcceptable("acceptablefallback", func() error {
 			return errDummy
 		}, func(err error) error {
@@ -130,7 +130,7 @@ func TestBreakersAcceptableFallback(t *testing.T) {
 
 func verify(t *testing.T, fn func() bool) {
 	var count int
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		if fn() {
 			count++
 		}

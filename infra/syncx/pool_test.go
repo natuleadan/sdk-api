@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/lang"
+	"github.com/stretchr/testify/assert"
 )
 
 const limit = 10
@@ -16,7 +16,7 @@ func TestPoolGet(t *testing.T) {
 	stack := NewPool(limit, create, destroy)
 	ch := make(chan lang.PlaceholderType)
 
-	for i := 0; i < limit; i++ {
+	for range limit {
 		var fail AtomicBool
 		go func() {
 			v := stack.Get()
@@ -42,14 +42,12 @@ func TestPoolPopTooMany(t *testing.T) {
 	stack := NewPool(limit, create, destroy)
 	ch := make(chan lang.PlaceholderType, 1)
 
-	for i := 0; i < limit; i++ {
+	for range limit {
 		var wait sync.WaitGroup
-		wait.Add(1)
-		go func() {
+		wait.Go(func() {
 			stack.Get()
 			ch <- lang.Placeholder
-			wait.Done()
-		}()
+		})
 
 		wait.Wait()
 		select {
@@ -79,7 +77,7 @@ func TestPoolPopFirst(t *testing.T) {
 		return atomic.AddInt32(&value, 1)
 	}, destroy)
 
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		v := stack.Get().(int32)
 		assert.Equal(t, 1, int(v))
 		stack.Put(v)

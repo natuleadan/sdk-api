@@ -16,7 +16,7 @@ const (
 var samples []Task
 
 func init() {
-	for i := 0; i < numSamples; i++ {
+	for range numSamples {
 		task := Task{
 			Duration: time.Duration(rand.Int63()),
 		}

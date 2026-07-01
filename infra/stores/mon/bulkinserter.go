@@ -66,7 +66,7 @@ func (bi *BulkInserter) SetResultHandler(handler ResultHandler) {
 type collectionInserter interface {
 	InsertMany(
 		ctx context.Context,
-		documents interface{},
+		documents any,
 		opts ...options.Lister[options.InsertManyOptions],
 	) (*mongo.InsertManyResult, error)
 }

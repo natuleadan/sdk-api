@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/logx/logtest"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestMetrics(t *testing.T) {
@@ -18,7 +18,7 @@ func TestMetrics(t *testing.T) {
 	for _, count := range counts {
 		m := NewMetrics("foo")
 		m.SetName("bar")
-		for i := 0; i < count; i++ {
+		for i := range count {
 			m.Add(Task{
 				Duration:    time.Millisecond * time.Duration(i),
 				Description: strconv.Itoa(i),

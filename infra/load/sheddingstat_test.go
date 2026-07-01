@@ -9,13 +9,13 @@ import (
 
 func TestSheddingStat(t *testing.T) {
 	st := NewSheddingStat("any")
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		st.IncrementTotal()
 	}
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		st.IncrementPass()
 	}
-	for i := 0; i < 7; i++ {
+	for range 7 {
 		st.IncrementDrop()
 	}
 	result := st.reset()

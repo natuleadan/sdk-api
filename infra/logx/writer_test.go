@@ -299,7 +299,7 @@ func TestLogWithLimitContentLength(t *testing.T) {
 
 func TestComboWriter(t *testing.T) {
 	var mockWriters []Writer
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		mockWriters = append(mockWriters, new(tracedWriter))
 	}
 

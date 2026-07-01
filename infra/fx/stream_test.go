@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/logx/logtest"
 	"github.com/natuleadan/sdk-api/infra/stringx"
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/goleak"
 )
 
@@ -26,7 +26,7 @@ func TestBuffer(t *testing.T) {
 			ticker := time.NewTicker(10 * time.Millisecond)
 			defer ticker.Stop()
 
-			for i := 0; i < 2*N; i++ {
+			for i := range 2 * N {
 				select {
 				case source <- i:
 					atomic.AddInt32(&count, 1)

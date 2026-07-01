@@ -166,17 +166,11 @@ func (t *mysqlCRUD[T]) List(ctx *fiber.Ctx, params ListParams) error {
 		return fiber.NewError(500, err.Error())
 	}
 	total := int64(len(items))
-	start := (params.Page - 1) * params.Size
-	if start < 0 {
-		start = 0
-	}
+	start := max((params.Page-1)*params.Size, 0)
 	if start > len(items) {
 		start = len(items)
 	}
-	end := start + params.Size
-	if end > len(items) {
-		end = len(items)
-	}
+	end := min(start+params.Size, len(items))
 	return ctx.JSON(PaginatedResponse{Data: items[start:end], Total: total, Page: params.Page, Size: params.Size})
 }
 
@@ -268,17 +262,11 @@ func (t *tursoCRUD[T]) List(ctx *fiber.Ctx, params ListParams) error {
 		return fiber.NewError(500, err.Error())
 	}
 	total := int64(len(items))
-	start := (params.Page - 1) * params.Size
-	if start < 0 {
-		start = 0
-	}
+	start := max((params.Page-1)*params.Size, 0)
 	if start > len(items) {
 		start = len(items)
 	}
-	end := start + params.Size
-	if end > len(items) {
-		end = len(items)
-	}
+	end := min(start+params.Size, len(items))
 	return ctx.JSON(PaginatedResponse{Data: items[start:end], Total: total, Page: params.Page, Size: params.Size})
 }
 

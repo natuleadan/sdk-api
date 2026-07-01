@@ -18,7 +18,7 @@ func TestChunkExecutor(t *testing.T) {
 		lock.Unlock()
 	}, WithChunkBytes(10), WithFlushInterval(time.Minute))
 
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		executor.Add(1, 1)
 		time.Sleep(time.Millisecond)
 	}
@@ -45,7 +45,7 @@ func TestChunkExecutorFlushInterval(t *testing.T) {
 		wait.Done()
 	}, WithChunkBytes(caches), WithFlushInterval(time.Millisecond*100))
 
-	for i := 0; i < size; i++ {
+	for range size {
 		executor.Add(1, 1)
 	}
 
@@ -72,7 +72,7 @@ func TestChunkExecutorFlush(t *testing.T) {
 		assert.Equal(t, tasks, len(items))
 		wait.Done()
 	}, WithChunkBytes(caches), WithFlushInterval(time.Minute))
-	for i := 0; i < tasks; i++ {
+	for range tasks {
 		be.Add(1, 1)
 	}
 	be.Flush()

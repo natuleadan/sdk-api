@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/stringx"
+	"github.com/stretchr/testify/assert"
 )
 
 const duration = time.Millisecond * 50
@@ -100,7 +100,7 @@ func TestRollingWindowReduce(t *testing.T) {
 	for _, test := range tests {
 		t.Run(stringx.Rand(), func(t *testing.T) {
 			r := test.win
-			for x := 0; x < size; x++ {
+			for x := range size {
 				for i := 0; i <= x; i++ {
 					r.Add(float64(i))
 				}

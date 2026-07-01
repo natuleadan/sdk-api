@@ -26,11 +26,11 @@ const (
 func Marshal(val any) (map[string]map[string]any, error) {
 	ret := make(map[string]map[string]any)
 	tp := reflect.TypeOf(val)
-	if tp.Kind() == reflect.Ptr {
+	if tp.Kind() == reflect.Pointer {
 		tp = tp.Elem()
 	}
 	rv := reflect.ValueOf(val)
-	if rv.Kind() == reflect.Ptr {
+	if rv.Kind() == reflect.Pointer {
 		rv = rv.Elem()
 	}
 
@@ -47,8 +47,8 @@ func Marshal(val any) (map[string]map[string]any, error) {
 
 func getTag(field reflect.StructField) (string, bool) {
 	tag := string(field.Tag)
-	if i := strings.Index(tag, tagKVSeparator); i >= 0 {
-		return strings.TrimSpace(tag[:i]), true
+	if before, _, ok := strings.Cut(tag, tagKVSeparator); ok {
+		return strings.TrimSpace(before), true
 	}
 
 	return strings.TrimSpace(tag), false
@@ -139,7 +139,7 @@ func validate(field reflect.StructField, value reflect.Value, opt *fieldOptions)
 
 func validateOptional(field reflect.StructField, value reflect.Value) error {
 	switch field.Type.Kind() {
-	case reflect.Ptr:
+	case reflect.Pointer:
 		if value.IsNil() {
 			return fmt.Errorf("field %q is nil", field.Name)
 		}

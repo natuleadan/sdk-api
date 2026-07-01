@@ -8,7 +8,7 @@ import (
 func TestDoneChanClose(t *testing.T) {
 	doneChan := NewDoneChan()
 
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		doneChan.Close()
 	}
 }
@@ -17,13 +17,11 @@ func TestDoneChanDone(t *testing.T) {
 	var waitGroup sync.WaitGroup
 	doneChan := NewDoneChan()
 
-	waitGroup.Add(1)
-	go func() {
+	waitGroup.Go(func() {
 		<-doneChan.Done()
-		waitGroup.Done()
-	}()
+	})
 
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		doneChan.Close()
 	}
 

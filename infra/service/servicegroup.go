@@ -81,7 +81,6 @@ func (sg *ServiceGroup) doStop() {
 	for _, service := range sg.services {
 		// new variable to avoid closure problems, can be removed after go 1.22
 		// see https://golang.org/doc/faq#closures_and_goroutines
-		service := service
 		group.Run(service.Stop)
 	}
 	group.Wait()

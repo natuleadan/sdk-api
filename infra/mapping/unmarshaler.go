@@ -30,7 +30,7 @@ var (
 	errValueNotSettable = errors.New("value is not settable")
 	errValueNotStruct   = errors.New("value type is not struct")
 	keyUnmarshaler      = NewUnmarshaler(defaultKeyName)
-	durationType        = reflect.TypeOf(time.Duration(0))
+	durationType        = reflect.TypeFor[time.Duration]()
 	cacheKeys           = make(map[string][]string)
 	cacheKeysLock       sync.Mutex
 	defaultCache        = make(map[string]any)
@@ -242,7 +242,7 @@ func (u *Unmarshaler) fillSliceValue(slice reflect.Value, index int,
 	default:
 		// don't need to consider the difference between int, int8, int16, int32, int64,
 		// uint, uint8, uint16, uint32, uint64, because they're handled as json.Number.
-		if ithVal.Kind() == reflect.Ptr {
+		if ithVal.Kind() == reflect.Pointer {
 			baseType := Deref(ithValType)
 			if !reflect.TypeOf(value).AssignableTo(baseType) {
 				return errTypeMismatch
@@ -424,7 +424,7 @@ func (u *Unmarshaler) generateMap(keyType, elemType reflect.Type, mapValue any,
 func (u *Unmarshaler) implementsUnmarshaler(t reflect.Type) bool {
 	switch u.key {
 	case jsonTagKey:
-		return t.Implements(reflect.TypeOf((*json.Unmarshaler)(nil)).Elem())
+		return t.Implements(reflect.TypeFor[json.Unmarshaler]())
 	default:
 		return false
 	}
@@ -696,7 +696,7 @@ func (u *Unmarshaler) processFieldPrimitiveWithJSONNumber(fieldType reflect.Type
 
 		// if the value is a pointer, we need to check overflow with the pointer's value.
 		derefedValue := value
-		for derefedValue.Type().Kind() == reflect.Ptr {
+		for derefedValue.Type().Kind() == reflect.Pointer {
 			derefedValue = derefedValue.Elem()
 		}
 		if derefedValue.CanFloat() && derefedValue.OverflowFloat(fValue) {
@@ -722,7 +722,7 @@ func (u *Unmarshaler) processFieldPrimitiveWithJSONNumber(fieldType reflect.Type
 
 func (u *Unmarshaler) processFieldStruct(fieldType reflect.Type, value reflect.Value,
 	m valuerWithParent, fullName string) error {
-	if fieldType.Kind() == reflect.Ptr {
+	if fieldType.Kind() == reflect.Pointer {
 		baseType := Deref(fieldType)
 		target := reflect.New(baseType).Elem()
 		if err := u.unmarshalWithFullName(m, target.Addr().Interface(), fullName); err != nil {
@@ -742,8 +742,8 @@ func (u *Unmarshaler) processFieldTextUnmarshaler(fieldType reflect.Type, value 
 	var tval encoding.TextUnmarshaler
 	var ok bool
 
-	if fieldType.Kind() == reflect.Ptr {
-		if value.Elem().Kind() == reflect.Ptr {
+	if fieldType.Kind() == reflect.Pointer {
+		if value.Elem().Kind() == reflect.Pointer {
 			target := reflect.New(Deref(fieldType))
 			SetValue(fieldType.Elem(), value, target)
 			tval, ok = target.Interface().(encoding.TextUnmarshaler)
@@ -939,7 +939,7 @@ func (u *Unmarshaler) processNamedFieldWithoutValue(fieldType reflect.Type, valu
 	}
 
 	if u.opts.fillDefault {
-		if fieldType.Kind() != reflect.Ptr && fieldKind == reflect.Struct {
+		if fieldType.Kind() != reflect.Pointer && fieldKind == reflect.Struct {
 			return u.processFieldNotFromString(fieldType, value, valueWithParent{
 				value: emptyMap,
 			}, opts, fullName)
@@ -980,7 +980,7 @@ func (u *Unmarshaler) processNamedFieldWithoutValue(fieldType reflect.Type, valu
 
 func (u *Unmarshaler) unmarshal(i, v any, fullName string) error {
 	valueType := reflect.TypeOf(v)
-	if valueType.Kind() != reflect.Ptr {
+	if valueType.Kind() != reflect.Pointer {
 		return errValueNotSettable
 	}
 
@@ -1020,14 +1020,14 @@ func (u *Unmarshaler) unmarshalWithFullName(m valuerWithParent, v any, fullName 
 	}
 
 	valElem := rv.Elem()
-	if valElem.Kind() == reflect.Ptr {
+	if valElem.Kind() == reflect.Pointer {
 		target := reflect.New(baseType).Elem()
 		SetValue(valueType.Elem(), valElem, target)
 		valElem = target
 	}
 
 	numFields := baseType.NumField()
-	for i := 0; i < numFields; i++ {
+	for i := range numFields {
 		typeField := baseType.Field(i)
 		valueField := valElem.Field(i)
 		if err := u.processField(typeField, valueField, m, fullName); err != nil {
@@ -1109,7 +1109,7 @@ func fillPrimitive(fieldType reflect.Type, value reflect.Value, mapValue any,
 	}
 
 	baseType := Deref(fieldType)
-	if fieldType.Kind() == reflect.Ptr {
+	if fieldType.Kind() == reflect.Pointer {
 		target := reflect.New(baseType).Elem()
 		switch mapValue.(type) {
 		case string, json.Number:
@@ -1141,7 +1141,7 @@ func fillWithSameType(fieldType reflect.Type, value reflect.Value, mapValue any,
 		return err
 	}
 
-	if fieldType.Kind() == reflect.Ptr {
+	if fieldType.Kind() == reflect.Pointer {
 		baseType := Deref(fieldType)
 		target := reflect.New(baseType).Elem()
 		setSameKindValue(baseType, target, mapValue)

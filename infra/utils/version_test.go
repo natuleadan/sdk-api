@@ -32,7 +32,6 @@ func TestCompareVersions(t *testing.T) {
 	}
 
 	for _, each := range cases {
-		each := each
 		t.Run(each.ver1, func(t *testing.T) {
 			actual := CompareVersions(each.ver1, each.operator, each.ver2)
 			assert.Equal(t, each.out, actual, fmt.Sprintf("%s vs %s", each.ver1, each.ver2))
@@ -50,7 +49,6 @@ func TestStrsToInts(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run("", func(t *testing.T) {
 			actual := strsToInts(tc.input)
 			assert.Equal(t, tc.expected, actual)

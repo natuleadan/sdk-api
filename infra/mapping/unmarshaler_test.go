@@ -12,9 +12,9 @@ import (
 	"unicode"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/jsonx"
 	"github.com/natuleadan/sdk-api/infra/stringx"
+	"github.com/stretchr/testify/assert"
 )
 
 // because json.Number doesn't support strconv.ParseUint(...),
@@ -5262,7 +5262,6 @@ func TestUnmarshalJsonReaderWithTypeBool(t *testing.T) {
 		}
 
 		for _, test := range tests {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				var req Req
 				if assert.NoError(t, UnmarshalJsonReader(strings.NewReader(test.input), &req)) {
@@ -5292,7 +5291,6 @@ func TestUnmarshalJsonReaderWithTypeBool(t *testing.T) {
 		}
 
 		for _, test := range tests {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				var req Req
 				assert.Equal(t, errTypeMismatch, UnmarshalJsonReader(strings.NewReader(test.input), &req))
@@ -5739,7 +5737,7 @@ func TestUnmarshalerProcessFieldPrimitiveWithJSONNumber(t *testing.T) {
 	t.Run("wrong type", func(t *testing.T) {
 		expectValue := "1"
 		realValue := 1
-		fieldType := reflect.TypeOf(expectValue)
+		fieldType := reflect.TypeFor[string]()
 		value := reflect.ValueOf(&realValue) // pass a pointer to the value
 		v := json.Number(expectValue)
 		m := NewUnmarshaler("field")
@@ -5752,7 +5750,7 @@ func TestUnmarshalerProcessFieldPrimitiveWithJSONNumber(t *testing.T) {
 	t.Run("right type", func(t *testing.T) {
 		expectValue := int64(1)
 		realValue := int64(1)
-		fieldType := reflect.TypeOf(expectValue)
+		fieldType := reflect.TypeFor[int64]()
 		value := reflect.ValueOf(&realValue) // pass a pointer to the value
 		v := json.Number(strconv.FormatInt(expectValue, 10))
 		m := NewUnmarshaler("field")

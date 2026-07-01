@@ -13,7 +13,7 @@ func TestDelayExecutor(t *testing.T) {
 	ex := NewDelayExecutor(func() {
 		atomic.AddInt32(&count, 1)
 	}, time.Millisecond*10)
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		ex.Trigger()
 	}
 	time.Sleep(time.Millisecond * 100)

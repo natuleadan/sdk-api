@@ -576,12 +576,12 @@ func TestRegisterEntries_MixedTypes(t *testing.T) {
 
 	// All routes should respond
 	paths := map[string]string{
-		"crud list":  "/api/v1/products",
-		"crud get":   "/api/v1/products/1",
-		"rest":       "/api/v1/transform",
-		"webhook":    "/api/v1/webhooks/github",
-		"ws":         "/api/v1/ws/chat",
-		"sse":        "/api/v1/events/stream",
+		"crud list": "/api/v1/products",
+		"crud get":  "/api/v1/products/1",
+		"rest":      "/api/v1/transform",
+		"webhook":   "/api/v1/webhooks/github",
+		"ws":        "/api/v1/ws/chat",
+		"sse":       "/api/v1/events/stream",
 	}
 	for name, path := range paths {
 		resp, err := request(app, "GET", path, nil)
@@ -754,8 +754,8 @@ func TestBuildIDParam(t *testing.T) {
 	}{
 		{"/products", "/:id"},
 		{"/products/:id", ""},
-		{"/users/orders/:orderId", ""},    // any :param triggers no addition
-		{"/items/:itemID/subs", ""},       // param in middle = path has its own param
+		{"/users/orders/:orderId", ""}, // any :param triggers no addition
+		{"/items/:itemID/subs", ""},    // param in middle = path has its own param
 	}
 	for _, tt := range tests {
 		got := buildIDParam(tt.path)
@@ -900,7 +900,7 @@ func TestRegisterEntries_GraphQL(t *testing.T) {
 		Name  string `db:"name,required"`
 		Price int    `db:"price"`
 	}
-	mInfo, _ := db.ParseStructReflect(reflect.TypeOf(ProductStruct{}))
+	mInfo, _ := db.ParseStructReflect(reflect.TypeFor[ProductStruct]())
 	models := map[string]*db.TableInfo{"Product": mInfo}
 
 	provider := &mockCRUDProvider{}

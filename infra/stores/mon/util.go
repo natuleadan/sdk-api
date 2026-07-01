@@ -41,21 +41,23 @@ func logDurationWithDocs(ctx context.Context, name, method string, startTime tim
 	// jerr should not be non-nil, but we don't care much on this,
 	// if non-nil, we just log without docs.
 	if jerr != nil {
-		if err != nil {
+		switch {
+		case err != nil:
 			logger.Errorf("mongo(%s) - %s - fail(%s)", name, method, err.Error())
-		} else if logSlowMon.True() && duration > slowThreshold.Load() {
+		case logSlowMon.True() && duration > slowThreshold.Load():
 			logger.Slowf("[MONGO] mongo(%s) - slowcall - %s - ok", name, method)
-		} else if logMon.True() {
+		case logMon.True():
 			logger.Infof("mongo(%s) - %s - ok", name, method)
 		}
 		return
 	}
 
-	if err != nil {
+	switch {
+	case err != nil:
 		logger.Errorf("mongo(%s) - %s - fail(%s) - %s", name, method, err.Error(), string(content))
-	} else if logSlowMon.True() && duration > slowThreshold.Load() {
+	case logSlowMon.True() && duration > slowThreshold.Load():
 		logger.Slowf("[MONGO] mongo(%s) - slowcall - %s - ok - %s", name, method, string(content))
-	} else if logMon.True() {
+	case logMon.True():
 		logger.Infof("mongo(%s) - %s - ok - %s", name, method, string(content))
 	}
 }

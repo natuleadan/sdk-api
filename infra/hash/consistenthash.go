@@ -2,6 +2,7 @@ package hash
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"sync"
@@ -82,9 +83,7 @@ func (h *ConsistentHash) AddWithReplicas(node any, replicas int) {
 		h.ring[hash] = append(h.ring[hash], node)
 	}
 
-	sort.Slice(h.keys, func(i, j int) bool {
-		return h.keys[i] < h.keys[j]
-	})
+	slices.Sort(h.keys)
 }
 
 // AddWithWeight adds the node with weight, the weight can be 1 to 100, indicates the percent,

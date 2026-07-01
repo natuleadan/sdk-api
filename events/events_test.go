@@ -99,8 +99,7 @@ func TestConsumePull(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
 
 	var received atomic.Int32
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	cfg := DefaultConsumerConfig(name, name+"-c1")
 	cfg.Subject = name
@@ -131,8 +130,7 @@ func TestConsumePush(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
 
 	var received atomic.Int32
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	cfg := DefaultConsumerConfig(name, name+"-c1")
 	cfg.Subject = name
@@ -157,8 +155,7 @@ func TestConsumeNakThenAck(t *testing.T) {
 	name := testStream(t, conn, "nak-ack")
 
 	var count atomic.Int32
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	cfg := DefaultConsumerConfig(name, name+"-c1")
 	cfg.Subject = name
@@ -192,8 +189,7 @@ func TestConsumeTerm(t *testing.T) {
 	conn := testConn(t)
 	name := testStream(t, conn, "term")
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	cfg := DefaultConsumerConfig(name, name+"-c1")
 	cfg.Subject = name
@@ -217,8 +213,7 @@ func TestConsumerJSONError(t *testing.T) {
 	conn := testConn(t)
 	name := testStream(t, conn, "json-err")
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	cfg := DefaultConsumerConfig(name, name+"-c1")
 	cfg.Subject = name
@@ -248,8 +243,7 @@ func TestConsumeQueueGroup(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
 
 	var total atomic.Int32
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	cfg := DefaultConsumerConfig(name, name+"-durable")
 	cfg.Subject = name

@@ -15,7 +15,7 @@ func TestNewRing(t *testing.T) {
 
 func TestRingLess(t *testing.T) {
 	ring := NewRing(5)
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		ring.Add(i)
 	}
 	elements := ring.Take()
@@ -24,7 +24,7 @@ func TestRingLess(t *testing.T) {
 
 func TestRingMore(t *testing.T) {
 	ring := NewRing(5)
-	for i := 0; i < 11; i++ {
+	for i := range 11 {
 		ring.Add(i)
 	}
 	elements := ring.Take()

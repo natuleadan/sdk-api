@@ -11,12 +11,12 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/errorx"
 	"github.com/natuleadan/sdk-api/infra/hash"
 	"github.com/natuleadan/sdk-api/infra/stores/redis"
 	"github.com/natuleadan/sdk-api/infra/stores/redis/redistest"
 	"github.com/natuleadan/sdk-api/infra/syncx"
+	"github.com/stretchr/testify/assert"
 )
 
 var _ Cache = (*mockedNode)(nil)
@@ -131,24 +131,24 @@ func TestCache_SetDel(t *testing.T) {
 			},
 		}
 		c := New(conf, syncx.NewSingleFlight(), NewStat("mock"), errPlaceholder)
-		for i := 0; i < total; i++ {
+		for i := range total {
 			if i%2 == 0 {
 				assert.Nil(t, c.Set(fmt.Sprintf("key/%d", i), i))
 			} else {
 				assert.Nil(t, c.SetWithExpire(fmt.Sprintf("key/%d", i), i, 0))
 			}
 		}
-		for i := 0; i < total; i++ {
+		for i := range total {
 			var val int
 			assert.Nil(t, c.Get(fmt.Sprintf("key/%d", i), &val))
 			assert.Equal(t, i, val)
 		}
 		assert.Nil(t, c.Del())
-		for i := 0; i < total; i++ {
+		for i := range total {
 			assert.Nil(t, c.Del(fmt.Sprintf("key/%d", i)))
 		}
 		assert.Nil(t, c.Del("a", "b", "c"))
-		for i := 0; i < total; i++ {
+		for i := range total {
 			var val int
 			assert.True(t, c.IsNotFound(c.Get(fmt.Sprintf("key/%d", i), &val)))
 			assert.Equal(t, 0, val)
@@ -200,23 +200,23 @@ func TestCache_OneNode(t *testing.T) {
 		},
 	}
 	c := New(conf, syncx.NewSingleFlight(), NewStat("mock"), errPlaceholder)
-	for i := 0; i < total; i++ {
+	for i := range total {
 		if i%2 == 0 {
 			assert.Nil(t, c.Set(fmt.Sprintf("key/%d", i), i))
 		} else {
 			assert.Nil(t, c.SetWithExpire(fmt.Sprintf("key/%d", i), i, 0))
 		}
 	}
-	for i := 0; i < total; i++ {
+	for i := range total {
 		var val int
 		assert.Nil(t, c.Get(fmt.Sprintf("key/%d", i), &val))
 		assert.Equal(t, i, val)
 	}
 	assert.Nil(t, c.Del())
-	for i := 0; i < total; i++ {
+	for i := range total {
 		assert.Nil(t, c.Del(fmt.Sprintf("key/%d", i)))
 	}
-	for i := 0; i < total; i++ {
+	for i := range total {
 		var val int
 		assert.True(t, c.IsNotFound(c.Get(fmt.Sprintf("key/%d", i), &val)))
 		assert.Equal(t, 0, val)
@@ -230,12 +230,12 @@ func TestCache_Balance(t *testing.T) {
 	)
 	dispatcher := hash.NewConsistentHash()
 	maps := make([]map[string][]byte, numNodes)
-	for i := 0; i < numNodes; i++ {
+	for i := range numNodes {
 		maps[i] = map[string][]byte{
 			strconv.Itoa(i): []byte(strconv.Itoa(i)),
 		}
 	}
-	for i := 0; i < numNodes; i++ {
+	for i := range numNodes {
 		dispatcher.AddWithWeight(&mockedNode{
 			vals:        maps[i],
 			errNotFound: errPlaceholder,
@@ -246,7 +246,7 @@ func TestCache_Balance(t *testing.T) {
 		dispatcher:  dispatcher,
 		errNotFound: errPlaceholder,
 	}
-	for i := 0; i < total; i++ {
+	for i := range total {
 		assert.Nil(t, c.Set(strconv.Itoa(i), i))
 	}
 
@@ -258,19 +258,19 @@ func TestCache_Balance(t *testing.T) {
 	assert.True(t, len(counts) > 1)
 	assert.True(t, entropy > .95, fmt.Sprintf("entropy should be greater than 0.95, but got %.2f", entropy))
 
-	for i := 0; i < total; i++ {
+	for i := range total {
 		var val int
 		assert.Nil(t, c.Get(strconv.Itoa(i), &val))
 		assert.Equal(t, i, val)
 	}
 
-	for i := 0; i < total/10; i++ {
+	for i := range total / 10 {
 		assert.Nil(t, c.Del(strconv.Itoa(i*10), strconv.Itoa(i*10+1), strconv.Itoa(i*10+2)))
 		assert.Nil(t, c.Del(strconv.Itoa(i*10+9)))
 	}
 
 	var count int
-	for i := 0; i < total/10; i++ {
+	for i := range total / 10 {
 		var val int
 		if i%2 == 0 {
 			assert.Nil(t, c.Take(&val, strconv.Itoa(i*10), func(val any) error {

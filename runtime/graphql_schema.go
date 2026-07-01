@@ -22,12 +22,12 @@ var goTypeToGQL = map[reflect.Kind]*graphql.Scalar{
 }
 
 func goFieldToGQLType(field db.FieldInfo) graphql.Output {
-	if field.FieldType.Kind() == reflect.Ptr {
+	if field.FieldType.Kind() == reflect.Pointer {
 		return goFieldToGQLType(db.FieldInfo{FieldType: field.FieldType.Elem()})
 	}
 	if field.FieldType.Kind() == reflect.Slice {
 		elem := field.FieldType.Elem()
-		if elem.Kind() == reflect.Ptr {
+		if elem.Kind() == reflect.Pointer {
 			elem = elem.Elem()
 		}
 		return graphql.NewList(goFieldToGQLType(db.FieldInfo{FieldType: elem}))
@@ -71,18 +71,18 @@ func buildQueryFields(models map[string]*db.TableInfo, providers map[string]CRUD
 			Args: graphql.FieldConfigArgument{
 				"id": &graphql.ArgumentConfig{Type: graphql.NewNonNull(graphql.ID)},
 			},
-			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			Resolve: func(p graphql.ResolveParams) (any, error) {
 				return resolveGet(p, name, providers)
 			},
 		}
 		queryFields[pluralName] = &graphql.Field{
 			Type: graphql.NewList(obj),
 			Args: graphql.FieldConfigArgument{
-				"page":  &graphql.ArgumentConfig{Type: graphql.Int},
-				"size":  &graphql.ArgumentConfig{Type: graphql.Int},
-				"sort":  &graphql.ArgumentConfig{Type: graphql.String},
+				"page": &graphql.ArgumentConfig{Type: graphql.Int},
+				"size": &graphql.ArgumentConfig{Type: graphql.Int},
+				"sort": &graphql.ArgumentConfig{Type: graphql.String},
 			},
-			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			Resolve: func(p graphql.ResolveParams) (any, error) {
 				return resolveList(p, name, providers)
 			},
 		}
@@ -104,7 +104,7 @@ func buildMutationFields(models map[string]*db.TableInfo, providers map[string]C
 			Args: graphql.FieldConfigArgument{
 				"input": &graphql.ArgumentConfig{Type: graphql.NewNonNull(createInput)},
 			},
-			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			Resolve: func(p graphql.ResolveParams) (any, error) {
 				return resolveCreate(p, name, providers)
 			},
 		}
@@ -114,7 +114,7 @@ func buildMutationFields(models map[string]*db.TableInfo, providers map[string]C
 				"id":    &graphql.ArgumentConfig{Type: graphql.NewNonNull(graphql.ID)},
 				"input": &graphql.ArgumentConfig{Type: graphql.NewNonNull(updateInput)},
 			},
-			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			Resolve: func(p graphql.ResolveParams) (any, error) {
 				return resolveUpdate(p, name, providers)
 			},
 		}
@@ -123,7 +123,7 @@ func buildMutationFields(models map[string]*db.TableInfo, providers map[string]C
 			Args: graphql.FieldConfigArgument{
 				"id": &graphql.ArgumentConfig{Type: graphql.NewNonNull(graphql.ID)},
 			},
-			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			Resolve: func(p graphql.ResolveParams) (any, error) {
 				return resolveDelete(p, name, providers)
 			},
 		}
@@ -181,7 +181,7 @@ func buildGraphQLSchema(handlers *EntryHandlers, models map[string]*db.TableInfo
 	return &schema, nil
 }
 
-func resolveGet(p graphql.ResolveParams, modelName string, providers map[string]CRUDProvider) (interface{}, error) {
+func resolveGet(p graphql.ResolveParams, modelName string, providers map[string]CRUDProvider) (any, error) {
 	provider, ok := providers[modelName]
 	if !ok {
 		return nil, fmt.Errorf("no provider for model %q", modelName)
@@ -195,7 +195,7 @@ func resolveGet(p graphql.ResolveParams, modelName string, providers map[string]
 	return result, nil
 }
 
-func resolveList(p graphql.ResolveParams, modelName string, providers map[string]CRUDProvider) (interface{}, error) {
+func resolveList(p graphql.ResolveParams, modelName string, providers map[string]CRUDProvider) (any, error) {
 	provider, ok := providers[modelName]
 	if !ok {
 		return nil, fmt.Errorf("no provider for model %q", modelName)
@@ -219,7 +219,7 @@ func resolveList(p graphql.ResolveParams, modelName string, providers map[string
 	return result, nil
 }
 
-func resolveCreate(p graphql.ResolveParams, modelName string, providers map[string]CRUDProvider) (interface{}, error) {
+func resolveCreate(p graphql.ResolveParams, modelName string, providers map[string]CRUDProvider) (any, error) {
 	provider, ok := providers[modelName]
 	if !ok {
 		return nil, fmt.Errorf("no provider for model %q", modelName)
@@ -232,7 +232,7 @@ func resolveCreate(p graphql.ResolveParams, modelName string, providers map[stri
 	return result, nil
 }
 
-func resolveUpdate(p graphql.ResolveParams, modelName string, providers map[string]CRUDProvider) (interface{}, error) {
+func resolveUpdate(p graphql.ResolveParams, modelName string, providers map[string]CRUDProvider) (any, error) {
 	provider, ok := providers[modelName]
 	if !ok {
 		return nil, fmt.Errorf("no provider for model %q", modelName)
@@ -246,7 +246,7 @@ func resolveUpdate(p graphql.ResolveParams, modelName string, providers map[stri
 	return result, nil
 }
 
-func resolveDelete(p graphql.ResolveParams, modelName string, providers map[string]CRUDProvider) (interface{}, error) {
+func resolveDelete(p graphql.ResolveParams, modelName string, providers map[string]CRUDProvider) (any, error) {
 	provider, ok := providers[modelName]
 	if !ok {
 		return nil, fmt.Errorf("no provider for model %q", modelName)

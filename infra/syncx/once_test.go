@@ -12,7 +12,7 @@ func TestOnce(t *testing.T) {
 		v++
 	})
 
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		add()
 	}
 

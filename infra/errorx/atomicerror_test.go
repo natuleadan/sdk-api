@@ -42,11 +42,9 @@ func BenchmarkAtomicError(b *testing.B) {
 				if atomic.LoadUint32(&done) != 0 {
 					break
 				}
-				wg.Add(1)
-				go func() {
+				wg.Go(func() {
 					aerr.Set(errDummy)
-					wg.Done()
-				}()
+				})
 			}
 		}()
 		b.ResetTimer()
@@ -64,11 +62,9 @@ func BenchmarkAtomicError(b *testing.B) {
 				if atomic.LoadUint32(&done) != 0 {
 					break
 				}
-				wg.Add(1)
-				go func() {
+				wg.Go(func() {
 					_ = aerr.Load()
-					wg.Done()
-				}()
+				})
 			}
 		}()
 		b.ResetTimer()

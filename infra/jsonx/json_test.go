@@ -193,7 +193,6 @@ func Test_doMarshalJson(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := Marshal(tt.args.v)
 			if !tt.wantErr(t, err, fmt.Sprintf("Marshal(%v)", tt.args.v)) {

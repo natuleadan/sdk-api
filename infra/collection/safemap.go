@@ -1,5 +1,7 @@
 package collection
 
+import "maps"
+
 import "sync"
 
 const (
@@ -39,18 +41,14 @@ func (m *SafeMap) Del(key any) {
 		m.deletionNew++
 	}
 	if m.deletionOld >= maxDeletion && len(m.dirtyOld) < copyThreshold {
-		for k, v := range m.dirtyOld {
-			m.dirtyNew[k] = v
-		}
+		maps.Copy(m.dirtyNew, m.dirtyOld)
 		m.dirtyOld = m.dirtyNew
 		m.deletionOld = m.deletionNew
 		m.dirtyNew = make(map[any]any)
 		m.deletionNew = 0
 	}
 	if m.deletionNew >= maxDeletion && len(m.dirtyNew) < copyThreshold {
-		for k, v := range m.dirtyNew {
-			m.dirtyOld[k] = v
-		}
+		maps.Copy(m.dirtyOld, m.dirtyNew)
 		m.dirtyNew = make(map[any]any)
 		m.deletionNew = 0
 	}

@@ -17,7 +17,7 @@ func FuzzNodeFind(f *testing.F) {
 	f.Fuzz(func(t *testing.T, keys int) {
 		str := Randn(rand.Intn(100) + 50)
 		keywords := make(map[string]struct{})
-		for i := 0; i < keys; i++ {
+		for range keys {
 			keyword := Randn(rand.Intn(10) + 5)
 			if !strings.Contains(str, keyword) {
 				keywords[keyword] = struct{}{}
@@ -29,10 +29,7 @@ func FuzzNodeFind(f *testing.F) {
 		var n node
 		for i := 0; i < size%20; i++ {
 			start := rand.Intn(size)
-			stop := start + rand.Intn(20) + 1
-			if stop > size {
-				stop = size
-			}
+			stop := min(start+rand.Intn(20)+1, size)
 			if start == stop {
 				continue
 			}

@@ -13,7 +13,7 @@ func TestLessLogger_Error(t *testing.T) {
 	defer writer.Store(old)
 
 	l := NewLessLogger(500)
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		l.Error("hello")
 	}
 
@@ -26,7 +26,7 @@ func TestLessLogger_Errorf(t *testing.T) {
 	defer writer.Store(old)
 
 	l := NewLessLogger(500)
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		l.Errorf("hello")
 	}
 

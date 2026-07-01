@@ -138,7 +138,7 @@ func handlePortFlag(args []string, i int, cfg *newConfig) int {
 func handleFieldsFlag(args []string, i int, cfg *newConfig) int {
 	if i+1 < len(args) {
 		i++
-		for _, f := range strings.Split(args[i], ",") {
+		for f := range strings.SplitSeq(args[i], ",") {
 			f = strings.TrimSpace(f)
 			parts := strings.SplitN(f, ":", 2)
 			if len(parts) != 2 {
@@ -160,7 +160,7 @@ func handleFieldsFlag(args []string, i int, cfg *newConfig) int {
 func handleConsumeFlag(args []string, i int, cfg *newConfig) int {
 	if i+1 < len(args) {
 		i++
-		for _, c := range strings.Split(args[i], ",") {
+		for c := range strings.SplitSeq(args[i], ",") {
 			parts := strings.SplitN(c, ":", 3)
 			if len(parts) >= 2 {
 				cd := consumerDef{
@@ -188,7 +188,7 @@ func handleConsumeFlag(args []string, i int, cfg *newConfig) int {
 func handlePublishFlag(args []string, i int, cfg *newConfig) int {
 	if i+1 < len(args) {
 		i++
-		for _, p := range strings.Split(args[i], ",") {
+		for p := range strings.SplitSeq(args[i], ",") {
 			parts := strings.SplitN(p, ":", 2)
 			pd := producerDef{Stream: strings.TrimSpace(parts[0])}
 			if len(parts) >= 2 {
@@ -206,7 +206,7 @@ func handlePublishFlag(args []string, i int, cfg *newConfig) int {
 func handleExitFlag(args []string, i int, cfg *newConfig) int {
 	if i+1 < len(args) {
 		i++
-		for _, e := range strings.Split(args[i], ",") {
+		for e := range strings.SplitSeq(args[i], ",") {
 			parts := strings.SplitN(e, ":", 3)
 			if len(parts) >= 2 {
 				ed := exitWorkerDef{
@@ -229,7 +229,7 @@ func handleExitFlag(args []string, i int, cfg *newConfig) int {
 func handleCronFlag(args []string, i int, cfg *newConfig) int {
 	if i+1 < len(args) {
 		i++
-		for _, c := range strings.Split(args[i], ",") {
+		for c := range strings.SplitSeq(args[i], ",") {
 			parts := strings.SplitN(c, ":", 2)
 			cj := cronJobDef{Handler: strings.TrimSpace(parts[0])}
 			if len(parts) >= 2 {

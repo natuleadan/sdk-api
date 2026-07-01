@@ -169,7 +169,7 @@ func resolveHandler(m map[string]func(*fiber.Ctx) error, name string) func(*fibe
 }
 
 func buildIDParam(path string) string {
-	for _, part := range strings.Split(path, "/") {
+	for part := range strings.SplitSeq(path, "/") {
 		if strings.HasPrefix(part, ":") {
 			return ""
 		}

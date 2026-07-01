@@ -29,28 +29,28 @@ type ServiceConfig struct {
 // ---- Server ----
 
 type ServerConf struct {
-	Host            string                `json:"host" config:",default=0.0.0.0"`
-	Prefork         bool                  `json:"prefork" config:",optional"`
-	BodyLimit       int                   `json:"body_limit" config:",default=4194304"`
-	Timeout         string                `json:"timeout" config:",default=30s"`
-	MaxConns        int                   `json:"max_conns" config:",default=1000"`
-	MaxBytes        int                   `json:"max_bytes" config:",default=4194304"`
-	MetricsPath     string                `json:"metrics_path" config:",default=/metrics"`
-	HealthPath      string                `json:"health_path" config:",default=/health"`
-	ShutdownTimeout string                `json:"shutdown_timeout" config:",default=10s"`
-	RecoverStack    bool                  `json:"recover_stack" config:",default=true"`
-	APIPrefix       string                `json:"api_prefix" config:",default=/api/v1"`
-	CORS            *CORSConf             `json:"cors" config:",optional"`
-	Middleware      []RouteMW             `json:"middleware" config:",optional"`
-	Static          []StaticDef           `json:"static" config:",optional"`
-	MaxConnLimit    int                   `json:"max_conn_limit" config:",default=1000"`
-	OpenAPI         *OpenAPIConf          `json:"openapi" config:",optional"`
-	SecurityHeaders *SecurityHeadersConf  `json:"security_headers" config:",optional"`
-	CSRF            *CSRFConf             `json:"csrf" config:",optional"`
-	RateLimit       *RateLimitConf        `json:"rate_limit" config:",optional"`
-	TLS             *TLSConf              `json:"tls" config:",optional"`
-	SSRF            *SSRFConf             `json:"ssrf" config:",optional"`
-	Cookies         *CookieConf           `json:"cookies" config:",optional"`
+	Host            string               `json:"host" config:",default=0.0.0.0"`
+	Prefork         bool                 `json:"prefork" config:",optional"`
+	BodyLimit       int                  `json:"body_limit" config:",default=4194304"`
+	Timeout         string               `json:"timeout" config:",default=30s"`
+	MaxConns        int                  `json:"max_conns" config:",default=1000"`
+	MaxBytes        int                  `json:"max_bytes" config:",default=4194304"`
+	MetricsPath     string               `json:"metrics_path" config:",default=/metrics"`
+	HealthPath      string               `json:"health_path" config:",default=/health"`
+	ShutdownTimeout string               `json:"shutdown_timeout" config:",default=10s"`
+	RecoverStack    bool                 `json:"recover_stack" config:",default=true"`
+	APIPrefix       string               `json:"api_prefix" config:",default=/api/v1"`
+	CORS            *CORSConf            `json:"cors" config:",optional"`
+	Middleware      []RouteMW            `json:"middleware" config:",optional"`
+	Static          []StaticDef          `json:"static" config:",optional"`
+	MaxConnLimit    int                  `json:"max_conn_limit" config:",default=1000"`
+	OpenAPI         *OpenAPIConf         `json:"openapi" config:",optional"`
+	SecurityHeaders *SecurityHeadersConf `json:"security_headers" config:",optional"`
+	CSRF            *CSRFConf            `json:"csrf" config:",optional"`
+	RateLimit       *RateLimitConf       `json:"rate_limit" config:",optional"`
+	TLS             *TLSConf             `json:"tls" config:",optional"`
+	SSRF            *SSRFConf            `json:"ssrf" config:",optional"`
+	Cookies         *CookieConf          `json:"cookies" config:",optional"`
 }
 
 type CookieConf struct {
@@ -59,12 +59,12 @@ type CookieConf struct {
 }
 
 type RateLimitConf struct {
-	Enabled  bool            `json:"enabled" config:",optional"`
-	Driver   string          `json:"driver" config:",default=memory"`
-	RedisURL string          `json:"redis_url" config:",optional"`
-	Global   *RateLimitDef   `json:"global" config:",optional"`
-	PerIP    *RateLimitDef   `json:"per_ip" config:",optional"`
-	PerUser  *RateLimitDef   `json:"per_user" config:",optional"`
+	Enabled  bool          `json:"enabled" config:",optional"`
+	Driver   string        `json:"driver" config:",default=memory"`
+	RedisURL string        `json:"redis_url" config:",optional"`
+	Global   *RateLimitDef `json:"global" config:",optional"`
+	PerIP    *RateLimitDef `json:"per_ip" config:",optional"`
+	PerUser  *RateLimitDef `json:"per_user" config:",optional"`
 }
 
 type RateLimitDef struct {
@@ -119,11 +119,11 @@ type SecurityHeadersConf struct {
 }
 
 type CSRFConf struct {
-	Enabled     bool     `json:"enabled" config:",optional"`
-	CookieName  string   `json:"cookie_name" config:",optional"`
-	HeaderName  string   `json:"header_name" config:",optional"`
-	SameSite    string   `json:"same_site" config:",optional"`
-	Secure      bool     `json:"secure" config:",optional"`
+	Enabled      bool     `json:"enabled" config:",optional"`
+	CookieName   string   `json:"cookie_name" config:",optional"`
+	HeaderName   string   `json:"header_name" config:",optional"`
+	SameSite     string   `json:"same_site" config:",optional"`
+	Secure       bool     `json:"secure" config:",optional"`
 	ExcludePaths []string `json:"exclude_paths" config:",optional"`
 }
 
@@ -307,15 +307,15 @@ type EntryDef struct {
 	NATSPublish  []EventPublishTarget `json:"nats_publish" config:",optional"`
 
 	// File
-	AllowedTypes []string   `json:"allowed_types" config:",optional"`
-	MaxSize      string     `json:"max_size" config:",optional"`
-	MaxFiles     int        `json:"max_files" config:",optional"`
-	MagicBytes   bool       `json:"magic_bytes" config:",optional"`
+	AllowedTypes []string    `json:"allowed_types" config:",optional"`
+	MaxSize      string      `json:"max_size" config:",optional"`
+	MaxFiles     int         `json:"max_files" config:",optional"`
+	MagicBytes   bool        `json:"magic_bytes" config:",optional"`
 	Storage      *StorageDef `json:"storage" config:",optional"`
 
 	// Security per-entry overrides
-	CSRF      *bool            `json:"csrf" config:",optional"` // false = skip CSRF for this entry
-	RateLimit *RateLimitDef    `json:"rate_limit" config:",optional"` // per-entry rate limit
+	CSRF      *bool         `json:"csrf" config:",optional"`       // false = skip CSRF for this entry
+	RateLimit *RateLimitDef `json:"rate_limit" config:",optional"` // per-entry rate limit
 
 	// Validation
 	ValidationModel string `json:"validate" config:",optional"` // validation model name
@@ -478,6 +478,7 @@ func (e *EntryDef) validateGraphQL() error {
 	}
 	return nil
 }
+
 // ---- Exit Workers ----
 
 type ExitWorker struct {
@@ -491,7 +492,7 @@ type ExitWorker struct {
 	PullBatch     int          `json:"pull_batch" config:",optional"`
 	PullMaxWait   string       `json:"pull_max_wait" config:",optional"`
 	ConsumerMode  string       `json:"consumer_mode" config:",optional"` // push or pull
-	EventStream   string       `json:"event_stream" config:",optional"` // broker name
+	EventStream   string       `json:"event_stream" config:",optional"`  // broker name
 }
 
 type SubscribeDef struct {
@@ -594,13 +595,13 @@ func trySOPSDecrypt(data []byte) ([]byte, error) {
 
 func expandEnvDefaults(content string) (string, error) {
 	var missing []string
-	result := ""
+	var result strings.Builder
 	i := 0
 	for i < len(content) {
 		if content[i] == '$' && i+2 < len(content) && content[i+1] == '{' {
 			end := strings.Index(content[i:], "}")
 			if end < 0 {
-				result += string(content[i])
+				result.WriteString(string(content[i]))
 				i++
 				continue
 			}
@@ -608,25 +609,25 @@ func expandEnvDefaults(content string) (string, error) {
 			parts := strings.SplitN(expr, ":", 2)
 			envName := parts[0]
 			envVal := os.Getenv(envName)
-		switch {
+			switch {
 			case envVal != "":
-				result += envVal
+				result.WriteString(envVal)
 			case len(parts) > 1:
-				result += parts[1]
+				result.WriteString(parts[1])
 			default:
 				missing = append(missing, envName)
-				result += "${" + envName + "}"
+				result.WriteString("${" + envName + "}")
 			}
 			i += end + 1
 		} else {
-			result += string(content[i])
+			result.WriteString(string(content[i]))
 			i++
 		}
 	}
 	if len(missing) > 0 {
-		return result, fmt.Errorf("required env vars not set: %s", strings.Join(missing, ", "))
+		return result.String(), fmt.Errorf("required env vars not set: %s", strings.Join(missing, ", "))
 	}
-	return result, nil
+	return result.String(), nil
 }
 
 func LoadConfig(path string) (*ServiceConfig, error) {
@@ -776,8 +777,8 @@ func validateConfigCron(cfg *ServiceConfig) error {
 
 func checkPlaintextSecrets(cfg *ServiceConfig) {
 	secretFields := map[string]func(*ServiceConfig) string{
-		"JWT secret":        func(c *ServiceConfig) string { return "" }, // checked via server.auth
-		"Databases URL":     func(c *ServiceConfig) string {
+		"JWT secret": func(c *ServiceConfig) string { return "" }, // checked via server.auth
+		"Databases URL": func(c *ServiceConfig) string {
 			if len(c.Databases) > 0 {
 				return c.Databases[0].URL
 			}
@@ -839,21 +840,21 @@ func looksLikePlaintextSecret(s string) bool {
 // ---- helpers ----
 
 var specialToSnake = map[string]string{
-	"ID":        "id",
-	"URL":       "url",
-	"API":       "api",
-	"JSON":      "json",
-	"XML":       "xml",
-	"HTML":      "html",
-	"SQL":       "sql",
-	"SSH":       "ssh",
-	"UUID":      "uuid",
-	"JWT":       "jwt",
-	"NATS":      "nats",
-	"HTTP":      "http",
-	"DB":        "db",
-	"WS":        "ws",
-	"SSE":       "sse",
+	"ID":   "id",
+	"URL":  "url",
+	"API":  "api",
+	"JSON": "json",
+	"XML":  "xml",
+	"HTML": "html",
+	"SQL":  "sql",
+	"SSH":  "ssh",
+	"UUID": "uuid",
+	"JWT":  "jwt",
+	"NATS": "nats",
+	"HTTP": "http",
+	"DB":   "db",
+	"WS":   "ws",
+	"SSE":  "sse",
 }
 
 func toSnake(s string) string {

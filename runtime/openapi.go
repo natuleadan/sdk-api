@@ -107,7 +107,7 @@ func addCRUDPaths(doc *openapi3.T, entry *EntryDef, models map[string]*db.TableI
 			Parameters:  openapi3.Parameters{param("id", "path", "string")},
 			Responses: openapi3.NewResponses(
 				openapi3.WithStatus(204, &openapi3.ResponseRef{
-					Value: &openapi3.Response{Description: pstr("Deleted")},
+					Value: &openapi3.Response{Description: new("Deleted")},
 				}),
 			),
 		},
@@ -144,7 +144,7 @@ func addWSPath(doc *openapi3.T, entry *EntryDef, prefix string) {
 			OperationID: entry.Handler,
 			Responses: openapi3.NewResponses(
 				openapi3.WithStatus(101, &openapi3.ResponseRef{
-					Value: &openapi3.Response{Description: pstr("Switching Protocols")},
+					Value: &openapi3.Response{Description: new("Switching Protocols")},
 				}),
 			),
 		},
@@ -160,7 +160,7 @@ func addSSEPath(doc *openapi3.T, entry *EntryDef, prefix string) {
 			Responses: openapi3.NewResponses(
 				openapi3.WithStatus(200, &openapi3.ResponseRef{
 					Value: &openapi3.Response{
-						Description: pstr("SSE stream"),
+						Description: new("SSE stream"),
 						Content: openapi3.NewContentWithJSONSchema(&openapi3.Schema{
 							Type: oapiTypes("string"),
 						}),
@@ -217,7 +217,7 @@ func buildSchema(info *db.TableInfo) *openapi3.Schema {
 }
 
 func fieldToSchema(t reflect.Type) *openapi3.Schema {
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	switch t.Kind() {
@@ -264,7 +264,7 @@ func responses200(schema *openapi3.SchemaRef) *openapi3.Responses {
 	return openapi3.NewResponses(
 		openapi3.WithStatus(200, &openapi3.ResponseRef{
 			Value: &openapi3.Response{
-				Description: pstr("OK"),
+				Description: new("OK"),
 				Content:     openapi3.NewContentWithJSONSchemaRef(schema),
 			},
 		}),
@@ -275,7 +275,7 @@ func responses201(schema *openapi3.SchemaRef) *openapi3.Responses {
 	return openapi3.NewResponses(
 		openapi3.WithStatus(201, &openapi3.ResponseRef{
 			Value: &openapi3.Response{
-				Description: pstr("Created"),
+				Description: new("Created"),
 				Content:     openapi3.NewContentWithJSONSchemaRef(schema),
 			},
 		}),
@@ -285,7 +285,7 @@ func responses201(schema *openapi3.SchemaRef) *openapi3.Responses {
 func okResp() *openapi3.Responses {
 	return openapi3.NewResponses(
 		openapi3.WithStatus(200, &openapi3.ResponseRef{
-			Value: &openapi3.Response{Description: pstr("OK")},
+			Value: &openapi3.Response{Description: new("OK")},
 		}),
 	)
 }
@@ -300,7 +300,7 @@ func pascal(s string) string {
 	return strings.Join(parts, "")
 }
 
-func pstr(s string) *string { return &s }
+//go:fix inline
 
 func oapiTypes(s ...string) *openapi3.Types {
 	t := openapi3.Types(s)

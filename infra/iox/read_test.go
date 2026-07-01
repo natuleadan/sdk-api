@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/fs"
 	"github.com/natuleadan/sdk-api/infra/stringx"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestReadText(t *testing.T) {
@@ -161,7 +161,7 @@ func TestReadBytesChunks(t *testing.T) {
 	reader, writer := io.Pipe()
 
 	go func() {
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			writer.Write([]byte{'a'})
 			time.Sleep(10 * time.Millisecond)
 		}

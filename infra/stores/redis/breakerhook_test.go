@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/breaker"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestBreakerHook_ProcessHook(t *testing.T) {
@@ -24,7 +24,7 @@ func TestBreakerHook_ProcessHook(t *testing.T) {
 		s.SetError(someError.Error())
 
 		var err error
-		for i := 0; i < 1000; i++ {
+		for range 1000 {
 			_, err = rds.Get("key")
 			if err != nil && err.Error() != someError.Error() {
 				break
@@ -42,7 +42,7 @@ func TestBreakerHook_ProcessHook(t *testing.T) {
 		})
 
 		var err error
-		for i := 0; i < 1000; i++ {
+		for range 1000 {
 			_, err = rds.Get("key")
 			if err != nil {
 				break
@@ -67,7 +67,7 @@ func TestBreakerHook_ProcessHook(t *testing.T) {
 		node, err := getRedis(rds)
 		assert.NoError(t, err)
 
-		for i := 0; i < 1000; i++ {
+		for range 1000 {
 			_, err = rds.Blpop(node, "key")
 			if err != nil && err.Error() != someError.Error() {
 				break
@@ -90,7 +90,7 @@ func TestBreakerHook_ProcessPipelineHook(t *testing.T) {
 		s.SetError(someError.Error())
 
 		var err error
-		for i := 0; i < 1000; i++ {
+		for range 1000 {
 			err = rds.Pipelined(
 				func(pipe Pipeliner) error {
 					pipe.Incr(context.Background(), "pipelined_counter")
@@ -116,7 +116,7 @@ func TestBreakerHook_ProcessPipelineHook(t *testing.T) {
 		})
 
 		var err error
-		for i := 0; i < 1000; i++ {
+		for range 1000 {
 			err = rds.Pipelined(
 				func(pipe Pipeliner) error {
 					pipe.Incr(context.Background(), "pipelined_counter")

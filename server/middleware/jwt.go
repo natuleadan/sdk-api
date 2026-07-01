@@ -108,8 +108,8 @@ func extractToken(c *fiber.Ctx, lookup string) (string, error) {
 	}
 
 	const prefix = "Bearer "
-	if strings.HasPrefix(value, prefix) {
-		return strings.TrimPrefix(value, prefix), nil
+	if after, ok := strings.CutPrefix(value, prefix); ok {
+		return after, nil
 	}
 	return value, nil
 }

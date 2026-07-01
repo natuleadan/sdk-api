@@ -455,7 +455,7 @@ func encodeStringer(v fmt.Stringer) (ret string) {
 func encodeWithRecover(arg any, fn func() string) (ret string) {
 	defer func() {
 		if err := recover(); err != nil {
-			if v := reflect.ValueOf(arg); v.Kind() == reflect.Ptr && v.IsNil() {
+			if v := reflect.ValueOf(arg); v.Kind() == reflect.Pointer && v.IsNil() {
 				ret = nilAngleString
 			} else {
 				ret = fmt.Sprintf("panic: %v", err)

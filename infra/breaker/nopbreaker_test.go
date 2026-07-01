@@ -16,7 +16,7 @@ func TestNopBreaker(t *testing.T) {
 	p, err := b.AllowCtx(context.Background())
 	assert.Nil(t, err)
 	p.Accept()
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		p, err := b.Allow()
 		assert.Nil(t, err)
 		p.Reject("any")

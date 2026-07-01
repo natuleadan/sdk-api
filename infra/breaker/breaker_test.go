@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/stat"
+	"github.com/stretchr/testify/assert"
 )
 
 func init() {
@@ -45,7 +45,7 @@ func TestCircuitBreaker_Allow(t *testing.T) {
 	t.Run("allow with ctx cancel", func(t *testing.T) {
 		b := NewBreaker()
 		assert.True(t, len(b.Name()) > 0)
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			cancel()
 			_, err := b.AllowCtx(ctx)
@@ -90,7 +90,7 @@ func TestCircuitBreaker_Do(t *testing.T) {
 	t.Run("do with ctx cancel", func(t *testing.T) {
 		b := NewBreaker()
 		assert.True(t, len(b.Name()) > 0)
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			cancel()
 			err := b.DoCtx(ctx, func() error {
@@ -144,7 +144,7 @@ func TestCircuitBreaker_DoWithAcceptable(t *testing.T) {
 	t.Run("doWithAcceptable with ctx cancel", func(t *testing.T) {
 		b := NewBreaker()
 		assert.True(t, len(b.Name()) > 0)
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			cancel()
 			err := b.DoWithAcceptableCtx(ctx, func() error {
@@ -202,7 +202,7 @@ func TestCircuitBreaker_DoWithFallback(t *testing.T) {
 	t.Run("doWithFallback with ctx cancel", func(t *testing.T) {
 		b := NewBreaker()
 		assert.True(t, len(b.Name()) > 0)
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			cancel()
 			err := b.DoWithFallbackCtx(ctx, func() error {
@@ -266,7 +266,7 @@ func TestCircuitBreaker_DoWithFallbackAcceptable(t *testing.T) {
 	t.Run("doWithFallbackAcceptable with ctx cancel", func(t *testing.T) {
 		b := NewBreaker()
 		assert.True(t, len(b.Name()) > 0)
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			cancel()
 			err := b.DoWithFallbackAcceptableCtx(ctx, func() error {
@@ -292,7 +292,7 @@ func TestLogReason(t *testing.T) {
 	b := NewBreaker()
 	assert.True(t, len(b.Name()) > 0)
 
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		_ = b.Do(func() error {
 			return errors.New(strconv.Itoa(i))
 		})

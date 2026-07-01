@@ -6,9 +6,9 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/fs"
 	"github.com/natuleadan/sdk-api/infra/hash"
+	"github.com/stretchr/testify/assert"
 )
 
 var dupErr conflictKeyError
@@ -39,7 +39,6 @@ func TestConfigJson(t *testing.T) {
 	t.Setenv("FOO", "2")
 
 	for _, test := range tests {
-		test := test
 		t.Run(test, func(t *testing.T) {
 			tmpfile, err := createTempFile(t, test, text)
 			assert.Nil(t, err)
@@ -389,7 +388,6 @@ func TestConfigJsonEnv(t *testing.T) {
 }`
 	t.Setenv("FOO", "2")
 	for _, test := range tests {
-		test := test
 		t.Run(test, func(t *testing.T) {
 			tmpfile, err := createTempFile(t, test, text)
 			assert.Nil(t, err)
@@ -485,7 +483,6 @@ func TestToCamelCase(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.input, func(t *testing.T) {
 			assert.Equal(t, test.expect, toLowerCase(test.input))
 		})
@@ -633,7 +630,7 @@ func TestLoadFromYamlItemOverlayWithMap(t *testing.T) {
 
 		TestConfig struct {
 			Server
-			Redis map[string]interface{}
+			Redis map[string]any
 		}
 	)
 
@@ -1417,64 +1414,64 @@ func Test_buildFieldsInfo(t *testing.T) {
 	}{
 		{
 			name: "normal",
-			t:    reflect.TypeOf(struct{ A string }{}),
+			t:    reflect.TypeFor[struct{ A string }](),
 			ok:   true,
 		},
 		{
 			name: "struct anonymous",
-			t: reflect.TypeOf(struct {
+			t: reflect.TypeFor[struct {
 				ParentSt
 				Name string
-			}{}),
+			}](),
 			ok:          false,
 			containsKey: newConflictKeyError("name").Error(),
 		},
 		{
 			name: "struct ptr anonymous",
-			t: reflect.TypeOf(struct {
+			t: reflect.TypeFor[struct {
 				*ParentSt
 				Name string
-			}{}),
+			}](),
 			ok:          false,
 			containsKey: newConflictKeyError("name").Error(),
 		},
 		{
 			name: "more struct anonymous",
-			t: reflect.TypeOf(struct {
+			t: reflect.TypeFor[struct {
 				Value struct {
 					ParentSt
 					Name string
 				}
-			}{}),
+			}](),
 			ok:          false,
 			containsKey: newConflictKeyError("value.name").Error(),
 		},
 		{
 			name: "map anonymous",
-			t: reflect.TypeOf(struct {
+			t: reflect.TypeFor[struct {
 				ParentSt
 				M string
-			}{}),
+			}](),
 			ok:          false,
 			containsKey: newConflictKeyError("m").Error(),
 		},
 		{
 			name: "map more anonymous",
-			t: reflect.TypeOf(struct {
+			t: reflect.TypeFor[struct {
 				Value struct {
 					ParentSt
 					M string
 				}
-			}{}),
+			}](),
 			ok:          false,
 			containsKey: newConflictKeyError("value.m").Error(),
 		},
 		{
 			name: "struct slice anonymous",
-			t: reflect.TypeOf([]struct {
+			t: reflect.TypeFor[[]struct {
 				ParentSt
 				Name string
-			}{}),
+			}](),
 			ok:          false,
 			containsKey: newConflictKeyError("name").Error(),
 		},

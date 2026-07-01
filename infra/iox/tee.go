@@ -20,10 +20,7 @@ type limitTeeReader struct {
 func (t *limitTeeReader) Read(p []byte) (n int, err error) {
 	n, err = t.r.Read(p)
 	if n > 0 && t.n > 0 {
-		limit := int64(n)
-		if limit > t.n {
-			limit = t.n
-		}
+		limit := min(int64(n), t.n)
 		if n, err := t.w.Write(p[:limit]); err != nil {
 			return n, err
 		}

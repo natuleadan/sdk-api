@@ -18,7 +18,7 @@ func TestBulkExecutor(t *testing.T) {
 		lock.Unlock()
 	}, WithBulkTasks(10), WithBulkInterval(time.Minute))
 
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		executor.Add(1)
 		time.Sleep(time.Millisecond)
 	}
@@ -45,7 +45,7 @@ func TestBulkExecutorFlushInterval(t *testing.T) {
 		wait.Done()
 	}, WithBulkTasks(caches), WithBulkInterval(time.Millisecond*100))
 
-	for i := 0; i < size; i++ {
+	for range size {
 		executor.Add(1)
 	}
 
@@ -71,7 +71,7 @@ func TestBulkExecutorFlush(t *testing.T) {
 		assert.Equal(t, tasks, len(items))
 		wait.Done()
 	}, WithBulkTasks(caches), WithBulkInterval(time.Minute))
-	for i := 0; i < tasks; i++ {
+	for range tasks {
 		be.Add(1)
 	}
 	be.Flush()
@@ -88,7 +88,7 @@ func TestBulkExecutorFlushSlowTasks(t *testing.T) {
 		defer lock.Unlock()
 		result = append(result, tasks...)
 	}, WithBulkTasks(1000))
-	for i := 0; i < total; i++ {
+	for i := range total {
 		assert.Nil(t, exec.Add(i))
 	}
 

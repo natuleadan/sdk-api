@@ -16,7 +16,7 @@ type TestProduct struct {
 }
 
 func TestBuildOpenAPI_CRUD(t *testing.T) {
-	info, err := db.ParseStructReflect(reflect.TypeOf(TestProduct{}))
+	info, err := db.ParseStructReflect(reflect.TypeFor[TestProduct]())
 	if err != nil {
 		t.Fatalf("ParseStructReflect: %v", err)
 	}
@@ -198,7 +198,7 @@ func TestBuildOpenAPI_MixedTypes(t *testing.T) {
 		},
 	}
 
-	info, err := db.ParseStructReflect(reflect.TypeOf(TestProduct{}))
+	info, err := db.ParseStructReflect(reflect.TypeFor[TestProduct]())
 	if err != nil {
 		t.Fatalf("ParseStructReflect: %v", err)
 	}
@@ -241,7 +241,7 @@ func TestBuildOpenAPI_Empty(t *testing.T) {
 }
 
 func TestBuildSchema_Fields(t *testing.T) {
-	info, err := db.ParseStructReflect(reflect.TypeOf(TestProduct{}))
+	info, err := db.ParseStructReflect(reflect.TypeFor[TestProduct]())
 	if err != nil {
 		t.Fatalf("ParseStructReflect: %v", err)
 	}

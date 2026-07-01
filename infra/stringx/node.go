@@ -65,7 +65,7 @@ func (n *node) find(chars []rune) []scope {
 	size := len(chars)
 	cur := n
 
-	for i := 0; i < size; i++ {
+	for i := range size {
 		child, ok := cur.children[chars[i]]
 		if ok {
 			cur = child

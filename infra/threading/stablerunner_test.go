@@ -23,17 +23,15 @@ func TestStableRunner(t *testing.T) {
 	})
 
 	var waitGroup sync.WaitGroup
-	waitGroup.Add(1)
-	go func() {
-		for i := 0; i < size; i++ {
+	waitGroup.Go(func() {
+		for i := range size {
 			assert.NoError(t, runner.Push(i))
 		}
 		runner.Wait()
-		waitGroup.Done()
-	}()
+	})
 
 	values := make([]float64, size)
-	for i := 0; i < size; i++ {
+	for i := range size {
 		var err error
 		values[i], err = runner.Get()
 		assert.NoError(t, err)

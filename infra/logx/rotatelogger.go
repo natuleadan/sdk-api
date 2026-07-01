@@ -374,10 +374,8 @@ func (l *RotateLogger) rotate() error {
 }
 
 func (l *RotateLogger) startWorker() {
-	l.waitGroup.Add(1)
 
-	go func() {
-		defer l.waitGroup.Done()
+	l.waitGroup.Go(func() {
 
 		for {
 			select {
@@ -395,7 +393,7 @@ func (l *RotateLogger) startWorker() {
 				}
 			}
 		}
-	}()
+	})
 }
 
 func (l *RotateLogger) write(v []byte) {
@@ -409,8 +407,8 @@ func (l *RotateLogger) write(v []byte) {
 	}
 	if l.fp != nil {
 		if _, err := l.fp.Write(v); err != nil {
-		fmt.Fprintf(os.Stderr, "logx: rotatelogger write error: %v\n", err)
-	}
+			fmt.Fprintf(os.Stderr, "logx: rotatelogger write error: %v\n", err)
+		}
 		l.currentSize += int64(len(v))
 	}
 }

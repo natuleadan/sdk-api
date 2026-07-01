@@ -473,7 +473,8 @@ func (t *Table[T]) QueryWhere(ctx context.Context, where map[string]any, orderBy
 	} else if _, err := t.validColumn(orderBy); err != nil {
 		return nil, err
 	}
-	query := fmt.Sprintf("SELECT %s FROM %s", t.columnsList(), t.tableName)
+	var query strings.Builder
+	query.WriteString(fmt.Sprintf("SELECT %s FROM %s", t.columnsList(), t.tableName))
 	var args []any
 	idx := 1
 	for col, val := range where {
@@ -481,21 +482,21 @@ func (t *Table[T]) QueryWhere(ctx context.Context, where map[string]any, orderBy
 			return nil, err
 		}
 		if idx == 1 {
-			query += " WHERE " + col + " = $" + fmt.Sprintf("%d", idx)
+			query.WriteString(" WHERE " + col + " = $" + fmt.Sprintf("%d", idx))
 		} else {
-			query += " AND " + col + " = $" + fmt.Sprintf("%d", idx)
+			query.WriteString(" AND " + col + " = $" + fmt.Sprintf("%d", idx))
 		}
 		args = append(args, val)
 		idx++
 	}
-	query += " ORDER BY " + orderBy
+	query.WriteString(" ORDER BY " + orderBy)
 	if limit > 0 {
-		query += fmt.Sprintf(" LIMIT %d", limit)
+		query.WriteString(fmt.Sprintf(" LIMIT %d", limit))
 	}
 	if offset > 0 {
-		query += fmt.Sprintf(" OFFSET %d", offset)
+		query.WriteString(fmt.Sprintf(" OFFSET %d", offset))
 	}
-	rows, err := t.pool.Query(ctx, query, args...)
+	rows, err := t.pool.Query(ctx, query.String(), args...)
 	if err != nil {
 		return nil, fmt.Errorf("db: where: %w", err)
 	}

@@ -21,7 +21,7 @@ func TestBulkInserter_InsertAndFlush(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, 2, len(result.InsertedIDs))
 	})
-	doc := map[string]interface{}{"name": "test"}
+	doc := map[string]any{"name": "test"}
 	bulkInserter.Insert(doc)
 	bulkInserter.Flush()
 }
@@ -39,7 +39,7 @@ func TestBulkInserter_SetResultHandler(t *testing.T) {
 
 func TestDbInserter_RemoveAll(t *testing.T) {
 	inserter := &dbInserter{}
-	inserter.documents = []interface{}{}
+	inserter.documents = []any{}
 	docs := inserter.RemoveAll()
 	assert.NotNil(t, docs)
 	assert.Empty(t, inserter.documents)

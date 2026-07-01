@@ -3,8 +3,8 @@ package mathx
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/stringx"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestMaxInt(t *testing.T) {
@@ -31,7 +31,6 @@ func TestMaxInt(t *testing.T) {
 	}
 
 	for _, each := range cases {
-		each := each
 		t.Run(stringx.Rand(), func(t *testing.T) {
 			actual := MaxInt(each.a, each.b)
 			assert.Equal(t, each.expect, actual)

@@ -5,11 +5,11 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/breaker"
 	"github.com/natuleadan/sdk-api/infra/logx/logtest"
 	"github.com/natuleadan/sdk-api/infra/stringx"
 	"github.com/natuleadan/sdk-api/infra/timex"
+	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -75,7 +75,7 @@ func TestCollection_Aggregate(t *testing.T) {
 	mockCollection := NewMockmonCollection(ctrl)
 	mockCollection.EXPECT().Aggregate(gomock.Any(), gomock.Any(), gomock.Any()).Return(&mongo.Cursor{}, nil)
 	c := newTestCollection(mockCollection, breaker.GetBreaker("localhost"))
-	_, err := c.Aggregate(context.Background(), []interface{}{}, options.Aggregate())
+	_, err := c.Aggregate(context.Background(), []any{}, options.Aggregate())
 	assert.Nil(t, err)
 }
 

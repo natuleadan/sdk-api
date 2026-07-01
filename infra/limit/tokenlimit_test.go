@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/natuleadan/sdk-api/infra/stores/redis"
 	"github.com/natuleadan/sdk-api/infra/stores/redis/redistest"
+	"github.com/stretchr/testify/assert"
 )
 
 func init() {
@@ -33,7 +33,7 @@ func TestTokenLimit_WithCtx(t *testing.T) {
 	assert.True(t, ok)
 
 	cancel()
-	for i := 0; i < total; i++ {
+	for range total {
 		ok := l.AllowCtx(ctx)
 		assert.False(t, ok)
 		assert.False(t, l.monitorStarted)
@@ -53,7 +53,7 @@ func TestTokenLimit_Rescue(t *testing.T) {
 	s.Close()
 
 	var allowed int
-	for i := 0; i < total; i++ {
+	for i := range total {
 		time.Sleep(time.Second / time.Duration(total))
 		if i == total>>1 {
 			assert.Nil(t, s.Restart())
@@ -79,7 +79,7 @@ func TestTokenLimit_Take(t *testing.T) {
 	)
 	l := NewTokenLimiter(rate, burst, store, "tokenlimit")
 	var allowed int
-	for i := 0; i < total; i++ {
+	for range total {
 		time.Sleep(time.Second / time.Duration(total))
 		if l.Allow() {
 			allowed++
@@ -99,7 +99,7 @@ func TestTokenLimit_TakeBurst(t *testing.T) {
 	)
 	l := NewTokenLimiter(rate, burst, store, "tokenlimit")
 	var allowed int
-	for i := 0; i < total; i++ {
+	for range total {
 		if l.Allow() {
 			allowed++
 		}

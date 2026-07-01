@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -233,28 +234,28 @@ func joinOrStar(items []string) string {
 	if len(items) == 0 {
 		return "*"
 	}
-	joined := ""
+	var joined strings.Builder
 	for i, s := range items {
 		if i > 0 {
-			joined += ", "
+			joined.WriteString(", ")
 		}
-		joined += s
+		joined.WriteString(s)
 	}
-	return joined
+	return joined.String()
 }
 
 func joinOrDefault(items []string, def string) string {
 	if len(items) == 0 {
 		return def
 	}
-	joined := ""
+	var joined strings.Builder
 	for i, s := range items {
 		if i > 0 {
-			joined += ", "
+			joined.WriteString(", ")
 		}
-		joined += s
+		joined.WriteString(s)
 	}
-	return joined
+	return joined.String()
 }
 
 func (s *Server) App() *fiber.App {

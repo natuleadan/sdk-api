@@ -21,7 +21,7 @@ func TestResourceManager_GetResource(t *testing.T) {
 	defer manager.Close()
 
 	var age int
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		val, err := manager.GetResource("key", func() (io.Closer, error) {
 			age++
 			return &dummyResource{
@@ -37,7 +37,7 @@ func TestResourceManager_GetResourceError(t *testing.T) {
 	manager := NewResourceManager()
 	defer manager.Close()
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		_, err := manager.GetResource("key", func() (io.Closer, error) {
 			return nil, errors.New("fail")
 		})
@@ -49,7 +49,7 @@ func TestResourceManager_Close(t *testing.T) {
 	manager := NewResourceManager()
 	defer manager.Close()
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		_, err := manager.GetResource("key", func() (io.Closer, error) {
 			return nil, errors.New("fail")
 		})

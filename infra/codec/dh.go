@@ -89,7 +89,7 @@ func (k *DhKey) Bytes() []byte {
 
 func copyWithLeftPad(dst, src []byte) {
 	padBytes := len(dst) - len(src)
-	for i := 0; i < padBytes; i++ {
+	for i := range padBytes {
 		dst[i] = 0
 	}
 	copy(dst[padBytes:], src)

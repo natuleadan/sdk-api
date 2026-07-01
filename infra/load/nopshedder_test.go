@@ -9,7 +9,7 @@ import (
 func TestNopShedder(t *testing.T) {
 	Disable()
 	shedder := NewAdaptiveShedder()
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		p, err := shedder.Allow()
 		assert.Nil(t, err)
 		p.Fail()

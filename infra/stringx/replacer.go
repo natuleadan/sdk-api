@@ -37,7 +37,7 @@ func NewReplacer(mapping map[string]string) Replacer {
 
 // Replace replaces text with given substitutes.
 func (r *replacer) Replace(text string) string {
-	for i := 0; i < replaceTimes; i++ {
+	for range replaceTimes {
 		var replaced bool
 		if text, replaced = r.doReplace(text); !replaced {
 			return text
@@ -66,7 +66,7 @@ func (r *replacer) doReplace(text string) (string, bool) {
 
 	var buf strings.Builder
 	var index int
-	for i := 0; i < len(scopes); i++ {
+	for i := range scopes {
 		scp := &scopes[i]
 		if scp.start < index {
 			continue

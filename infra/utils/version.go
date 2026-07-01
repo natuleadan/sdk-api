@@ -41,7 +41,7 @@ func compare(v1, v2 string) int {
 	ver1len, ver2len := len(ver1), len(ver2)
 	shorter := min(ver1len, ver2len)
 
-	for i := 0; i < shorter; i++ {
+	for i := range shorter {
 		if ver1[i] != ver2[i] {
 			if ver1[i] < ver2[i] {
 				return -1

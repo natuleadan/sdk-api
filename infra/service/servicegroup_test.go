@@ -4,8 +4,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/proc"
+	"github.com/stretchr/testify/assert"
 )
 
 var (
@@ -27,7 +27,7 @@ func TestServiceGroup(t *testing.T) {
 
 	go group.Start()
 
-	for i := 0; i < len(multipliers); i++ {
+	for range multipliers {
 		<-done
 	}
 

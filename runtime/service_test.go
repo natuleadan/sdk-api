@@ -328,7 +328,7 @@ func TestTableFor(t *testing.T) {
 	}
 
 	// Test wrong type — sql.DB instead of pgxpool
-	var sqlDB interface{}
+	var sqlDB any
 	pools["sql"] = sqlDB
 	_, err = TableFor[map[string]any](pools, "sql", "test")
 	if err == nil {

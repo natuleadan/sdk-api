@@ -34,7 +34,7 @@ func TestFakeTicker(t *testing.T) {
 		}
 	}()
 
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		ticker.Tick()
 	}
 

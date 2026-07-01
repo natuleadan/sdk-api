@@ -336,7 +336,7 @@ func buildPlainFields(fields logEntry) []string {
 	return items
 }
 
-func marshalJson(t interface{}) ([]byte, error) {
+func marshalJson(t any) ([]byte, error) {
 	var buf bytes.Buffer
 	encoder := json.NewEncoder(&buf)
 	encoder.SetEscapeHTML(false)

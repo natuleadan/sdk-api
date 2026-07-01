@@ -11,7 +11,6 @@ import (
 	"github.com/natuleadan/sdk-api/infra/timex"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
-	"go.mongodb.org/mongo-driver/v2/x/mongo/driver/session"
 )
 
 const (
@@ -554,11 +553,7 @@ func (p keepablePromise) keep(err error) error {
 func acceptable(err error) bool {
 	return err == nil || isDupKeyError(err) ||
 		errorx.In(err, mongo.ErrNoDocuments, mongo.ErrNilValue,
-			mongo.ErrNilDocument, mongo.ErrNilCursor, mongo.ErrEmptySlice,
-			// session errors
-			session.ErrSessionEnded, session.ErrNoTransactStarted, session.ErrTransactInProgress,
-			session.ErrAbortAfterCommit, session.ErrAbortTwice, session.ErrCommitAfterAbort,
-			session.ErrUnackWCUnsupported, session.ErrSnapshotTransaction)
+			mongo.ErrNilDocument, mongo.ErrNilCursor, mongo.ErrEmptySlice)
 }
 
 func isDupKeyError(err error) bool {
@@ -618,7 +613,7 @@ type monCollection interface {
 	// Indexes returns the index view for this collection.
 	Indexes() mongo.IndexView
 	// InsertMany inserts the provided documents.
-	InsertMany(ctx context.Context, documents interface{}, opts ...options.Lister[options.InsertManyOptions]) (*mongo.InsertManyResult, error)
+	InsertMany(ctx context.Context, documents any, opts ...options.Lister[options.InsertManyOptions]) (*mongo.InsertManyResult, error)
 	// InsertOne inserts the provided document.
 	InsertOne(ctx context.Context, document any, opts ...options.Lister[options.InsertOneOptions]) (*mongo.InsertOneResult, error)
 	// ReplaceOne replaces at most one document that matches the filter.

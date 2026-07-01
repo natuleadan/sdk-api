@@ -5,11 +5,11 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/hash"
 	"github.com/natuleadan/sdk-api/infra/stores/cache"
 	"github.com/natuleadan/sdk-api/infra/stores/redis"
 	"github.com/natuleadan/sdk-api/infra/stringx"
+	"github.com/stretchr/testify/assert"
 )
 
 var (
@@ -350,7 +350,7 @@ func TestRedis_Sscan(t *testing.T) {
 
 	runOnCluster(func(client Store) {
 		var list []string
-		for i := 0; i < 1550; i++ {
+		for i := range 1550 {
 			list = append(list, stringx.Randn(i))
 		}
 		lens, err := client.Sadd(key, list)

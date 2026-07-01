@@ -443,7 +443,6 @@ func TestMarshal_RangeLeftEqualsToRight(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			_, err := Marshal(test.value)
 			assert.Equal(t, test.err, err)

@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/collection"
 	"github.com/natuleadan/sdk-api/infra/mathx"
 	"github.com/natuleadan/sdk-api/infra/stat"
 	"github.com/natuleadan/sdk-api/infra/syncx"
+	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -35,14 +35,14 @@ func getGoogleBreaker() *googleBreaker {
 }
 
 func markSuccessWithDuration(b *googleBreaker, count int, sleep time.Duration) {
-	for i := 0; i < count; i++ {
+	for range count {
 		b.markSuccess()
 		time.Sleep(sleep)
 	}
 }
 
 func markFailedWithDuration(b *googleBreaker, count int, sleep time.Duration) {
-	for i := 0; i < count; i++ {
+	for range count {
 		b.markFailure()
 		time.Sleep(sleep)
 	}
@@ -77,14 +77,14 @@ func TestGoogleBreakerRecover(t *testing.T) {
 		proba:    mathx.NewProba(),
 		lastPass: syncx.NewAtomicDuration(),
 	}
-	for i := 0; i < testBuckets; i++ {
-		for j := 0; j < 100; j++ {
+	for range testBuckets {
+		for range 100 {
 			b.stat.Add(1)
 		}
 		time.Sleep(testInterval)
 	}
-	for i := 0; i < testBuckets; i++ {
-		for j := 0; j < 100; j++ {
+	for range testBuckets {
+		for range 100 {
 			b.stat.Add(0)
 		}
 		time.Sleep(testInterval)
@@ -146,7 +146,7 @@ func TestGoogleBreakerMoreFallingBuckets(t *testing.T) {
 		}()
 
 		var count int
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			if errors.Is(b.doReq(func() error {
 				return ErrServiceUnavailable
 			}, nil, defaultAcceptable), ErrServiceUnavailable) {
@@ -291,7 +291,7 @@ func BenchmarkGoogleBreakerDoReq(b *testing.B) {
 }
 
 func markSuccess(b *googleBreaker, count int) {
-	for i := 0; i < count; i++ {
+	for range count {
 		p, err := b.allow()
 		if err != nil {
 			break
@@ -301,7 +301,7 @@ func markSuccess(b *googleBreaker, count int) {
 }
 
 func markFailed(b *googleBreaker, count int) {
-	for i := 0; i < count; i++ {
+	for range count {
 		p, err := b.allow()
 		if err == nil {
 			p.Reject()

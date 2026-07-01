@@ -42,11 +42,12 @@ func FirstN(s string, n int, ellipsis ...string) string {
 
 	for j := range s {
 		if i == n {
-			ret := s[:j]
+			var ret strings.Builder
+			ret.WriteString(s[:j])
 			for _, each := range ellipsis {
-				ret += each
+				ret.WriteString(each)
 			}
-			return ret
+			return ret.String()
 		}
 		i++
 	}

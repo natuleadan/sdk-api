@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/mathx"
+	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -16,7 +16,7 @@ const (
 
 func BenchmarkConsistentHashGet(b *testing.B) {
 	ch := NewConsistentHash()
-	for i := 0; i < keySize; i++ {
+	for i := range keySize {
 		ch.Add("localhost:" + strconv.Itoa(i))
 	}
 
@@ -31,12 +31,12 @@ func TestConsistentHash(t *testing.T) {
 	assert.False(t, ok)
 	assert.Nil(t, val)
 
-	for i := 0; i < keySize; i++ {
+	for i := range keySize {
 		ch.AddWithReplicas("localhost:"+strconv.Itoa(i), minReplicas<<1)
 	}
 
 	keys := make(map[string]int)
-	for i := 0; i < requestSize; i++ {
+	for i := range requestSize {
 		key, ok := ch.Get(requestSize + i)
 		assert.True(t, ok)
 		keys[key.(string)]++
@@ -54,7 +54,7 @@ func TestConsistentHashIncrementalTransfer(t *testing.T) {
 	prefix := "anything"
 	create := func() *ConsistentHash {
 		ch := NewConsistentHash()
-		for i := 0; i < keySize; i++ {
+		for i := range keySize {
 			ch.Add(prefix + strconv.Itoa(i))
 		}
 		return ch
@@ -62,7 +62,7 @@ func TestConsistentHashIncrementalTransfer(t *testing.T) {
 
 	originCh := create()
 	keys := make(map[int]string, requestSize)
-	for i := 0; i < requestSize; i++ {
+	for i := range requestSize {
 		key, ok := originCh.Get(requestSize + i)
 		assert.True(t, ok)
 		assert.NotNil(t, key)
@@ -70,11 +70,11 @@ func TestConsistentHashIncrementalTransfer(t *testing.T) {
 	}
 
 	node := fmt.Sprintf("%s%d", prefix, keySize)
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		laterCh := create()
 		laterCh.AddWithWeight(node, 10*(i+1))
 
-		for j := 0; j < requestSize; j++ {
+		for j := range requestSize {
 			key, ok := laterCh.Get(requestSize + j)
 			assert.True(t, ok)
 			assert.NotNil(t, key)
@@ -110,7 +110,7 @@ func TestConsistentHash_Remove(t *testing.T) {
 	ch.Add("first")
 	ch.Add("second")
 	ch.Remove("first")
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		val, ok := ch.Get(i)
 		assert.True(t, ok)
 		assert.Equal(t, "second", val)
@@ -133,12 +133,12 @@ func TestConsistentHash_RemoveInterface(t *testing.T) {
 
 func getKeysBeforeAndAfterFailure(t *testing.T, prefix string, index int) (map[int]string, map[int]string) {
 	ch := NewConsistentHash()
-	for i := 0; i < keySize; i++ {
+	for i := range keySize {
 		ch.Add(prefix + strconv.Itoa(i))
 	}
 
 	keys := make(map[int]string, requestSize)
-	for i := 0; i < requestSize; i++ {
+	for i := range requestSize {
 		key, ok := ch.Get(requestSize + i)
 		assert.True(t, ok)
 		assert.NotNil(t, key)
@@ -148,7 +148,7 @@ func getKeysBeforeAndAfterFailure(t *testing.T, prefix string, index int) (map[i
 	remove := fmt.Sprintf("%s%d", prefix, index)
 	ch.Remove(remove)
 	newKeys := make(map[int]string, requestSize)
-	for i := 0; i < requestSize; i++ {
+	for i := range requestSize {
 		key, ok := ch.Get(requestSize + i)
 		assert.True(t, ok)
 		assert.NotNil(t, key)

@@ -59,7 +59,7 @@ type (
 
 // Deref dereferences a type, if pointer type, returns its element type.
 func Deref(t reflect.Type) reflect.Type {
-	for t.Kind() == reflect.Ptr {
+	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 
@@ -85,7 +85,7 @@ func SetMapIndexValue(tp reflect.Type, value, key, target reflect.Value) {
 func ValidatePtr(v reflect.Value) error {
 	// sequence is very important, IsNil must be called after checking Kind() with reflect.Ptr,
 	// panic otherwise
-	if !v.IsValid() || v.Kind() != reflect.Ptr || v.IsNil() {
+	if !v.IsValid() || v.Kind() != reflect.Pointer || v.IsNil() {
 		return fmt.Errorf("not a valid pointer: %v", v)
 	}
 
@@ -144,12 +144,12 @@ func convertTypeFromString(kind reflect.Kind, str string) (any, error) {
 
 func convertTypeOfPtr(tp reflect.Type, target reflect.Value) reflect.Value {
 	// keep the original value is a pointer
-	if tp.Kind() == reflect.Ptr && target.CanAddr() {
+	if tp.Kind() == reflect.Pointer && target.CanAddr() {
 		tp = tp.Elem()
 		target = target.Addr()
 	}
 
-	for tp.Kind() == reflect.Ptr {
+	for tp.Kind() == reflect.Pointer {
 		p := reflect.New(target.Type())
 		p.Elem().Set(target)
 		target = p
@@ -183,7 +183,7 @@ func doParseKeyAndOptions(field reflect.StructField, value string) (string, *fie
 // If pointer value is nil, set to a new value.
 func ensureValue(v reflect.Value) reflect.Value {
 	for {
-		if v.Kind() != reflect.Ptr {
+		if v.Kind() != reflect.Pointer {
 			break
 		}
 
@@ -198,7 +198,7 @@ func ensureValue(v reflect.Value) reflect.Value {
 
 func implicitValueRequiredStruct(tag string, tp reflect.Type) (bool, error) {
 	numFields := tp.NumField()
-	for i := 0; i < numFields; i++ {
+	for i := range numFields {
 		childField := tp.Field(i)
 		if usingDifferentKeys(tag, childField) {
 			// Check fallback tag "config" for optional/default
@@ -261,7 +261,7 @@ func isRightInclude(b byte) (bool, error) {
 }
 
 func maybeNewValue(fieldType reflect.Type, value reflect.Value) {
-	if fieldType.Kind() == reflect.Ptr && value.IsNil() {
+	if fieldType.Kind() == reflect.Pointer && value.IsNil() {
 		value.Set(reflect.New(value.Type().Elem()))
 	}
 }

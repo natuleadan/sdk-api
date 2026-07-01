@@ -3,8 +3,8 @@ package syncx
 import (
 	"errors"
 	"fmt"
-	"sync"
 	"io"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -52,9 +52,8 @@ func TestExclusiveCallDoDupSuppress(t *testing.T) {
 
 	const n = 10
 	var wg sync.WaitGroup
-	for i := 0; i < n; i++ {
-		wg.Add(1)
-		go func() {
+	for range n {
+		wg.Go(func() {
 			v, err := g.Do("key", fn)
 			if err != nil {
 				t.Errorf("Do error: %v", err)
@@ -62,8 +61,7 @@ func TestExclusiveCallDoDupSuppress(t *testing.T) {
 			if v.(string) != "bar" {
 				t.Errorf("got %q; want %q", v, "bar")
 			}
-			wg.Done()
-		}()
+		})
 	}
 	time.Sleep(100 * time.Millisecond) // let goroutines above block
 	c <- "bar"
@@ -122,9 +120,8 @@ func TestExclusiveCallDoExDupSuppress(t *testing.T) {
 	const n = 10
 	var wg sync.WaitGroup
 	var freshes int32
-	for i := 0; i < n; i++ {
-		wg.Add(1)
-		go func() {
+	for range n {
+		wg.Go(func() {
 			v, fresh, err := g.DoEx("key", fn)
 			if err != nil {
 				t.Errorf("Do error: %v", err)
@@ -135,8 +132,7 @@ func TestExclusiveCallDoExDupSuppress(t *testing.T) {
 			if v.(string) != "bar" {
 				t.Errorf("got %q; want %q", v, "bar")
 			}
-			wg.Done()
-		}()
+		})
 	}
 	time.Sleep(100 * time.Millisecond) // let goroutines above block
 	c <- "bar"

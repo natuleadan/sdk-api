@@ -13,7 +13,7 @@ func TestBarrier_Guard(t *testing.T) {
 	var count int
 	var wg sync.WaitGroup
 	wg.Add(total)
-	for i := 0; i < total; i++ {
+	for range total {
 		go barrier.Guard(func() {
 			count++
 			wg.Done()
@@ -29,7 +29,7 @@ func TestBarrierPtr_Guard(t *testing.T) {
 	var count int
 	wg := new(sync.WaitGroup)
 	wg.Add(total)
-	for i := 0; i < total; i++ {
+	for range total {
 		go barrier.Guard(func() {
 			count++
 			wg.Done()
@@ -45,7 +45,7 @@ func TestGuard(t *testing.T) {
 	var lock sync.Mutex
 	wg := new(sync.WaitGroup)
 	wg.Add(total)
-	for i := 0; i < total; i++ {
+	for range total {
 		go Guard(&lock, func() {
 			count++
 			wg.Done()

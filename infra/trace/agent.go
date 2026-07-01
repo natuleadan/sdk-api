@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/natuleadan/sdk-api/infra/logx"
@@ -11,7 +12,6 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
-	"go.opentelemetry.io/otel/exporters/zipkin"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -60,7 +60,20 @@ func StopAgent() {
 func createExporter(c Config) (sdktrace.SpanExporter, error) {
 	switch c.Batcher {
 	case kindZipkin:
-		return zipkin.New(c.Endpoint)
+		// Migrated from deprecated zipkin exporter to OTLP HTTP.
+		// Strip scheme and path to use bare host:port for OTLP.
+		ep := strings.TrimPrefix(c.Endpoint, "http://")
+		ep = strings.TrimPrefix(ep, "https://")
+		if idx := strings.Index(ep, "/"); idx >= 0 {
+			ep = ep[:idx]
+		}
+		opts := []otlptracehttp.Option{
+			otlptracehttp.WithEndpoint(ep),
+		}
+		if len(c.OtlpHeaders) > 0 {
+			opts = append(opts, otlptracehttp.WithHeaders(c.OtlpHeaders))
+		}
+		return otlptracehttp.New(context.Background(), opts...)
 	case kindOtlpGrpc:
 		// Always treat trace exporter as optional component, so we use nonblock here,
 		// otherwise this would slow down app start up even set a dial timeout here when

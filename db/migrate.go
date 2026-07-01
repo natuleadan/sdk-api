@@ -72,7 +72,7 @@ func buildColumnDef(f FieldInfo) string {
 }
 
 func sqlType(t reflect.Type) string {
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 

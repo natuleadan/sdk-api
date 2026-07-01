@@ -3,6 +3,7 @@ package middleware
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"strings"
 )
 
 // CSPLevel defines pre-built CSP policies.
@@ -15,14 +16,14 @@ const (
 
 // CSPConfig configures Content-Security-Policy generation.
 type CSPConfig struct {
-	Level        CSPLevel `json:"level" config:",default=basic"`
-	DefaultSrc      []string `json:"default_src" config:",optional"`
-	ScriptSrc       []string `json:"script_src" config:",optional"`
-	StyleSrc        []string `json:"style_src" config:",optional"`
-	ImgSrc          []string `json:"img_src" config:",optional"`
-	ConnectSrc      []string `json:"connect_src" config:",optional"`
-	FontSrc         []string `json:"font_src" config:",optional"`
-	FrameSrc        []string `json:"frame_src" config:",optional"`
+	Level              CSPLevel `json:"level" config:",default=basic"`
+	DefaultSrc         []string `json:"default_src" config:",optional"`
+	ScriptSrc          []string `json:"script_src" config:",optional"`
+	StyleSrc           []string `json:"style_src" config:",optional"`
+	ImgSrc             []string `json:"img_src" config:",optional"`
+	ConnectSrc         []string `json:"connect_src" config:",optional"`
+	FontSrc            []string `json:"font_src" config:",optional"`
+	FrameSrc           []string `json:"frame_src" config:",optional"`
 	FrameAncestors     []string `json:"frame_ancestors" config:",optional"`
 	ObjectSrc          []string `json:"object_src" config:",optional"`
 	BaseURI            []string `json:"base_uri" config:",optional"`
@@ -71,11 +72,12 @@ func joinDirective(name string, values []string, defaults string) string {
 		}
 		return name + " " + defaults + "; "
 	}
-	joined := name
+	var joined strings.Builder
+	joined.WriteString(name)
 	for _, v := range values {
-		joined += " " + v
+		joined.WriteString(" " + v)
 	}
-	return joined + "; "
+	return joined.String() + "; "
 }
 
 // GenerateNonce creates a CSP nonce (base64 random 32 bytes).

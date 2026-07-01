@@ -15,7 +15,6 @@ import (
 
 var errDummy = errors.New("dummy")
 
-
 func TestFinish(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
@@ -118,7 +117,7 @@ func TestForEach(t *testing.T) {
 
 		var count uint32
 		ForEach(func(source chan<- int) {
-			for i := 0; i < tasks; i++ {
+			for i := range tasks {
 				source <- i
 			}
 		}, func(item int) {
@@ -133,7 +132,7 @@ func TestForEach(t *testing.T) {
 
 		var count uint32
 		ForEach(func(source chan<- int) {
-			for i := 0; i < tasks; i++ {
+			for i := range tasks {
 				source <- i
 			}
 		}, func(item int) {
@@ -167,7 +166,7 @@ func TestPanics(t *testing.T) {
 			}()
 
 			ForEach(func(source chan<- int) {
-				for i := 0; i < tasks; i++ {
+				for i := range tasks {
 					source <- i
 				}
 			}, func(item int) {
@@ -201,7 +200,7 @@ func TestPanics(t *testing.T) {
 			}()
 
 			_, _ = MapReduce(func(source chan<- int) {
-				for i := 0; i < tasks; i++ {
+				for i := range tasks {
 					source <- i
 				}
 			}, func(item int, writer Writer[int], cancel func(error)) {
@@ -333,7 +332,7 @@ func TestMapReduceWithReduerWriteMoreThanOnce(t *testing.T) {
 
 	assert.Panics(t, func() {
 		MapReduce(func(source chan<- int) {
-			for i := 0; i < 10; i++ {
+			for i := range 10 {
 				source <- i
 			}
 		}, func(item int, writer Writer[int], cancel func(error)) {
@@ -472,7 +471,7 @@ func TestMapReducePanicOnce(t *testing.T) {
 
 	assert.Panics(t, func() {
 		_, _ = MapReduce(func(source chan<- int) {
-			for i := 0; i < 100; i++ {
+			for i := range 100 {
 				source <- i
 			}
 		}, func(i int, writer Writer[int], cancel func(error)) {
@@ -531,7 +530,7 @@ func TestMapReduceVoidCancelWithRemains(t *testing.T) {
 	var done int32
 	var result []int
 	err := MapReduceVoid(func(source chan<- int) {
-		for i := 0; i < defaultWorkers*2; i++ {
+		for i := range defaultWorkers * 2 {
 			source <- i
 		}
 		atomic.AddInt32(&done, 1)
@@ -575,7 +574,7 @@ func TestMapReduceVoidPanicInReducer(t *testing.T) {
 	assert.Panics(t, func() {
 		var done int32
 		_ = MapReduceVoid(func(source chan<- int) {
-			for i := 0; i < defaultWorkers*2; i++ {
+			for i := range defaultWorkers * 2 {
 				source <- i
 			}
 			atomic.AddInt32(&done, 1)
@@ -593,7 +592,7 @@ func TestForEachWithContext(t *testing.T) {
 	var done int32
 	ctx, cancel := context.WithCancel(context.Background())
 	ForEach(func(source chan<- int) {
-		for i := 0; i < defaultWorkers*2; i++ {
+		for i := range defaultWorkers * 2 {
 			source <- i
 		}
 		atomic.AddInt32(&done, 1)
@@ -611,7 +610,7 @@ func TestMapReduceWithContext(t *testing.T) {
 	var result []int
 	ctx, cancel := context.WithCancel(context.Background())
 	err := MapReduceVoid(func(source chan<- int) {
-		for i := 0; i < defaultWorkers*2; i++ {
+		for i := range defaultWorkers * 2 {
 			source <- i
 		}
 		atomic.AddInt32(&done, 1)
@@ -647,7 +646,7 @@ func BenchmarkMapReduce(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		MapReduce(func(input chan<- int64) {
-			for j := 0; j < 2; j++ {
+			for j := range 2 {
 				input <- int64(j)
 			}
 		}, mapper, reducer)

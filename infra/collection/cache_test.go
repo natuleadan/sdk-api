@@ -49,16 +49,14 @@ func TestCacheTake(t *testing.T) {
 
 	var count int32
 	var wg sync.WaitGroup
-	for i := 0; i < 100; i++ {
-		wg.Add(1)
-		go func() {
+	for range 100 {
+		wg.Go(func() {
 			cache.Take("first", func() (any, error) {
 				atomic.AddInt32(&count, 1)
 				time.Sleep(time.Millisecond * 100)
 				return "first element", nil
 			})
-			wg.Done()
-		}()
+		})
 	}
 	wg.Wait()
 
@@ -72,17 +70,15 @@ func TestCacheTakeExists(t *testing.T) {
 
 	var count int32
 	var wg sync.WaitGroup
-	for i := 0; i < 100; i++ {
-		wg.Add(1)
-		go func() {
+	for range 100 {
+		wg.Go(func() {
 			cache.Set("first", "first element")
 			cache.Take("first", func() (any, error) {
 				atomic.AddInt32(&count, 1)
 				time.Sleep(time.Millisecond * 100)
 				return "first element", nil
 			})
-			wg.Done()
-		}()
+		})
 	}
 	wg.Wait()
 
@@ -96,17 +92,15 @@ func TestCacheTakeError(t *testing.T) {
 
 	var count int32
 	var wg sync.WaitGroup
-	for i := 0; i < 100; i++ {
-		wg.Add(1)
-		go func() {
+	for range 100 {
+		wg.Go(func() {
 			_, err := cache.Take("first", func() (any, error) {
 				atomic.AddInt32(&count, 1)
 				time.Sleep(time.Millisecond * 100)
 				return "", errDummy
 			})
 			assert.Equal(t, errDummy, err)
-			wg.Done()
-		}()
+		})
 	}
 	wg.Wait()
 
@@ -167,8 +161,8 @@ func BenchmarkCache(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	for i := 0; i < 10000; i++ {
-		for j := 0; j < 10; j++ {
+	for i := range 10000 {
+		for j := range 10 {
 			index := strconv.Itoa(i*10000 + j)
 			cache.Set("key:"+index, "value:"+index)
 		}

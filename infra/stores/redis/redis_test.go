@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
-	red "github.com/redis/go-redis/v9"
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/natuleadan/sdk-api/infra/stringx"
+	red "github.com/redis/go-redis/v9"
+	"github.com/stretchr/testify/assert"
 )
 
 type myHook struct {
@@ -454,7 +454,7 @@ func TestRedis_Hscan(t *testing.T) {
 		runOnRedis(t, func(client *Redis) {
 			key := "hash:test"
 			fieldsAndValues := make(map[string]string)
-			for i := 0; i < 1550; i++ {
+			for i := range 1550 {
 				fieldsAndValues["filed_"+strconv.Itoa(i)] = stringx.Randn(i)
 			}
 			err := client.Hmset(key, fieldsAndValues)
@@ -784,7 +784,7 @@ func TestRedis_GetBit(t *testing.T) {
 
 func TestRedis_BitCount(t *testing.T) {
 	runOnRedis(t, func(client *Redis) {
-		for i := 0; i < 11; i++ {
+		for i := range 11 {
 			val, err := client.SetBit("key", int64(i), 1)
 			assert.Nil(t, err)
 			assert.Equal(t, 0, val)
@@ -972,7 +972,7 @@ func TestRedis_Sscan(t *testing.T) {
 	runOnRedis(t, func(client *Redis) {
 		key := "list"
 		var list []string
-		for i := 0; i < 1550; i++ {
+		for i := range 1550 {
 			list = append(list, stringx.Randn(i))
 		}
 		lens, err := client.Sadd(key, list)
@@ -1906,7 +1906,7 @@ func TestRedisToFloatPairs(t *testing.T) {
 func TestRedis_Zscan(t *testing.T) {
 	runOnRedis(t, func(client *Redis) {
 		key := "key"
-		for i := 0; i < 1550; i++ {
+		for i := range 1550 {
 			ok, err := client.Zadd(key, int64(i), "value_"+strconv.Itoa(i))
 			assert.Nil(t, err)
 			assert.True(t, ok)

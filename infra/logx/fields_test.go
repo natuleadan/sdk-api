@@ -73,7 +73,7 @@ func TestWithFieldsAppend(t *testing.T) {
 func TestWithFieldsAppendCopy(t *testing.T) {
 	const count = 10
 	ctx := context.Background()
-	for i := 0; i < count; i++ {
+	for i := range count {
 		ctx = ContextWithFields(ctx, Field(strconv.Itoa(i), 1))
 	}
 

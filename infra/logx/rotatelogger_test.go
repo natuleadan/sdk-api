@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/fs"
 	"github.com/natuleadan/sdk-api/infra/stringx"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestDailyRotateRuleMarkRotated(t *testing.T) {
@@ -218,7 +218,7 @@ func TestRotateLoggerClose(t *testing.T) {
 		assert.Nil(t, err)
 		msg := []byte("foo")
 		n := 100
-		for i := 0; i < n; i++ {
+		for range n {
 			_, err = logger.Write(msg)
 			assert.Nil(t, err)
 		}

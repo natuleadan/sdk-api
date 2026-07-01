@@ -14,7 +14,7 @@ var validationModels = make(map[string]reflect.Type)
 
 func RegisterValidation(name string, input any) {
 	t := reflect.TypeOf(input)
-	for t.Kind() == reflect.Ptr {
+	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	validationModels[name] = t

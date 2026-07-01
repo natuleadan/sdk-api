@@ -16,12 +16,10 @@ func NewRoutineGroup() *RoutineGroup {
 // Don't reference the variables from outside,
 // because outside variables can be changed by other goroutines
 func (g *RoutineGroup) Run(fn func()) {
-	g.waitGroup.Add(1)
 
-	go func() {
-		defer g.waitGroup.Done()
+	g.waitGroup.Go(func() {
 		fn()
-	}()
+	})
 }
 
 // RunSafe runs the given fn in RoutineGroup, and avoid panics.

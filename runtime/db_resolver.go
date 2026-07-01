@@ -74,10 +74,7 @@ func initPostgres(ctx context.Context, cfg *DBConfig) (*pgxpool.Pool, error) {
 					replicas = int32(n)
 				}
 			}
-			auto := (pgMax - reserved) / replicas
-			if auto < 1 {
-				auto = 1
-			}
+			auto := max((pgMax-reserved)/replicas, 1)
 			poolCfg.MaxConns = auto
 		}
 	} else {

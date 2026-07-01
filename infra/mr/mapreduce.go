@@ -169,11 +169,7 @@ func WithContext(ctx context.Context) Option {
 // WithWorkers customizes a mapreduce processing with given workers.
 func WithWorkers(workers int) Option {
 	return func(opts *mapReduceOptions) {
-		if workers < minWorkers {
-			opts.workers = minWorkers
-		} else {
-			opts.workers = workers
-		}
+		opts.workers = max(workers, minWorkers)
 	}
 }
 

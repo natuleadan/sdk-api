@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/stringx"
+	"github.com/stretchr/testify/assert"
 )
 
 type mockedRoute struct {
@@ -121,7 +121,7 @@ func TestStrictSearch(t *testing.T) {
 		tree.Add(r.route, r.value)
 	}
 
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		result, ok := tree.Search(query)
 		assert.True(t, ok)
 		assert.Equal(t, 1, result.Item.(int))
@@ -218,7 +218,7 @@ func BenchmarkSearchTree(b *testing.B) {
 	}
 	index := rand.Intn(entries)
 	var query string
-	for i := 0; i < entries; i++ {
+	for i := range entries {
 		val := generate()
 		if i == index {
 			query = val

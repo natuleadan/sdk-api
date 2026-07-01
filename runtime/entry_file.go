@@ -96,8 +96,8 @@ func matchContentType(contentType, allowed string) bool {
 	if contentType == allowed {
 		return true
 	}
-	if strings.HasSuffix(allowed, "/*") {
-		prefix := strings.TrimSuffix(allowed, "/*")
+	if before, ok := strings.CutSuffix(allowed, "/*"); ok {
+		prefix := before
 		return strings.HasPrefix(contentType, prefix+"/")
 	}
 	return false

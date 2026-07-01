@@ -174,7 +174,6 @@ func TestField(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			w := new(mockWriter)
 			old := writer.Swap(w)
@@ -899,7 +898,6 @@ func TestWithField_LogLevel(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			olevel := atomic.LoadUint32(&logLevel)
 			SetLevel(tt.level)

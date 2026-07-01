@@ -9,7 +9,7 @@ import (
 
 func FuzzReplacerReplace(f *testing.F) {
 	keywords := make(map[string]string)
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		keywords[Randn(rand.Intn(10)+5)] = Randn(rand.Intn(5) + 1)
 	}
 	rep := NewReplacer(keywords)

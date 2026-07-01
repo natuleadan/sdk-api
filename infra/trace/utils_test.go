@@ -43,7 +43,6 @@ func TestPeerFromContext(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			addr := PeerFromCtx(test.ctx)
@@ -147,7 +146,6 @@ func TestPeerAttr(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			kvs := PeerAttr(test.addr)

@@ -43,7 +43,6 @@ func TestTomlToJson(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.input, func(t *testing.T) {
 			t.Parallel()
 			got, err := TomlToJson([]byte(test.input))
@@ -94,7 +93,6 @@ func TestYamlToJson(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.input, func(t *testing.T) {
 			t.Parallel()
 			got, err := YamlToJson([]byte(test.input))
@@ -162,7 +160,6 @@ func TestJson5ToJson(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			got, err := Json5ToJson([]byte(test.input))

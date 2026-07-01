@@ -54,7 +54,7 @@ func runClient(args []string) error {
 	var m clientModel
 	m.Name = *model
 	m.Resource = toSnake(plural(*model))
-	for _, f := range strings.Split(*fields, ",") {
+	for f := range strings.SplitSeq(*fields, ",") {
 		f = strings.TrimSpace(f)
 		if f == "" {
 			continue

@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/lang"
 	"github.com/natuleadan/sdk-api/infra/stringx"
 	"github.com/natuleadan/sdk-api/infra/syncx"
 	"github.com/natuleadan/sdk-api/infra/timex"
+	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -87,7 +87,7 @@ func TestTimingWheel_SetTimerTwice(t *testing.T) {
 	defer tw.Stop()
 	tw.SetTimer("any", 3, testStep*4)
 	tw.SetTimer("any", 5, testStep*7)
-	for i := 0; i < 8; i++ {
+	for range 8 {
 		ticker.Tick()
 	}
 	assert.Nil(t, ticker.Wait(waitTime))
@@ -123,11 +123,11 @@ func TestTimingWheel_MoveTimer(t *testing.T) {
 	tw.MoveTimer("any", testStep*7)
 	tw.MoveTimer("any", -testStep)
 	tw.MoveTimer("none", testStep)
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		ticker.Tick()
 	}
 	assert.False(t, run.True())
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		ticker.Tick()
 	}
 	assert.Nil(t, ticker.Wait(waitTime))
@@ -164,7 +164,7 @@ func TestTimingWheel_MoveTimerEarlier(t *testing.T) {
 	defer tw.Stop()
 	tw.SetTimer("any", 3, testStep*4)
 	tw.MoveTimer("any", testStep*2)
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		ticker.Tick()
 	}
 	assert.Nil(t, ticker.Wait(waitTime))
@@ -180,7 +180,7 @@ func TestTimingWheel_RemoveTimer(t *testing.T) {
 		tw.RemoveTimer("none")
 		tw.RemoveTimer(nil)
 	})
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		ticker.Tick()
 	}
 	tw.Stop()
@@ -223,7 +223,6 @@ func TestTimingWheel_SetTimer(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(stringx.RandId(), func(t *testing.T) {
 			t.Parallel()
 
@@ -304,7 +303,6 @@ func TestTimingWheel_SetAndMoveThenStart(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(stringx.RandId(), func(t *testing.T) {
 			t.Parallel()
 
@@ -392,7 +390,6 @@ func TestTimingWheel_SetAndMoveTwice(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(stringx.RandId(), func(t *testing.T) {
 			t.Parallel()
 
@@ -473,7 +470,6 @@ func TestTimingWheel_ElapsedAndSet(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(stringx.RandId(), func(t *testing.T) {
 			t.Parallel()
 
@@ -564,7 +560,6 @@ func TestTimingWheel_ElapsedAndSetThenMove(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(stringx.RandId(), func(t *testing.T) {
 			t.Parallel()
 
@@ -607,7 +602,7 @@ func TestTimingWheel_ElapsedAndSetThenMove(t *testing.T) {
 func TestMoveAndRemoveTask(t *testing.T) {
 	ticker := timex.NewFakeTicker()
 	tick := func(v int) {
-		for i := 0; i < v; i++ {
+		for range v {
 			ticker.Tick()
 		}
 	}
@@ -637,7 +632,7 @@ func TestTimingWheel_DrainClosureBug(t *testing.T) {
 	defer tw.Stop()
 
 	// Set multiple timers with different values
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		tw.SetTimer(i, i*10, testStep*5)
 	}
 
@@ -688,7 +683,7 @@ func TestTimingWheel_RunTasksClosureBug(t *testing.T) {
 	// Set multiple timers that should fire in the same tick
 	count := 10
 	wg.Add(count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		tw.SetTimer(i, i*10, testStep)
 	}
 
@@ -721,7 +716,7 @@ func TestTimingWheel_RunTasksClosureBug(t *testing.T) {
 // This test specifically targets the loop variable capture bug
 func TestTimingWheel_RunTasksRaceCondition(t *testing.T) {
 	// Run multiple times to increase likelihood of catching the bug
-	for attempt := 0; attempt < 10; attempt++ {
+	for range 10 {
 		t.Run("", func(t *testing.T) {
 			ticker := timex.NewFakeTicker()
 			var mu sync.Mutex
@@ -743,7 +738,7 @@ func TestTimingWheel_RunTasksRaceCondition(t *testing.T) {
 			// Set many timers rapidly to increase chance of race
 			count := 50
 			wg.Add(count)
-			for i := 0; i < count; i++ {
+			for i := range count {
 				tw.SetTimer(i, i*100, testStep)
 			}
 

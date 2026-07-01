@@ -40,7 +40,7 @@ func firstLine(file *os.File) (string, error) {
 			return "", err
 		}
 
-		for i := 0; i < n; i++ {
+		for i := range n {
 			if buf[i] == '\n' {
 				return string(append(first, buf[:i]...)), nil
 			}

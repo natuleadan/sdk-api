@@ -681,16 +681,16 @@ func TestSecurityHeaders_AllHeaders(t *testing.T) {
 	resp, _ := app.Test(req)
 
 	checks := map[string]string{
-		"X-Content-Type-Options":         "nosniff",
-		"X-Frame-Options":                "DENY",
-		"Referrer-Policy":                "strict-origin-when-cross-origin",
-		"Permissions-Policy":             "camera=(), microphone=()",
-		"Strict-Transport-Security":      "max-age=31536000",
-		"Content-Security-Policy":        "default-src 'self'",
-		"Cross-Origin-Opener-Policy":     "same-origin",
-		"Cross-Origin-Embedder-Policy":   "require-corp",
-		"Cross-Origin-Resource-Policy":   "same-origin",
-		"Cache-Control":                  "no-store",
+		"X-Content-Type-Options":       "nosniff",
+		"X-Frame-Options":              "DENY",
+		"Referrer-Policy":              "strict-origin-when-cross-origin",
+		"Permissions-Policy":           "camera=(), microphone=()",
+		"Strict-Transport-Security":    "max-age=31536000",
+		"Content-Security-Policy":      "default-src 'self'",
+		"Cross-Origin-Opener-Policy":   "same-origin",
+		"Cross-Origin-Embedder-Policy": "require-corp",
+		"Cross-Origin-Resource-Policy": "same-origin",
+		"Cache-Control":                "no-store",
 	}
 	for h, want := range checks {
 		if got := resp.Header.Get(h); got != want {
@@ -843,13 +843,13 @@ func TestCSRF_SkipExcludedPath(t *testing.T) {
 }
 
 func extractCSRFToken(setCookie string) string {
-	for _, part := range strings.Split(setCookie, ";") {
+	for part := range strings.SplitSeq(setCookie, ";") {
 		part = strings.TrimSpace(part)
-		if strings.HasPrefix(part, "csrf_token=") {
-			return strings.TrimPrefix(part, "csrf_token=")
+		if after, ok := strings.CutPrefix(part, "csrf_token="); ok {
+			return after
 		}
-		if strings.HasPrefix(part, "csrf_test=") {
-			return strings.TrimPrefix(part, "csrf_test=")
+		if after, ok := strings.CutPrefix(part, "csrf_test="); ok {
+			return after
 		}
 	}
 	return ""
@@ -874,7 +874,7 @@ func TestRateLimit_Global_UnderLimit(t *testing.T) {
 		return c.SendString("ok")
 	})
 
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		req := testRequest(context.Background(), "GET", "/test", nil)
 		resp, _ := app.Test(req)
 		if resp.StatusCode != 200 {
@@ -918,7 +918,7 @@ func TestRateLimit_Disabled(t *testing.T) {
 		return c.SendString("ok")
 	})
 
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		req := testRequest(context.Background(), "GET", "/test", nil)
 		resp, _ := app.Test(req)
 		if resp.StatusCode != 200 {
@@ -1096,10 +1096,10 @@ func TestSSRF_AllowedHost(t *testing.T) {
 func TestSSRF_AllowAll(t *testing.T) {
 	// allow_all bypasses validation entirely (even for private IPs)
 	cfg := SSRFConfig{
-		Enabled:      true,
-		BlockPrivate: true,
+		Enabled:       true,
+		BlockPrivate:  true,
 		BlockMetadata: true,
-		AllowAll:     true,
+		AllowAll:      true,
 	}
 	client := NewSafeHTTPClient(cfg)
 	if client == nil {

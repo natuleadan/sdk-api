@@ -44,7 +44,7 @@ func (b *Buffer) Bytes() []byte {
 }
 
 func (b *Buffer) Content() string {
-	var m map[string]interface{}
+	var m map[string]any
 	if err := json.Unmarshal(b.buf.Bytes(), &m); err != nil {
 		return ""
 	}

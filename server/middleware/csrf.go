@@ -81,8 +81,8 @@ func isExcludedPath(path string, excludePaths []string) bool {
 		if ep == "" {
 			continue
 		}
-		if strings.HasSuffix(ep, "/*") {
-			prefix := strings.TrimSuffix(ep, "/*")
+		if before, ok := strings.CutSuffix(ep, "/*"); ok {
+			prefix := before
 			if strings.HasPrefix(path, prefix) {
 				return true
 			}

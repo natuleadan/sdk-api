@@ -27,11 +27,9 @@ func TestTimeoutCondWait(t *testing.T) {
 func TestTimeoutCondWaitTimeout(t *testing.T) {
 	var wait sync.WaitGroup
 	cond := NewCond()
-	wait.Add(1)
-	go func() {
+	wait.Go(func() {
 		cond.WaitWithTimeout(time.Duration(500) * time.Millisecond)
-		wait.Done()
-	}()
+	})
 	wait.Wait()
 }
 

@@ -14,7 +14,7 @@ func TestTaskRunner_Schedule(t *testing.T) {
 	pool := NewTaskRunner(runtime.NumCPU())
 
 	var counter int32
-	for i := 0; i < times; i++ {
+	for range times {
 		pool.Schedule(func() {
 			atomic.AddInt32(&counter, 1)
 		})
@@ -31,7 +31,7 @@ func TestTaskRunner_ScheduleImmediately(t *testing.T) {
 	pool := NewTaskRunner(cpus)
 
 	var counter int32
-	for i := 0; i < times; i++ {
+	for i := range times {
 		err := pool.ScheduleImmediately(func() {
 			atomic.AddInt32(&counter, 1)
 			time.Sleep(time.Millisecond * 100)

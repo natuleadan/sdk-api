@@ -36,7 +36,7 @@ func NewStableRunner[I, O any](fn func(I) O) *StableRunner[I, O] {
 		value chan O
 		lock  sync.Mutex
 	}, bufSize)
-	for i := 0; i < bufSize; i++ {
+	for i := range bufSize {
 		ring[i] = &struct {
 			value chan O
 			lock  sync.Mutex

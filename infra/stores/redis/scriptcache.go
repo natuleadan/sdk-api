@@ -1,6 +1,7 @@
 package redis
 
 import (
+	"maps"
 	"sync"
 	"sync/atomic"
 )
@@ -45,9 +46,7 @@ func (sc *ScriptCache) SetSha(script, sha string) {
 
 	cache := sc.Load().(Map)
 	newCache := make(Map)
-	for k, v := range cache {
-		newCache[k] = v
-	}
+	maps.Copy(newCache, cache)
 	newCache[script] = sha
 	sc.Store(newCache)
 }

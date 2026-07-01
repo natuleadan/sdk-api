@@ -14,9 +14,9 @@ import (
 )
 
 const (
-	jsonTagKey = "json"
+	jsonTagKey   = "json"
 	configTagKey = "config"
-	jsonTagSep = ','
+	jsonTagSep   = ','
 )
 
 var (
@@ -257,8 +257,8 @@ func buildStructFieldsInfo(tp reflect.Type, fullName string) (*fieldInfo, error)
 		children: make(map[string]*fieldInfo),
 	}
 
-	for i := 0; i < tp.NumField(); i++ {
-		field := tp.Field(i)
+	for field := range tp.Fields() {
+		field := field
 		if !field.IsExported() {
 			continue
 		}

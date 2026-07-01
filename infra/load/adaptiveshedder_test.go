@@ -7,13 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/collection"
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/natuleadan/sdk-api/infra/mathx"
 	"github.com/natuleadan/sdk-api/infra/stat"
 	"github.com/natuleadan/sdk-api/infra/syncx"
 	"github.com/natuleadan/sdk-api/infra/timex"
+	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -32,11 +32,9 @@ func TestAdaptiveShedder(t *testing.T) {
 	var wg sync.WaitGroup
 	var drop int64
 	proba := mathx.NewProba()
-	for i := 0; i < 100; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for i := 0; i < 30; i++ {
+	for range 100 {
+		wg.Go(func() {
+			for range 30 {
 				promise, err := shedder.Allow()
 				if err != nil {
 					atomic.AddInt64(&drop, 1)
@@ -50,7 +48,7 @@ func TestAdaptiveShedder(t *testing.T) {
 					}
 				}
 			}
-		}()
+		})
 	}
 	wg.Wait()
 }
@@ -78,7 +76,7 @@ func TestAdaptiveShedderMaxPass(t *testing.T) {
 
 func TestAdaptiveShedderMinRt(t *testing.T) {
 	rtCounter := newRollingWindow()
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		if i > 0 {
 			time.Sleep(bucketDuration)
 		}
@@ -103,7 +101,7 @@ func TestAdaptiveShedderMinRt(t *testing.T) {
 func TestAdaptiveShedderMaxFlight(t *testing.T) {
 	passCounter := newRollingWindow()
 	rtCounter := newRollingWindow()
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		if i > 0 {
 			time.Sleep(bucketDuration)
 		}
@@ -125,7 +123,7 @@ func TestAdaptiveShedderShouldDrop(t *testing.T) {
 	logx.Disable()
 	passCounter := newRollingWindow()
 	rtCounter := newRollingWindow()
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		if i > 0 {
 			time.Sleep(bucketDuration)
 		}
@@ -180,7 +178,7 @@ func TestAdaptiveShedderStillHot(t *testing.T) {
 	logx.Disable()
 	passCounter := newRollingWindow()
 	rtCounter := newRollingWindow()
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		if i > 0 {
 			time.Sleep(bucketDuration)
 		}
@@ -210,7 +208,7 @@ func BenchmarkAdaptiveShedder_Allow(b *testing.B) {
 	bench := func(b *testing.B) {
 		shedder := NewAdaptiveShedder()
 		proba := mathx.NewProba()
-		for i := 0; i < 6000; i++ {
+		for range 6000 {
 			p, err := shedder.Allow()
 			if err == nil {
 				time.Sleep(time.Millisecond)
@@ -244,7 +242,7 @@ func BenchmarkAdaptiveShedder_Allow(b *testing.B) {
 func BenchmarkMaxFlight(b *testing.B) {
 	passCounter := newRollingWindow()
 	rtCounter := newRollingWindow()
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		if i > 0 {
 			time.Sleep(bucketDuration)
 		}

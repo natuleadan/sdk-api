@@ -7,12 +7,12 @@ import (
 	"strconv"
 	"time"
 
-	red "github.com/redis/go-redis/v9"
 	"github.com/natuleadan/sdk-api/infra/breaker"
 	"github.com/natuleadan/sdk-api/infra/errorx"
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/natuleadan/sdk-api/infra/mapping"
 	"github.com/natuleadan/sdk-api/infra/syncx"
+	red "github.com/redis/go-redis/v9"
 )
 
 const (
@@ -53,14 +53,14 @@ type (
 
 	// Redis defines a redis node/cluster. It is thread-safe.
 	Redis struct {
-		Addr  string
-		Type  string
-		User  string
-		Pass  string
-		tls   bool
+		Addr          string
+		Type          string
+		User          string
+		Pass          string
+		tls           bool
 		tlsSkipVerify bool
-		brk   breaker.Breaker
-		hooks []red.Hook
+		brk           breaker.Breaker
+		hooks         []red.Hook
 	}
 
 	// RedisNode interface represents a redis node.
@@ -1299,11 +1299,11 @@ func (s *Redis) PipelinedCtx(ctx context.Context, fn func(Pipeliner) error) erro
 	return err
 }
 
-func (s *Redis) Publish(channel string, message interface{}) (int64, error) {
+func (s *Redis) Publish(channel string, message any) (int64, error) {
 	return s.PublishCtx(context.Background(), channel, message)
 }
 
-func (s *Redis) PublishCtx(ctx context.Context, channel string, message interface{}) (int64, error) {
+func (s *Redis) PublishCtx(ctx context.Context, channel string, message any) (int64, error) {
 	conn, err := getRedis(s)
 	if err != nil {
 		return 0, err

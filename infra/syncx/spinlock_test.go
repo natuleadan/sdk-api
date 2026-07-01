@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/lang"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestTryLock(t *testing.T) {
@@ -31,10 +31,8 @@ func TestSpinLockRace(t *testing.T) {
 	var lock SpinLock
 	lock.Lock()
 	var wait sync.WaitGroup
-	wait.Add(1)
-	go func() {
-		wait.Done()
-	}()
+	wait.Go(func() {
+	})
 	time.Sleep(time.Millisecond * 100)
 	lock.Unlock()
 	wait.Wait()

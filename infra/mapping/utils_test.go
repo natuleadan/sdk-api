@@ -16,39 +16,32 @@ type Foo struct {
 }
 
 func TestDerefInt(t *testing.T) {
-	i := 1
-	s := "hello"
-	number := struct {
-		f float64
-	}{
-		f: 6.4,
-	}
 	cases := []struct {
 		t      reflect.Type
 		expect reflect.Kind
 	}{
 		{
-			t:      reflect.TypeOf(i),
+			t:      reflect.TypeFor[int](),
 			expect: reflect.Int,
 		},
 		{
-			t:      reflect.TypeOf(&i),
+			t:      reflect.TypeFor[*int](),
 			expect: reflect.Int,
 		},
 		{
-			t:      reflect.TypeOf(s),
+			t:      reflect.TypeFor[string](),
 			expect: reflect.String,
 		},
 		{
-			t:      reflect.TypeOf(&s),
+			t:      reflect.TypeFor[*string](),
 			expect: reflect.String,
 		},
 		{
-			t:      reflect.TypeOf(number.f),
+			t:      reflect.TypeFor[float64](),
 			expect: reflect.Float64,
 		},
 		{
-			t:      reflect.TypeOf(&number.f),
+			t:      reflect.TypeFor[*float64](),
 			expect: reflect.Float64,
 		},
 	}
@@ -106,8 +99,7 @@ func TestDerefValInt(t *testing.T) {
 }
 
 func TestParseKeyAndOptionWithoutTag(t *testing.T) {
-	var foo Foo
-	rte := reflect.TypeOf(&foo).Elem()
+	rte := reflect.TypeFor[Foo]()
 	field, _ := rte.FieldByName("Str")
 	key, options, err := parseKeyAndOptions(testTagName, field)
 	assert.Nil(t, err)
@@ -116,8 +108,7 @@ func TestParseKeyAndOptionWithoutTag(t *testing.T) {
 }
 
 func TestParseKeyAndOptionWithTagWithoutOption(t *testing.T) {
-	var foo Foo
-	rte := reflect.TypeOf(&foo).Elem()
+	rte := reflect.TypeFor[Foo]()
 	field, _ := rte.FieldByName("StrWithTag")
 	key, options, err := parseKeyAndOptions(testTagName, field)
 	assert.Nil(t, err)
@@ -126,8 +117,7 @@ func TestParseKeyAndOptionWithTagWithoutOption(t *testing.T) {
 }
 
 func TestParseKeyAndOptionWithTagAndOption(t *testing.T) {
-	var foo Foo
-	rte := reflect.TypeOf(&foo).Elem()
+	rte := reflect.TypeFor[Foo]()
 	field, _ := rte.FieldByName("StrWithTagAndOption")
 	key, options, err := parseKeyAndOptions(testTagName, field)
 	assert.Nil(t, err)
@@ -208,7 +198,6 @@ func TestParseSegments(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.input, func(t *testing.T) {
 			assert.ElementsMatch(t, test.expect, parseSegments(test.input))
 		})
@@ -234,8 +223,7 @@ func TestValidatePtrWithNilPtr(t *testing.T) {
 }
 
 func TestValidatePtrWithZeroValue(t *testing.T) {
-	var s string
-	e := reflect.Zero(reflect.TypeOf(s))
+	e := reflect.Zero(reflect.TypeFor[string]())
 	assert.NotNil(t, ValidatePtr(e))
 }
 
@@ -251,10 +239,9 @@ func TestParseKeyAndOptionsErrors(t *testing.T) {
 		DefaultValue string `key:",default=a=b"`
 	}
 
-	var bar Bar
-	_, _, err := parseKeyAndOptions("key", reflect.TypeOf(&bar).Elem().Field(0))
+	_, _, err := parseKeyAndOptions("key", reflect.TypeFor[Bar]().Field(0))
 	assert.NotNil(t, err)
-	_, _, err = parseKeyAndOptions("key", reflect.TypeOf(&bar).Elem().Field(1))
+	_, _, err = parseKeyAndOptions("key", reflect.TypeFor[Bar]().Field(1))
 	assert.NotNil(t, err)
 }
 

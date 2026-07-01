@@ -145,7 +145,6 @@ func (s Stream) Concat(others ...Stream) Stream {
 		})
 
 		for _, each := range others {
-			each := each
 			group.Run(func() {
 				for item := range each.source {
 					source <- item
@@ -534,11 +533,7 @@ func UnlimitedWorkers() Option {
 // WithWorkers lets the caller customize the concurrent workers.
 func WithWorkers(workers int) Option {
 	return func(opts *rxOptions) {
-		if workers < minWorkers {
-			opts.workers = minWorkers
-		} else {
-			opts.workers = workers
-		}
+		opts.workers = max(workers, minWorkers)
 	}
 }
 

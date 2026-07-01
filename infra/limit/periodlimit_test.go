@@ -4,9 +4,9 @@ import (
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/stores/redis"
 	"github.com/natuleadan/sdk-api/infra/stores/redis/redistest"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestPeriodLimit_Take(t *testing.T) {
@@ -42,7 +42,7 @@ func testPeriodLimit(t *testing.T, opts ...PeriodOption) {
 	)
 	l := NewPeriodLimit(seconds, quota, store, "periodlimit", opts...)
 	var allowed, hitQuota, overQuota int
-	for i := 0; i < total; i++ {
+	for range total {
 		val, err := l.Take("first")
 		if err != nil {
 			t.Error(err)

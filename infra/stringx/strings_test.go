@@ -2,6 +2,7 @@ package stringx
 
 import (
 	"path"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -114,12 +115,7 @@ func TestFilter(t *testing.T) {
 	for _, each := range cases {
 		t.Run(each.input, func(t *testing.T) {
 			actual := Filter(each.input, func(r rune) bool {
-				for _, x := range each.ignores {
-					if x == r {
-						return true
-					}
-				}
-				return false
+				return slices.Contains(each.ignores, r)
 			})
 			assert.Equal(t, each.expect, actual)
 		})
@@ -240,7 +236,6 @@ func TestJoin(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			assert.Equal(t, test.expect, Join('.', test.input...))
 		})
@@ -515,7 +510,6 @@ func TestToCamelCase(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.input, func(t *testing.T) {
 			assert.Equal(t, test.expect, ToCamelCase(test.input))
 		})
@@ -536,13 +530,7 @@ func TestUnion(t *testing.T) {
 	}
 	union := Union(first, second)
 	contains := func(v string) bool {
-		for _, each := range union {
-			if v == each {
-				return true
-			}
-		}
-
-		return false
+		return slices.Contains(union, v)
 	}
 	assert.Equal(t, 5, len(union))
 	assert.True(t, contains("zero"))

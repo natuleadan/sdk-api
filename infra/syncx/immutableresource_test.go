@@ -78,7 +78,7 @@ func TestImmutableResourceConcurrent(t *testing.T) {
 	errs := make([]error, goroutines)
 
 	wg.Add(goroutines)
-	for i := 0; i < goroutines; i++ {
+	for i := range goroutines {
 		go func(idx int) {
 			defer wg.Done()
 			res, err := r.Get()
@@ -96,7 +96,7 @@ func TestImmutableResourceConcurrent(t *testing.T) {
 	assert.Equal(t, int32(1), atomic.LoadInt32(&count))
 
 	// all goroutines should eventually get the same result
-	for i := 0; i < goroutines; i++ {
+	for i := range goroutines {
 		assert.Nil(t, errs[i])
 		assert.Equal(t, message, results[i])
 	}

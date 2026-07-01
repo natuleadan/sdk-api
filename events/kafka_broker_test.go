@@ -124,7 +124,7 @@ func TestIntegration_KafkaBroker_MultipleMessages(t *testing.T) {
 
 	time.Sleep(2 * time.Second)
 
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		err := b.Publish(context.Background(), topic, []byte(`{"n":`+fmt.Sprintf("%d", i)+`}`))
 		if err != nil {
 			t.Fatalf("Publish %d: %v", i, err)

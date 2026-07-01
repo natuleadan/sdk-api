@@ -4,8 +4,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/stringx"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestSafeMap(t *testing.T) {
@@ -37,10 +37,10 @@ func TestSafeMap_CopyNew(t *testing.T) {
 	)
 	m := NewSafeMap()
 
-	for i := 0; i < size; i++ {
+	for i := range size {
 		m.Set(i, i)
 	}
-	for i := 0; i < size; i++ {
+	for i := range size {
 		if i%exception1 == 0 {
 			m.Del(i)
 		}
@@ -55,7 +55,7 @@ func TestSafeMap_CopyNew(t *testing.T) {
 		}
 	}
 
-	for i := 0; i < size; i++ {
+	for i := range size {
 		val, ok := m.Get(i)
 		if i%exception1 != 0 {
 			assert.True(t, ok)
@@ -78,10 +78,10 @@ func TestSafeMap_CopyNew(t *testing.T) {
 func testSafeMapWithParameters(t *testing.T, size, exception int) {
 	m := NewSafeMap()
 
-	for i := 0; i < size; i++ {
+	for i := range size {
 		m.Set(i, i)
 	}
-	for i := 0; i < size; i++ {
+	for i := range size {
 		if i%exception != 0 {
 			m.Del(i)
 		}
@@ -119,10 +119,10 @@ func TestSafeMap_Range(t *testing.T) {
 	m := NewSafeMap()
 	newMap := NewSafeMap()
 
-	for i := 0; i < size; i++ {
+	for i := range size {
 		m.Set(i, i)
 	}
-	for i := 0; i < size; i++ {
+	for i := range size {
 		if i%exception1 == 0 {
 			m.Del(i)
 		}
@@ -151,7 +151,7 @@ func TestSafeMap_Range(t *testing.T) {
 func TestSetManyTimes(t *testing.T) {
 	const iteration = maxDeletion * 2
 	m := NewSafeMap()
-	for i := 0; i < iteration; i++ {
+	for i := range iteration {
 		m.Set(i, i)
 		if i%3 == 0 {
 			m.Del(i / 2)
@@ -163,19 +163,19 @@ func TestSetManyTimes(t *testing.T) {
 		return count < maxDeletion/2
 	})
 	assert.Equal(t, maxDeletion/2, count)
-	for i := 0; i < iteration; i++ {
+	for i := range iteration {
 		m.Set(i, i)
 		if i%3 == 0 {
 			m.Del(i / 2)
 		}
 	}
-	for i := 0; i < iteration; i++ {
+	for i := range iteration {
 		m.Set(i, i)
 		if i%3 == 0 {
 			m.Del(i / 2)
 		}
 	}
-	for i := 0; i < iteration; i++ {
+	for i := range iteration {
 		m.Set(i, i)
 		if i%3 == 0 {
 			m.Del(i / 2)
@@ -192,19 +192,19 @@ func TestSetManyTimes(t *testing.T) {
 
 func TestSetManyTimesNew(t *testing.T) {
 	m := NewSafeMap()
-	for i := 0; i < maxDeletion*3; i++ {
+	for i := range maxDeletion * 3 {
 		m.Set(i, i)
 	}
-	for i := 0; i < maxDeletion*2; i++ {
+	for i := range maxDeletion * 2 {
 		m.Del(i)
 	}
-	for i := 0; i < maxDeletion*3; i++ {
+	for i := range maxDeletion * 3 {
 		m.Set(i+maxDeletion*3, i+maxDeletion*3)
 	}
-	for i := 0; i < maxDeletion*2; i++ {
+	for i := range maxDeletion * 2 {
 		m.Del(i + maxDeletion*2)
 	}
-	for i := 0; i < maxDeletion-copyThreshold+1; i++ {
+	for i := range maxDeletion - copyThreshold + 1 {
 		m.Del(i + maxDeletion*2)
 	}
 	assert.Equal(t, 0, len(m.dirtyNew))

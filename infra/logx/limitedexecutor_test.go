@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/timex"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestLimitedExecutor_logOrDiscard(t *testing.T) {
@@ -38,7 +38,6 @@ func TestLimitedExecutor_logOrDiscard(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 

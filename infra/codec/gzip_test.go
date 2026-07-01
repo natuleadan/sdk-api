@@ -12,7 +12,7 @@ import (
 
 func TestGzip(t *testing.T) {
 	var buf bytes.Buffer
-	for i := 0; i < 10000; i++ {
+	for i := range 10000 {
 		fmt.Fprint(&buf, i)
 	}
 

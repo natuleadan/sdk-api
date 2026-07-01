@@ -28,7 +28,7 @@ func Repr(v any) string {
 	}
 
 	val := reflect.ValueOf(v)
-	for val.Kind() == reflect.Ptr && !val.IsNil() {
+	for val.Kind() == reflect.Pointer && !val.IsNil() {
 		val = val.Elem()
 	}
 

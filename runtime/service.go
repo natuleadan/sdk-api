@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"fmt"
+	"maps"
 	"reflect"
 	"time"
 
@@ -19,14 +20,14 @@ import (
 // initializes databases, NATS connections, entry endpoints, and
 // optionally exit workers and cron jobs.
 type Service struct {
-	config    *ServiceConfig
-	srv       *server.Server
-	pools     map[string]any
-	natsConns map[string]events.EventBroker
-	handlers  *EntryHandlers
-	hooks     map[string]any // model → EntryHooks[T]
-	exitFuncs map[string]ExitHandler
-	exitHooks map[string]ExitHooks
+	config     *ServiceConfig
+	srv        *server.Server
+	pools      map[string]any
+	natsConns  map[string]events.EventBroker
+	handlers   *EntryHandlers
+	hooks      map[string]any // model → EntryHooks[T]
+	exitFuncs  map[string]ExitHandler
+	exitHooks  map[string]ExitHooks
 	exitMgr    *ExitWorkerManager
 	cronSched  *CronScheduler
 	cronFuncs  map[string]CronJobFunc
@@ -157,7 +158,7 @@ func (s *Service) RegisterModel(name string, model any) *Service {
 		s.models = make(map[string]*db.TableInfo)
 	}
 	t := reflect.TypeOf(model)
-	if t != nil && t.Kind() == reflect.Ptr {
+	if t != nil && t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	if t == nil || t.Kind() != reflect.Struct {
@@ -260,18 +261,14 @@ func (s *Service) initEventStreams(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("nats: %w", err)
 		}
-		for k, v := range conns {
-			s.natsConns[k] = v
-		}
+		maps.Copy(s.natsConns, conns)
 	}
 	if len(s.config.EventStreams) > 0 {
 		brokers, err := initEventStreams(ctx, s.config.EventStreams)
 		if err != nil {
 			return fmt.Errorf("event_streams: %w", err)
 		}
-		for k, v := range brokers {
-			s.natsConns[k] = v
-		}
+		maps.Copy(s.natsConns, brokers)
 	}
 	return nil
 }

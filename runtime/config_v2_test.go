@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-func TestLoadConfig_FullYAML(t *testing.T) {
+func TestLoadConfig_FullYAML(t *testing.T) { //nolint:gocyclo
 	cfg, err := LoadConfig("testdata/service_v2.yaml")
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)

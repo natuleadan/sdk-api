@@ -119,98 +119,106 @@ func New(cfg Config, telemetry TelemetryConfig, security SecurityConfig, corsCfg
 		ErrorHandler: errorHandler,
 	})
 
-	// Global middlewares (always on: recover, health, header sanitize, trace, prometheus metrics)
-	app.Use(recover.New(recover.Config{
-		EnableStackTrace: cfg.RecoverStack,
-	}))
+	setupGlobalMiddlewares(app, cfg, telemetry)
+	setupSecurityMiddlewares(app, cfg, security)
+	setupRouteOrGlobalMiddlewares(app, cfg, corsCfg)
+
+	s := &Server{app: app, config: cfg}
+	s.registerShutdown()
+	return s
+}
+
+func setupGlobalMiddlewares(app *fiber.App, cfg Config, telemetry TelemetryConfig) {
+	app.Use(recover.New(recover.Config{EnableStackTrace: cfg.RecoverStack}))
 	app.Use(middleware.HeaderSanitize())
 	app.Use(healthcheck.New(healthcheck.Config{
 		LivenessProbe:    func(c *fiber.Ctx) bool { return true },
 		LivenessEndpoint: cfg.HealthPath,
 	}))
-
 	if telemetry.Enabled {
 		app.Use(middleware.Trace(middleware.TraceConfig{
-			Name:     telemetry.Name,
-			Endpoint: telemetry.Endpoint,
-			Sampler:  telemetry.Sampler,
-			Batcher:  telemetry.Batcher,
+			Name: telemetry.Name, Endpoint: telemetry.Endpoint,
+			Sampler: telemetry.Sampler, Batcher: telemetry.Batcher,
 		}))
 	}
-
 	app.Get(cfg.MetricsPath, middleware.PrometheusHandler())
+}
 
-	// Security headers middleware (always-on if configured)
+func setupSecurityMiddlewares(app *fiber.App, cfg Config, security SecurityConfig) {
 	if cfg.SecurityHeaders != nil {
 		app.Use(middleware.SecurityHeaders(*cfg.SecurityHeaders))
 	}
-
-	// CSRF middleware (global if enabled)
 	if cfg.CSRF != nil {
 		app.Use(middleware.CSRF(*cfg.CSRF))
 	}
-
-	// Rate limit middleware (global if configured)
 	if cfg.RateLimit != nil {
 		app.Use(middleware.RateLimit(*cfg.RateLimit))
 	}
-
-	// Security middlewares (global if enabled)
 	if security.ContentSecurity != nil && security.ContentSecurity.Enabled {
 		if key, err := middleware.ParsePublicKey(security.ContentSecurity.PublicKey); err == nil {
 			app.Use(middleware.ContentSecurity(key, security.ContentSecurity.Strict))
 		}
 	}
-
 	if security.Cryption != nil && security.Cryption.Enabled {
 		app.Use(middleware.Cryption([]byte(security.Cryption.Key)))
 	}
+}
 
-	// Per-route middlewares
+func setupRouteOrGlobalMiddlewares(app *fiber.App, cfg Config, corsCfg *CORSConfig) {
 	if len(cfg.Routes) > 0 {
-		for _, rc := range cfg.Routes {
-			grp := app.Group(rc.Path)
-			for _, mw := range rc.Middleware {
-				switch mw {
-				case "logger":
-					grp.Use(middleware.Logger())
-				case "shedding":
-					grp.Use(middleware.Shedding())
-				case "breaker":
-					grp.Use(middleware.Breaker())
-				case "maxconns":
-					grp.Use(middleware.MaxConns(cfg.MaxConns))
-				case "maxbytes":
-					grp.Use(middleware.MaxBytes(cfg.MaxBytes))
-				case "gunzip":
-					grp.Use(middleware.Gunzip())
-				case "prometheus":
-					grp.Use(middleware.Prometheus())
-				case "cors":
-					if corsCfg != nil {
-						grp.Use(middleware.CORS(middleware.CORSConfig{
-							AllowedOrigins:   joinOrStar(corsCfg.Origins),
-							AllowedMethods:   joinOrDefault(corsCfg.Methods, "GET,POST,PUT,PATCH,DELETE,OPTIONS"),
-							AllowedHeaders:   joinOrDefault(corsCfg.Headers, "Origin,Content-Type,Accept,Authorization"),
-							AllowCredentials: corsCfg.Credentials,
-							MaxAge:           corsCfg.MaxAge,
-						}))
-					}
-				}
-			}
-		}
+		setupPerRouteMiddlewares(app, cfg, corsCfg)
 	} else {
-		// No routes specified: apply all middlewares globally (backwards compatible)
-		app.Use(middleware.Logger())
-		app.Use(middleware.Shedding())
-		app.Use(middleware.Breaker())
-		app.Use(middleware.MaxConns(cfg.MaxConns))
-		app.Use(middleware.MaxBytes(cfg.MaxBytes))
-		app.Use(middleware.Gunzip())
-		app.Use(middleware.Prometheus())
+		setupGlobalStandardMiddlewares(app, cfg, corsCfg)
+	}
+}
 
+func setupPerRouteMiddlewares(app *fiber.App, cfg Config, corsCfg *CORSConfig) {
+	for _, rc := range cfg.Routes {
+		grp := app.Group(rc.Path)
+		for _, mw := range rc.Middleware {
+			applyMiddlewareByType(grp, mw, cfg, corsCfg)
+		}
+	}
+}
+
+func setupGlobalStandardMiddlewares(app *fiber.App, cfg Config, corsCfg *CORSConfig) {
+	app.Use(middleware.Logger())
+	app.Use(middleware.Shedding())
+	app.Use(middleware.Breaker())
+	app.Use(middleware.MaxConns(cfg.MaxConns))
+	app.Use(middleware.MaxBytes(cfg.MaxBytes))
+	app.Use(middleware.Gunzip())
+	app.Use(middleware.Prometheus())
+	if corsCfg != nil {
+		app.Use(middleware.CORS(middleware.CORSConfig{
+			AllowedOrigins:   joinOrStar(corsCfg.Origins),
+			AllowedMethods:   joinOrDefault(corsCfg.Methods, "GET,POST,PUT,PATCH,DELETE,OPTIONS"),
+			AllowedHeaders:   joinOrDefault(corsCfg.Headers, "Origin,Content-Type,Accept,Authorization"),
+			AllowCredentials: corsCfg.Credentials,
+			MaxAge:           corsCfg.MaxAge,
+		}))
+	}
+}
+
+func applyMiddlewareByType(grp fiber.Router, name string, cfg Config, corsCfg *CORSConfig) {
+	switch name {
+	case "logger":
+		grp.Use(middleware.Logger())
+	case "shedding":
+		grp.Use(middleware.Shedding())
+	case "breaker":
+		grp.Use(middleware.Breaker())
+	case "maxconns":
+		grp.Use(middleware.MaxConns(cfg.MaxConns))
+	case "maxbytes":
+		grp.Use(middleware.MaxBytes(cfg.MaxBytes))
+	case "gunzip":
+		grp.Use(middleware.Gunzip())
+	case "prometheus":
+		grp.Use(middleware.Prometheus())
+	case "cors":
 		if corsCfg != nil {
-			app.Use(middleware.CORS(middleware.CORSConfig{
+			grp.Use(middleware.CORS(middleware.CORSConfig{
 				AllowedOrigins:   joinOrStar(corsCfg.Origins),
 				AllowedMethods:   joinOrDefault(corsCfg.Methods, "GET,POST,PUT,PATCH,DELETE,OPTIONS"),
 				AllowedHeaders:   joinOrDefault(corsCfg.Headers, "Origin,Content-Type,Accept,Authorization"),
@@ -219,10 +227,6 @@ func New(cfg Config, telemetry TelemetryConfig, security SecurityConfig, corsCfg
 			}))
 		}
 	}
-
-	s := &Server{app: app, config: cfg}
-	s.registerShutdown()
-	return s
 }
 
 func joinOrStar(items []string) string {

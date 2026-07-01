@@ -215,16 +215,46 @@ func (s *Service) RunWithContext(ctx context.Context) error {
 	ctx, cancel = context.WithCancel(ctx)
 	s.stop = cancel
 
-	// 1. Initialize databases
-	if len(s.config.Databases) > 0 {
-		pools, err := initDatabases(ctx, s.config.Databases)
-		if err != nil {
-			return fmt.Errorf("databases: %w", err)
-		}
-		s.pools = pools
+	if err := s.initDatabases(ctx); err != nil {
+		return err
+	}
+	if err := s.initEventStreams(ctx); err != nil {
+		return err
+	}
+	s.initSSRF()
+	s.initServer()
+
+	if err := s.registerEntryRoutes(); err != nil {
+		return err
+	}
+	s.serveStaticFiles()
+	registerDocs(s.srv.App(), s.config, s.models)
+
+	if err := s.startExitWorkers(ctx); err != nil {
+		return err
+	}
+	if err := s.startCron(ctx); err != nil {
+		return err
 	}
 
-	// 2. Initialize event streams (NATS legacy + event_streams)
+	logx.Infof("%s starting on :%d", s.config.Name, s.config.Port)
+	proc.AddShutdownListener(func() { s.shutdown() })
+	return s.srv.Start()
+}
+
+func (s *Service) initDatabases(ctx context.Context) error {
+	if len(s.config.Databases) == 0 {
+		return nil
+	}
+	pools, err := initDatabases(ctx, s.config.Databases)
+	if err != nil {
+		return fmt.Errorf("databases: %w", err)
+	}
+	s.pools = pools
+	return nil
+}
+
+func (s *Service) initEventStreams(ctx context.Context) error {
 	if len(s.config.NATS) > 0 {
 		conns, err := initNATSList(ctx, s.config.NATS)
 		if err != nil {
@@ -243,71 +273,60 @@ func (s *Service) RunWithContext(ctx context.Context) error {
 			s.natsConns[k] = v
 		}
 	}
+	return nil
+}
 
-	// 2.5 Initialize SSRF protection (disabled by default)
+func (s *Service) initSSRF() {
 	if sc := s.config.Server.SSRF; sc != nil && sc.Enabled {
 		s.safeClient = middleware.NewSafeHTTPClient(*convertSSRF(sc))
 	}
+}
 
-	// 3. Create HTTP server
-	s.initServer()
-
-	// 4. Register entry routes
-	if len(s.config.Entry) > 0 {
-		// Auto-create storage backends from YAML
-		if s.handlers.Storage == nil {
-			s.handlers.Storage = make(map[string]server.StorageBackend)
-		}
-		for _, entry := range s.config.Entry {
-			if entry.Type == "file" && entry.Storage != nil {
-				key := entry.Path
-				if s.handlers.Storage[key] == nil {
-					backend, err := initStorageFromDef(entry.Storage)
-					if err != nil {
-						return fmt.Errorf("storage %s: %w", entry.Path, err)
-					}
-					s.handlers.Storage[key] = backend
-					logx.Infof("storage ready: %s mode=%s", entry.Path, entry.Storage.Mode)
+func (s *Service) registerEntryRoutes() error {
+	if len(s.config.Entry) == 0 {
+		return nil
+	}
+	if s.handlers.Storage == nil {
+		s.handlers.Storage = make(map[string]server.StorageBackend)
+	}
+	for _, entry := range s.config.Entry {
+		if entry.Type == "file" && entry.Storage != nil {
+			if s.handlers.Storage[entry.Path] == nil {
+				backend, err := initStorageFromDef(entry.Storage)
+				if err != nil {
+					return fmt.Errorf("storage %s: %w", entry.Path, err)
 				}
+				s.handlers.Storage[entry.Path] = backend
+				logx.Infof("storage ready: %s mode=%s", entry.Path, entry.Storage.Mode)
 			}
 		}
-		prefix := s.config.Server.APIPrefix
-		if err := RegisterEntries(s.srv.App(), s.config, s.handlers, prefix, s.natsConns, s.models); err != nil {
-			return fmt.Errorf("entry routes: %w", err)
-		}
 	}
+	return RegisterEntries(s.srv.App(), s.config, s.handlers, s.config.Server.APIPrefix, s.natsConns, s.models)
+}
 
-	// 5. Static files
+func (s *Service) serveStaticFiles() {
 	for _, sd := range s.config.Server.Static {
 		s.srv.App().Static(sd.Prefix, sd.Dir)
 	}
+}
 
-	// 5.5 Register OpenAPI docs
-	registerDocs(s.srv.App(), s.config, s.models)
-
-	// 6. Init exit workers
-	if len(s.config.Exit) > 0 {
-		if err := s.exitMgr.Start(ctx, s.config.Exit, s.natsConns, s.exitFuncs, s.exitHooks); err != nil {
-			return fmt.Errorf("exit workers: %w", err)
-		}
+func (s *Service) startExitWorkers(ctx context.Context) error {
+	if len(s.config.Exit) == 0 {
+		return nil
 	}
+	return s.exitMgr.Start(ctx, s.config.Exit, s.natsConns, s.exitFuncs, s.exitHooks)
+}
 
-	// 7. Init cron
-	if len(s.config.Cron) > 0 {
-		s.cronSched = NewCronScheduler()
-		if err := s.cronSched.AddAll(s.config.Cron, s.natsConns, s.cronFuncs); err != nil {
-			return fmt.Errorf("cron: %w", err)
-		}
-		s.cronSched.Start()
+func (s *Service) startCron(_ context.Context) error {
+	if len(s.config.Cron) == 0 {
+		return nil
 	}
-
-	logx.Infof("%s starting on :%d", s.config.Name, s.config.Port)
-
-	proc.AddShutdownListener(func() {
-		s.shutdown()
-	})
-
-	return s.srv.Start()
+	s.cronSched = NewCronScheduler()
+	if err := s.cronSched.AddAll(s.config.Cron, s.natsConns, s.cronFuncs); err != nil {
+		return fmt.Errorf("cron: %w", err)
+	}
+	s.cronSched.Start()
+	return nil
 }
 
 func (s *Service) initServer() {

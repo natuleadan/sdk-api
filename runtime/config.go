@@ -353,117 +353,131 @@ func (e *EntryDef) Validate() error {
 	}
 	switch e.Type {
 	case "crud":
-		if e.Model == "" {
-			return fmt.Errorf("crud: model is required")
-		}
-		if e.DB == "" {
-			return fmt.Errorf("crud: db is required")
-		}
-		if e.Table == "" {
-			e.Table = toSnake(e.Model)
-		}
-		if e.Resource == "" {
-			e.Resource = plural(e.Table)
-		}
-		if e.Path == "" {
-			e.Path = "/" + e.Resource
-		}
-		return nil
-
+		return e.validateCRUD()
 	case "rest":
-		if e.Method == "" {
-			return fmt.Errorf("rest: method is required")
-		}
-		if e.Path == "" {
-			return fmt.Errorf("rest: path is required")
-		}
-		if e.Handler == "" {
-			return fmt.Errorf("rest: handler is required")
-		}
-
+		return e.validateREST()
 	case "webhook":
-		if e.Method == "" {
-			e.Method = "POST"
-		}
-		if e.Path == "" {
-			return fmt.Errorf("webhook: path is required")
-		}
-		if e.Handler == "" {
-			return fmt.Errorf("webhook: handler is required")
-		}
-
+		return e.validateWebhook()
 	case "websocket":
-		if e.Path == "" {
-			return fmt.Errorf("websocket: path is required")
-		}
-		if e.Handler == "" {
-			return fmt.Errorf("websocket: handler is required")
-		}
-
+		return e.validateWebSocket()
 	case "sse":
-		if e.Path == "" {
-			return fmt.Errorf("sse: path is required")
-		}
-		if e.Handler == "" {
-			return fmt.Errorf("sse: handler is required")
-		}
-
+		return e.validateSSE()
 	case "file":
-		if e.Method == "" {
-			return fmt.Errorf("file: method is required")
-		}
-		if e.Path == "" {
-			return fmt.Errorf("file: path is required")
-		}
-		if e.Handler == "" {
-			return fmt.Errorf("file: handler is required")
-		}
-		if e.Storage == nil {
-			return fmt.Errorf("file: storage is required")
-		}
-		switch e.Storage.Mode {
-		case "s3", "local":
-		default:
-			return fmt.Errorf("file: storage.mode must be s3 or local (got %q)", e.Storage.Mode)
-		}
-		if e.Storage.Mode == "local" && e.Storage.Path == "" {
-			return fmt.Errorf("file: storage.path is required for mode=local")
-		}
-
+		return e.validateFile()
 	case "async":
-		if e.Path == "" {
-			return fmt.Errorf("async: path is required")
-		}
-		if e.Handler == "" {
-			return fmt.Errorf("async: handler is required")
-		}
-
+		return e.validateAsync()
 	case "graphql":
-		if e.Path == "" {
-			return fmt.Errorf("graphql: path is required")
-		}
-
+		return e.validateGraphQL()
 	default:
 		return fmt.Errorf("unknown entry type %q (use crud, rest, webhook, websocket, sse, file, async, or graphql)", e.Type)
 	}
+}
 
-	// Validate publish targets (check event_publish first, then nats_publish)
-	targets := e.EventPublish
-	if len(targets) == 0 {
-		targets = e.NATSPublish
+func (e *EntryDef) validateCRUD() error {
+	if e.Model == "" {
+		return fmt.Errorf("crud: model is required")
 	}
-	for _, p := range targets {
-		if p.Stream == "" {
-			return fmt.Errorf("event_publish: stream is required")
-		}
-		if p.Subject == "" {
-			p.Subject = p.Stream
-		}
+	if e.DB == "" {
+		return fmt.Errorf("crud: db is required")
 	}
-
+	if e.Table == "" {
+		e.Table = toSnake(e.Model)
+	}
+	if e.Resource == "" {
+		e.Resource = plural(e.Table)
+	}
+	if e.Path == "" {
+		e.Path = "/" + e.Resource
+	}
 	return nil
 }
 
+func (e *EntryDef) validateREST() error {
+	if e.Method == "" {
+		return fmt.Errorf("rest: method is required")
+	}
+	if e.Path == "" {
+		return fmt.Errorf("rest: path is required")
+	}
+	if e.Handler == "" {
+		return fmt.Errorf("rest: handler is required")
+	}
+	return nil
+}
+
+func (e *EntryDef) validateWebhook() error {
+	if e.Method == "" {
+		e.Method = "POST"
+	}
+	if e.Path == "" {
+		return fmt.Errorf("webhook: path is required")
+	}
+	if e.Handler == "" {
+		return fmt.Errorf("webhook: handler is required")
+	}
+	return nil
+}
+
+func (e *EntryDef) validateWebSocket() error {
+	if e.Path == "" {
+		return fmt.Errorf("websocket: path is required")
+	}
+	if e.Handler == "" {
+		return fmt.Errorf("websocket: handler is required")
+	}
+	return nil
+}
+
+func (e *EntryDef) validateSSE() error {
+	if e.Path == "" {
+		return fmt.Errorf("sse: path is required")
+	}
+	if e.Handler == "" {
+		return fmt.Errorf("sse: handler is required")
+	}
+	return nil
+}
+
+func (e *EntryDef) validateFile() error {
+	if e.Method == "" {
+		return fmt.Errorf("file: method is required")
+	}
+	if e.Path == "" {
+		return fmt.Errorf("file: path is required")
+	}
+	if e.Handler == "" {
+		return fmt.Errorf("file: handler is required")
+	}
+	if e.Storage == nil {
+		return fmt.Errorf("file: storage is required")
+	}
+	switch e.Storage.Mode {
+	case "s3", "local":
+	default:
+		return fmt.Errorf("file: storage.mode must be s3 or local (got %q)", e.Storage.Mode)
+	}
+	if e.Storage.Mode == "local" && e.Storage.Path == "" {
+		return fmt.Errorf("file: storage.path is required for mode=local")
+	}
+	return nil
+}
+
+func (e *EntryDef) validateAsync() error {
+	if e.Path == "" {
+		return fmt.Errorf("async: path is required")
+	}
+	if e.Handler == "" {
+		return fmt.Errorf("async: handler is required")
+	}
+	return nil
+}
+
+func (e *EntryDef) validateGraphQL() error {
+	if e.Path == "" {
+		return fmt.Errorf("graphql: path is required")
+	}
+	return nil
+}
 // ---- Exit Workers ----
 
 type ExitWorker struct {
@@ -616,109 +630,149 @@ func expandEnvDefaults(content string) (string, error) {
 
 func LoadConfig(path string) (*ServiceConfig, error) {
 	var cfg ServiceConfig
-	if path != "" {
-		content, err := os.ReadFile(path)
-		if err != nil {
-			return nil, fmt.Errorf("read config: %w", err)
-		}
-
-		decrypted, err := trySOPSDecrypt(content)
-		if err != nil {
-			return nil, fmt.Errorf("decrypt config: %w", err)
-		}
-
-		expanded, err := expandEnvDefaults(string(decrypted))
-		if err != nil {
-			return nil, err
-		}
-
-		if err := conf.LoadFromYamlBytes([]byte(expanded), &cfg); err != nil {
-			return nil, fmt.Errorf("load config: %w", err)
-		}
+	if err := loadConfigFile(path, &cfg); err != nil {
+		return nil, err
 	}
+	applyEnvOverrides(&cfg)
+	if err := validateConfigDatabases(&cfg); err != nil {
+		return nil, err
+	}
+	if err := validateConfigNATS(&cfg); err != nil {
+		return nil, err
+	}
+	if err := validateConfigEventStreams(&cfg); err != nil {
+		return nil, err
+	}
+	if err := validateConfigEntries(&cfg); err != nil {
+		return nil, err
+	}
+	if err := validateConfigExits(&cfg); err != nil {
+		return nil, err
+	}
+	if err := validateConfigCron(&cfg); err != nil {
+		return nil, err
+	}
+	checkPlaintextSecrets(&cfg)
+	return &cfg, nil
+}
 
-	// env override for port
+func loadConfigFile(path string, cfg *ServiceConfig) error {
+	if path == "" {
+		return nil
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read config: %w", err)
+	}
+	decrypted, err := trySOPSDecrypt(content)
+	if err != nil {
+		return fmt.Errorf("decrypt config: %w", err)
+	}
+	expanded, err := expandEnvDefaults(string(decrypted))
+	if err != nil {
+		return err
+	}
+	return conf.LoadFromYamlBytes([]byte(expanded), cfg)
+}
+
+func applyEnvOverrides(cfg *ServiceConfig) {
 	if v := os.Getenv("PORT"); v != "" {
 		if p, err := strconv.Atoi(v); err == nil && p > 0 {
 			cfg.Port = p
 		}
 	}
+}
 
-	// Validate databases
-	seenDB := make(map[string]bool)
+func validateConfigDatabases(cfg *ServiceConfig) error {
+	seen := make(map[string]bool)
 	for i := range cfg.Databases {
 		if err := cfg.Databases[i].Validate(); err != nil {
-			return nil, fmt.Errorf("databases[%d] (%s): %w", i, cfg.Databases[i].Name, err)
+			return fmt.Errorf("databases[%d] (%s): %w", i, cfg.Databases[i].Name, err)
 		}
-		if seenDB[cfg.Databases[i].Name] {
-			return nil, fmt.Errorf("databases[%d]: duplicate name %q", i, cfg.Databases[i].Name)
+		if seen[cfg.Databases[i].Name] {
+			return fmt.Errorf("databases[%d]: duplicate name %q", i, cfg.Databases[i].Name)
 		}
-		seenDB[cfg.Databases[i].Name] = true
+		seen[cfg.Databases[i].Name] = true
 	}
+	return nil
+}
 
-	// Validate NATS
-	seenNATS := make(map[string]bool)
+func validateConfigNATS(cfg *ServiceConfig) error {
+	seen := make(map[string]bool)
 	for i := range cfg.NATS {
 		if err := cfg.NATS[i].Validate(); err != nil {
-			return nil, fmt.Errorf("nats[%d] (%s): %w", i, cfg.NATS[i].Name, err)
+			return fmt.Errorf("nats[%d] (%s): %w", i, cfg.NATS[i].Name, err)
 		}
-		if seenNATS[cfg.NATS[i].Name] {
-			return nil, fmt.Errorf("nats[%d]: duplicate name %q", i, cfg.NATS[i].Name)
+		if seen[cfg.NATS[i].Name] {
+			return fmt.Errorf("nats[%d]: duplicate name %q", i, cfg.NATS[i].Name)
 		}
+		seen[cfg.NATS[i].Name] = true
+	}
+	return nil
+}
+
+func validateConfigEventStreams(cfg *ServiceConfig) error {
+	seenES := make(map[string]bool)
+	seenNATS := make(map[string]bool)
+	for i := range cfg.NATS {
 		seenNATS[cfg.NATS[i].Name] = true
 	}
-
-	// Validate Event Streams
-	seenES := make(map[string]bool)
 	for i := range cfg.EventStreams {
 		if err := cfg.EventStreams[i].Validate(); err != nil {
-			return nil, fmt.Errorf("event_streams[%d] (%s): %w", i, cfg.EventStreams[i].Name, err)
+			return fmt.Errorf("event_streams[%d] (%s): %w", i, cfg.EventStreams[i].Name, err)
 		}
 		if seenES[cfg.EventStreams[i].Name] {
-			return nil, fmt.Errorf("event_streams[%d]: duplicate name %q", i, cfg.EventStreams[i].Name)
+			return fmt.Errorf("event_streams[%d]: duplicate name %q", i, cfg.EventStreams[i].Name)
 		}
 		if seenNATS[cfg.EventStreams[i].Name] {
-			return nil, fmt.Errorf("event_streams[%d]: name %q conflicts with nats entry", i, cfg.EventStreams[i].Name)
+			return fmt.Errorf("event_streams[%d]: name %q conflicts with nats entry", i, cfg.EventStreams[i].Name)
 		}
 		seenES[cfg.EventStreams[i].Name] = true
 	}
-
-	// Validate entry endpoints
-	for i := range cfg.Entry {
-		if err := cfg.Entry[i].Validate(); err != nil {
-			return nil, fmt.Errorf("entry[%d] (%s %s): %w", i, cfg.Entry[i].Type, cfg.Entry[i].Path, err)
-		}
-		// Validate DB reference exists (skip if no databases declared)
-		if cfg.Entry[i].DB != "" && !seenDB[cfg.Entry[i].DB] && len(cfg.Databases) > 0 {
-			return nil, fmt.Errorf("entry[%d] (%s): db %q not found in databases", i, cfg.Entry[i].Path, cfg.Entry[i].DB)
-		}
-	}
-
-	// Validate exit workers
-	for i := range cfg.Exit {
-		if err := cfg.Exit[i].Validate(); err != nil {
-			return nil, fmt.Errorf("exit[%d] (%s): %w", i, cfg.Exit[i].Name, err)
-		}
-		if cfg.Exit[i].DB != "" && !seenDB[cfg.Exit[i].DB] && len(cfg.Databases) > 0 {
-			return nil, fmt.Errorf("exit[%d] (%s): db %q not found in databases", i, cfg.Exit[i].Name, cfg.Exit[i].DB)
-		}
-	}
-
-	// Validate cron
-	for i := range cfg.Cron {
-		if err := cfg.Cron[i].Validate(); err != nil {
-			return nil, fmt.Errorf("cron[%d] (%s): %w", i, cfg.Cron[i].Name, err)
-		}
-	}
-
-	// Warn about potential plaintext secrets in config
-	checkPlaintextSecrets(&cfg)
-
-	return &cfg, nil
+	return nil
 }
 
-// checkPlaintextSecrets logs warnings for values that look like secrets
-// but are hardcoded instead of using ${VAR} environment variable substitution.
+func validateConfigEntries(cfg *ServiceConfig) error {
+	seenDB := make(map[string]bool)
+	for i := range cfg.Databases {
+		seenDB[cfg.Databases[i].Name] = true
+	}
+	for i := range cfg.Entry {
+		if err := cfg.Entry[i].Validate(); err != nil {
+			return fmt.Errorf("entry[%d] (%s %s): %w", i, cfg.Entry[i].Type, cfg.Entry[i].Path, err)
+		}
+		if cfg.Entry[i].DB != "" && !seenDB[cfg.Entry[i].DB] && len(cfg.Databases) > 0 {
+			return fmt.Errorf("entry[%d] (%s): db %q not found in databases", i, cfg.Entry[i].Path, cfg.Entry[i].DB)
+		}
+	}
+	return nil
+}
+
+func validateConfigExits(cfg *ServiceConfig) error {
+	seenDB := make(map[string]bool)
+	for i := range cfg.Databases {
+		seenDB[cfg.Databases[i].Name] = true
+	}
+	for i := range cfg.Exit {
+		if err := cfg.Exit[i].Validate(); err != nil {
+			return fmt.Errorf("exit[%d] (%s): %w", i, cfg.Exit[i].Name, err)
+		}
+		if cfg.Exit[i].DB != "" && !seenDB[cfg.Exit[i].DB] && len(cfg.Databases) > 0 {
+			return fmt.Errorf("exit[%d] (%s): db %q not found in databases", i, cfg.Exit[i].Name, cfg.Exit[i].DB)
+		}
+	}
+	return nil
+}
+
+func validateConfigCron(cfg *ServiceConfig) error {
+	for i := range cfg.Cron {
+		if err := cfg.Cron[i].Validate(); err != nil {
+			return fmt.Errorf("cron[%d] (%s): %w", i, cfg.Cron[i].Name, err)
+		}
+	}
+	return nil
+}
+
 func checkPlaintextSecrets(cfg *ServiceConfig) {
 	secretFields := map[string]func(*ServiceConfig) string{
 		"JWT secret":        func(c *ServiceConfig) string { return "" }, // checked via server.auth
@@ -808,20 +862,11 @@ func toSnake(s string) string {
 	if len(s) <= 1 {
 		return s
 	}
-	// Check if the first two are uppercase and the rest is not -> treat as acronym
-	// e.g., "IPAddr" -> "ip_addr"
 	result := make([]byte, 0, len(s)+4)
 	for i := 0; i < len(s); i++ {
 		c := s[i]
-		if i > 0 && c >= 'A' && c <= 'Z' {
-			prev := s[i-1]
-			next := byte(0)
-			if i+1 < len(s) {
-				next = s[i+1]
-			}
-			if (prev >= 'a' && prev <= 'z') || (prev >= 'A' && prev <= 'Z' && next >= 'a' && next <= 'z') {
-				result = append(result, '_')
-			}
+		if shouldInsertUnderscore(s, i, c) {
+			result = append(result, '_')
 		}
 		if c >= 'A' && c <= 'Z' {
 			result = append(result, c+32)
@@ -830,6 +875,18 @@ func toSnake(s string) string {
 		}
 	}
 	return string(result)
+}
+
+func shouldInsertUnderscore(s string, i int, c byte) bool {
+	if i == 0 || c < 'A' || c > 'Z' {
+		return false
+	}
+	prev := s[i-1]
+	var next byte
+	if i+1 < len(s) {
+		next = s[i+1]
+	}
+	return (prev >= 'a' && prev <= 'z') || (prev >= 'A' && prev <= 'Z' && next >= 'a' && next <= 'z')
 }
 
 func plural(s string) string {

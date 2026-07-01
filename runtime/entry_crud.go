@@ -25,112 +25,125 @@ func registerCRUD(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, pref
 	pubTargets := getPublishTargets(entry)
 	hasPublish := len(pubTargets) > 0 && len(brokers) > 0
 
-	// GET /resource — list
-	if !isDisabled(ov, ov.List) {
-		if isOverridden(ov, ov.List) {
-			h := resolveHandler(handlers.Rest, ov.List)
-			if h == nil {
-				return fmt.Errorf("crud list override: handler %q not found", ov.List)
-			}
-			app.Get(base, h)
-		} else {
-			app.Get(base, func(c *fiber.Ctx) error {
-				params := parseListParams(c)
-				if err := provider.List(c, params); err != nil {
-					return err
-				}
-				return nil
-			})
-		}
+	if err := registerCRUDList(app, base, ov, handlers, provider); err != nil {
+		return err
+	}
+	if err := registerCRUDGet(app, base, ov, handlers, provider); err != nil {
+		return err
+	}
+	if err := registerCRUDCreate(app, base, ov, handlers, provider, ctx, pubTargets, entry, brokers, hasPublish); err != nil {
+		return err
+	}
+	if err := registerCRUDUpdate(app, base, ov, handlers, provider, ctx, pubTargets, entry, brokers, hasPublish); err != nil {
+		return err
+	}
+	if err := registerCRUDDelete(app, base, ov, handlers, provider, ctx, pubTargets, entry, brokers, hasPublish); err != nil {
+		return err
 	}
 
-	// GET /resource/:id — get one
-	if !isDisabled(ov, ov.Get) {
-		idParam := buildIDParam(entry.Path)
-		if isOverridden(ov, ov.Get) {
-			h := resolveHandler(handlers.Rest, ov.Get)
-			if h == nil {
-				return fmt.Errorf("crud get override: handler %q not found", ov.Get)
-			}
-			app.Get(base+idParam, h)
-		} else {
-			app.Get(base+idParam, func(c *fiber.Ctx) error {
-				id := c.Params("id")
-				if err := provider.Get(c, id); err != nil {
-					return err
-				}
-				return nil
-			})
+	return nil
+}
+
+func registerCRUDList(app *fiber.App, base string, ov *CRUDOverrides, handlers *EntryHandlers, provider CRUDProvider) error {
+	if isDisabled(ov, ov.List) {
+		return nil
+	}
+	if isOverridden(ov, ov.List) {
+		h := resolveHandler(handlers.Rest, ov.List)
+		if h == nil {
+			return fmt.Errorf("crud list override: handler %q not found", ov.List)
+		}
+		app.Get(base, h)
+	} else {
+		app.Get(base, func(c *fiber.Ctx) error {
+			params := parseListParams(c)
+			return provider.List(c, params)
+		})
+	}
+	return nil
+}
+
+func registerCRUDGet(app *fiber.App, base string, ov *CRUDOverrides, handlers *EntryHandlers, provider CRUDProvider) error {
+	if isDisabled(ov, ov.Get) {
+		return nil
+	}
+	idParam := buildIDParam(base)
+	if isOverridden(ov, ov.Get) {
+		h := resolveHandler(handlers.Rest, ov.Get)
+		if h == nil {
+			return fmt.Errorf("crud get override: handler %q not found", ov.Get)
+		}
+		app.Get(base+idParam, h)
+	} else {
+		app.Get(base+idParam, func(c *fiber.Ctx) error {
+			return provider.Get(c, c.Params("id"))
+		})
+	}
+	return nil
+}
+
+func registerCRUDCreate(app *fiber.App, base string, ov *CRUDOverrides, handlers *EntryHandlers, provider CRUDProvider, ctx context.Context, pubTargets []EventPublishTarget, entry *EntryDef, brokers map[string]events.EventBroker, hasPublish bool) error {
+	if isDisabled(ov, ov.Create) {
+		return nil
+	}
+	var handler = resolveHandler(handlers.Rest, ov.Create)
+	if isOverridden(ov, ov.Create) {
+		if handler == nil {
+			return fmt.Errorf("crud create override: handler %q not found", ov.Create)
+		}
+	} else {
+		handler = func(c *fiber.Ctx) error {
+			return provider.Create(c, c.Body())
 		}
 	}
-
-	// POST /resource — create
-	if !isDisabled(ov, ov.Create) {
-		var handler = resolveHandler(handlers.Rest, ov.Create)
-		if isOverridden(ov, ov.Create) {
-			if handler == nil {
-				return fmt.Errorf("crud create override: handler %q not found", ov.Create)
-			}
-		} else {
-			handler = func(c *fiber.Ctx) error {
-				if err := provider.Create(c, c.Body()); err != nil {
-					return err
-				}
-				return nil
-			}
-		}
-		if hasPublish {
-			handler = wrapEventPublish(ctx, handler, pubTargets, entry.EventStream, brokers)
-		}
-		app.Post(base, handler)
+	if hasPublish {
+		handler = wrapEventPublish(ctx, handler, pubTargets, entry.EventStream, brokers)
 	}
+	app.Post(base, handler)
+	return nil
+}
 
-	// PATCH /resource/:id — update
-	if !isDisabled(ov, ov.Update) {
-		idParam := buildIDParam(entry.Path)
-		var handler = resolveHandler(handlers.Rest, ov.Update)
-		if isOverridden(ov, ov.Update) {
-			if handler == nil {
-				return fmt.Errorf("crud update override: handler %q not found", ov.Update)
-			}
-		} else {
-			handler = func(c *fiber.Ctx) error {
-				id := c.Params("id")
-				if err := provider.Update(c, id, c.Body()); err != nil {
-					return err
-				}
-				return nil
-			}
-		}
-		if hasPublish {
-			handler = wrapEventPublish(ctx, handler, pubTargets, entry.EventStream, brokers)
-		}
-		app.Patch(base+idParam, handler)
+func registerCRUDUpdate(app *fiber.App, base string, ov *CRUDOverrides, handlers *EntryHandlers, provider CRUDProvider, ctx context.Context, pubTargets []EventPublishTarget, entry *EntryDef, brokers map[string]events.EventBroker, hasPublish bool) error {
+	if isDisabled(ov, ov.Update) {
+		return nil
 	}
-
-	// DELETE /resource/:id — delete
-	if !isDisabled(ov, ov.Delete) {
-		idParam := buildIDParam(entry.Path)
-		var handler = resolveHandler(handlers.Rest, ov.Delete)
-		if isOverridden(ov, ov.Delete) {
-			if handler == nil {
-				return fmt.Errorf("crud delete override: handler %q not found", ov.Delete)
-			}
-		} else {
-			handler = func(c *fiber.Ctx) error {
-				id := c.Params("id")
-				if err := provider.Delete(c, id); err != nil {
-					return err
-				}
-				return nil
-			}
+	idParam := buildIDParam(base)
+	var handler = resolveHandler(handlers.Rest, ov.Update)
+	if isOverridden(ov, ov.Update) {
+		if handler == nil {
+			return fmt.Errorf("crud update override: handler %q not found", ov.Update)
 		}
-		if hasPublish {
-			handler = wrapEventPublish(ctx, handler, pubTargets, entry.EventStream, brokers)
+	} else {
+		handler = func(c *fiber.Ctx) error {
+			return provider.Update(c, c.Params("id"), c.Body())
 		}
-		app.Delete(base+idParam, handler)
 	}
+	if hasPublish {
+		handler = wrapEventPublish(ctx, handler, pubTargets, entry.EventStream, brokers)
+	}
+	app.Patch(base+idParam, handler)
+	return nil
+}
 
+func registerCRUDDelete(app *fiber.App, base string, ov *CRUDOverrides, handlers *EntryHandlers, provider CRUDProvider, ctx context.Context, pubTargets []EventPublishTarget, entry *EntryDef, brokers map[string]events.EventBroker, hasPublish bool) error {
+	if isDisabled(ov, ov.Delete) {
+		return nil
+	}
+	idParam := buildIDParam(base)
+	var handler = resolveHandler(handlers.Rest, ov.Delete)
+	if isOverridden(ov, ov.Delete) {
+		if handler == nil {
+			return fmt.Errorf("crud delete override: handler %q not found", ov.Delete)
+		}
+	} else {
+		handler = func(c *fiber.Ctx) error {
+			return provider.Delete(c, c.Params("id"))
+		}
+	}
+	if hasPublish {
+		handler = wrapEventPublish(ctx, handler, pubTargets, entry.EventStream, brokers)
+	}
+	app.Delete(base+idParam, handler)
 	return nil
 }
 

@@ -73,18 +73,15 @@ func runClient(args []string) error {
 	}
 
 	var tmplStr string
-	switch *lang {
-	case "ts":
-		tmplStr = clientTSTmpl
-	case "py":
-		tmplStr = clientPyTmpl
-	case "dart":
-		tmplStr = clientDartTmpl
-	case "java":
-		tmplStr = clientJavaTmpl
-	case "kotlin":
-		tmplStr = clientKotlinTmpl
-	default:
+	clientTemplates := map[string]string{
+		"ts":     clientTSTmpl,
+		"py":     clientPyTmpl,
+		"dart":   clientDartTmpl,
+		"java":   clientJavaTmpl,
+		"kotlin": clientKotlinTmpl,
+	}
+	var ok bool
+	if tmplStr, ok = clientTemplates[*lang]; !ok {
 		return fmt.Errorf("unsupported language: %s (use ts, py, dart, java, or kotlin)", *lang)
 	}
 

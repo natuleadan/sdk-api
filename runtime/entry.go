@@ -51,60 +51,54 @@ func RegisterEntries(app *fiber.App, cfg *ServiceConfig, handlers *EntryHandlers
 }
 
 func registerOneEntry(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, models map[string]*db.TableInfo) error {
+	var err error
 	switch entry.Type {
 	case "crud":
-		if err := registerCRUD(app, entry, handlers, prefix, brokers); err != nil {
-			return err
-		}
+		err = registerCRUD(app, entry, handlers, prefix, brokers)
 	case "rest":
-		if err := registerREST(app, entry, handlers, prefix, brokers); err != nil {
-			return err
-		}
+		err = registerREST(app, entry, handlers, prefix, brokers)
 	case "webhook":
-		if err := registerREST(app, entry, handlers, prefix, brokers); err != nil {
-			return err
-		}
+		err = registerREST(app, entry, handlers, prefix, brokers)
 	case "websocket":
-		if err := registerWebSocket(app, entry, handlers, prefix); err != nil {
-			return err
-		}
+		err = registerWebSocket(app, entry, handlers, prefix)
 	case "sse":
-		if err := registerSSE(app, entry, handlers, prefix); err != nil {
-			return err
-		}
+		err = registerSSE(app, entry, handlers, prefix)
 	case "file":
-		if err := registerFile(app, entry, handlers, prefix, brokers); err != nil {
-			return err
-		}
+		err = registerFile(app, entry, handlers, prefix, brokers)
 	case "async":
-		if err := registerAsync(app, entry, handlers, prefix); err != nil {
-			return err
-		}
+		err = registerAsync(app, entry, handlers, prefix)
 	case "graphql":
-		if err := registerGraphQL(app, entry, handlers, prefix, models); err != nil {
-			return err
-		}
+		err = registerGraphQL(app, entry, handlers, prefix, models)
 	default:
 		return fmt.Errorf("unknown entry type %q", entry.Type)
 	}
-
-	// Register validation middleware if configured (for methods that accept body)
-	if entry.ValidationModel != "" && (entry.Type == "crud" || entry.Type == "rest" || entry.Type == "webhook") {
-		path := prefix + entry.Path
-		app.Use(path, middleware.ValidateInput(entry.ValidationModel))
+	if err != nil {
+		return err
 	}
-
-	// Register per-entry rate limit if configured
-	if entry.RateLimit != nil && entry.RateLimit.RequestsPerSecond > 0 {
-		path := prefix + entry.Path
-		rlCfg := middleware.RateLimitConfig{
-			Global: &middleware.RateLimitEntry{
-				RequestsPerSecond: entry.RateLimit.RequestsPerSecond,
-				Burst:             entry.RateLimit.Burst,
-			},
-		}
-		app.Use(path, middleware.RateLimit(rlCfg))
-	}
-
+	registerValidationMiddleware(app, entry, prefix)
+	registerEntryRateLimit(app, entry, prefix)
 	return nil
+}
+
+func registerValidationMiddleware(app *fiber.App, entry *EntryDef, prefix string) {
+	if entry.ValidationModel == "" {
+		return
+	}
+	if entry.Type != "crud" && entry.Type != "rest" && entry.Type != "webhook" {
+		return
+	}
+	app.Use(prefix+entry.Path, middleware.ValidateInput(entry.ValidationModel))
+}
+
+func registerEntryRateLimit(app *fiber.App, entry *EntryDef, prefix string) {
+	if entry.RateLimit == nil || entry.RateLimit.RequestsPerSecond <= 0 {
+		return
+	}
+	rlCfg := middleware.RateLimitConfig{
+		Global: &middleware.RateLimitEntry{
+			RequestsPerSecond: entry.RateLimit.RequestsPerSecond,
+			Burst:             entry.RateLimit.Burst,
+		},
+	}
+	app.Use(prefix+entry.Path, middleware.RateLimit(rlCfg))
 }

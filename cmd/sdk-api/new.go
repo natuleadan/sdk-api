@@ -83,114 +83,23 @@ func runNew(args []string) error {
 	for i := 0; i < len(rest); i++ {
 		switch rest[i] {
 		case "--model":
-			if i+1 < len(rest) {
-				i++
-				cfg.ModelName = rest[i]
-			}
+			i = handleModelFlag(rest, i, &cfg)
 		case "--port":
-			if i+1 < len(rest) {
-				i++
-				_, _ = fmt.Sscanf(rest[i], "%d", &cfg.Port)
-			}
+			i = handlePortFlag(rest, i, &cfg)
 		case "--fields":
-			if i+1 < len(rest) {
-				i++
-				for _, f := range strings.Split(rest[i], ",") {
-					f = strings.TrimSpace(f)
-					parts := strings.SplitN(f, ":", 2)
-					if len(parts) != 2 {
-						continue
-					}
-					name := strings.TrimSpace(parts[0])
-					typ := strings.TrimSpace(parts[1])
-					cfg.ExtraFields = append(cfg.ExtraFields, fieldDef{
-						Name:   pascalCase(name),
-						Type:   goType(typ),
-						Column: toSnake(name),
-						JSON:   toSnake(name),
-					})
-				}
-			}
+			i = handleFieldsFlag(rest, i, &cfg)
 		case "--consume":
-			if i+1 < len(rest) {
-				i++
-				for _, c := range strings.Split(rest[i], ",") {
-					parts := strings.SplitN(c, ":", 3)
-					if len(parts) >= 2 {
-						cd := consumerDef{
-							Stream:  strings.TrimSpace(parts[0]),
-							Durable: strings.TrimSpace(parts[1]),
-						}
-						if len(parts) >= 3 {
-							cd.Handler = strings.TrimSpace(parts[2])
-						} else {
-							cd.Handler = "on" + pascalCase(cd.Stream)
-						}
-						cfg.Consumers = append(cfg.Consumers, cd)
-						cfg.StreamNames = append(cfg.StreamNames, cd.Stream)
-						// Map to exit workers for v2 YAML
-						cfg.ExitWorkers = append(cfg.ExitWorkers, exitWorkerDef{
-							Name:    cd.Durable,
-							Stream:  cd.Stream,
-							Handler: cd.Handler,
-						})
-					}
-				}
-			}
+			i = handleConsumeFlag(rest, i, &cfg)
 		case "--publish":
-			if i+1 < len(rest) {
-				i++
-				for _, p := range strings.Split(rest[i], ",") {
-					parts := strings.SplitN(p, ":", 2)
-					pd := producerDef{Stream: strings.TrimSpace(parts[0])}
-					if len(parts) >= 2 {
-						pd.After = strings.Split(strings.TrimSpace(parts[1]), "|")
-					} else {
-						pd.After = []string{"create", "update"}
-					}
-					cfg.Producers = append(cfg.Producers, pd)
-					cfg.StreamNames = append(cfg.StreamNames, pd.Stream)
-				}
-			}
+			i = handlePublishFlag(rest, i, &cfg)
 		case "--exit":
-			if i+1 < len(rest) {
-				i++
-				for _, e := range strings.Split(rest[i], ",") {
-					parts := strings.SplitN(e, ":", 3)
-					if len(parts) >= 2 {
-						ed := exitWorkerDef{
-							Stream:  strings.TrimSpace(parts[0]),
-							Handler: strings.TrimSpace(parts[1]),
-						}
-						if len(parts) >= 3 {
-							ed.Name = strings.TrimSpace(parts[2])
-						} else {
-							ed.Name = ed.Stream + "-worker"
-						}
-						cfg.ExitWorkers = append(cfg.ExitWorkers, ed)
-						cfg.StreamNames = append(cfg.StreamNames, ed.Stream)
-					}
-				}
-			}
+			i = handleExitFlag(rest, i, &cfg)
 		case "--cron":
-			if i+1 < len(rest) {
-				i++
-				for _, c := range strings.Split(rest[i], ",") {
-					parts := strings.SplitN(c, ":", 2)
-					cj := cronJobDef{Handler: strings.TrimSpace(parts[0])}
-					if len(parts) >= 2 {
-						cj.Name = strings.TrimSpace(parts[1])
-					} else {
-						cj.Name = cj.Handler
-					}
-					cfg.CronJobs = append(cfg.CronJobs, cj)
-				}
-			}
+			i = handleCronFlag(rest, i, &cfg)
+		case "--db":
+			i = handleDBFlag(rest, i, &cfg)
 		case "--dir":
-			if i+1 < len(rest) {
-				i++
-				cfg.Dir = rest[i]
-			}
+			i = handleDirFlag(rest, i, &cfg)
 		}
 	}
 
@@ -200,14 +109,157 @@ func runNew(args []string) error {
 	if cfg.Dir == "" {
 		cfg.Dir = cfg.ServiceName
 	}
+	finalizeConfig(&cfg)
+	return generate(cfg)
+}
 
+func finalizeConfig(cfg *newConfig) {
 	cfg.HasNATS = len(cfg.Consumers) > 0 || len(cfg.Producers) > 0 || len(cfg.ExitWorkers) > 0 || len(cfg.CronJobs) > 0
 	cfg.HasDB = cfg.ModelName != ""
 	cfg.StreamNames = unique(cfg.StreamNames)
 	cfg.DBTable = toSnake(cfg.ModelName)
 	cfg.ResourceName = plural(cfg.DBTable)
+}
 
-	return generate(cfg)
+func handleModelFlag(args []string, i int, cfg *newConfig) int {
+	if i+1 < len(args) {
+		i++
+		cfg.ModelName = args[i]
+	}
+	return i
+}
+
+func handlePortFlag(args []string, i int, cfg *newConfig) int {
+	if i+1 < len(args) {
+		i++
+		_, _ = fmt.Sscanf(args[i], "%d", &cfg.Port)
+	}
+	return i
+}
+
+func handleFieldsFlag(args []string, i int, cfg *newConfig) int {
+	if i+1 < len(args) {
+		i++
+		for _, f := range strings.Split(args[i], ",") {
+			f = strings.TrimSpace(f)
+			parts := strings.SplitN(f, ":", 2)
+			if len(parts) != 2 {
+				continue
+			}
+			name := strings.TrimSpace(parts[0])
+			typ := strings.TrimSpace(parts[1])
+			cfg.ExtraFields = append(cfg.ExtraFields, fieldDef{
+				Name:   pascalCase(name),
+				Type:   goType(typ),
+				Column: toSnake(name),
+				JSON:   toSnake(name),
+			})
+		}
+	}
+	return i
+}
+
+func handleConsumeFlag(args []string, i int, cfg *newConfig) int {
+	if i+1 < len(args) {
+		i++
+		for _, c := range strings.Split(args[i], ",") {
+			parts := strings.SplitN(c, ":", 3)
+			if len(parts) >= 2 {
+				cd := consumerDef{
+					Stream:  strings.TrimSpace(parts[0]),
+					Durable: strings.TrimSpace(parts[1]),
+				}
+				if len(parts) >= 3 {
+					cd.Handler = strings.TrimSpace(parts[2])
+				} else {
+					cd.Handler = "on" + pascalCase(cd.Stream)
+				}
+				cfg.Consumers = append(cfg.Consumers, cd)
+				cfg.StreamNames = append(cfg.StreamNames, cd.Stream)
+				cfg.ExitWorkers = append(cfg.ExitWorkers, exitWorkerDef{
+					Name:    cd.Durable,
+					Stream:  cd.Stream,
+					Handler: cd.Handler,
+				})
+			}
+		}
+	}
+	return i
+}
+
+func handlePublishFlag(args []string, i int, cfg *newConfig) int {
+	if i+1 < len(args) {
+		i++
+		for _, p := range strings.Split(args[i], ",") {
+			parts := strings.SplitN(p, ":", 2)
+			pd := producerDef{Stream: strings.TrimSpace(parts[0])}
+			if len(parts) >= 2 {
+				pd.After = strings.Split(strings.TrimSpace(parts[1]), "|")
+			} else {
+				pd.After = []string{"create", "update"}
+			}
+			cfg.Producers = append(cfg.Producers, pd)
+			cfg.StreamNames = append(cfg.StreamNames, pd.Stream)
+		}
+	}
+	return i
+}
+
+func handleExitFlag(args []string, i int, cfg *newConfig) int {
+	if i+1 < len(args) {
+		i++
+		for _, e := range strings.Split(args[i], ",") {
+			parts := strings.SplitN(e, ":", 3)
+			if len(parts) >= 2 {
+				ed := exitWorkerDef{
+					Stream:  strings.TrimSpace(parts[0]),
+					Handler: strings.TrimSpace(parts[1]),
+				}
+				if len(parts) >= 3 {
+					ed.Name = strings.TrimSpace(parts[2])
+				} else {
+					ed.Name = ed.Stream + "-worker"
+				}
+				cfg.ExitWorkers = append(cfg.ExitWorkers, ed)
+				cfg.StreamNames = append(cfg.StreamNames, ed.Stream)
+			}
+		}
+	}
+	return i
+}
+
+func handleCronFlag(args []string, i int, cfg *newConfig) int {
+	if i+1 < len(args) {
+		i++
+		for _, c := range strings.Split(args[i], ",") {
+			parts := strings.SplitN(c, ":", 2)
+			cj := cronJobDef{Handler: strings.TrimSpace(parts[0])}
+			if len(parts) >= 2 {
+				cj.Name = strings.TrimSpace(parts[1])
+			} else {
+				cj.Name = cj.Handler
+			}
+			cfg.CronJobs = append(cfg.CronJobs, cj)
+		}
+	}
+	return i
+}
+
+func handleDBFlag(args []string, i int, _ *newConfig) int {
+	// Placeholder for future --db flag handling
+	if i+1 < len(args) {
+		i++
+		_ = args[i]
+	}
+	return i
+}
+
+func handleDirFlag(args []string, i int, cfg *newConfig) int {
+	if i+1 < len(args) {
+		i++
+		cfg.Dir = args[i]
+	}
+	return i
 }
 
 func generate(cfg newConfig) error {

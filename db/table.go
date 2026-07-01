@@ -2,12 +2,14 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/natuleadan/sdk-api/infra/logx"
 )
 
 type Table[T any] struct {
@@ -359,7 +361,11 @@ func (t *Table[T]) Transaction(ctx context.Context, fn func(tx pgx.Tx) error) er
 	if err != nil {
 		return fmt.Errorf("db: tx begin: %w", err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	defer func() {
+		if err := tx.Rollback(ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+			logx.Errorf("db: tx rollback: %v", err)
+		}
+	}()
 	if err := fn(tx); err != nil {
 		return fmt.Errorf("db: tx: %w", err)
 	}

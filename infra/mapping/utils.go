@@ -111,6 +111,23 @@ func convertTypeFromString(kind reflect.Kind, str string) (any, error) {
 			return false, nil
 		}
 		return false, errTypeMismatch
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return parseInt(kind, str)
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return parseUint(kind, str)
+	case reflect.Float32:
+		return strconv.ParseFloat(str, 32)
+	case reflect.Float64:
+		return strconv.ParseFloat(str, 64)
+	case reflect.String:
+		return str, nil
+	default:
+		return nil, errUnsupportedType
+	}
+}
+
+func parseInt(kind reflect.Kind, str string) (any, error) {
+	switch kind {
 	case reflect.Int:
 		return strconv.ParseInt(str, 10, intSize)
 	case reflect.Int8:
@@ -121,6 +138,13 @@ func convertTypeFromString(kind reflect.Kind, str string) (any, error) {
 		return strconv.ParseInt(str, 10, 32)
 	case reflect.Int64:
 		return strconv.ParseInt(str, 10, 64)
+	default:
+		return nil, errUnsupportedType
+	}
+}
+
+func parseUint(kind reflect.Kind, str string) (any, error) {
+	switch kind {
 	case reflect.Uint:
 		return strconv.ParseUint(str, 10, intSize)
 	case reflect.Uint8:
@@ -131,12 +155,6 @@ func convertTypeFromString(kind reflect.Kind, str string) (any, error) {
 		return strconv.ParseUint(str, 10, 32)
 	case reflect.Uint64:
 		return strconv.ParseUint(str, 10, 64)
-	case reflect.Float32:
-		return strconv.ParseFloat(str, 32)
-	case reflect.Float64:
-		return strconv.ParseFloat(str, 64)
-	case reflect.String:
-		return str, nil
 	default:
 		return nil, errUnsupportedType
 	}
@@ -201,40 +219,44 @@ func implicitValueRequiredStruct(tag string, tp reflect.Type) (bool, error) {
 	for i := range numFields {
 		childField := tp.Field(i)
 		if usingDifferentKeys(tag, childField) {
-			// Check fallback tag "config" for optional/default
-			if tag != "config" {
-				if opts, err := parseFallbackOptions(childField); err != nil {
-					return false, err
-				} else if opts != nil && (opts.Optional || len(opts.Default) > 0) {
-					continue
-				}
+			if tag != "config" && hasOptionalFallback(childField) {
+				continue
 			}
 			return true, nil
 		}
 
-		_, opts, err := parseKeyAndOptions(tag, childField)
-		if err != nil {
+		if required, err := checkFieldRequired(tag, childField); err != nil {
 			return false, err
-		}
-
-		switch {
-		case opts == nil:
-			if childField.Type.Kind() != reflect.Struct {
-				return true, nil
-			}
-
-			if required, err := implicitValueRequiredStruct(tag, childField.Type); err != nil {
-				return false, err
-			} else if required {
-				return true, nil
-			}
-		case !opts.Optional && len(opts.Default) == 0:
-			return true, nil
-		case len(opts.OptionalDep) > 0 && opts.OptionalDep[0] == notSymbol:
+		} else if required {
 			return true, nil
 		}
 	}
 
+	return false, nil
+}
+
+func hasOptionalFallback(field reflect.StructField) bool {
+	opts, err := parseFallbackOptions(field)
+	return err == nil && opts != nil && (opts.Optional || len(opts.Default) > 0)
+}
+
+func checkFieldRequired(tag string, field reflect.StructField) (bool, error) {
+	_, opts, err := parseKeyAndOptions(tag, field)
+	if err != nil {
+		return false, err
+	}
+
+	switch {
+	case opts == nil:
+		if field.Type.Kind() != reflect.Struct {
+			return true, nil
+		}
+		return implicitValueRequiredStruct(tag, field.Type)
+	case !opts.Optional && len(opts.Default) == 0:
+		return true, nil
+	case len(opts.OptionalDep) > 0 && opts.OptionalDep[0] == notSymbol:
+		return true, nil
+	}
 	return false, nil
 }
 
@@ -364,15 +386,37 @@ func parseNumberRange(str string) (*numberRange, error) {
 		return nil, errNumberRange
 	}
 
-	if len(fields[0]) == 0 && len(fields[1]) == 0 {
+	left, right, err := parseIntervalValues(fields)
+	if err != nil {
+		return nil, err
+	}
+
+	// [2:2] valid
+	// [2:2) invalid
+	// (2:2] invalid
+	// (2:2) invalid
+	if left == right && (!leftInclude || !rightInclude) {
 		return nil, errNumberRange
+	}
+
+	return &numberRange{
+		left:         left,
+		leftInclude:  leftInclude,
+		right:        right,
+		rightInclude: rightInclude,
+	}, nil
+}
+
+func parseIntervalValues(fields []string) (float64, float64, error) {
+	if len(fields[0]) == 0 && len(fields[1]) == 0 {
+		return 0, 0, errNumberRange
 	}
 
 	var left float64
 	if len(fields[0]) > 0 {
 		var err error
 		if left, err = strconv.ParseFloat(fields[0], 64); err != nil {
-			return nil, err
+			return 0, 0, err
 		}
 	} else {
 		left = -math.MaxFloat64
@@ -382,32 +426,17 @@ func parseNumberRange(str string) (*numberRange, error) {
 	if len(fields[1]) > 0 {
 		var err error
 		if right, err = strconv.ParseFloat(fields[1], 64); err != nil {
-			return nil, err
+			return 0, 0, err
 		}
 	} else {
 		right = math.MaxFloat64
 	}
 
 	if left > right {
-		return nil, errNumberRange
+		return 0, 0, errNumberRange
 	}
 
-	// [2:2] valid
-	// [2:2) invalid
-	// (2:2] invalid
-	// (2:2) invalid
-	if left == right {
-		if !leftInclude || !rightInclude {
-			return nil, errNumberRange
-		}
-	}
-
-	return &numberRange{
-		left:         left,
-		leftInclude:  leftInclude,
-		right:        right,
-		rightInclude: rightInclude,
-	}, nil
+	return left, right, nil
 }
 
 func parseOption(fieldOpts *fieldOptions, fieldName, option string) error {

@@ -307,15 +307,14 @@ func TestComboWriter(t *testing.T) {
 		writers: mockWriters,
 	}
 
-	t.Run("Alert", func(t *testing.T) {
-		for _, mw := range cw.writers {
-			mw.(*tracedWriter).On("Alert", "test alert").Once()
-		}
-		cw.Alert("test alert")
-		for _, mw := range cw.writers {
-			mw.(*tracedWriter).AssertCalled(t, "Alert", "test alert")
-		}
-	})
+	t.Run("Alert", func(t *testing.T) { testSimpleCall(t, cw, "Alert", "test alert") })
+	t.Run("Debug", func(t *testing.T) { testCallWithFields(t, cw, "Debug", "test debug") })
+	t.Run("Error", func(t *testing.T) { testCallWithFields(t, cw, "Error", "test error") })
+	t.Run("Info", func(t *testing.T) { testCallWithFields(t, cw, "Info", "test info") })
+	t.Run("Severe", func(t *testing.T) { testSimpleCall(t, cw, "Severe", "test severe") })
+	t.Run("Slow", func(t *testing.T) { testCallWithFields(t, cw, "Slow", "test slow") })
+	t.Run("Stack", func(t *testing.T) { testSimpleCall(t, cw, "Stack", "test stack") })
+	t.Run("Stat", func(t *testing.T) { testCallWithFields(t, cw, "Stat", "test stat") })
 
 	t.Run("Close", func(t *testing.T) {
 		for i := range cw.writers {
@@ -331,81 +330,55 @@ func TestComboWriter(t *testing.T) {
 			mw.(*tracedWriter).AssertCalled(t, "Close")
 		}
 	})
+}
 
-	t.Run("Debug", func(t *testing.T) {
-		fields := []LogField{{Key: "key", Value: "value"}}
-		for _, mw := range cw.writers {
-			mw.(*tracedWriter).On("Debug", "test debug", fields).Once()
-		}
-		cw.Debug("test debug", fields...)
-		for _, mw := range cw.writers {
-			mw.(*tracedWriter).AssertCalled(t, "Debug", "test debug", fields)
-		}
-	})
+func testSimpleCall(t *testing.T, cw comboWriter, method, msg string) {
+	t.Helper()
+	for _, mw := range cw.writers {
+		mw.(*tracedWriter).On(method, msg).Once()
+	}
+	callWriterMethod(&cw, method, msg)
+	for _, mw := range cw.writers {
+		mw.(*tracedWriter).AssertCalled(t, method, msg)
+	}
+}
 
-	t.Run("Error", func(t *testing.T) {
-		fields := []LogField{{Key: "key", Value: "value"}}
-		for _, mw := range cw.writers {
-			mw.(*tracedWriter).On("Error", "test error", fields).Once()
-		}
-		cw.Error("test error", fields...)
-		for _, mw := range cw.writers {
-			mw.(*tracedWriter).AssertCalled(t, "Error", "test error", fields)
-		}
-	})
+func testCallWithFields(t *testing.T, cw comboWriter, method, msg string) {
+	t.Helper()
+	fields := []LogField{{Key: "key", Value: "value"}}
+	for _, mw := range cw.writers {
+		mw.(*tracedWriter).On(method, msg, fields).Once()
+	}
+	callWriterMethodWithFields(&cw, method, msg, fields)
+	for _, mw := range cw.writers {
+		mw.(*tracedWriter).AssertCalled(t, method, msg, fields)
+	}
+}
 
-	t.Run("Info", func(t *testing.T) {
-		fields := []LogField{{Key: "key", Value: "value"}}
-		for _, mw := range cw.writers {
-			mw.(*tracedWriter).On("Info", "test info", fields).Once()
-		}
-		cw.Info("test info", fields...)
-		for _, mw := range cw.writers {
-			mw.(*tracedWriter).AssertCalled(t, "Info", "test info", fields)
-		}
-	})
+func callWriterMethod(cw *comboWriter, method, msg string) {
+	switch method {
+	case "Alert":
+		cw.Alert(msg)
+	case "Severe":
+		cw.Severe(msg)
+	case "Stack":
+		cw.Stack(msg)
+	}
+}
 
-	t.Run("Severe", func(t *testing.T) {
-		for _, mw := range cw.writers {
-			mw.(*tracedWriter).On("Severe", "test severe").Once()
-		}
-		cw.Severe("test severe")
-		for _, mw := range cw.writers {
-			mw.(*tracedWriter).AssertCalled(t, "Severe", "test severe")
-		}
-	})
-
-	t.Run("Slow", func(t *testing.T) {
-		fields := []LogField{{Key: "key", Value: "value"}}
-		for _, mw := range cw.writers {
-			mw.(*tracedWriter).On("Slow", "test slow", fields).Once()
-		}
-		cw.Slow("test slow", fields...)
-		for _, mw := range cw.writers {
-			mw.(*tracedWriter).AssertCalled(t, "Slow", "test slow", fields)
-		}
-	})
-
-	t.Run("Stack", func(t *testing.T) {
-		for _, mw := range cw.writers {
-			mw.(*tracedWriter).On("Stack", "test stack").Once()
-		}
-		cw.Stack("test stack")
-		for _, mw := range cw.writers {
-			mw.(*tracedWriter).AssertCalled(t, "Stack", "test stack")
-		}
-	})
-
-	t.Run("Stat", func(t *testing.T) {
-		fields := []LogField{{Key: "key", Value: "value"}}
-		for _, mw := range cw.writers {
-			mw.(*tracedWriter).On("Stat", "test stat", fields).Once()
-		}
-		cw.Stat("test stat", fields...)
-		for _, mw := range cw.writers {
-			mw.(*tracedWriter).AssertCalled(t, "Stat", "test stat", fields)
-		}
-	})
+func callWriterMethodWithFields(cw *comboWriter, method, msg string, fields []LogField) {
+	switch method {
+	case "Debug":
+		cw.Debug(msg, fields...)
+	case "Error":
+		cw.Error(msg, fields...)
+	case "Info":
+		cw.Info(msg, fields...)
+	case "Slow":
+		cw.Slow(msg, fields...)
+	case "Stat":
+		cw.Stat(msg, fields...)
+	}
 }
 
 type mockedEntry struct {

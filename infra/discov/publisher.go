@@ -139,27 +139,11 @@ func (p *Publisher) keepAliveAsync(cli internal.EtcdClient) error {
 				}
 
 			case c := <-wch:
+				p.handleWatchEvent(cli, c)
 				if c.Err() != nil {
-					logc.Errorf(cli.Ctx(), "etcd publisher watch: %v", c.Err())
-					if err := p.doKeepAlive(); err != nil {
-						logc.Errorf(cli.Ctx(), "etcd publisher KeepAlive: %v", err)
-					}
 					return
 				}
 
-				for _, evt := range c.Events {
-					if evt.Type == clientv3.EventTypeDelete {
-						logc.Infof(cli.Ctx(), "etcd publisher watch: %s, event: %v",
-							evt.Kv.Key, evt.Type)
-						_, err := cli.Put(cli.Ctx(), p.fullKey, p.value, clientv3.WithLease(p.lease))
-						if err != nil {
-							logc.Errorf(cli.Ctx(), "etcd publisher re-put key: %v", err)
-						} else {
-							logc.Infof(cli.Ctx(), "etcd publisher re-put key: %s, value: %s",
-								p.fullKey, p.value)
-						}
-					}
-				}
 			case <-p.pauseChan:
 				logc.Infof(cli.Ctx(), "paused etcd renew, key: %s, value: %s", p.key, p.value)
 				p.revoke(cli)
@@ -202,6 +186,30 @@ func (p *Publisher) register(client internal.EtcdClient) (clientv3.LeaseID, erro
 func (p *Publisher) revoke(cli internal.EtcdClient) {
 	if _, err := cli.Revoke(cli.Ctx(), p.lease); err != nil {
 		logc.Errorf(cli.Ctx(), "etcd publisher revoke: %v", err)
+	}
+}
+
+func (p *Publisher) handleWatchEvent(cli internal.EtcdClient, c clientv3.WatchResponse) {
+	if c.Err() != nil {
+		logc.Errorf(cli.Ctx(), "etcd publisher watch: %v", c.Err())
+		if err := p.doKeepAlive(); err != nil {
+			logc.Errorf(cli.Ctx(), "etcd publisher KeepAlive: %v", err)
+		}
+		return
+	}
+
+	for _, evt := range c.Events {
+		if evt.Type == clientv3.EventTypeDelete {
+			logc.Infof(cli.Ctx(), "etcd publisher watch: %s, event: %v",
+				evt.Kv.Key, evt.Type)
+			_, err := cli.Put(cli.Ctx(), p.fullKey, p.value, clientv3.WithLease(p.lease))
+			if err != nil {
+				logc.Errorf(cli.Ctx(), "etcd publisher re-put key: %v", err)
+			} else {
+				logc.Infof(cli.Ctx(), "etcd publisher re-put key: %s, value: %s",
+					p.fullKey, p.value)
+			}
+		}
 	}
 }
 

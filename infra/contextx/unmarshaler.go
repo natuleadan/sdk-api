@@ -8,6 +8,8 @@ import (
 
 const contextTagKey = "ctx"
 
+type ctxKey string
+
 var unmarshaler = mapping.NewUnmarshaler(contextTagKey)
 
 type contextValuer struct {
@@ -15,7 +17,7 @@ type contextValuer struct {
 }
 
 func (cv contextValuer) Value(key string) (any, bool) {
-	v := cv.Context.Value(key)
+	v := cv.Context.Value(ctxKey(key))
 	return v, v != nil
 }
 

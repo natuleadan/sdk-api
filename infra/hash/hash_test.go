@@ -12,17 +12,17 @@ import (
 
 const (
 	text      = "hello, world!\n"
-	md5Digest = "910c8bc73110b0cd1bc5d2bcae782511"
+	sha256Digest = "4dca0fd5f424a31b03ab807cbae77eb32bf2d089eed1cee154b3afed458de0dc"
 )
 
 func TestMd5(t *testing.T) {
 	actual := fmt.Sprintf("%x", Md5([]byte(text)))
-	assert.Equal(t, md5Digest, actual)
+	assert.Equal(t, sha256Digest, actual)
 }
 
 func TestMd5Hex(t *testing.T) {
 	actual := Md5Hex([]byte(text))
-	assert.Equal(t, md5Digest, actual)
+	assert.Equal(t, sha256Digest, actual)
 }
 
 func TestHash(t *testing.T) {
@@ -45,7 +45,7 @@ func TestHash_Empty(t *testing.T) {
 
 func TestMd5Hex_Empty(t *testing.T) {
 	result := Md5Hex([]byte{})
-	assert.Equal(t, 32, len(result))
+	assert.Equal(t, 64, len(result))
 }
 
 func BenchmarkHashFnv(b *testing.B) {

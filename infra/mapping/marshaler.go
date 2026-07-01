@@ -162,43 +162,47 @@ func validateOptions(value reflect.Value, opt *fieldOptions) error {
 }
 
 func validateRange(value reflect.Value, opt *fieldOptions) error {
-	var val float64
-	switch v := value.Interface().(type) {
-	case int:
-		val = float64(v)
-	case int8:
-		val = float64(v)
-	case int16:
-		val = float64(v)
-	case int32:
-		val = float64(v)
-	case int64:
-		val = float64(v)
-	case uint:
-		val = float64(v)
-	case uint8:
-		val = float64(v)
-	case uint16:
-		val = float64(v)
-	case uint32:
-		val = float64(v)
-	case uint64:
-		val = float64(v)
-	case float32:
-		val = float64(v)
-	case float64:
-		val = v
-	default:
-		return fmt.Errorf("unknown support type for range %q", value.Type().String())
+	if opt.Range == nil {
+		return nil
 	}
-
-	// validates [left, right], [left, right), (left, right], (left, right)
-	if val < opt.Range.left ||
-		(!opt.Range.leftInclude && val == opt.Range.left) ||
-		val > opt.Range.right ||
-		(!opt.Range.rightInclude && val == opt.Range.right) {
+	val, err := toFloat64Err(value.Interface())
+	if err != nil {
+		return err
+	}
+	if opt.Range.left > val || (!opt.Range.leftInclude && val == opt.Range.left) ||
+		opt.Range.right < val || (!opt.Range.rightInclude && val == opt.Range.right) {
 		return fmt.Errorf("%v out of range", value.Interface())
 	}
-
 	return nil
+}
+
+func toFloat64Err(v any) (float64, error) {
+	switch val := v.(type) {
+	case int:
+		return float64(val), nil
+	case int8:
+		return float64(val), nil
+	case int16:
+		return float64(val), nil
+	case int32:
+		return float64(val), nil
+	case int64:
+		return float64(val), nil
+	case uint:
+		return float64(val), nil
+	case uint8:
+		return float64(val), nil
+	case uint16:
+		return float64(val), nil
+	case uint32:
+		return float64(val), nil
+	case uint64:
+		return float64(val), nil
+	case float32:
+		return float64(val), nil
+	case float64:
+		return val, nil
+	default:
+		return 0, fmt.Errorf("unknown support type for range %q", reflect.TypeOf(v).String())
+	}
 }

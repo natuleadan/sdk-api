@@ -181,12 +181,14 @@ func (l *richLogger) WithContext(ctx context.Context) Logger {
 }
 
 func (l *richLogger) WithDuration(duration time.Duration) Logger {
-	l.fields = append(l.fields, Field(durationKey, timex.ReprOfDuration(duration)))
+	fields := make([]LogField, len(l.fields)+1)
+	copy(fields, l.fields)
+	fields[len(l.fields)] = Field(durationKey, timex.ReprOfDuration(duration))
 
 	return &richLogger{
 		ctx:        l.ctx,
 		callerSkip: l.callerSkip,
-		fields:     l.fields,
+		fields:     fields,
 	}
 }
 
@@ -195,12 +197,14 @@ func (l *richLogger) WithFields(fields ...LogField) Logger {
 		return l
 	}
 
-	l.fields = append(l.fields, fields...)
+	all := make([]LogField, len(l.fields)+len(fields))
+	copy(all, l.fields)
+	copy(all[len(l.fields):], fields)
 
 	return &richLogger{
 		ctx:        l.ctx,
 		callerSkip: l.callerSkip,
-		fields:     l.fields,
+		fields:     all,
 	}
 }
 

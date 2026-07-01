@@ -7,8 +7,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type ctxKey string
-
 func TestUnmarshalContext(t *testing.T) {
 	type Person struct {
 		Name string `ctx:"name"`

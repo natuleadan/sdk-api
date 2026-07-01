@@ -2,6 +2,7 @@ package filex
 
 import (
 	"fmt"
+	"path/filepath"
 	"io"
 	"os"
 )
@@ -10,7 +11,7 @@ const bufSize = 1024
 
 // FirstLine returns the first line of the file.
 func FirstLine(filename string) (string, error) {
-	file, err := os.Open(filename)
+	file, err := os.Open(filepath.Clean(filename))
 	if err != nil {
 		return "", err
 	}
@@ -21,7 +22,7 @@ func FirstLine(filename string) (string, error) {
 
 // LastLine returns the last line of the file.
 func LastLine(filename string) (string, error) {
-	file, err := os.Open(filename)
+	file, err := os.Open(filepath.Clean(filename))
 	if err != nil {
 		return "", err
 	}

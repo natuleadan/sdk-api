@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
 	"runtime/pprof"
 	"syscall"
 	"time"
@@ -43,5 +44,6 @@ func dumpGoroutines(ctor creator) {
 type fileCreator struct{}
 
 func (fc fileCreator) Create(name string) (file *os.File, err error) {
+	name = filepath.Clean(name)
 	return os.Create(name)
 }

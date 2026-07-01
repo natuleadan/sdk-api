@@ -2,6 +2,7 @@ package logx
 
 import (
 	"io"
+	"path/filepath"
 	"os"
 )
 
@@ -28,11 +29,11 @@ func (fs realFileSystem) Copy(writer io.Writer, reader io.Reader) (int64, error)
 }
 
 func (fs realFileSystem) Create(name string) (*os.File, error) {
-	return os.Create(name)
+	return os.Create(filepath.Clean(name))
 }
 
 func (fs realFileSystem) Open(name string) (*os.File, error) {
-	return os.Open(name)
+	return os.Open(filepath.Clean(name))
 }
 
 func (fs realFileSystem) Remove(name string) error {

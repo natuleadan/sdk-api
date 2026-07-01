@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"path/filepath"
 	"runtime"
 	"runtime/pprof"
 	"runtime/trace"
@@ -41,7 +42,7 @@ func (p *Profile) close() {
 
 func (p *Profile) startBlockProfile() {
 	fn := createDumpFile("block")
-	f, err := os.Create(fn)
+	f, err := os.Create(filepath.Clean(fn))
 	if err != nil {
 		logx.Errorf("profile: could not create block profile %q: %v", fn, err)
 		return
@@ -61,7 +62,7 @@ func (p *Profile) startBlockProfile() {
 
 func (p *Profile) startCpuProfile() {
 	fn := createDumpFile("cpu")
-	f, err := os.Create(fn)
+	f, err := os.Create(filepath.Clean(fn))
 	if err != nil {
 		logx.Errorf("profile: could not create cpu profile %q: %v", fn, err)
 		return
@@ -80,7 +81,7 @@ func (p *Profile) startCpuProfile() {
 
 func (p *Profile) startMemProfile() {
 	fn := createDumpFile("mem")
-	f, err := os.Create(fn)
+	f, err := os.Create(filepath.Clean(fn))
 	if err != nil {
 		logx.Errorf("profile: could not create memory profile %q: %v", fn, err)
 		return
@@ -101,7 +102,7 @@ func (p *Profile) startMemProfile() {
 
 func (p *Profile) startMutexProfile() {
 	fn := createDumpFile("mutex")
-	f, err := os.Create(fn)
+	f, err := os.Create(filepath.Clean(fn))
 	if err != nil {
 		logx.Errorf("profile: could not create mutex profile %q: %v", fn, err)
 		return
@@ -123,7 +124,7 @@ func (p *Profile) startMutexProfile() {
 
 func (p *Profile) startThreadCreateProfile() {
 	fn := createDumpFile("threadcreate")
-	f, err := os.Create(fn)
+	f, err := os.Create(filepath.Clean(fn))
 	if err != nil {
 		logx.Errorf("profile: could not create threadcreate profile %q: %v", fn, err)
 		return
@@ -143,7 +144,7 @@ func (p *Profile) startThreadCreateProfile() {
 
 func (p *Profile) startTraceProfile() {
 	fn := createDumpFile("trace")
-	f, err := os.Create(fn)
+	f, err := os.Create(filepath.Clean(fn))
 	if err != nil {
 		logx.Errorf("profile: could not create trace output file %q: %v", fn, err)
 		return

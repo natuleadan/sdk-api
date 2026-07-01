@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"bytes"
 	"io"
+	"path/filepath"
 	"os"
 	"strings"
 )
@@ -64,7 +65,7 @@ func ReadBytes(reader io.Reader, buf []byte) error {
 
 // ReadText reads content from the given file with leading and tailing spaces trimmed.
 func ReadText(filename string) (string, error) {
-	content, err := os.ReadFile(filename)
+	content, err := os.ReadFile(filepath.Clean(filename))
 	if err != nil {
 		return "", err
 	}
@@ -79,7 +80,7 @@ func ReadTextLines(filename string, opts ...TextReadOption) ([]string, error) {
 		opt(&readOpts)
 	}
 
-	file, err := os.Open(filename)
+	file, err := os.Open(filepath.Clean(filename))
 	if err != nil {
 		return nil, err
 	}

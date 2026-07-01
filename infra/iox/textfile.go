@@ -1,18 +1,19 @@
 package iox
 
 import (
-	"fmt"
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 )
 
 const bufSize = 32 * 1024
 
 // CountLines returns the number of lines in the file.
 func CountLines(file string) (int, error) {
-	f, err := os.Open(file)
+	f, err := os.Open(filepath.Clean(file))
 	if err != nil {
 		return 0, err
 	}

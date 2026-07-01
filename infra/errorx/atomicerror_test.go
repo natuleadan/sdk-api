@@ -46,7 +46,7 @@ func BenchmarkAtomicError(b *testing.B) {
 		}()
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			_ = aerr.Load()
+			aerr.Load()
 		}
 		b.StopTimer()
 		atomic.StoreUint32(&done, 1)
@@ -56,7 +56,7 @@ func BenchmarkAtomicError(b *testing.B) {
 		var done uint32
 				go func() {
 			for atomic.LoadUint32(&done) == 0 {
-				_ = aerr.Load()
+				aerr.Load()
 			}
 		}()
 		b.ResetTimer()

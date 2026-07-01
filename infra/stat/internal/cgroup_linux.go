@@ -318,7 +318,9 @@ func runningInUserNS() bool {
 
 		line := string(l)
 		var a, b, c int64
-		fmt.Sscanf(line, "%d %d %d", &a, &b, &c)
+		if _, err := fmt.Sscanf(line, "%d %d %d", &a, &b, &c); err != nil {
+			return
+		}
 
 		// We assume we are in the initial user namespace if we have a full
 		// range - 4294967295 uids starting at uid 0.

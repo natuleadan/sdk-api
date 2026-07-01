@@ -14,7 +14,6 @@ type Bar struct {
 func TestFieldOptionOptionalDep(t *testing.T) {
 	rt := reflect.TypeFor[Bar]()
 	for field := range rt.Fields() {
-		field := field
 		val, opt, err := parseKeyAndOptions(jsonTagKey, field)
 		assert.Equal(t, "val", val)
 		assert.Nil(t, opt)

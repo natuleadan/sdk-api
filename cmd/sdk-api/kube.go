@@ -35,22 +35,7 @@ func runKube(args []string) error {
 	}
 
 	for i := 0; i < len(args); i++ {
-		switch args[i] {
-		case "--name":
-			if i+1 < len(args) { i++; cfg.Name = args[i] }
-		case "--namespace":
-			if i+1 < len(args) { i++; cfg.Namespace = args[i] }
-		case "--image":
-			if i+1 < len(args) { i++; cfg.Image = args[i] }
-		case "--port":
-			if i+1 < len(args) { i++; if _, err := fmt.Sscanf(args[i], "%d", &cfg.Port); err != nil {
-			fmt.Fprintf(os.Stderr, "kube: parse port error: %v\n", err)
-		} }
-		case "--replicas":
-			if i+1 < len(args) { i++; if _, err := fmt.Sscanf(args[i], "%d", &cfg.Replicas); err != nil {
-			fmt.Fprintf(os.Stderr, "kube: parse replicas error: %v\n", err)
-		} }
-		}
+		i = parseKubeFlag(args, i, &cfg)
 	}
 
 	if cfg.Name == "" { return fmt.Errorf("--name is required") }
@@ -58,4 +43,24 @@ func runKube(args []string) error {
 
 	t := template.Must(template.New("deploy").Parse(tmplDeploy))
 	return t.Execute(os.Stdout, cfg)
+}
+
+func parseKubeFlag(args []string, i int, cfg *kubeConfig) int {
+	switch args[i] {
+	case "--name":
+		if i+1 < len(args) { i++; cfg.Name = args[i] }
+	case "--namespace":
+		if i+1 < len(args) { i++; cfg.Namespace = args[i] }
+	case "--image":
+		if i+1 < len(args) { i++; cfg.Image = args[i] }
+	case "--port":
+		if i+1 < len(args) { i++; if _, err := fmt.Sscanf(args[i], "%d", &cfg.Port); err != nil {
+			fmt.Fprintf(os.Stderr, "kube: parse port error: %v\n", err)
+		} }
+	case "--replicas":
+		if i+1 < len(args) { i++; if _, err := fmt.Sscanf(args[i], "%d", &cfg.Replicas); err != nil {
+			fmt.Fprintf(os.Stderr, "kube: parse replicas error: %v\n", err)
+		} }
+	}
+	return i
 }

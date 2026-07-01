@@ -58,7 +58,6 @@ func ParseStructReflect(typ reflect.Type) (*TableInfo, error) {
 func parseType(typ reflect.Type) *TableInfo {
 	info := &TableInfo{Fields: make([]FieldInfo, 0, typ.NumField())}
 	for f := range typ.Fields() {
-		f := f
 		if !f.IsExported() {
 			continue
 		}

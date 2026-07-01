@@ -258,7 +258,6 @@ func buildStructFieldsInfo(tp reflect.Type, fullName string) (*fieldInfo, error)
 	}
 
 	for field := range tp.Fields() {
-		field := field
 		if !field.IsExported() {
 			continue
 		}

@@ -39,7 +39,7 @@ jobs:
       - name: Run gosec
         run: go run github.com/securego/gosec/v2/cmd/gosec@latest -fmt=sarif -out=gosec.sarif -quiet -exclude=G304,G307 -exclude-dir=testdata ./...
       - name: Upload SARIF
-        uses: github/codeql-upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: gosec.sarif
 

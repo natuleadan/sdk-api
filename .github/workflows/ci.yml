@@ -101,7 +101,7 @@ jobs:
         run: |
           for ex in examples/*/; do
             echo "Building $ex..."
-            (cd "$ex" && go build ./...)
+            (cd "$ex" && go mod tidy && go build ./...)
           done
 
   integration:

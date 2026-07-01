@@ -33,6 +33,8 @@ issues:
         - gosec
         - errcheck
         - bodyclose
+    - path: _test\.go
+      text: "SA5008"
     - path: .*\.pb\.go
       linters:
         - all

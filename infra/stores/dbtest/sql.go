@@ -1,6 +1,7 @@
 package dbtest
 
 import (
+	"context"
 	"database/sql"
 	"testing"
 
@@ -29,7 +30,7 @@ func RunTest(t *testing.T, fn func(db *sql.DB, mock sqlmock.Sqlmock)) {
 func RunTxTest(t *testing.T, f func(tx *sql.Tx, mock sqlmock.Sqlmock)) {
 	RunTest(t, func(db *sql.DB, mock sqlmock.Sqlmock) {
 		mock.ExpectBegin()
-		tx, err := db.Begin()
+		tx, err := db.BeginTx(context.Background(), nil)
 		if assert.NoError(t, err) {
 			f(tx, mock)
 		}

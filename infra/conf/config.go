@@ -68,6 +68,7 @@ func Load(file string, v any, opts ...Option) error {
 }
 
 // LoadConfig loads config into v from file, .json, .json5, .toml, .yaml and .yml are acceptable.
+//
 // Deprecated: use Load instead.
 func LoadConfig(file string, v any, opts ...Option) error {
 	return Load(file, v, opts...)
@@ -96,6 +97,7 @@ func LoadFromJsonBytes(content []byte, v any) error {
 }
 
 // LoadConfigFromJsonBytes loads config into v from content json bytes.
+//
 // Deprecated: use LoadFromJsonBytes instead.
 func LoadConfigFromJsonBytes(content []byte, v any) error {
 	return LoadFromJsonBytes(content, v)

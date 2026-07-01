@@ -30,7 +30,7 @@ func Gunzip(bs []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer r.Close()
+	defer func() { if err := r.Close(); err != nil { fmt.Printf("close error: %v\n", err) } }()
 
 	var c bytes.Buffer
 	if _, err = io.Copy(&c, io.LimitReader(r, unzipLimit)); err != nil {

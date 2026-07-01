@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -582,7 +583,7 @@ func trySOPSDecrypt(data []byte) ([]byte, error) {
 		logx.Errorf("config: file appears SOPS-encrypted but 'sops' binary not found in PATH")
 		return data, nil
 	}
-	cmd := exec.Command("sops", "--decrypt", "--input-type", "yaml", "/dev/stdin")
+	cmd := exec.CommandContext(context.Background(), "sops", "--decrypt", "--input-type", "yaml", "/dev/stdin")
 	cmd.Stdin = bytes.NewReader(data)
 	out, err := cmd.Output()
 	if err != nil {

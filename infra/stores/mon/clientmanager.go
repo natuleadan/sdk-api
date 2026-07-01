@@ -18,7 +18,7 @@ type ClosableClient struct {
 
 // Close disconnects the underlying *mongo.Client.
 func (cs *ClosableClient) Close() error {
-	return cs.Client.Disconnect(context.Background())
+	return cs.Disconnect(context.Background())
 }
 
 // Inject injects a *mongo.Client into the client manager.

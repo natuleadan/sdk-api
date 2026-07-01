@@ -378,22 +378,22 @@ func TestIntegration_CRUD_NATSPublish(t *testing.T) {
 	}
 
 	// 1. POST → should publish to NATS
-	resp, _ := app.Test(httptest.NewRequest("POST", "/api/v1/products", strings.NewReader(`{"name":"test"}`)))
+	resp, _ := app.Test(httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/products", strings.NewReader(`{"name":"test"}`)))
 	resp.Body.Close()
 	time.Sleep(100 * time.Millisecond)
 
 	// 2. PATCH → should publish to NATS
-	resp2, _ := app.Test(httptest.NewRequest("PATCH", "/api/v1/products/1", strings.NewReader(`{"name":"updated"}`)))
+	resp2, _ := app.Test(httptest.NewRequestWithContext(context.Background(), "PATCH", "/api/v1/products/1", strings.NewReader(`{"name":"updated"}`)))
 	resp2.Body.Close()
 	time.Sleep(100 * time.Millisecond)
 
 	// 3. DELETE → should publish to NATS
-	resp3, _ := app.Test(httptest.NewRequest("DELETE", "/api/v1/products/1", nil))
+	resp3, _ := app.Test(httptest.NewRequestWithContext(context.Background(), "DELETE", "/api/v1/products/1", nil))
 	resp3.Body.Close()
 	time.Sleep(100 * time.Millisecond)
 
 	// 4. GET → should NOT publish (read-only)
-	resp4, _ := app.Test(httptest.NewRequest("GET", "/api/v1/products", nil))
+	resp4, _ := app.Test(httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/products", nil))
 	resp4.Body.Close()
 
 	if received.Load() < 3 {

@@ -180,7 +180,7 @@ func (t *TursoTable[T]) List(ctx context.Context) ([]T, error) {
 	query := b.String()
 	rows, err := t.db.QueryContext(ctx, query)
 	if err != nil { return nil, fmt.Errorf("db: turso list: %w", err) }
-	defer rows.Close()
+	defer func() { if err := rows.Close(); err != nil { fmt.Printf("close error: %v\n", err) } }()
 	return t.scanRows(rows)
 }
 

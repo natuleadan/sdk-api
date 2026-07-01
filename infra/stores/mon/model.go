@@ -3,6 +3,8 @@ package mon
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"strings"
 
 	"github.com/natuleadan/sdk-api/infra/breaker"
@@ -94,7 +96,7 @@ func (m *Model) Aggregate(ctx context.Context, v, pipeline any,
 	if err != nil {
 		return err
 	}
-	defer cur.Close(ctx)
+	defer func() { if err := cur.Close(ctx); err != nil { fmt.Fprintf(os.Stderr, "mongo: cursor close error: %v\n", err) } }()
 
 	return cur.All(ctx, v)
 }
@@ -128,7 +130,7 @@ func (m *Model) Find(ctx context.Context, v, filter any,
 	if err != nil {
 		return err
 	}
-	defer cur.Close(ctx)
+	defer func() { if err := cur.Close(ctx); err != nil { fmt.Fprintf(os.Stderr, "mongo: cursor close error: %v\n", err) } }()
 
 	return cur.All(ctx, v)
 }

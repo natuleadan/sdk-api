@@ -44,7 +44,7 @@ func (b *KafkaBroker) Publish(ctx context.Context, subject string, data []byte) 
 	if err != nil {
 		return fmt.Errorf("kafka: dial leader: %w", err)
 	}
-	defer conn.Close()
+	defer func() { if err := conn.Close(); err != nil { fmt.Printf("close error: %v\n", err) } }()
 
 	_, err = conn.WriteMessages(kafka.Message{Value: data})
 	return err
@@ -55,7 +55,7 @@ func (b *KafkaBroker) ensureTopic(topic string) error {
 	if err != nil {
 		return fmt.Errorf("kafka: dial: %w", err)
 	}
-	defer conn.Close()
+	defer func() { if err := conn.Close(); err != nil { fmt.Printf("close error: %v\n", err) } }()
 
 	if err := conn.CreateTopics(kafka.TopicConfig{
 		Topic:             topic,
@@ -88,7 +88,7 @@ func (b *KafkaBroker) Subscribe(ctx context.Context, subject string, durable str
 		StartOffset: kafka.FirstOffset,
 	})
 	go func() {
-		defer reader.Close()
+		defer func() { if err := reader.Close(); err != nil { fmt.Printf("close error: %v\n", err) } }()
 		for {
 			msg, err := reader.FetchMessage(ctx)
 			if err != nil {

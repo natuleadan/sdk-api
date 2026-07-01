@@ -97,7 +97,7 @@ func NewLocalStorage(root string) (*LocalStorage, error) {
 	if err != nil {
 		return nil, fmt.Errorf("local storage path: %w", err)
 	}
-	if err := os.MkdirAll(abs, 0755); err != nil {
+	if err := os.MkdirAll(abs, 0750); err != nil {
 		return nil, fmt.Errorf("local storage mkdir: %w", err)
 	}
 	return &LocalStorage{root: abs}, nil
@@ -108,7 +108,7 @@ func (l *LocalStorage) Upload(ctx context.Context, key string, reader io.Reader,
 	key = sanitizeKey(key)
 	fullPath := filepath.Join(l.root, key)
 	dir := filepath.Dir(fullPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		return fmt.Errorf("local upload mkdir: %w", err)
 	}
 
@@ -116,7 +116,7 @@ func (l *LocalStorage) Upload(ctx context.Context, key string, reader io.Reader,
 	if err != nil {
 		return fmt.Errorf("local upload create: %w", err)
 	}
-	defer f.Close()
+	defer func() { if err := f.Close(); err != nil { fmt.Fprintf(os.Stderr, "storage: close error: %v\n", err) } }()
 
 	if _, err := io.Copy(f, reader); err != nil {
 		return fmt.Errorf("local upload copy: %w", err)

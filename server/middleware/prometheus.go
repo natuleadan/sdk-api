@@ -61,19 +61,19 @@ func PrometheusHandler() fiber.Handler {
 		b.WriteString("# TYPE http_server_requests_total counter\n")
 		for key, val := range metrics.count {
 			parts := strings.SplitN(key, ":", 3)
-			b.WriteString(fmt.Sprintf("http_server_requests_total{method=%q,path=%q,code=%q} %d\n", parts[0], parts[1], parts[2], val))
+		fmt.Fprintf(&b, "http_server_requests_total{method=%q,path=%q,code=%q} %d\n", parts[0], parts[1], parts[2], val)
 		}
 		b.WriteString("\n")
 		b.WriteString("# HELP http_server_request_duration_ms HTTP request duration in ms\n")
 		b.WriteString("# TYPE http_server_request_duration_ms summary\n")
 		for key, val := range metrics.duration {
 			parts := strings.SplitN(key, ":", 2)
-			b.WriteString(fmt.Sprintf("http_server_request_duration_ms{method=%q,path=%q,quantile=\"0.99\"} %.2f\n", parts[0], parts[1], val))
+		fmt.Fprintf(&b, "http_server_request_duration_ms{method=%q,path=%q,quantile=\"0.99\"} %.2f\n", parts[0], parts[1], val)
 		}
 		b.WriteString("\n")
 		b.WriteString("# HELP http_server_requests_active Active requests\n")
 		b.WriteString("# TYPE http_server_requests_active gauge\n")
-		b.WriteString(fmt.Sprintf("http_server_requests_active %d\n", metrics.active))
+		fmt.Fprintf(&b, "http_server_requests_active %d\n", metrics.active)
 
 		c.Set("Content-Type", "text/plain; version=0.0.4")
 		return c.SendString(b.String())

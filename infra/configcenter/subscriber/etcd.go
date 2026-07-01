@@ -62,7 +62,7 @@ func (s *etcdSubscriber) AddListener(listener func()) error {
 
 // Value returns the value of the subscriber.
 func (s *etcdSubscriber) Value() (string, error) {
-	vs := s.Subscriber.Values()
+	vs := s.Values()
 	if len(vs) > 0 {
 		return vs[len(vs)-1], nil
 	}

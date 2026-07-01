@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"os"
 	"reflect"
 	"time"
 
@@ -396,7 +397,7 @@ func (s *Service) shutdown() {
 		s.exitMgr.Shutdown(5 * time.Second)
 	}
 	for name, broker := range s.natsConns {
-		broker.Close()
+		if err := broker.Close(); err != nil { fmt.Fprintf(os.Stderr, "service: broker close error: %v\n", err) }
 		logx.Infof("nats %s drained", name)
 	}
 	for name, pool := range s.pools {

@@ -256,11 +256,11 @@ func handleDirFlag(args []string, i int, cfg *newConfig) int {
 }
 
 func generate(cfg newConfig) error {
-	if err := os.MkdirAll(cfg.Dir, 0755); err != nil {
+	if err := os.MkdirAll(cfg.Dir, 0750); err != nil {
 		return fmt.Errorf("create dir: %w", err)
 	}
 	modelDir := filepath.Join(cfg.Dir, "models")
-	if err := os.MkdirAll(modelDir, 0755); err != nil {
+	if err := os.MkdirAll(modelDir, 0750); err != nil {
 		return fmt.Errorf("create models dir: %w", err)
 	}
 

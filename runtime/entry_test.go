@@ -89,7 +89,7 @@ func testHandlers(provider CRUDProvider) *EntryHandlers {
 }
 
 func request(app *fiber.App, method, path string, body io.Reader) (*http.Response, error) {
-	req := httptest.NewRequest(method, path, body)
+	req := httptest.NewRequestWithContext(context.Background(), method, path, body)
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := app.Test(req)
 	return resp, err
@@ -434,7 +434,7 @@ func TestRegisterEntries_File(t *testing.T) {
 		}
 
 		// Valid content type
-		req := httptest.NewRequest("POST", "/api/v1/files/upload", stringsReader(`data`))
+		req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/files/upload", stringsReader(`data`))
 		req.Header.Set("Content-Type", "image/png")
 		resp, _ := app.Test(req)
 		if resp.StatusCode != 200 {
@@ -442,7 +442,7 @@ func TestRegisterEntries_File(t *testing.T) {
 		}
 
 		// Invalid content type
-		req = httptest.NewRequest("POST", "/api/v1/files/upload", stringsReader(`data`))
+		req = httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/files/upload", stringsReader(`data`))
 		req.Header.Set("Content-Type", "text/html")
 		resp, _ = app.Test(req)
 		if resp.StatusCode != 415 {
@@ -450,7 +450,7 @@ func TestRegisterEntries_File(t *testing.T) {
 		}
 
 		// image/gif not in allowed list — should be rejected
-		req = httptest.NewRequest("POST", "/api/v1/files/upload", stringsReader(`data`))
+		req = httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/files/upload", stringsReader(`data`))
 		req.Header.Set("Content-Type", "image/gif")
 		resp, _ = app.Test(req)
 		if resp.StatusCode != 415 {
@@ -459,7 +459,7 @@ func TestRegisterEntries_File(t *testing.T) {
 
 		// Too large body
 		bigBody := make([]byte, 2*1024*1024)
-		req = httptest.NewRequest("POST", "/api/v1/files/upload", bytesReader(bigBody))
+		req = httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/files/upload", bytesReader(bigBody))
 		req.Header.Set("Content-Type", "image/png")
 		resp, _ = app.Test(req)
 		if resp.StatusCode != 413 {
@@ -697,7 +697,7 @@ func TestFileValidator(t *testing.T) {
 			})
 
 			body := make([]byte, tt.bodySize)
-			req := httptest.NewRequest("POST", "/test", bytesReader(body))
+			req := httptest.NewRequestWithContext(context.Background(), "POST", "/test", bytesReader(body))
 			req.Header.Set("Content-Type", tt.contentType)
 			resp, _ := app.Test(req)
 			if resp.StatusCode != tt.wantStatus {
@@ -777,7 +777,7 @@ func TestParseListParams(t *testing.T) {
 		})
 	})
 
-	req := httptest.NewRequest("GET", "/test?page=2&size=20&sort=name&status=active&category=books", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/test?page=2&size=20&sort=name&status=active&category=books", nil)
 	resp, _ := app.Test(req)
 
 	var result struct {

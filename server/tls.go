@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net"
@@ -64,7 +65,8 @@ func (s *Server) listenTLS() error {
 		tlsCfgOut := m.TLSConfig()
 		applyTLSConfig(tlsCfgOut, tlsCfg)
 
-		ln, err := net.Listen("tcp", addr)
+		var lc net.ListenConfig
+		ln, err := lc.Listen(context.Background(), "tcp", addr)
 		if err != nil {
 			return fmt.Errorf("tls listen: %w", err)
 		}

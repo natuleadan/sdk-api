@@ -84,12 +84,20 @@ func (t *MySQLTable[T]) AutoInit(ctx context.Context) error {
 		}
 	}
 
-	query := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (\n  %s\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4", t.tableName, strings.Join(parts, ",\n  "))
-	if _, err := t.db.ExecContext(ctx, query); err != nil {
+	var query strings.Builder
+	query.Grow(128)
+	query.WriteString("CREATE TABLE IF NOT EXISTS ")
+	query.WriteString(t.tableName)
+	query.WriteString(" (\n  ")
+	query.WriteString(strings.Join(parts, ",\n  "))
+	query.WriteString("\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")
+	if _, err := t.db.ExecContext(ctx, query.String()); err != nil {
 		return fmt.Errorf("db: mysql migrate: %w", err)
 	}
 	for _, idx := range indexes {
-		if _, err := t.db.ExecContext(ctx, idx); err != nil {
+		var sb strings.Builder
+		sb.WriteString(idx)
+		if _, err := t.db.ExecContext(ctx, sb.String()); err != nil {
 			return fmt.Errorf("db: mysql index: %w", err)
 		}
 	}
@@ -197,7 +205,7 @@ func (t *MySQLTable[T]) List(ctx context.Context) ([]T, error) {
 	if err != nil {
 		return nil, fmt.Errorf("db: mysql list: %w", err)
 	}
-	defer rows.Close()
+	defer func() { if err := rows.Close(); err != nil { fmt.Printf("close error: %v\n", err) } }()
 	return t.scanRows(rows)
 }
 
@@ -302,7 +310,14 @@ func (t *MySQLTable[T]) Update(ctx context.Context, id any, patch map[string]any
 }
 
 func (t *MySQLTable[T]) Delete(ctx context.Context, id any) error {
-	res, err := t.db.ExecContext(ctx, fmt.Sprintf("DELETE FROM %s WHERE %s = ?", t.tableName, t.info.PrimaryKey), id)
+	var b strings.Builder
+	b.Grow(64)
+	b.WriteString("DELETE FROM ")
+	b.WriteString(t.tableName)
+	b.WriteString(" WHERE ")
+	b.WriteString(t.info.PrimaryKey)
+	b.WriteString(" = ?")
+	res, err := t.db.ExecContext(ctx, b.String(), id)
 	if err != nil {
 		return fmt.Errorf("db: mysql delete: %w", err)
 	}

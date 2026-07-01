@@ -18,7 +18,7 @@ func TestSpanIDFromContext(t *testing.T) {
 		context.Background(),
 		"foo",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-		oteltrace.WithAttributes(semconv.HTTPClientAttributesFromHTTPRequest(httptest.NewRequest(http.MethodGet, "/", nil))...),
+		oteltrace.WithAttributes(semconv.HTTPClientAttributesFromHTTPRequest(httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil))...),
 	)
 	defer span.End()
 

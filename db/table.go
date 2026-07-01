@@ -474,7 +474,7 @@ func (t *Table[T]) QueryWhere(ctx context.Context, where map[string]any, orderBy
 		return nil, err
 	}
 	var query strings.Builder
-	query.WriteString(fmt.Sprintf("SELECT %s FROM %s", t.columnsList(), t.tableName))
+	fmt.Fprintf(&query, "SELECT %s FROM %s", t.columnsList(), t.tableName)
 	var args []any
 	idx := 1
 	for col, val := range where {
@@ -491,10 +491,10 @@ func (t *Table[T]) QueryWhere(ctx context.Context, where map[string]any, orderBy
 	}
 	query.WriteString(" ORDER BY " + orderBy)
 	if limit > 0 {
-		query.WriteString(fmt.Sprintf(" LIMIT %d", limit))
+		fmt.Fprintf(&query, " LIMIT %d", limit)
 	}
 	if offset > 0 {
-		query.WriteString(fmt.Sprintf(" OFFSET %d", offset))
+		fmt.Fprintf(&query, " OFFSET %d", offset)
 	}
 	rows, err := t.pool.Query(ctx, query.String(), args...)
 	if err != nil {

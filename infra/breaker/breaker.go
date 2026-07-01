@@ -123,7 +123,7 @@ func NewBreaker(opts ...Option) Breaker {
 }
 
 func (cb *circuitBreaker) Allow() (Promise, error) {
-	return cb.throttle.allow()
+	return cb.allow()
 }
 
 func (cb *circuitBreaker) AllowCtx(ctx context.Context) (Promise, error) {
@@ -136,7 +136,7 @@ func (cb *circuitBreaker) AllowCtx(ctx context.Context) (Promise, error) {
 }
 
 func (cb *circuitBreaker) Do(req func() error) error {
-	return cb.throttle.doReq(req, nil, defaultAcceptable)
+	return cb.doReq(req, nil, defaultAcceptable)
 }
 
 func (cb *circuitBreaker) DoCtx(ctx context.Context, req func() error) error {
@@ -149,7 +149,7 @@ func (cb *circuitBreaker) DoCtx(ctx context.Context, req func() error) error {
 }
 
 func (cb *circuitBreaker) DoWithAcceptable(req func() error, acceptable Acceptable) error {
-	return cb.throttle.doReq(req, nil, acceptable)
+	return cb.doReq(req, nil, acceptable)
 }
 
 func (cb *circuitBreaker) DoWithAcceptableCtx(ctx context.Context, req func() error,

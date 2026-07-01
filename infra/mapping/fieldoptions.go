@@ -99,7 +99,7 @@ func (o *fieldOptions) toOptionsWithContext(key string, m Valuer, fullName strin
 		}
 	}
 
-	if o.fieldOptionsWithContext.Optional == optional {
+	if o.Optional == optional {
 		return &o.fieldOptionsWithContext, nil
 	}
 

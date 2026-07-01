@@ -20,7 +20,7 @@ func main() {
 	if uploadDir == "" {
 		uploadDir = "/data/uploads"
 	}
-	os.MkdirAll(uploadDir, 0755)
+	os.MkdirAll(uploadDir, 0750)
 
 	// Upload handler
 	svc.WithRest("onUpload", func(c *fiber.Ctx) error {

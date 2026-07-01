@@ -259,7 +259,7 @@ func TestWrapTransformHandler(t *testing.T) {
 	app := fiber.New()
 	app.Post("/test", wrapped)
 
-	req := httptest.NewRequest("POST", "/test", strings.NewReader(`{"name":"original"}`))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/test", strings.NewReader(`{"name":"original"}`))
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := app.Test(req)
 	if err != nil {
@@ -283,7 +283,7 @@ func TestWrapTransformHandler(t *testing.T) {
 	// Test with GET (no body parsing)
 	app2 := fiber.New()
 	app2.Get("/get", wrapped)
-	req2 := httptest.NewRequest("GET", "/get", nil)
+	req2 := httptest.NewRequestWithContext(context.Background(), "GET", "/get", nil)
 	resp2, _ := app2.Test(req2)
 	if resp2.StatusCode != 200 {
 		t.Errorf("GET status = %d", resp2.StatusCode)

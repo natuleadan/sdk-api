@@ -1,6 +1,7 @@
 package filex
 
 import (
+	"fmt"
 	"io"
 	"os"
 )
@@ -13,7 +14,7 @@ func FirstLine(filename string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer file.Close()
+	defer func() { if err := file.Close(); err != nil { fmt.Fprintf(os.Stderr, "filex: close error: %v\n", err) } }()
 
 	return firstLine(file)
 }
@@ -24,7 +25,7 @@ func LastLine(filename string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer file.Close()
+	defer func() { if err := file.Close(); err != nil { fmt.Fprintf(os.Stderr, "filex: close error: %v\n", err) } }()
 
 	return lastLine(filename, file)
 }

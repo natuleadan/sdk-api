@@ -53,7 +53,7 @@ func TestWithFields(t *testing.T) {
 type ctxKey string
 
 func TestWithFieldsAppend(t *testing.T) {
-	var dummyKey ctxKey = ctxKey("dummy")
+	var dummyKey = ctxKey("dummy")
 	ctx := context.WithValue(context.Background(), dummyKey, "dummy")
 	ctx = ContextWithFields(ctx, Field("a", 1), Field("b", 2))
 	ctx = ContextWithFields(ctx, Field("c", 3), Field("d", 4))

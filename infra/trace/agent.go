@@ -105,7 +105,7 @@ func createExporter(c Config) (sdktrace.SpanExporter, error) {
 		}
 		return otlptracehttp.New(context.Background(), opts...)
 	case kindFile:
-		f, err := os.OpenFile(c.Endpoint, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
+		f, err := os.OpenFile(c.Endpoint, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
 		if err != nil {
 			return nil, fmt.Errorf("file exporter endpoint error: %s", err.Error())
 		}

@@ -17,6 +17,7 @@ var (
 )
 
 // Contains checks if str is in list.
+//
 // Deprecated: use slices.Contains instead.
 func Contains(list []string, str string) bool {
 	return slices.Contains(list, str)

@@ -170,7 +170,7 @@ entry:
 
 	// Test via httptest
 	app := svc.srv.App()
-	req := httptest.NewRequest("GET", "/api/v1/products", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/products", nil)
 	resp, err := app.Test(req)
 	if err != nil {
 		t.Fatal(err)
@@ -226,21 +226,21 @@ entry:
 	app := svc.srv.App()
 
 	// Test CRUD
-	req := httptest.NewRequest("GET", "/api/v1/products", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/products", nil)
 	resp, _ := app.Test(req)
 	if resp.StatusCode != 200 {
 		t.Errorf("CRUD GET = %d", resp.StatusCode)
 	}
 
 	// Test REST
-	req = httptest.NewRequest("GET", "/api/v1/hello", nil)
+	req = httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/hello", nil)
 	resp, _ = app.Test(req)
 	if resp.StatusCode != 200 {
 		t.Errorf("REST GET = %d", resp.StatusCode)
 	}
 
 	// Test Webhook
-	req = httptest.NewRequest("POST", "/api/v1/webhooks/test", nil)
+	req = httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/webhooks/test", nil)
 	req.Header.Set("Content-Type", "application/json")
 	resp, _ = app.Test(req)
 	if resp.StatusCode != 200 {
@@ -301,7 +301,7 @@ entry:
 	RegisterEntries(svc.srv.App(), svc.config, svc.handlers, "/api/v1", nil, nil)
 
 	app := svc.srv.App()
-	req := httptest.NewRequest("GET", "/api/v1/status", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/status", nil)
 	resp, _ := app.Test(req)
 	if resp.StatusCode != 200 {
 		t.Errorf("status = %d", resp.StatusCode)

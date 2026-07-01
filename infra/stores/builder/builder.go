@@ -70,7 +70,7 @@ func RawFieldNames(in any, postgreSql ...bool) []string {
 func PostgreSqlJoin(elems []string) string {
 	b := new(strings.Builder)
 	for index, e := range elems {
-		b.WriteString(fmt.Sprintf("%s = $%d, ", e, index+2))
+		fmt.Fprintf(b, "%s = $%d, ", e, index+2)
 	}
 
 	if b.Len() == 0 {

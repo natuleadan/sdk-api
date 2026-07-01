@@ -5,7 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/natuleadan/sdk-api/infra/logx"
@@ -49,7 +51,7 @@ func (rw *RemoteWriter) Write(report *StatReport) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { if err := resp.Body.Close(); err != nil { fmt.Fprintf(os.Stderr, "stat: body close error: %v\n", err) } }()
 
 	if resp.StatusCode != http.StatusOK {
 		logx.Errorf("write report failed, code: %d, reason: %s", resp.StatusCode, resp.Status)

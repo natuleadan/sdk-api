@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -105,12 +106,13 @@ func (c *ssrfChecker) validate(host string) error {
 	}
 	ip := net.ParseIP(host)
 	if ip == nil {
-		addrs, err := net.LookupIP(host)
+		var r net.Resolver
+		addrs, err := r.LookupIPAddr(context.Background(), host)
 		if err != nil {
 			return fmt.Errorf("ssrf: cannot resolve host %s", host)
 		}
 		if len(addrs) > 0 {
-			ip = addrs[0]
+			ip = addrs[0].IP
 		}
 	}
 	if ip == nil {

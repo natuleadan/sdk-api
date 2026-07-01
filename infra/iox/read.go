@@ -1,6 +1,7 @@
 package iox
 
 import (
+	"fmt"
 	"bufio"
 	"bytes"
 	"io"
@@ -82,7 +83,7 @@ func ReadTextLines(filename string, opts ...TextReadOption) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() { if err := file.Close(); err != nil { fmt.Fprintf(os.Stderr, "iox: close error: %v\n", err) } }()
 
 	var lines []string
 	scanner := bufio.NewScanner(file)

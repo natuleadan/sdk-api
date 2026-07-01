@@ -8,6 +8,7 @@ require (
 	github.com/bdpiprava/scalar-go v0.13.0
 	github.com/fatih/color v1.19.0
 	github.com/getkin/kin-openapi v0.140.0
+	github.com/go-playground/validator/v10 v10.30.3
 	github.com/go-sql-driver/mysql v1.10.0
 	github.com/goccy/go-json v0.10.6
 	github.com/gofiber/contrib/websocket v1.3.4
@@ -44,7 +45,7 @@ require (
 	golang.org/x/crypto v0.52.0
 	golang.org/x/sys v0.46.0
 	golang.org/x/time v0.15.0
-	google.golang.org/grpc v1.81.1
+	google.golang.org/grpc v1.82.0
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/cheggaaa/pb.v1 v1.0.28
 	gopkg.in/h2non/gock.v1 v1.1.2
@@ -73,7 +74,6 @@ require (
 	github.com/go-openapi/swag/jsonname v0.25.5 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
-	github.com/go-playground/validator/v10 v10.30.3 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/grafana/pyroscope-go/godeltaprof v0.1.11 // indirect

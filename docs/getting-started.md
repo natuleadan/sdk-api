@@ -4,7 +4,7 @@ Create a Go microservice with auto-generated CRUD, NATS messaging, and OpenAPI d
 
 ## Prerequisites
 
-- Go 1.26+
+- Go 1.26.x
 - Docker (for PostgreSQL, NATS JetStream)
 - PostgreSQL 18+
 

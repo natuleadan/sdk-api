@@ -43,7 +43,7 @@ General-purpose Go SDK for event-driven microservices and monoliths. YAML-driven
  │   db/    │   server/   │   events/    │  runtime/   │  infra/   │
  │  (pgx)   │  (Fiber)    │  (NATS+      │ (orchestr.) │ (go-zero) │
  │          │             │   Kafka)     │             │           │
- │ Table[T] │ 15 middle-  │  EventBroker │ Service     │ 45+ pkgs  │
+ │ Table[T] │ 14+ middle- │  EventBroker │ Service     │ 45+ pkgs  │
  │ CRUD     │ wares       │  Producers   │ YAML cfg    │ conf,logx │
  │ AutoInit │ Security    │  Exit Workers│ Entry routes│ trace,brk │
  │ PG/Turso │ Headers     │  KV Cache    │ 9 entry     │ redis,mon │

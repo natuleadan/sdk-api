@@ -665,7 +665,7 @@ Available middleware names for `apply:`:
 | `trace` | OpenTelemetry tracing |
 | `jwt` | JWT auth |
 | `content_security` | RSA body signature verification |
-| `cryption` | AES-CFB body decryption |
+| `cryption` | AES-GCM body decryption |
 
 ### OpenAPI
 

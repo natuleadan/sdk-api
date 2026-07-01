@@ -208,7 +208,7 @@ When `cors` is omitted, CORS defaults to same-origin only (secure default).
 | `MaxBytes()` | `maxbytes.go` | Body size limiter |
 | `Gunzip()` | `gunzip.go` | Auto-decompress gzip |
 | `ContentSecurity()` | `content_security.go` | RSA body signature verification |
-| `Cryption()` | `cryption.go` | AES-CFB body decryption |
+| `Cryption()` | `cryption.go` | AES-GCM body decryption |
 
 ## Per-route Middleware
 

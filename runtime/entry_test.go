@@ -107,7 +107,7 @@ func TestRegisterEntries_CRUD_AllMethods(t *testing.T) {
 			{Type: "crud", Model: "Product", DB: "pg", Table: "products", Resource: "products", Path: "/products"},
 		},
 	}
-	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil)
+	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil)
 	if err != nil {
 		t.Fatalf("RegisterEntries: %v", err)
 	}
@@ -172,7 +172,7 @@ func TestRegisterEntries_CRUD_Overrides(t *testing.T) {
 				},
 			},
 		}
-		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil)
+		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil)
 		if err != nil {
 			t.Fatalf("RegisterEntries: %v", err)
 		}
@@ -210,7 +210,7 @@ func TestRegisterEntries_CRUD_Overrides(t *testing.T) {
 				},
 			},
 		}
-		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil)
+		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil)
 		if err != nil {
 			t.Fatalf("RegisterEntries: %v", err)
 		}
@@ -247,7 +247,7 @@ func TestRegisterEntries_REST(t *testing.T) {
 			{Type: "rest", Method: "POST", Path: "/custom", Handler: "onCustom"},
 		},
 	}
-	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil)
+	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil)
 	if err != nil {
 		t.Fatalf("RegisterEntries: %v", err)
 	}
@@ -284,7 +284,7 @@ func TestRegisterEntries_Webhook(t *testing.T) {
 			{Type: "webhook", Method: "POST", Path: "/webhooks/test", Handler: "onWebhook"},
 		},
 	}
-	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil)
+	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil)
 	if err != nil {
 		t.Fatalf("RegisterEntries: %v", err)
 	}
@@ -319,7 +319,7 @@ func TestRegisterEntries_Webhook_AllMethods(t *testing.T) {
 			{Type: "webhook", Method: "DELETE", Path: "/wh/delete", Handler: "whDelete"},
 		},
 	}
-	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil)
+	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil)
 	if err != nil {
 		t.Fatalf("RegisterEntries: %v", err)
 	}
@@ -368,7 +368,7 @@ func TestRegisterEntries_WebSocket(t *testing.T) {
 			{Type: "websocket", Path: "/ws/chat", Handler: "onChat"},
 		},
 	}
-	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil)
+	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil)
 	if err != nil {
 		t.Fatalf("RegisterEntries: %v", err)
 	}
@@ -391,7 +391,7 @@ func TestRegisterEntries_SSE(t *testing.T) {
 			{Type: "sse", Path: "/events/stream", Handler: "onStream"},
 		},
 	}
-	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil)
+	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil)
 	if err != nil {
 		t.Fatalf("RegisterEntries: %v", err)
 	}
@@ -428,7 +428,7 @@ func TestRegisterEntries_File(t *testing.T) {
 				},
 			},
 		}
-		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil)
+		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil)
 		if err != nil {
 			t.Fatalf("RegisterEntries: %v", err)
 		}
@@ -482,7 +482,7 @@ func TestRegisterEntries_File(t *testing.T) {
 				{Type: "file", Method: "GET", Path: "/files/:id/download", Handler: "onDownload"},
 			},
 		}
-		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil)
+		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil)
 		if err != nil {
 			t.Fatalf("RegisterEntries: %v", err)
 		}
@@ -511,7 +511,7 @@ func TestRegisterEntries_File(t *testing.T) {
 				{Type: "file", Method: "DELETE", Path: "/files/:id", Handler: "onDelete"},
 			},
 		}
-		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil)
+		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil)
 		if err != nil {
 			t.Fatalf("RegisterEntries: %v", err)
 		}
@@ -569,7 +569,7 @@ func TestRegisterEntries_MixedTypes(t *testing.T) {
 			{Type: "sse", Path: "/events/stream", Handler: "onStream"},
 		},
 	}
-	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil)
+	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil)
 	if err != nil {
 		t.Fatalf("RegisterEntries: %v", err)
 	}
@@ -612,7 +612,7 @@ func TestRegisterEntries_Errors(t *testing.T) {
 				{Type: "crud", Model: "Missing", DB: "pg", Table: "t", Path: "/t"},
 			},
 		}
-		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil)
+		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil)
 		if err == nil {
 			t.Error("expected error for missing CRUD provider")
 		}
@@ -628,7 +628,7 @@ func TestRegisterEntries_Errors(t *testing.T) {
 				{Type: "rest", Method: "GET", Path: "/x", Handler: "notFound"},
 			},
 		}
-		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil)
+		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil)
 		if err == nil {
 			t.Error("expected error for missing REST handler")
 		}
@@ -642,7 +642,7 @@ func TestRegisterEntries_Errors(t *testing.T) {
 				{Type: "grpc", Path: "/x"},
 			},
 		}
-		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil)
+		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil)
 		if err == nil {
 			t.Error("expected error for unknown type")
 		}
@@ -660,7 +660,7 @@ func TestRegisterEntries_Errors(t *testing.T) {
 				},
 			},
 		}
-		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil)
+		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil)
 		if err == nil {
 			t.Error("expected error for missing override handler")
 		}
@@ -833,7 +833,7 @@ func TestRegisterEntries_Async(t *testing.T) {
 			{Type: "async", Path: "/jobs/reports", Handler: "processReport"},
 		},
 	}
-	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil)
+	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil)
 	if err != nil {
 		t.Fatalf("RegisterEntries: %v", err)
 	}
@@ -913,7 +913,7 @@ func TestRegisterEntries_GraphQL(t *testing.T) {
 			{Type: "graphql", Path: "/graphql"},
 		},
 	}
-	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, models)
+	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, models, nil)
 	if err != nil {
 		t.Fatalf("RegisterEntries: %v", err)
 	}

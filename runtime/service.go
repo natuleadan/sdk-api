@@ -34,6 +34,7 @@ type Service struct {
 	cronFuncs  map[string]CronJobFunc
 	models     map[string]*db.TableInfo
 	safeClient *middleware.SafeHTTPClient
+	jwtCfg     *middleware.JWTConfig
 
 	stop context.CancelFunc
 }
@@ -299,7 +300,7 @@ func (s *Service) registerEntryRoutes() error {
 			}
 		}
 	}
-	return RegisterEntries(s.srv.App(), s.config, s.handlers, s.config.Server.APIPrefix, s.natsConns, s.models)
+	return RegisterEntries(s.srv.App(), s.config, s.handlers, s.config.Server.APIPrefix, s.natsConns, s.models, s.jwtCfg)
 }
 
 func (s *Service) serveStaticFiles() {
@@ -370,7 +371,9 @@ func (s *Service) initServer() {
 		SSRF:            convertSSRF(sc.SSRF),
 	}
 
-	s.srv = server.New(srvCfg, server.TelemetryConfig{}, server.SecurityConfig{}, corsCfg)
+	s.srv = server.New(srvCfg, server.TelemetryConfig{}, securityConfig(sc), corsCfg)
+
+	s.jwtCfg = buildJWTCfg(s.config.Auth)
 
 	// Auto-register CSP report endpoint if configured
 	if sc.SecurityHeaders != nil && sc.SecurityHeaders.CSPReportPath != "" {
@@ -519,6 +522,41 @@ func parseNATSCompression(s string) events.CompressionType {
 		return events.NoCompression
 	default:
 		return events.S2Compression
+	}
+}
+
+func securityConfig(sc ServerConf) server.SecurityConfig {
+	cfg := server.SecurityConfig{}
+	if sc.Security != nil {
+		if sc.Security.ContentSecurity != nil && sc.Security.ContentSecurity.Enabled {
+			cfg.ContentSecurity = &server.ContentSecurityConf{
+				Enabled:   sc.Security.ContentSecurity.Enabled,
+				Strict:    sc.Security.ContentSecurity.Strict,
+				PublicKey: sc.Security.ContentSecurity.PublicKey,
+			}
+		}
+		if sc.Security.Cryption != nil && sc.Security.Cryption.Enabled {
+			cfg.Cryption = &server.CryptionConf{
+				Enabled: sc.Security.Cryption.Enabled,
+				Key:     sc.Security.Cryption.Key,
+			}
+		}
+	}
+	return cfg
+}
+
+func buildJWTCfg(auth *AuthConfig) *middleware.JWTConfig {
+	if auth == nil {
+		return nil
+	}
+	return &middleware.JWTConfig{
+		Secret:      auth.Secret,
+		PrevSecret:  auth.PrevSecret,
+		Algorithm:   auth.Algorithm,
+		TokenLookup: auth.TokenLookup,
+		ContextKey:  auth.ContextKey,
+		Issuer:      auth.Issuer,
+		Audience:    auth.Audience,
 	}
 }
 

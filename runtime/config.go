@@ -26,6 +26,18 @@ type ServiceConfig struct {
 	Entry        []EntryDef            `json:"entry" config:",optional"`
 	Exit         []ExitWorker          `json:"exit" config:",optional"`
 	Cron         []CronJob             `json:"cron" config:",optional"`
+	Auth         *AuthConfig           `json:"auth" config:",optional"`
+}
+
+type AuthConfig struct {
+	Secret      string `json:"secret" config:",optional"`
+	PrevSecret  string `json:"prev_secret" config:",optional"`
+	Algorithm   string `json:"algorithm" config:",default=HS256"`
+	TokenLookup string `json:"token_lookup" config:",default=header:Authorization"`
+	ContextKey  string `json:"context_key" config:",default=claims"`
+	Issuer      string `json:"issuer" config:",optional"`
+	Audience    string `json:"audience" config:",optional"`
+	Expiry      int    `json:"expiry" config:",default=3600"`
 }
 
 // ---- Server ----
@@ -53,6 +65,23 @@ type ServerConf struct {
 	TLS             *TLSConf             `json:"tls" config:",optional"`
 	SSRF            *SSRFConf            `json:"ssrf" config:",optional"`
 	Cookies         *CookieConf          `json:"cookies" config:",optional"`
+	Security        *SecurityDef         `json:"security" config:",optional"`
+}
+
+type SecurityDef struct {
+	ContentSecurity *ContentSecurityDef `json:"content_security" config:",optional"`
+	Cryption        *CryptionDef        `json:"cryption" config:",optional"`
+}
+
+type ContentSecurityDef struct {
+	Enabled   bool   `json:"enabled" config:",optional"`
+	Strict    bool   `json:"strict" config:",optional"`
+	PublicKey string `json:"public_key"`
+}
+
+type CryptionDef struct {
+	Enabled bool   `json:"enabled" config:",optional"`
+	Key     string `json:"key"`
 }
 
 type CookieConf struct {

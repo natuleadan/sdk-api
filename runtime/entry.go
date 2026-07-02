@@ -41,16 +41,16 @@ type EntryHandlers struct {
 // RegisterEntries iterates over cfg.Entry and registers all HTTP routes on app.
 // brokers is optional — used for auto-publishing on nats_publish targets.
 // models is optional — used for GraphQL schema generation.
-func RegisterEntries(app *fiber.App, cfg *ServiceConfig, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, models map[string]*db.TableInfo) error {
+func RegisterEntries(app *fiber.App, cfg *ServiceConfig, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, models map[string]*db.TableInfo, jwtCfg *middleware.JWTConfig) error {
 	for i, entry := range cfg.Entry {
-		if err := registerOneEntry(app, &entry, handlers, prefix, brokers, models); err != nil {
+		if err := registerOneEntry(app, &entry, handlers, prefix, brokers, models, jwtCfg); err != nil {
 			return fmt.Errorf("entry[%d] %s %s: %w", i, entry.Type, entry.Path, err)
 		}
 	}
 	return nil
 }
 
-func registerOneEntry(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, models map[string]*db.TableInfo) error {
+func registerOneEntry(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, models map[string]*db.TableInfo, jwtCfg *middleware.JWTConfig) error {
 	var err error
 	switch entry.Type {
 	case "crud":
@@ -75,9 +75,17 @@ func registerOneEntry(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, 
 	if err != nil {
 		return err
 	}
+	registerJWT(app, entry, prefix, jwtCfg)
 	registerValidationMiddleware(app, entry, prefix)
 	registerEntryRateLimit(app, entry, prefix)
 	return nil
+}
+
+func registerJWT(app *fiber.App, entry *EntryDef, prefix string, jwtCfg *middleware.JWTConfig) {
+	if !entry.Auth || jwtCfg == nil {
+		return
+	}
+	app.Use(prefix+entry.Path, middleware.JWT(*jwtCfg))
 }
 
 func registerValidationMiddleware(app *fiber.App, entry *EntryDef, prefix string) {

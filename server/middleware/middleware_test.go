@@ -99,6 +99,146 @@ func TestJWTSecretRotation(t *testing.T) {
 	}
 }
 
+func TestJWTAlgorithmPinning(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Use(JWT(JWTConfig{Secret: "secret123", Algorithm: "HS256"}))
+	app.Get("/protected", func(c *fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	t.Run("wrong algorithm", func(t *testing.T) {
+		tok, _ := jwt.NewWithClaims(jwt.SigningMethodHS384, jwt.MapClaims{"sub": "123"}).SignedString([]byte("secret123"))
+		req := testRequest(context.Background(), "GET", "/protected", nil)
+		req.Header.Set("Authorization", "Bearer "+tok)
+		resp, _ := app.Test(req)
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Errorf("expected 401 for HS384 on HS256-configured middleware, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("correct algorithm", func(t *testing.T) {
+		req := testRequest(context.Background(), "GET", "/protected", nil)
+		req.Header.Set("Authorization", "Bearer "+tokenFor("secret123"))
+		resp, _ := app.Test(req)
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("expected 200, got %d", resp.StatusCode)
+		}
+	})
+}
+
+func TestJWTIssuerValidation(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Use(JWT(JWTConfig{Secret: "secret123", Issuer: "sdk-api"}))
+	app.Get("/protected", func(c *fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	t.Run("wrong issuer", func(t *testing.T) {
+		tok, _ := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+			"sub": "123",
+			"iss": "other-api",
+		}).SignedString([]byte("secret123"))
+		req := testRequest(context.Background(), "GET", "/protected", nil)
+		req.Header.Set("Authorization", "Bearer "+tok)
+		resp, _ := app.Test(req)
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Errorf("expected 401 for wrong issuer, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("correct issuer", func(t *testing.T) {
+		tok, _ := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+			"sub": "123",
+			"iss": "sdk-api",
+		}).SignedString([]byte("secret123"))
+		req := testRequest(context.Background(), "GET", "/protected", nil)
+		req.Header.Set("Authorization", "Bearer "+tok)
+		resp, _ := app.Test(req)
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("expected 200, got %d", resp.StatusCode)
+		}
+	})
+}
+
+func TestJWTAudienceValidation(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Use(JWT(JWTConfig{Secret: "secret123", Audience: "api.example.com"}))
+	app.Get("/protected", func(c *fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	t.Run("wrong audience", func(t *testing.T) {
+		tok, _ := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+			"sub": "123",
+			"aud": "other.example.com",
+		}).SignedString([]byte("secret123"))
+		req := testRequest(context.Background(), "GET", "/protected", nil)
+		req.Header.Set("Authorization", "Bearer "+tok)
+		resp, _ := app.Test(req)
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Errorf("expected 401 for wrong audience, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("correct audience", func(t *testing.T) {
+		tok, _ := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+			"sub": "123",
+			"aud": "api.example.com",
+		}).SignedString([]byte("secret123"))
+		req := testRequest(context.Background(), "GET", "/protected", nil)
+		req.Header.Set("Authorization", "Bearer "+tok)
+		resp, _ := app.Test(req)
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("expected 200, got %d", resp.StatusCode)
+		}
+	})
+}
+
+func TestJWTExpiredToken(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Use(JWT(JWTConfig{Secret: "secret123"}))
+	app.Get("/protected", func(c *fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	tok, _ := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"sub": "123",
+		"iat": time.Now().Add(-2 * time.Hour).Unix(),
+		"exp": time.Now().Add(-1 * time.Hour).Unix(),
+	}).SignedString([]byte("secret123"))
+	req := testRequest(context.Background(), "GET", "/protected", nil)
+	req.Header.Set("Authorization", "Bearer "+tok)
+	resp, _ := app.Test(req)
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("expected 401 for expired token, got %d", resp.StatusCode)
+	}
+}
+
+func TestJWTUserClaimExtraction(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Use(JWT(JWTConfig{Secret: "secret123", ContextKey: "user"}))
+	app.Get("/whoami", func(c *fiber.Ctx) error {
+		claims := c.Locals("user").(jwt.MapClaims)
+		return c.JSON(claims)
+	})
+
+	tok, _ := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"sub": "user-456",
+		"usr": "alice",
+	}).SignedString([]byte("secret123"))
+	req := testRequest(context.Background(), "GET", "/whoami", nil)
+	req.Header.Set("Authorization", "Bearer "+tok)
+	resp, _ := app.Test(req)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
 func TestCORS(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()

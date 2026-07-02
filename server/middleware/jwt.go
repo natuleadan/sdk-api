@@ -49,8 +49,8 @@ func JWT(cfg JWTConfig) fiber.Handler {
 	}
 
 	return func(c *fiber.Ctx) error {
-		token, err := extractToken(c, cfg.TokenLookup)
-		if err != nil {
+		token, rawToken := extractToken(c, cfg.TokenLookup)
+		if token == "" {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"code":    401,
 				"message": "missing or malformed token",
@@ -76,6 +76,7 @@ func JWT(cfg JWTConfig) fiber.Handler {
 		}
 
 		c.Locals(cfg.ContextKey, claims)
+		injectAuth(c, buildAuthContext(claims, rawToken))
 		return c.Next()
 	}
 }
@@ -132,10 +133,10 @@ func (p *jwtParser) parse(tokenStr string) (jwt.MapClaims, error) {
 	return nil, jwt.ErrSignatureInvalid
 }
 
-func extractToken(c *fiber.Ctx, lookup string) (string, error) {
+func extractToken(c *fiber.Ctx, lookup string) (token, raw string) {
 	parts := strings.SplitN(lookup, ":", 2)
 	if len(parts) != 2 {
-		return "", fiber.ErrBadRequest
+		return "", ""
 	}
 
 	source := parts[0]
@@ -150,12 +151,12 @@ func extractToken(c *fiber.Ctx, lookup string) (string, error) {
 	case "query":
 		value = c.Query(key)
 	default:
-		return "", fiber.ErrBadRequest
+		return "", ""
 	}
 
 	const prefix = "Bearer "
 	if after, ok := strings.CutPrefix(value, prefix); ok {
-		return after, nil
+		return after, value
 	}
-	return value, nil
+	return value, value
 }

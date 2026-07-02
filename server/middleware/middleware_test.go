@@ -239,6 +239,111 @@ func TestJWTUserClaimExtraction(t *testing.T) {
 	}
 }
 
+func TestAuthContextExtraction(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Use(JWT(JWTConfig{Secret: "secret123", ContextKey: "user"}))
+	app.Get("/whoami", func(c *fiber.Ctx) error {
+		auth := GetAuth(c)
+		if auth == nil {
+			return c.Status(500).SendString("nil auth")
+		}
+		return c.JSON(auth)
+	})
+
+	tok, _ := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"sub":         "user-789",
+		"org_id":      "org-acme",
+		"roles":       []any{"admin", "editor"},
+		"permissions": []any{"products:create", "products:read"},
+	}).SignedString([]byte("secret123"))
+	req := testRequest(context.Background(), "GET", "/whoami", nil)
+	req.Header.Set("Authorization", "Bearer "+tok)
+	resp, _ := app.Test(req)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
+func TestAuthContextFromFiberCtx(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Use(JWT(JWTConfig{Secret: "secret123"}))
+	app.Get("/extract", func(c *fiber.Ctx) error {
+		auth := GetAuth(c)
+		if auth == nil {
+			return c.Status(500).SendString("nil auth")
+		}
+		if auth.UserID != "user-001" {
+			return c.Status(500).SendString("bad sub")
+		}
+		if len(auth.Roles) != 2 {
+			return c.Status(500).SendString("bad roles count")
+		}
+		return c.SendString("ok")
+	})
+
+	tok, _ := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"sub":   "user-001",
+		"roles": []any{"reader", "writer"},
+	}).SignedString([]byte("secret123"))
+	req := testRequest(context.Background(), "GET", "/extract", nil)
+	req.Header.Set("Authorization", "Bearer "+tok)
+	resp, _ := app.Test(req)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
+func TestAuthContextFromContext(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Use(JWT(JWTConfig{Secret: "secret123"}))
+	app.Get("/fromctx", func(c *fiber.Ctx) error {
+		auth := AuthFromContext(c.UserContext())
+		if auth == nil {
+			return c.Status(500).SendString("nil auth")
+		}
+		if auth.UserID != "user-ctx" {
+			return c.Status(500).SendString("bad ctx: " + auth.UserID)
+		}
+		return c.SendString("ok")
+	})
+
+	tok, _ := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"sub": "user-ctx",
+	}).SignedString([]byte("secret123"))
+	req := testRequest(context.Background(), "GET", "/fromctx", nil)
+	req.Header.Set("Authorization", "Bearer "+tok)
+	resp, _ := app.Test(req)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
+func TestAuthContextNoJWT(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+
+	app.Get("/noauth", func(c *fiber.Ctx) error {
+		auth := GetAuth(c)
+		if auth != nil {
+			return c.Status(500).SendString("should be nil")
+		}
+		authCtx := AuthFromContext(c.UserContext())
+		if authCtx != nil {
+			return c.Status(500).SendString("ctx should be nil")
+		}
+		return c.SendString("ok")
+	})
+
+	req := testRequest(context.Background(), "GET", "/noauth", nil)
+	resp, _ := app.Test(req)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
 func TestCORS(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()

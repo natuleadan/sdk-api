@@ -15,9 +15,11 @@ services:
 
   nats:
     image: nats:2.10-alpine
-    command: ["--jetstream"]
+    command: ["--config", "/etc/nats/nats-server.conf"]
     ports:
       - "14222:4222"
+    volumes:
+      - ./.docker/nats-server.conf:/etc/nats/nats-server.conf:ro
 
   kafka:
     image: apache/kafka:latest
@@ -35,3 +37,91 @@ services:
       CLUSTER_ID: sdk-api-test-cluster
     ports:
       - "9092:9092"
+
+  # OpenFGA for authorization (ReBAC)
+  postgres_openfga:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: openfga
+      POSTGRES_PASSWORD: openfgapass
+      POSTGRES_DB: openfga
+    ports:
+      - "15433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openfga"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  openfga_migrate:
+    image: openfga/openfga:latest
+    command: migrate
+    depends_on:
+      postgres_openfga:
+        condition: service_healthy
+    environment:
+      OPENFGA_DATASTORE_ENGINE: postgres
+      OPENFGA_DATASTORE_URI: postgres://openfga:openfgapass@postgres_openfga:5432/openfga?sslmode=disable
+
+  openfga:
+    image: openfga/openfga:latest
+    command: run
+    depends_on:
+      openfga_migrate:
+        condition: service_completed_successfully
+    environment:
+      OPENFGA_DATASTORE_ENGINE: postgres
+      OPENFGA_DATASTORE_URI: postgres://openfga:openfgapass@postgres_openfga:5432/openfga?sslmode=disable
+      OPENFGA_PLAYGROUND_ENABLED: "true"
+    ports:
+      - "18080:8080"  # HTTP
+      - "18081:8081"  # gRPC
+      - "13000:3000"  # Playground
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/grpc_health_probe", "-addr=:8081"]
+      interval: 5s
+      timeout: 30s
+      retries: 3
+
+  # Zitadel for authentication (OIDC)
+  postgres_zitadel:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: zitadel
+      POSTGRES_PASSWORD: zitadelpass
+      POSTGRES_DB: zitadel
+    ports:
+      - "15434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zitadel"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  zitadel:
+    image: ghcr.io/zitadel/zitadel:latest
+    command: start-from-init --masterkey "MasterkeyNeedsToHave32Characters" --tlsMode disabled
+    depends_on:
+      postgres_zitadel:
+        condition: service_healthy
+    environment:
+      ZITADEL_DATABASE_POSTGRES_HOST: postgres_zitadel
+      ZITADEL_DATABASE_POSTGRES_PORT: 5432
+      ZITADEL_DATABASE_POSTGRES_DATABASE: zitadel
+      ZITADEL_DATABASE_POSTGRES_USER_USERNAME: zitadel
+      ZITADEL_DATABASE_POSTGRES_USER_PASSWORD: zitadelpass
+      ZITADEL_DATABASE_POSTGRES_USER_SSL_MODE: disable
+      ZITADEL_DATABASE_POSTGRES_ADMIN_USERNAME: zitadel
+      ZITADEL_DATABASE_POSTGRES_ADMIN_PASSWORD: zitadelpass
+      ZITADEL_DATABASE_POSTGRES_ADMIN_SSL_MODE: disable
+      ZITADEL_EXTERNALSECURE: "false"
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME: admin
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: Admin123!
+    ports:
+      - "18082:8080"  # HTTP
+      - "18083:8081"  # gRPC
+    healthcheck:
+      test: ["CMD", "/app/zitadel", "ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

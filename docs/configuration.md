@@ -209,6 +209,34 @@ server:
     block_loopback: true
     block_metadata: true
 
+  # Authentication & Authorization
+  auth:
+    enabled: true                         # Enable auth system
+    driver: openfga-zitadel                # none | manual | openfga-zitadel | ory
+    secret: "${JWT_SECRET}"               # HMAC shared secret
+    algorithm: HS256                       # HS256 | HS384 | HS512 | RS256
+    token_lookup: "header:Authorization"   # header:<name> | cookie:<name> | query:<name>
+    context_key: claims                    # fiber.Ctx.Locals key
+    issuer: "sdk-api"                      # Validate iss claim
+    audience: "api.example.com"            # Validate aud claim
+    openfga_url: "http://localhost:18080"  # OpenFGA HTTP API
+    openfga_store: "default"               # OpenFGA store ID
+    zitadel_url: "https://auth.tld"        # Zitadel issuer (OIDC)
+    kratos_url: "http://localhost:4433"    # Ory Kratos public URL
+    keto_url: "http://localhost:4466"      # Ory Keto URL
+    cache: nats                            # none | nats | redis
+    cache_ttl: 30s
+    redis_url: "${REDIS_URL}"
+
+  # Security extensions (opt-in)
+  security:
+    content_security:
+      enabled: false
+      public_key: /etc/secrets/rsa.pub
+    cryption:
+      enabled: false
+      key: "${AES_KEY}"
+
   # Global cookie settings
   cookies:
     same_site: Lax
@@ -442,12 +470,24 @@ Queries and mutations are auto-generated from `CRUDProvider` registrations. Mode
 | Field | Applies to | Description |
 |-------|-----------|-------------|
 | `auth` | crud, rest, webhook, file | JWT authentication required |
+| `roles` | crud, rest, webhook | Required roles (validated by auth driver) |
+| `permissions` | crud, rest, webhook | Required permissions (validated by auth driver) |
+| `api_key` | webhook, rest | Accept API key for this entry |
 | `csrf` | crud, rest, webhook, file | CSRF protection override (`true`/`false`) |
 | `rate_limit` | crud, rest, webhook | Per-entry rate limit |
 | `event_stream` | crud, rest, webhook, file | Event broker name for publishes |
 | `event_publish` | crud, rest, webhook, file | Publish targets (replaces `nats_publish`) |
 | `nats_publish` | crud, rest, webhook, file | Deprecated alias for `event_publish` |
 | `validate` | crud, rest, webhook | Validation model name |
+
+**Entry auth combinations:**
+
+| `auth` | `roles` / `permissions` | `api_key` | What the middleware does |
+|--------|------------------------|-----------|-------------------------|
+| `false` | — | — | No auth, public endpoint |
+| `true` | empty | `false` | Validates JWT signature + claims (identity only) |
+| `true` | defined | `false` | Validates JWT + verifies roles/permissions via driver |
+| `true` | — | `true` | Detects API key, validates via driver |
 
 ### event_publish targets
 

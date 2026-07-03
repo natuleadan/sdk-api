@@ -13,7 +13,11 @@ import (
 	"github.com/natuleadan/sdk-api/events"
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/natuleadan/sdk-api/infra/proc"
+	"github.com/natuleadan/sdk-api/infra/stores/redis"
 	"github.com/natuleadan/sdk-api/server"
+	"github.com/natuleadan/sdk-api/server/auth/openfga"
+	"github.com/natuleadan/sdk-api/server/auth/ory"
+	"github.com/natuleadan/sdk-api/server/auth/zitadel"
 	"github.com/natuleadan/sdk-api/server/middleware"
 )
 
@@ -35,6 +39,10 @@ type Service struct {
 	models     map[string]*db.TableInfo
 	safeClient *middleware.SafeHTTPClient
 	jwtCfg     *middleware.JWTConfig
+	fgaClient  openfga.Checker
+	zitadelClient *zitadel.Client
+	oryClient     *ory.Client
+	authValidator func(context.Context, *middleware.AuthContext, []string) error
 
 	stop context.CancelFunc
 }
@@ -143,6 +151,14 @@ func (s *Service) WithAsync(name string, handler AsyncHandler) *Service {
 		s.handlers.Async = make(map[string]AsyncHandler)
 	}
 	s.handlers.Async[name] = handler
+	return s
+}
+
+// WithAuthValidator registers a custom authorization validator for "manual" auth mode.
+// The validator receives the AuthContext and the YAML-defined roles for the entry.
+// Return nil if allowed, an error with message if denied.
+func (s *Service) WithAuthValidator(fn func(context.Context, *middleware.AuthContext, []string) error) *Service {
+	s.authValidator = fn
 	return s
 }
 
@@ -300,7 +316,7 @@ func (s *Service) registerEntryRoutes() error {
 			}
 		}
 	}
-	return RegisterEntries(s.srv.App(), s.config, s.handlers, s.config.Server.APIPrefix, s.natsConns, s.models, s.jwtCfg)
+	return RegisterEntries(s.srv.App(), s.config, s.handlers, s.config.Server.APIPrefix, s.natsConns, s.models, s.jwtCfg, s.authValidator, s.fgaClient, s.oryClient, s.zitadelClient)
 }
 
 func (s *Service) serveStaticFiles() {
@@ -374,6 +390,11 @@ func (s *Service) initServer() {
 	s.srv = server.New(srvCfg, server.TelemetryConfig{}, securityConfig(sc), corsCfg)
 
 	s.jwtCfg = buildJWTCfg(s.config.Auth)
+
+	auth := s.config.Auth
+	if auth != nil && auth.Enabled && auth.Driver != "none" {
+		initAuthClients(s, auth)
+	}
 
 	// Auto-register CSP report endpoint if configured
 	if sc.SecurityHeaders != nil && sc.SecurityHeaders.CSPReportPath != "" {
@@ -558,6 +579,118 @@ func buildJWTCfg(auth *AuthConfig) *middleware.JWTConfig {
 		Issuer:      auth.Issuer,
 		Audience:    auth.Audience,
 	}
+}
+
+func initAuthClients(s *Service, auth *AuthConfig) {
+	switch auth.Driver {
+	case "openfga-zitadel":
+		if auth.OpenFGAURL != "" {
+			fgaClient, err := openfga.NewClient(openfga.Config{
+				APIURL:  auth.OpenFGAURL,
+				StoreID: auth.OpenFGAStore,
+			})
+			if err != nil {
+				logx.Errorf("auth: failed to create OpenFGA client: %v", err)
+			} else {
+				s.fgaClient = wrapWithCache(s, auth, fgaClient)
+				logx.Infof("auth: OpenFGA client initialized (%s)", auth.OpenFGAURL)
+			}
+		}
+		if auth.ZitadelURL != "" {
+			s.zitadelClient = zitadel.NewClient(zitadel.Config{Issuer: auth.ZitadelURL})
+			logx.Infof("auth: Zitadel client initialized (%s)", auth.ZitadelURL)
+		}
+	case "ory":
+		if auth.KratosURL != "" || auth.KetoURL != "" {
+			s.oryClient = ory.NewClient(ory.Config{
+				KratosPublicURL: auth.KratosURL,
+				KetoURL:         auth.KetoURL,
+			})
+			logx.Infof("auth: Ory client initialized (kratos=%s, keto=%s)", auth.KratosURL, auth.KetoURL)
+		}
+	}
+}
+
+func wrapWithCache(s *Service, auth *AuthConfig, client *openfga.Client) openfga.Checker {
+	if auth.CacheEnabled == "" || auth.CacheEnabled == "none" {
+		return client
+	}
+
+	ttl := parseCacheTTL(auth.CacheTTL)
+	var backend openfga.CacheBackend
+
+	switch auth.CacheEnabled {
+	case "nats":
+		backend = newNATSCacheBackend(s.natsConns)
+	case "redis":
+		backend = newRedisCacheBackend(auth.RedisURL)
+	}
+
+	if backend == nil {
+		return client
+	}
+
+	logx.Infof("auth: OpenFGA cache enabled (backend=%s, ttl=%v)", auth.CacheEnabled, ttl)
+	return openfga.NewCachedClient(client, &openfga.CacheConfig{
+		Enabled: true,
+		TTL:     ttl,
+		Backend: backend,
+	})
+}
+
+func parseCacheTTL(s string) time.Duration {
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		return 30 * time.Second
+	}
+	return d
+}
+
+func newNATSCacheBackend(conns map[string]events.EventBroker) openfga.CacheBackend {
+	for _, conn := range conns {
+		nc, ok := conn.(*events.Conn)
+		if !ok {
+			continue
+		}
+		kv, err := nc.EnsureKeyValue(events.DefaultKVConfig("authz_cache"))
+		if err != nil {
+			logx.Errorf("auth: failed to create NATS KV bucket: %v", err)
+			continue
+		}
+		return openfga.NewNATSKVBackend(
+			func(key string) ([]byte, error) {
+				entry, err := kv.Get(key)
+				if err != nil {
+					return nil, err
+				}
+				return entry.Value(), nil
+			},
+			func(key string, value []byte) error {
+				_, err := kv.Put(key, value)
+				return err
+			},
+		)
+	}
+	return nil
+}
+
+func newRedisCacheBackend(redisURL string) openfga.CacheBackend {
+	if redisURL == "" {
+		return nil
+	}
+	rds, err := redis.NewRedis(redis.RedisConf{Host: redisURL, Type: redis.NodeType})
+	if err != nil {
+		logx.Errorf("auth: failed to create Redis client: %v", err)
+		return nil
+	}
+	return openfga.NewRedisKVBackend(
+		func(ctx context.Context, key string) (string, error) {
+			return rds.GetCtx(ctx, key)
+		},
+		func(ctx context.Context, key, value string, seconds int) error {
+			return rds.SetexCtx(ctx, key, value, seconds)
+		},
+	)
 }
 
 func convertSecurityHeaders(cfg *SecurityHeadersConf) *middleware.SecurityHeadersConfig {

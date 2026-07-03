@@ -1,16 +1,19 @@
 package runtime
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/natuleadan/sdk-api/db"
 	"github.com/natuleadan/sdk-api/events"
 	"github.com/natuleadan/sdk-api/server"
+	"github.com/natuleadan/sdk-api/server/auth/openfga"
+	"github.com/natuleadan/sdk-api/server/auth/ory"
+	"github.com/natuleadan/sdk-api/server/auth/zitadel"
 	"github.com/natuleadan/sdk-api/server/middleware"
 )
 
-// CRUDProvider abstracts typed Table[T] operations for the router.
 type CRUDProvider interface {
 	List(ctx *fiber.Ctx, params ListParams) error
 	Get(ctx *fiber.Ctx, id string) error
@@ -19,7 +22,6 @@ type CRUDProvider interface {
 	Delete(ctx *fiber.Ctx, id string) error
 }
 
-// ListParams holds query parameters for list endpoints.
 type ListParams struct {
 	Page    int
 	Size    int
@@ -27,7 +29,6 @@ type ListParams struct {
 	Filters map[string]string
 }
 
-// EntryHandlers holds all named handler functions registered by the user.
 type EntryHandlers struct {
 	Rest      map[string]func(*fiber.Ctx) error
 	WS        map[string]WSHandler
@@ -35,22 +36,69 @@ type EntryHandlers struct {
 	CRUD      map[string]CRUDProvider
 	Storage   map[string]server.StorageBackend
 	Async     map[string]AsyncHandler
-	Transform map[string]any // handler name → EntryHooks[T] (untyped due to generics)
+	Transform map[string]any
 }
 
-// RegisterEntries iterates over cfg.Entry and registers all HTTP routes on app.
-// brokers is optional — used for auto-publishing on nats_publish targets.
-// models is optional — used for GraphQL schema generation.
-func RegisterEntries(app *fiber.App, cfg *ServiceConfig, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, models map[string]*db.TableInfo, jwtCfg *middleware.JWTConfig) error {
+func RegisterEntries(app *fiber.App, cfg *ServiceConfig, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, models map[string]*db.TableInfo, jwtCfg *middleware.JWTConfig, authValidator func(context.Context, *middleware.AuthContext, []string) error, fgaClient openfga.Checker, oryClient *ory.Client, zitadelClient *zitadel.Client) error {
+	driver := ""
+	if cfg.Auth != nil {
+		driver = cfg.Auth.Driver
+	}
 	for i, entry := range cfg.Entry {
-		if err := registerOneEntry(app, &entry, handlers, prefix, brokers, models, jwtCfg); err != nil {
+		if entry.Auth {
+			if err := validateEntryAuth(&entry, handlers); err != nil {
+				return fmt.Errorf("entry[%d] %s:%s: %w", i, entry.Type, entry.Path, err)
+			}
+		}
+		if err := registerOneEntry(app, &entry, handlers, prefix, brokers, models, jwtCfg, authValidator, fgaClient, oryClient, zitadelClient, driver); err != nil {
 			return fmt.Errorf("entry[%d] %s %s: %w", i, entry.Type, entry.Path, err)
 		}
 	}
 	return nil
 }
 
-func registerOneEntry(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, models map[string]*db.TableInfo, jwtCfg *middleware.JWTConfig) error {
+func validateEntryAuth(entry *EntryDef, handlers *EntryHandlers) error {
+	if len(entry.Roles) == 0 && len(entry.Permissions) == 0 {
+		return nil
+	}
+	if entry.Handler != "" {
+		if handlers.Rest != nil {
+			if _, ok := handlers.Rest[entry.Handler]; ok {
+				return nil
+			}
+		}
+		return fmt.Errorf("handler %q not registered", entry.Handler)
+	}
+	if entry.Resource != "" && entry.Type == "crud" {
+		if handlers.CRUD != nil {
+			if _, ok := handlers.CRUD[entry.Resource]; ok {
+				return nil
+			}
+		}
+	}
+	return nil
+}
+
+func registerOneEntry(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, models map[string]*db.TableInfo, jwtCfg *middleware.JWTConfig, authValidator func(context.Context, *middleware.AuthContext, []string) error, fgaClient openfga.Checker, oryClient *ory.Client, zitadelClient *zitadel.Client, driver string) error {
+	// Register auth middleware BEFORE route handler (Fiber requires app.Use before app.Get)
+	switch driver {
+	case "openfga-zitadel":
+		if zitadelClient != nil {
+			registerZitadelJWT(app, entry, prefix, jwtCfg, zitadelClient)
+		} else {
+			registerJWT(app, entry, prefix, jwtCfg)
+		}
+		registerOpenFGA(app, entry, prefix, fgaClient, entry.Roles, entry.Permissions)
+	case "ory":
+		registerJWT(app, entry, prefix, jwtCfg)
+		registerOry(app, entry, prefix, oryClient, entry.Roles, entry.Permissions)
+	case "manual":
+		registerJWT(app, entry, prefix, jwtCfg)
+		registerManualAuth(app, entry, prefix, entry.Roles, authValidator)
+	default:
+		registerJWT(app, entry, prefix, jwtCfg)
+	}
+
 	var err error
 	switch entry.Type {
 	case "crud":
@@ -75,10 +123,31 @@ func registerOneEntry(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, 
 	if err != nil {
 		return err
 	}
-	registerJWT(app, entry, prefix, jwtCfg)
 	registerValidationMiddleware(app, entry, prefix)
 	registerEntryRateLimit(app, entry, prefix)
 	return nil
+}
+
+func registerOpenFGA(app *fiber.App, entry *EntryDef, prefix string, fgaClient openfga.Checker, roles, permissions []string) {
+	if !entry.Auth || fgaClient == nil {
+		return
+	}
+	app.Use(prefix+entry.Path, middleware.OpenFGA(middleware.OpenFGAConfig{
+		Client:      fgaClient,
+		Roles:       roles,
+		Permissions: permissions,
+	}))
+}
+
+func registerOry(app *fiber.App, entry *EntryDef, prefix string, oryClient *ory.Client, roles, permissions []string) {
+	if !entry.Auth || oryClient == nil {
+		return
+	}
+	app.Use(prefix+entry.Path, middleware.Ory(middleware.OryConfig{
+		Client:      oryClient,
+		Roles:       roles,
+		Permissions: permissions,
+	}))
 }
 
 func registerJWT(app *fiber.App, entry *EntryDef, prefix string, jwtCfg *middleware.JWTConfig) {
@@ -86,6 +155,35 @@ func registerJWT(app *fiber.App, entry *EntryDef, prefix string, jwtCfg *middlew
 		return
 	}
 	app.Use(prefix+entry.Path, middleware.JWT(*jwtCfg))
+}
+
+func registerZitadelJWT(app *fiber.App, entry *EntryDef, prefix string, jwtCfg *middleware.JWTConfig, zClient *zitadel.Client) {
+	if !entry.Auth || zClient == nil {
+		return
+	}
+	app.Use(prefix+entry.Path, middleware.JWTWithZitadel(*jwtCfg, zClient))
+}
+
+func registerManualAuth(app *fiber.App, entry *EntryDef, prefix string, roles []string, validator func(context.Context, *middleware.AuthContext, []string) error) {
+	if !entry.Auth || validator == nil {
+		return
+	}
+	app.Use(prefix + entry.Path, func(c *fiber.Ctx) error {
+		auth := middleware.GetAuth(c)
+		if auth == nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"code":    401,
+				"message": "auth context required",
+			})
+		}
+		if err := validator(c.UserContext(), auth, roles); err != nil {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"code":    403,
+				"message": err.Error(),
+			})
+		}
+		return c.Next()
+	})
 }
 
 func registerValidationMiddleware(app *fiber.App, entry *EntryDef, prefix string) {

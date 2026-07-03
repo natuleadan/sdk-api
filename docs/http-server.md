@@ -200,7 +200,11 @@ When `cors` is omitted, CORS defaults to same-origin only (secure default).
 | `Shedding()` | `shedding.go` | Adaptive load shedding (go-zero) |
 | `Breaker()` | `breaker.go` | Circuit breaker per route |
 | `CORS()` | `cors.go` | CORS headers |
-| `JWT()` | `jwt.go` | JWT with secret rotation |
+| `JWT()` | `jwt.go` | JWT validation with algorithm pinning, claim validation (iss, aud, exp), secret rotation, AuthContext injection |
+| `JWTWithZitadel()` | `jwt_zitadel.go` | JWT validation via Zitadel JWKS (RS256) |
+| `OpenFGA()` | `openfga.go` | OpenFGA ReBAC authorization (roles, permissions, relation checks) |
+| `Ory()` | `ory.go` | Ory Keto authorization (roles, permissions) |
+| `APIKey()` | `apikey.go` | API key detection + OpenFGA validation |
 | `Prometheus()` | `prometheus.go` | In-process metrics collector |
 | `Trace()` | `trace.go` | OpenTelemetry tracing |
 | `Timeout()` | `timeout.go` | Per-request deadline |

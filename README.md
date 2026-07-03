@@ -100,6 +100,12 @@ curl http://localhost:8080/health
 | | SSRF protection | Blocks private/loopback/metadata IPs |
 | | Input validation | Struct tag validation via `go-playground/validator/v10` |
 | | Error sanitization | Generic 500 messages, no internal leak |
+| **Auth** | JWT per-entry | Algorithm pinning, claim validation, AuthContext extraction |
+| | 4 auth modes | `none`, `manual`, `openfga-zitadel`, `ory` |
+| | OpenFGA + Zitadel | ReBAC authorization + OIDC authentication |
+| | Ory Kratos + Keto | Identity management + fine-grained authorization |
+| | API keys | Service-to-service with scoped permissions |
+| | Token refresh | Delegated to IDP (Zitadel/Kratos) or manual re-sign |
 | **Cron** | `nats` mode | Publish message to NATS on schedule |
 | | `handler` mode | Call a Go function on schedule |
 | | `internal` mode | System tick without handler |
@@ -207,14 +213,15 @@ Packages involved:
 
 ```
 ┌──────────┬─────────────┬──────────────┬─────────────┬───────────┐
-│   db/    │   server/   │   events/    │  runtime/   │  infra/   │
-│  (pgx)   │  (Fiber)    │  (NATS JS)   │ (orchestr.) │ (go-zero) │
+│   db/    │   server/   │   events/    │  runtime/   │  auth/    │
+│  (pgx)   │  (Fiber)    │  (NATS JS)   │ (orchestr.) │ (ext.)    │
 │          │             │              │             │           │
-│ Table[T] │ 14 middle-  │  Producers   │ Service     │ 45+ pkgs  │
-│ CRUD     │ wares       │  Exit Workers│ YAML cfg    │ conf,logx │
-│ AutoInit │ JWT/CORS    │  KV Cache    │ Entry routes│ trace,brk │
-│ PG/Turso │ SSE/WS      │  Request-    │ Exit workers│ redis,mon │
-│ MySQL    │ OpenAPI      │  Reply       │ Cron        │ discov    │
+│ Table[T] │ 14+ middle- │  Producers   │ Service     │ OpenFGA   │
+│ CRUD     │ wares       │  Exit Workers│ YAML cfg    │ Zitadel   │
+│ AutoInit │ JWT/CORS    │  KV Cache    │ Entry routes│ Ory       │
+│ PG/Turso │ SSE/WS      │  Request-    │ Exit workers│ API Keys  │
+│ MySQL    │ OpenAPI      │  Reply       │ Cron        │ AuthCtx   │
+│          │ Auth (4 modes)│             │             │           │
 └──────────┴─────────────┴──────────────┴─────────────┴───────────┘
 ```
 
@@ -223,7 +230,7 @@ Packages involved:
 | File | Contents |
 |------|----------|
 | [docs/configuration.md](docs/configuration.md) | Full YAML schema reference (all entry types, event streams, security) |
-| [docs/security.md](docs/security.md) | Consolidated security guide (headers, CSRF, rate limit, TLS, SSRF, validation) |
+| [docs/security.md](docs/security.md) | Consolidated security guide (headers, CSRF, rate limit, TLS, SSRF, validation, auth, JWT, OpenFGA, Zitadel, Ory, API keys) |
 | [docs/http-server.md](docs/http-server.md) | Server config, middlewares, TLS, security headers, CSRF, rate limit |
 | [docs/runtime.md](docs/runtime.md) | Runtime API: `Service`, `CRUDProvider`, `RegisterValidation`, `SafeHTTPClient` |
 | [docs/messaging.md](docs/messaging.md) | NATS + Kafka, EventBroker, producers, exit workers, KV cache |

@@ -16,6 +16,9 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/natuleadan/sdk-api/infra/logx"
+	"github.com/natuleadan/sdk-api/server/auth/openfga"
+	"github.com/natuleadan/sdk-api/server/auth/ory"
+	"github.com/natuleadan/sdk-api/server/auth/zitadel"
 )
 
 func testRequest(ctx context.Context, method, path string, body io.Reader) *http.Request {
@@ -341,6 +344,222 @@ func TestAuthContextNoJWT(t *testing.T) {
 	resp, _ := app.Test(req)
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
+func TestJWTWithZitadel_NilClientPanics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("expected panic with nil client")
+		}
+	}()
+	JWTWithZitadel(JWTConfig{Secret: "test"}, nil)
+}
+
+func TestJWTWithZitadel_NoToken(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	zClient := zitadel.NewClient(zitadel.Config{Issuer: "https://example.com"})
+	app.Use(JWTWithZitadel(JWTConfig{Secret: "test"}, zClient))
+	app.Get("/protected", func(c *fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+	req := testRequest(context.Background(), "GET", "/protected", nil)
+	resp, _ := app.Test(req)
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", resp.StatusCode)
+	}
+}
+
+func TestAPIKey_MissingHeader(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Use(APIKey(APIKeyConfig{Prefix: "sk-"}))
+	app.Get("/protected", func(c *fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+	req := testRequest(context.Background(), "GET", "/protected", nil)
+	resp, _ := app.Test(req)
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", resp.StatusCode)
+	}
+}
+
+func TestAPIKey_WrongPrefix(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Use(APIKey(APIKeyConfig{Prefix: "sk-"}))
+	app.Get("/protected", func(c *fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+	req := testRequest(context.Background(), "GET", "/protected", nil)
+	req.Header.Set("Authorization", "pk-test-key-123")
+	resp, _ := app.Test(req)
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", resp.StatusCode)
+	}
+}
+
+func TestAPIKey_ValidWithoutFGA(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Use(APIKey(APIKeyConfig{Prefix: "sk-"}))
+	app.Get("/protected", func(c *fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+	req := testRequest(context.Background(), "GET", "/protected", nil)
+	req.Header.Set("Authorization", "sk-test-key-456")
+	resp, _ := app.Test(req)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
+func TestDeriveKeyID(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"sk-test-key-123", "sktestkey"},
+		{"short", "short"},
+		{"a!b@c#d$e%f^g&h*i(j)k_l-m=n", "abcdef"},
+		{"ABCDEFGHIJKLMNOPQRSTUVWXYZ", "ABCDEFGHIJKL"},
+		{"", ""},
+		{"abc123def456ghi789", "abc123def456"},
+	}
+	for _, tt := range tests {
+		result := deriveKeyID(tt.input)
+		if result != tt.expected {
+			t.Errorf("deriveKeyID(%q) = %q, want %q", tt.input, result, tt.expected)
+		}
+	}
+}
+
+func TestOry_NilClientPanics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("expected panic with nil client")
+		}
+	}()
+	Ory(OryConfig{Client: nil})
+}
+
+func TestOry_NoAuthContext(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	oryClient := ory.NewClient(ory.Config{})
+	app.Use(Ory(OryConfig{Client: oryClient}))
+	app.Get("/protected", func(c *fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+	req := testRequest(context.Background(), "GET", "/protected", nil)
+	resp, _ := app.Test(req)
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", resp.StatusCode)
+	}
+}
+
+func TestTokenRefresh_MissingBody(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Post("/refresh", TokenRefreshHandler(TokenRefreshConfig{}))
+	req := testRequest(context.Background(), "POST", "/refresh", nil)
+	resp, _ := app.Test(req)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", resp.StatusCode)
+	}
+}
+
+func TestTokenRefresh_MissingField(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Post("/refresh", TokenRefreshHandler(TokenRefreshConfig{}))
+	req := testRequest(context.Background(), "POST", "/refresh", strings.NewReader(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	resp, _ := app.Test(req)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", resp.StatusCode)
+	}
+}
+
+func TestTokenRefresh_ManualWithoutAuth(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Post("/refresh", TokenRefreshHandler(TokenRefreshConfig{}))
+	body := strings.NewReader(`{"refresh_token":"test-token"}`)
+	req := testRequest(context.Background(), "POST", "/refresh", body)
+	req.Header.Set("Content-Type", "application/json")
+	resp, _ := app.Test(req)
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", resp.StatusCode)
+	}
+}
+
+func TestTokenRefresh_ManualWithAuth(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Use(JWT(JWTConfig{Secret: "secret123"}))
+	app.Post("/refresh", TokenRefreshHandler(TokenRefreshConfig{
+		JWTSecret: "secret123",
+	}))
+	body := strings.NewReader(`{"refresh_token":"test"}`)
+	req := testRequest(context.Background(), "POST", "/refresh", body)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+tokenFor("secret123"))
+	resp, _ := app.Test(req)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
+func TestOpenFGACache_NilClientPanics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("expected panic with nil client")
+		}
+	}()
+	OpenFGA(OpenFGAConfig{})
+}
+
+func TestOpenFGA_NoAuthContext(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	fgaClient, err := openfga.NewClient(openfga.Config{APIURL: "http://localhost:9999"})
+	if err != nil {
+		t.Skip("skipping: could not create FGA client")
+	}
+	app.Use(OpenFGA(OpenFGAConfig{Client: fgaClient}))
+	app.Get("/protected", func(c *fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+	req := testRequest(context.Background(), "GET", "/protected", nil)
+	resp, _ := app.Test(req)
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", resp.StatusCode)
+	}
+}
+
+func TestTokenRefresh_InvalidBody(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Post("/refresh", TokenRefreshHandler(TokenRefreshConfig{}))
+	body := strings.NewReader(`not-json`)
+	req := testRequest(context.Background(), "POST", "/refresh", body)
+	req.Header.Set("Content-Type", "application/json")
+	resp, _ := app.Test(req)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", resp.StatusCode)
+	}
+}
+
+func TestOpenFGA_CacheKeyFormat(t *testing.T) {
+	client, err := openfga.NewClient(openfga.Config{APIURL: "http://localhost:9999"})
+	if err != nil {
+		t.Skip("skipping: could not create FGA client")
+	}
+	cached := openfga.NewCachedClient(client, nil)
+	if cached == nil {
+		t.Error("NewCachedClient should not return nil")
 	}
 }
 

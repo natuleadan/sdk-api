@@ -30,6 +30,8 @@ type ServiceConfig struct {
 }
 
 type AuthConfig struct {
+	Enabled     bool   `json:"enabled" config:",optional"`
+	Driver      string `json:"driver" config:",default=none"` // none | manual | openfga-zitadel | ory
 	Secret      string `json:"secret" config:",optional"`
 	PrevSecret  string `json:"prev_secret" config:",optional"`
 	Algorithm   string `json:"algorithm" config:",default=HS256"`
@@ -38,6 +40,16 @@ type AuthConfig struct {
 	Issuer      string `json:"issuer" config:",optional"`
 	Audience    string `json:"audience" config:",optional"`
 	Expiry      int    `json:"expiry" config:",default=3600"`
+	ZitadelURL  string `json:"zitadel_url" config:",optional"`
+	OpenFGAURL  string `json:"openfga_url" config:",optional"`
+	OpenFGAStore string `json:"openfga_store" config:",optional"`
+	KratosURL   string `json:"kratos_url" config:",optional"`
+	KetoURL     string `json:"keto_url" config:",optional"`
+	// Cache settings
+	CacheEnabled string `json:"cache" config:",optional"`       // "none" | "nats" | "redis"
+	CacheTTL     string `json:"cache_ttl" config:",default=30s"`
+	CacheNATSBucket string `json:"cache_nats_bucket" config:",default=authz_cache"`
+	RedisURL     string `json:"redis_url" config:",optional"`
 }
 
 // ---- Server ----
@@ -322,6 +334,8 @@ type EntryDef struct {
 	Path    string `json:"path" config:",optional"`
 	Handler string `json:"handler" config:",optional"`
 	Auth    bool   `json:"auth" config:",optional"`
+	Roles   []string `json:"roles" config:",optional"`
+	Permissions []string `json:"permissions" config:",optional"`
 	DB      string `json:"db" config:",optional"` // references database name
 
 	// CRUD

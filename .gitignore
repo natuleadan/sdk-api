@@ -39,6 +39,8 @@ examples/*/file-upload
 examples/*/url-link-nats
 examples/*/url-link-base
 examples/*/nla-*-amd64
+examples/auth-*/auth-*
+examples/auth-*/*/auth-*
 
 # IDE
 .idea/

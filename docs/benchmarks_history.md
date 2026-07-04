@@ -293,3 +293,229 @@ docker compose up --abort-on-container-exit
 # Or with a single command:
 cd examples/url-link-nats && docker compose up --abort-on-container-exit
 ```
+
+---
+
+## healthz — Re-run (2026-07-03, Go 1.26)
+
+**Source:** `examples/healthz/`
+
+Re-run to verify that Go 1.24→1.26 migration and auth SDK imports did not regress throughput.
+
+| Mode | RPS | vs v0.1.0 | Tool |
+|------|:---:|:---------:|------|
+| RAW Fiber | 741,769 | +9% | `wrk -t10 -c1000 -d30s` |
+| SDK full /healthz | 752,163 | +12% | `wrk -t10 -c1000 -d30s` |
+
+**Key finding:** No regression. The auth SDK packages (`openfga`, `zitadel`, `ory`) are dead-code eliminated when unused, and contain no `func init()`.
+
+---
+
+## url-link-base — Re-run (2026-07-03, lazy pool init)
+
+**Source:** `examples/url-link-base/`
+
+The original binary called `svc.Pool()` before `svc.Run()`, causing a nil pointer panic on every start. Fixed with lazy `sync.Once` pattern. PostgreSQL `max_connections=500`.
+
+| Metric | Run 1 (v0.1.0) | Run 2 (2026-07-03) | Delta |
+|--------|:-------------:|:------------------:|:-----:|
+| RPS | 25,981 | **99,278** | **+282%** |
+| Errors | — | 0% | |
+| Config | Docker bridge | Docker bridge | |
+| Cache | Redis | Redis | |
+
+---
+
+## url-link-nats — Re-run (2026-07-03, lazy pool init)
+
+**Source:** `examples/url-link-nats/`
+
+Same nil pool fix as url-link-base. PostgreSQL `max_connections=1000`. NATS KV with MemoryStorage.
+
+| Metric | Run 1 (v0.1.0) | Run 2 (2026-07-03) | Delta |
+|--------|:-------------:|:------------------:|:-----:|
+| RPS | 30,917 | **67,283** | **+118%** |
+| Errors | 0% | 0% | |
+| Config | Docker bridge | Docker bridge | |
+| Cache | NATS KV | NATS KV | |
+
+---
+
+## auth-none-monolith — Post CRUD (driver: none)
+
+**Source:** `examples/auth-none-monolith/`
+
+Single service, YAML-driven CRUD. `driver: none` → zero auth middleware. Pool: 1000. PG max_connections: 1000.
+
+```yaml
+auth:
+  driver: none
+entry:
+  - type: crud
+    path: /posts
+    model: Post
+    auth: false
+  - type: rest
+    path: /debug/items
+    method: GET
+    handler: listAll
+```
+
+### Results
+
+| Endpoint | RPS | Errors | wrk command |
+|----------|:---:|:------:|-------------|
+| POST /api/v1/posts | **33,623** | 0.01% | `wrk -t10 -c1000 -d30s` |
+| GET /api/v1/debug/items | **32,252** | 0% | `wrk -t10 -c1000 -d30s` |
+
+**Key findings:**
+1. Auth middleware overhead = zero with `driver: none`. The SDK compiles auth packages but dead-code eliminates them.
+2. GET endpoint uses `SELECT LIMIT 100` to avoid `COUNT(*)` overhead. CRUD paginated endpoints with `COUNT(*)` drop to <1k RPS under 1000 concurrent connections.
+3. Service restart between wrk runs prevents pool contamination.
+
+**Environment:**
+
+| Key | Value |
+|-----|-------|
+| Date | 2026-07-03 |
+| Hardware | Arm Bare Metal 10c |
+| Go | 1.26.4 |
+| Pool pg | max_conns=1000, min_conns=20 |
+| PG max_connections | 1000 |
+| wrk | -t10 -c1000 -d30s |
+
+**Reproduce:**
+```bash
+cd examples/auth-none-monolith
+docker compose up --abort-on-container-exit
+```
+
+---
+
+## auth-none-microservices — Users & Products CRUD (driver: none)
+
+**Source:** `examples/auth-none-microservices/`
+
+Two services (users-service:13001, products-service:13002) sharing one PostgreSQL. Each pool: 50. PG max_connections: 1000.
+
+```yaml
+# users-service
+auth:
+  driver: none
+entry:
+  - type: crud
+    path: /users
+    model: User
+    auth: false
+```
+
+```yaml
+# products-service
+auth:
+  driver: none
+entry:
+  - type: crud
+    path: /products
+    model: Product
+    auth: false
+```
+
+### Results
+
+| Service | RPS | Errors | wrk command |
+|---------|:---:|:------:|-------------|
+| Users GET | **41,117** | 0% | `wrk -t10 -c1000 -d30s` |
+| Products GET | **39,390** | 0% | `wrk -t10 -c1000 -d30s` |
+
+**Key findings:**
+1. Each service gets its own pool (50×2 = 100 total connections). With wrk running sequentially per service, each test has a fresh 50-connection pool.
+2. The monolith (single pool=1000) achieves 32k GET; microservices (pool=50 each) achieve 41k GET. The microservices' independent pools avoid PG contention during warmup phases.
+3. No `COUNT(*)` — the CRUD list endpoint also does `COUNT` per request under pagination. The wrk benchmarks measure the standard CRUD list path.
+
+**Environment:**
+
+| Key | Value |
+|-----|-------|
+| Date | 2026-07-03 |
+| Hardware | Arm Bare Metal 10c |
+| Go | 1.26.4 |
+| Pool per service | max_conns=50, min_conns=10 |
+| PG max_connections | 1000 |
+| wrk | -t10 -c1000 -d30s, one service at a time |
+
+**Reproduce:**
+```bash
+cd examples/auth-none-microservices
+docker compose up --abort-on-container-exit
+```
+
+---
+
+## url-link-base — PgDog pooler (2026-07-04)
+
+**Source:** `examples/url-link-base/`
+
+Added PgDog connection pooler between app and PostgreSQL. PgDog manages 20 persistent connections to PG while accepting 500+ from the app. `prefork: true`.
+
+| Metric | Run 2 (no PgDog) | Run 3 (+PgDog) | Delta |
+|--------|:----------------:|:--------------:|:-----:|
+| RPS | 99,278 | **151,091** | **+52%** |
+| Errors | 0% | 0% | |
+| Cache | Redis | Redis | |
+| Pooler | — | PgDog (pool=20) | |
+
+---
+
+## url-link-nats — PgDog pooler + event_streams (2026-07-04)
+
+**Source:** `examples/url-link-nats/`
+
+Migrated from legacy `nats:` config to `event_streams:`. Added PgDog connection pooler. `prefork: true`.
+
+| Metric | Run 2 (no PgDog) | Run 3 (+PgDog) | Delta |
+|--------|:----------------:|:--------------:|:-----:|
+| RPS | 67,283 | **141,162** | **+110%** |
+| Errors | 0% | 0% | |
+| Cache | NATS KV | NATS KV | |
+| Pooler | — | PgDog (pool=20) | |
+
+---
+
+## auth-none-monolith — PgDog pooler (2026-07-04)
+
+**Source:** `examples/auth-none-monolith/`
+
+Added PgDog connection pooler. Direct PG queries per request (no cache). Pool: 1000.
+
+| Endpoint | RPS | Errors | vs previous no-PgDog |
+|----------|:---:|:------:|:--------------------:|
+| POST | **29,406** | 0.5% | −13% |
+| GET | **28,447** | 0% | −12% |
+
+**Key finding:** Endpoints that query PG on every request do not benefit from PgDog. The PgDog layer adds network overhead without reducing PG workload (every request still needs a PG query).
+
+---
+
+## auth-none-microservices — PgDog pooler (2026-07-04)
+
+**Source:** `examples/auth-none-microservices/`
+
+Added PgDog. Direct PG queries per request (no cache). Each service pool: 500.
+
+| Service | RPS | Errors | vs previous no-PgDog |
+|---------|:---:|:------:|:--------------------:|
+| Users GET | **27,973** | 0% | −32% |
+| Products GET | **28,014** | 0% | −29% |
+
+**Key finding:** Same as monolith — no cache means every request hits PG, so PgDog adds overhead without benefit.
+
+---
+
+## Cache vs no-cache throughput comparison
+
+| Pattern | RPS | What limits it |
+|---------|:---:|----------------|
+| Cache hit (Redis/NATS KV) | **140-151k** | Docker Desktop + Go serialization |
+| No cache (PG per request) | **28-30k** | PostgreSQL throughput in Docker |
+| Healthz (no PG at all) | **700k+** | Fiber + Go runtime |
+

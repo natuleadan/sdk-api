@@ -43,6 +43,11 @@ type CheckRequest struct {
 	Object   string
 }
 
+// Checker is the interface for authorization checks.
+type Checker interface {
+	Check(ctx context.Context, req CheckRequest) (bool, error)
+}
+
 // Check performs an authorization check against OpenFGA.
 func (c *Client) Check(ctx context.Context, req CheckRequest) (bool, error) {
 	body := client.ClientCheckRequest{

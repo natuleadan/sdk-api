@@ -552,17 +552,6 @@ func TestTokenRefresh_InvalidBody(t *testing.T) {
 	}
 }
 
-func TestOpenFGA_CacheKeyFormat(t *testing.T) {
-	client, err := openfga.NewClient(openfga.Config{APIURL: "http://localhost:9999"})
-	if err != nil {
-		t.Skip("skipping: could not create FGA client")
-	}
-	cached := openfga.NewCachedClient(client, nil)
-	if cached == nil {
-		t.Error("NewCachedClient should not return nil")
-	}
-}
-
 func TestCORS(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()

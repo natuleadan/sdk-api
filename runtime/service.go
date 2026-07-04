@@ -6,6 +6,7 @@ import (
 	"maps"
 	"os"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -13,7 +14,6 @@ import (
 	"github.com/natuleadan/sdk-api/events"
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/natuleadan/sdk-api/infra/proc"
-	"github.com/natuleadan/sdk-api/infra/stores/redis"
 	"github.com/natuleadan/sdk-api/server"
 	"github.com/natuleadan/sdk-api/server/auth/openfga"
 	"github.com/natuleadan/sdk-api/server/auth/ory"
@@ -274,13 +274,6 @@ func (s *Service) initDatabases(ctx context.Context) error {
 }
 
 func (s *Service) initEventStreams(ctx context.Context) error {
-	if len(s.config.NATS) > 0 {
-		conns, err := initNATSList(ctx, s.config.NATS)
-		if err != nil {
-			return fmt.Errorf("nats: %w", err)
-		}
-		maps.Copy(s.natsConns, conns)
-	}
 	if len(s.config.EventStreams) > 0 {
 		brokers, err := initEventStreams(ctx, s.config.EventStreams)
 		if err != nil {
@@ -489,45 +482,6 @@ func initEventStreams(ctx context.Context, configs []EventStreamConnConf) (map[s
 	return brokers, nil
 }
 
-func initNATSList(ctx context.Context, natsList []NATSConnConf) (map[string]events.EventBroker, error) {
-	conns := make(map[string]events.EventBroker, len(natsList))
-	for i, natsCfg := range natsList {
-		if err := natsCfg.Validate(); err != nil {
-			return nil, fmt.Errorf("nats[%d] (%s): %w", i, natsCfg.Name, err)
-		}
-		conn, err := events.Connect(ctx, events.ConnOptions{
-			Name:          natsCfg.Name,
-			URL:           natsCfg.URL,
-			MaxReconnects: natsCfg.MaxReconnects,
-			ReconnectWait: parseServerDuration(natsCfg.ReconnectWait, 2*time.Second),
-			Timeout:       parseServerDuration(natsCfg.Timeout, 5*time.Second),
-			RetryOnFail:   natsCfg.RetryOnFail,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("%s: %w", natsCfg.Name, err)
-		}
-		for _, sd := range natsCfg.Streams {
-			sc := events.DefaultStreamConfig(sd.Name)
-			if sd.MaxAge != "" {
-				if d, err := time.ParseDuration(sd.MaxAge); err == nil {
-					sc.MaxAge = d
-				}
-			}
-			if sd.MaxBytes > 0 {
-				sc.MaxBytes = sd.MaxBytes
-			}
-			sc.Storage = parseNATSStorage(sd.Storage)
-			sc.Compression = parseNATSCompression(sd.Compression)
-			if err := conn.EnsureStream(sc); err != nil {
-				return nil, fmt.Errorf("%s: stream %s: %w", natsCfg.Name, sd.Name, err)
-			}
-		}
-		conns[natsCfg.Name] = conn
-		logx.Infof("nats ready: %s (%s)", natsCfg.Name, natsCfg.URL)
-	}
-	return conns, nil
-}
-
 func parseNATSStorage(s string) events.StorageType {
 	switch s {
 	case "memory":
@@ -592,7 +546,8 @@ func initAuthClients(s *Service, auth *AuthConfig) {
 			if err != nil {
 				logx.Errorf("auth: failed to create OpenFGA client: %v", err)
 			} else {
-				s.fgaClient = wrapWithCache(s, auth, fgaClient)
+				s.fgaClient = fgaClient
+				seedOpenFGAPermissions(s, fgaClient)
 				logx.Infof("auth: OpenFGA client initialized (%s)", auth.OpenFGAURL)
 			}
 		}
@@ -611,86 +566,63 @@ func initAuthClients(s *Service, auth *AuthConfig) {
 	}
 }
 
-func wrapWithCache(s *Service, auth *AuthConfig, client *openfga.Client) openfga.Checker {
-	if auth.CacheEnabled == "" || auth.CacheEnabled == "none" {
-		return client
+func seedOpenFGAPermissions(s *Service, client *openfga.Client) {
+	permissions := collectPermissionsFromEntries(s.config)
+	if len(permissions) == 0 {
+		return
 	}
-
-	ttl := parseCacheTTL(auth.CacheTTL)
-	var backend openfga.CacheBackend
-
-	switch auth.CacheEnabled {
-	case "nats":
-		backend = newNATSCacheBackend(s.natsConns)
-	case "redis":
-		backend = newRedisCacheBackend(auth.RedisURL)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := client.SeedPermissions(ctx, permissions); err != nil {
+		logx.Errorf("auth: failed to seed OpenFGA permissions: %v", err)
+	} else {
+		logx.Infof("auth: seeded %d OpenFGA permissions", len(permissions))
 	}
-
-	if backend == nil {
-		return client
-	}
-
-	logx.Infof("auth: OpenFGA cache enabled (backend=%s, ttl=%v)", auth.CacheEnabled, ttl)
-	return openfga.NewCachedClient(client, &openfga.CacheConfig{
-		Enabled: true,
-		TTL:     ttl,
-		Backend: backend,
-	})
 }
 
-func parseCacheTTL(s string) time.Duration {
-	d, err := time.ParseDuration(s)
-	if err != nil {
-		return 30 * time.Second
-	}
-	return d
-}
-
-func newNATSCacheBackend(conns map[string]events.EventBroker) openfga.CacheBackend {
-	for _, conn := range conns {
-		nc, ok := conn.(*events.Conn)
-		if !ok {
-			continue
-		}
-		kv, err := nc.EnsureKeyValue(events.DefaultKVConfig("authz_cache"))
-		if err != nil {
-			logx.Errorf("auth: failed to create NATS KV bucket: %v", err)
-			continue
-		}
-		return openfga.NewNATSKVBackend(
-			func(key string) ([]byte, error) {
-				entry, err := kv.Get(key)
-				if err != nil {
-					return nil, err
-				}
-				return entry.Value(), nil
-			},
-			func(key string, value []byte) error {
-				_, err := kv.Put(key, value)
-				return err
-			},
-		)
-	}
-	return nil
-}
-
-func newRedisCacheBackend(redisURL string) openfga.CacheBackend {
-	if redisURL == "" {
+func collectPermissionsFromEntries(cfg *ServiceConfig) []openfga.PermissionDef {
+	if cfg == nil {
 		return nil
 	}
-	rds, err := redis.NewRedis(redis.RedisConf{Host: redisURL, Type: redis.NodeType})
-	if err != nil {
-		logx.Errorf("auth: failed to create Redis client: %v", err)
-		return nil
+	seen := make(map[string]bool)
+	var permissions []openfga.PermissionDef
+	for _, entry := range cfg.Entry {
+		if len(entry.Roles) == 0 {
+			continue
+		}
+		resource := entry.Resource
+		if resource == "" {
+			resource = entry.Model
+		}
+		if resource == "" {
+			continue
+		}
+		for _, role := range entry.Roles {
+			if seen[role] {
+				continue
+			}
+			seen[role] = true
+			permissions = append(permissions, openfga.PermissionDef{
+				Role:     role,
+				Resource: resource,
+				Actions:  defaultActionsForRole(role),
+			})
+		}
 	}
-	return openfga.NewRedisKVBackend(
-		func(ctx context.Context, key string) (string, error) {
-			return rds.GetCtx(ctx, key)
-		},
-		func(ctx context.Context, key, value string, seconds int) error {
-			return rds.SetexCtx(ctx, key, value, seconds)
-		},
-	)
+	return permissions
+}
+
+func defaultActionsForRole(role string) []string {
+	switch {
+	case strings.HasSuffix(role, ":admin"), strings.HasSuffix(role, ":manager"):
+		return []string{"create", "read", "update", "delete", "publish"}
+	case strings.HasSuffix(role, ":editor"), strings.HasSuffix(role, ":writer"):
+		return []string{"create", "read", "update"}
+	case strings.HasSuffix(role, ":viewer"), strings.HasSuffix(role, ":reader"):
+		return []string{"read"}
+	default:
+		return []string{"read"}
+	}
 }
 
 func convertSecurityHeaders(cfg *SecurityHeadersConf) *middleware.SecurityHeadersConfig {

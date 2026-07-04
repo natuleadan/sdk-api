@@ -21,7 +21,6 @@ type ServiceConfig struct {
 	Port         int                   `json:"port" config:",default=8080"`
 	Server       ServerConf            `json:"server" config:",optional"`
 	Databases    []DBConfig            `json:"databases" config:",optional"`
-	NATS         []NATSConnConf        `json:"nats" config:",optional"`
 	EventStreams []EventStreamConnConf `json:"event_streams" config:",optional"`
 	Entry        []EntryDef            `json:"entry" config:",optional"`
 	Exit         []ExitWorker          `json:"exit" config:",optional"`
@@ -45,11 +44,6 @@ type AuthConfig struct {
 	OpenFGAStore string `json:"openfga_store" config:",optional"`
 	KratosURL   string `json:"kratos_url" config:",optional"`
 	KetoURL     string `json:"keto_url" config:",optional"`
-	// Cache settings
-	CacheEnabled string `json:"cache" config:",optional"`       // "none" | "nats" | "redis"
-	CacheTTL     string `json:"cache_ttl" config:",default=30s"`
-	CacheNATSBucket string `json:"cache_nats_bucket" config:",default=authz_cache"`
-	RedisURL     string `json:"redis_url" config:",optional"`
 }
 
 // ---- Server ----
@@ -296,34 +290,12 @@ func (e *EventStreamConnConf) Validate() error {
 	return nil
 }
 
-// ---- NATS (legacy) ----
-
-type NATSConnConf struct {
-	Name          string      `json:"name"`
-	URL           string      `json:"url"`
-	MaxReconnects int         `json:"max_reconnects" config:",default=10"`
-	ReconnectWait string      `json:"reconnect_wait" config:",default=2s"`
-	Timeout       string      `json:"timeout" config:",default=5s"`
-	RetryOnFail   bool        `json:"retry_on_fail" config:",default=true"`
-	Streams       []StreamDef `json:"streams" config:",optional"`
-}
-
 type StreamDef struct {
 	Name        string `json:"name"`
 	MaxAge      string `json:"max_age" config:",optional"`
 	MaxBytes    int64  `json:"max_bytes" config:",optional"`
 	Storage     string `json:"storage" config:",default=file"`
 	Compression string `json:"compression" config:",default=s2"`
-}
-
-func (n *NATSConnConf) Validate() error {
-	if n.Name == "" {
-		return fmt.Errorf("name is required")
-	}
-	if n.URL == "" {
-		return fmt.Errorf("url is required")
-	}
-	return nil
 }
 
 // ---- Entry Endpoints ----
@@ -684,9 +656,6 @@ func LoadConfig(path string) (*ServiceConfig, error) {
 	if err := validateConfigDatabases(&cfg); err != nil {
 		return nil, err
 	}
-	if err := validateConfigNATS(&cfg); err != nil {
-		return nil, err
-	}
 	if err := validateConfigEventStreams(&cfg); err != nil {
 		return nil, err
 	}
@@ -744,37 +713,16 @@ func validateConfigDatabases(cfg *ServiceConfig) error {
 	return nil
 }
 
-func validateConfigNATS(cfg *ServiceConfig) error {
-	seen := make(map[string]bool)
-	for i := range cfg.NATS {
-		if err := cfg.NATS[i].Validate(); err != nil {
-			return fmt.Errorf("nats[%d] (%s): %w", i, cfg.NATS[i].Name, err)
-		}
-		if seen[cfg.NATS[i].Name] {
-			return fmt.Errorf("nats[%d]: duplicate name %q", i, cfg.NATS[i].Name)
-		}
-		seen[cfg.NATS[i].Name] = true
-	}
-	return nil
-}
-
 func validateConfigEventStreams(cfg *ServiceConfig) error {
-	seenES := make(map[string]bool)
-	seenNATS := make(map[string]bool)
-	for i := range cfg.NATS {
-		seenNATS[cfg.NATS[i].Name] = true
-	}
+	seen := make(map[string]bool)
 	for i := range cfg.EventStreams {
 		if err := cfg.EventStreams[i].Validate(); err != nil {
 			return fmt.Errorf("event_streams[%d] (%s): %w", i, cfg.EventStreams[i].Name, err)
 		}
-		if seenES[cfg.EventStreams[i].Name] {
+		if seen[cfg.EventStreams[i].Name] {
 			return fmt.Errorf("event_streams[%d]: duplicate name %q", i, cfg.EventStreams[i].Name)
 		}
-		if seenNATS[cfg.EventStreams[i].Name] {
-			return fmt.Errorf("event_streams[%d]: name %q conflicts with nats entry", i, cfg.EventStreams[i].Name)
-		}
-		seenES[cfg.EventStreams[i].Name] = true
+		seen[cfg.EventStreams[i].Name] = true
 	}
 	return nil
 }
@@ -825,13 +773,6 @@ func checkPlaintextSecrets(cfg *ServiceConfig) {
 	for i, db := range cfg.Databases {
 		if looksLikePlaintextSecret(db.URL) {
 			logx.Errorf("config: databases[%d].url appears to contain a plaintext secret (use ${VAR} instead)", i)
-		}
-	}
-
-	// Check NATS URLs
-	for i, n := range cfg.NATS {
-		if looksLikePlaintextSecret(n.URL) {
-			logx.Errorf("config: nats[%d].url appears to contain a plaintext secret (use ${VAR} instead)", i)
 		}
 	}
 

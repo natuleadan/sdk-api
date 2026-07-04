@@ -13,9 +13,10 @@ databases:
     driver: mysql
     url: "mysql://localhost:3306/test"
 
-nats:
+event_streams:
   - name: primary
     url: "nats://localhost:4222"
+    driver: nats
     streams:
       - name: orders
         max_age: "24h"
@@ -25,6 +26,7 @@ nats:
         compression: none
   - name: secondary
     url: "nats://backup:4222"
+    driver: nats
 
 entry:
   - type: crud

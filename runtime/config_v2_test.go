@@ -37,24 +37,30 @@ func TestLoadConfig_FullYAML(t *testing.T) { //nolint:gocyclo
 		t.Errorf("DB[1].Driver = %q", cfg.Databases[1].Driver)
 	}
 
-	// NATS
-	if len(cfg.NATS) != 2 {
-		t.Fatalf("NATS = %d, want 2", len(cfg.NATS))
+	// EventStreams (NATS via event_streams)
+	if len(cfg.EventStreams) != 2 {
+		t.Fatalf("EventStreams = %d, want 2", len(cfg.EventStreams))
 	}
-	if cfg.NATS[0].Name != "primary" {
-		t.Errorf("NATS[0].Name = %q", cfg.NATS[0].Name)
+	if cfg.EventStreams[0].Name != "primary" {
+		t.Errorf("EventStreams[0].Name = %q", cfg.EventStreams[0].Name)
 	}
-	if len(cfg.NATS[0].Streams) != 2 {
-		t.Errorf("NATS[0].Streams = %d, want 2", len(cfg.NATS[0].Streams))
+	if cfg.EventStreams[0].Driver != "nats" {
+		t.Errorf("EventStreams[0].Driver = %q, want nats", cfg.EventStreams[0].Driver)
 	}
-	if cfg.NATS[0].Streams[0].Name != "orders" {
-		t.Errorf("NATS[0].Streams[0].Name = %q", cfg.NATS[0].Streams[0].Name)
+	if len(cfg.EventStreams[0].Streams) != 2 {
+		t.Errorf("EventStreams[0].Streams = %d, want 2", len(cfg.EventStreams[0].Streams))
 	}
-	if cfg.NATS[0].Streams[1].Storage != "memory" {
-		t.Errorf("NATS[0].Streams[1].Storage = %q, want memory", cfg.NATS[0].Streams[1].Storage)
+	if cfg.EventStreams[0].Streams[0].Name != "orders" {
+		t.Errorf("EventStreams[0].Streams[0].Name = %q", cfg.EventStreams[0].Streams[0].Name)
 	}
-	if cfg.NATS[0].Streams[1].Compression != "none" {
-		t.Errorf("NATS[0].Streams[1].Compression = %q, want none", cfg.NATS[0].Streams[1].Compression)
+	if cfg.EventStreams[0].Streams[1].Storage != "memory" {
+		t.Errorf("EventStreams[0].Streams[1].Storage = %q, want memory", cfg.EventStreams[0].Streams[1].Storage)
+	}
+	if cfg.EventStreams[0].Streams[1].Compression != "none" {
+		t.Errorf("EventStreams[0].Streams[1].Compression = %q, want none", cfg.EventStreams[0].Streams[1].Compression)
+	}
+	if cfg.EventStreams[1].Name != "secondary" {
+		t.Errorf("EventStreams[1].Name = %q", cfg.EventStreams[1].Name)
 	}
 
 	// Entry endpoints

@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
+	"sync"
 	"time"
 
 	"url-link-nats/models"
@@ -16,6 +18,45 @@ import (
 
 var linkCache *events.Cache[models.Link]
 
+type linkCRUD struct {
+	svc   *runtime.Service
+	inner runtime.CRUDProvider
+	once  sync.Once
+	table *db.Table[models.Link]
+}
+
+func (l *linkCRUD) init() runtime.CRUDProvider {
+	l.once.Do(func() {
+		pgPool := l.svc.Pool("pg-main").(*pgxpool.Pool)
+		var err error
+		l.table, err = db.NewTable[models.Link](pgPool, "link")
+		if err != nil {
+			log.Fatalf("table: %v", err)
+		}
+		if err := l.table.AutoInit(context.Background()); err != nil {
+			log.Fatalf("autoinit: %v", err)
+		}
+		l.inner = runtime.NewCRUDProvider(l.table, &LinkHooks{})
+	})
+	return l.inner
+}
+
+func (l *linkCRUD) List(c *fiber.Ctx, params runtime.ListParams) error {
+	return l.init().List(c, params)
+}
+func (l *linkCRUD) Get(c *fiber.Ctx, id string) error {
+	return l.init().Get(c, id)
+}
+func (l *linkCRUD) Create(c *fiber.Ctx, body []byte) error {
+	return l.init().Create(c, body)
+}
+func (l *linkCRUD) Update(c *fiber.Ctx, id string, body []byte) error {
+	return l.init().Update(c, id, body)
+}
+func (l *linkCRUD) Delete(c *fiber.Ctx, id string) error {
+	return l.init().Delete(c, id)
+}
+
 func main() {
 	cfgPath := os.Getenv("CONFIG_PATH")
 	if cfgPath == "" {
@@ -26,13 +67,7 @@ func main() {
 		log.Fatalf("init: %v", err)
 	}
 
-	pgPool := svc.Pool("pg-main").(*pgxpool.Pool)
-	table, err := db.NewTable[models.Link](pgPool, "link")
-	if err != nil {
-		log.Fatalf("table: %v", err)
-	}
-
-	provider := runtime.NewCRUDProvider(table, &LinkHooks{})
+	provider := &linkCRUD{svc: svc}
 	svc.WithCRUD("Link", provider)
 
 	svc.WithRest("expandLink", func(c *fiber.Ctx) error {
@@ -47,6 +82,11 @@ func main() {
 			}
 		}
 
+		pgPool := svc.Pool("pg-main").(*pgxpool.Pool)
+		table, err := db.NewTable[models.Link](pgPool, "link")
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"code": 500, "message": err.Error()})
+		}
 		link, err := table.FindBy(ctx, "short_code", code)
 		if err != nil {
 			if err == db.ErrNotFound {

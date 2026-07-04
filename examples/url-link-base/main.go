@@ -17,9 +17,46 @@ import (
 )
 
 var (
-	rdb     *redis.Client
-	rdbOnce sync.Once
+	rdb      *redis.Client
+	rdbOnce  sync.Once
 )
+
+type linkCRUD struct {
+	svc   *runtime.Service
+	inner runtime.CRUDProvider
+	once  sync.Once
+}
+
+func (l *linkCRUD) init() runtime.CRUDProvider {
+	l.once.Do(func() {
+		pgPool := l.svc.Pool("pg-main").(*pgxpool.Pool)
+		table, err := db.NewTable[models.Link](pgPool, "link")
+		if err != nil {
+			log.Fatalf("table: %v", err)
+		}
+		if err := table.AutoInit(context.Background()); err != nil {
+			log.Fatalf("autoinit: %v", err)
+		}
+		l.inner = runtime.NewCRUDProvider(table, &LinkHooks{})
+	})
+	return l.inner
+}
+
+func (l *linkCRUD) List(c *fiber.Ctx, params runtime.ListParams) error {
+	return l.init().List(c, params)
+}
+func (l *linkCRUD) Get(c *fiber.Ctx, id string) error {
+	return l.init().Get(c, id)
+}
+func (l *linkCRUD) Create(c *fiber.Ctx, body []byte) error {
+	return l.init().Create(c, body)
+}
+func (l *linkCRUD) Update(c *fiber.Ctx, id string, body []byte) error {
+	return l.init().Update(c, id, body)
+}
+func (l *linkCRUD) Delete(c *fiber.Ctx, id string) error {
+	return l.init().Delete(c, id)
+}
 
 func getRedisAddr() string {
 	if a := os.Getenv("REDIS_ADDR"); a != "" {
@@ -57,13 +94,7 @@ func main() {
 		log.Fatalf("init: %v", err)
 	}
 
-	pgPool := svc.Pool("pg-main").(*pgxpool.Pool)
-	table, err := db.NewTable[models.Link](pgPool, "link")
-	if err != nil {
-		log.Fatalf("table: %v", err)
-	}
-
-	provider := runtime.NewCRUDProvider(table, &LinkHooks{})
+	provider := &linkCRUD{svc: svc}
 	svc.WithCRUD("Link", provider)
 
 	svc.WithRest("expandLink", func(c *fiber.Ctx) error {
@@ -78,6 +109,11 @@ func main() {
 			}
 		}
 
+		pgPool := svc.Pool("pg-main").(*pgxpool.Pool)
+		table, err := db.NewTable[models.Link](pgPool, "link")
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"code": 500, "message": err.Error()})
+		}
 		link, err := table.FindBy(ctx, "short_code", code)
 		if err != nil {
 			if err == db.ErrNotFound {

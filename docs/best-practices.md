@@ -112,11 +112,45 @@ Only set `reply: true` when the publisher expects a response. For fire-and-forge
 
 ### Prefork
 
-Enable `prefork: true` for multi-core throughput. Each process has its own memory — don't use in-process caches when prefork is on. Use NATS KV instead.
+Enable `prefork: true` for multi-core throughput when the bottleneck is CPU-bound (middleware chain, JSON serialization, cache hits).
+
+Prefork spawns N processes (N = CPUs). Each process has its own memory and goroutine scheduler. Don't use in-process caches when prefork is on — use NATS KV or Redis instead.
+
+When the bottleneck is PostgreSQL (direct SELECT/INSERT per request), prefork does not improve throughput — all processes compete for the same PG connections.
+
+### PgDog (PostgreSQL connection pooler)
+
+For benchmarks or high-concurrency workloads with PostgreSQL, add PgDog between the app and PG. PgDog manages a small pool of connections to PG while accepting many connections from the app:
+
+```
+wrk -c1000 → app (pool=500) → PgDog (pool=20) → PG (max_connections=200)
+```
+
+This prevents PG from being overwhelmed by connection storms (e.g., 1000 wrk connections × 10 prefork processes = 10k simultaneous connection attempts).
+
+Add PgDog to `docker-compose.yml`:
+```yaml
+pgdog:
+  image: ghcr.io/pgdogdev/pgdog:main
+  volumes:
+    - ./pgdog.toml:/pgdog/pgdog.toml:ro
+    - ./users.toml:/pgdog/users.toml:ro
+  depends_on:
+    postgres:
+      condition: service_healthy
+```
+
+Point the service DATABASE_URL to PgDog:
+```yaml
+environment:
+  DATABASE_URL: postgres://user:pass@pgdog:6432/db?sslmode=disable
+```
 
 ### Benchmarks
 
 Run benchmarks inside Docker with wrk. Running benchmarks on host + Docker data adds 2-4x latency. All built-in benchmarks are dockerized.
+
+**Cache vs no-cache throughput difference:** Endpoints backed by a cache layer (Redis, NATS KV) can reach 150k+ RPS because 99% of requests never hit PostgreSQL. Endpoints that query PG on every request are limited to ~30k RPS in Docker Desktop (Mac) due to PG throughput. See `docs/benchmarks.md` for measured results.
 
 ## Gotchas
 
@@ -128,6 +162,8 @@ Run benchmarks inside Docker with wrk. Running benchmarks on host + Docker data 
 | OpenAPI without models | OpenAPI auto-generation requires `RegisterModel`. Without it, paths are generated but schemas are empty. |
 | Cron with seconds | `robfig/cron` uses 5-field expressions. `"0 6 * * *"` works, `"*/10 * * * * *"` (6 fields) does NOT. |
 | Service config validation | `LoadConfig` validates that `entry[].db` references exist in `databases:`. If using no databases, reference is skipped. |
+| `svc.Pool()` before `svc.Run()` | `svc.Pool()` returns nil until `initDatabases()` completes inside `Run()`. Use `sync.Once` + lazy access to create the table on the first HTTP request instead. See `examples/auth-none-monolith/main.go` for the pattern. |
+| CRUD path conflict with REST path | CRUD registers `GET /:id` which catches any sub-path like `/posts-fast`. Place custom REST endpoints on a different base path (e.g., `/debug/items` instead of `/posts/list`). |
 
 ## Error Handling
 

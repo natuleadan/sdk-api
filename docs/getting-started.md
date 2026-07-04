@@ -182,7 +182,7 @@ curl http://localhost:8080/health
 ## What's next
 
 - **Multiple databases** — Add `databases:` entries for MySQL/Turso
-- **NATS messaging** — Add `nats:` + `exit:` for event-driven workers
+- **Event-driven workers** — Add `event_streams:` + `exit:` for NATS/Kafka consumers
 - **Custom endpoints** — Add `type: rest` or `type: webhook` entries
 - **WebSocket/SSE** — Add `type: websocket` or `type: sse` entries
 - **File upload** — Add `type: file` entries with storage backend

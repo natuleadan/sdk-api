@@ -21,22 +21,15 @@ databases:
       health_check_period: 1m
       reserved_conns: 10
 
-# ---- NATS (multiple connections, legacy) ----
-nats:
-  - name: primary
+# ---- Event Streams (NATS + Kafka) ----
+event_streams:
+  - name: default
+    driver: nats
     url: "${NATS_URL}"
-    max_reconnects: 10
-    reconnect_wait: 2s
-    timeout: 5s
-    retry_on_fail: true
     streams:
       - name: orders
         max_age: 24h
         max_bytes: 1073741824
-
-# ---- Event Streams (NATS + Kafka) ----
-event_streams:
-  - name: default
     driver: nats
     url: "${NATS_URL}"
     streams:
@@ -224,9 +217,6 @@ server:
     zitadel_url: "https://auth.tld"        # Zitadel issuer (OIDC)
     kratos_url: "http://localhost:4433"    # Ory Kratos public URL
     keto_url: "http://localhost:4466"      # Ory Keto URL
-    cache: nats                            # none | nats | redis
-    cache_ttl: 30s
-    redis_url: "${REDIS_URL}"
 
   # Security extensions (opt-in)
   security:
@@ -267,7 +257,6 @@ server:
 | `name` | string | — | Service name (required) |
 | `port` | int | `8080` | HTTP port. Overridden by `$PORT` env var |
 | `databases` | array | `[]` | Database connections |
-| `nats` | array | `[]` | NATS connections (legacy, see `event_streams`) |
 | `event_streams` | array | `[]` | Event stream connections (NATS or Kafka) |
 | `entry` | array | `[]` | HTTP endpoint definitions |
 | `exit` | array | `[]` | Worker definitions |
@@ -291,18 +280,6 @@ databases:
 | `name` | Reference name. Used by `entry[].db` and `exit[].db` |
 | `driver` | `postgres` (or `pg`), `turso`, `mysql` |
 | `url` | Connection string. Supports `${VAR}` env interpolation |
-
-## NATS (legacy)
-
-```yaml
-nats:
-  - name: primary
-    url: "${NATS_URL}"
-    streams:
-      - name: orders
-```
-
-Backwards compatible. See `event_streams` below for the new unified format.
 
 ## Event Streams
 

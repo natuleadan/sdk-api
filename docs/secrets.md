@@ -10,8 +10,9 @@ databases:
     driver: postgres
     url: "${DATABASE_URL}"        # ← reads from env DATABASE_URL
 
-nats:
+event_streams:
   - name: default
+    driver: nats
     url: "${NATS_URL}"
 
 entry:

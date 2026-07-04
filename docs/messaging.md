@@ -4,17 +4,7 @@ sdk-api supports two event stream brokers: **NATS JetStream** (default) and **Ka
 
 ## Connection
 
-### Legacy NATS config
-
-```yaml
-nats:
-  - name: primary
-    url: "${NATS_URL}"
-    streams:
-      - name: orders
-```
-
-### Unified event streams config
+### Event streams config
 
 ```yaml
 event_streams:

@@ -99,9 +99,6 @@ server:
     zitadel_url: "https://auth.tu-dominio.com"
     kratos_url: "http://localhost:4433"
     keto_url: "http://localhost:4466"
-    cache: nats                   # none | nats | redis
-    cache_ttl: 30s
-    redis_url: "${REDIS_URL}"
 
   # RSA body signing / AES body decryption (opt-in)
   security:
@@ -347,19 +344,6 @@ app.Post("/auth/refresh", middleware.TokenRefreshHandler(middleware.TokenRefresh
     ZitadelClientID: "sdk-api",
     KratosRefreshURL: "http://kratos:4433/sessions/refresh",  // Ory mode
 }))
-```
-
-### Caching (for openfga-zitadel and ory modes)
-
-Authorization checks can be cached to reduce latency. Two backends are supported:
-
-```yaml
-server:
-  auth:
-    cache: nats          # none | nats | redis
-    cache_ttl: 30s
-    nats_url: "${NATS_URL}"
-    redis_url: "${REDIS_URL}"
 ```
 
 | Backend | Latency | Shared across pods | TTL support |

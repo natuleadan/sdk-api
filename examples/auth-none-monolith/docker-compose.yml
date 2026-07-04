@@ -1,4 +1,4 @@
-name: url-link-nats-bench
+name: auth-none-monolith-bench
 services:
   pgdog:
     image: ghcr.io/pgdogdev/pgdog:main
@@ -13,32 +13,33 @@ services:
     image: postgres:16-alpine
     command: ["postgres", "-c", "max_connections=200"]
     environment:
-      POSTGRES_USER: dev
-      POSTGRES_PASSWORD: devpass
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
       POSTGRES_DB: postgres
+    ports:
+      - "15432:5432"
+    volumes:
+      - none_mono_pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U dev"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 2s
       timeout: 2s
       retries: 10
 
-  nats:
-    image: nats:2.10-alpine
-    command: ["--jetstream"]
-
   bench:
     build:
       context: ../../..
-      dockerfile: sdk-api/examples/url-link-nats/Dockerfile
+      dockerfile: sdk-api/examples/auth-none-monolith/Dockerfile
     ports:
-      - "18084:18084"
+      - "13000:13000"
     depends_on:
       postgres:
         condition: service_healthy
-      nats:
-        condition: service_started
       pgdog:
         condition: service_started
     environment:
-      NATS_URL: nats://nats:4222
-      DATABASE_URL: postgres://dev:devpass@pgdog:6432/postgres?sslmode=disable
+      DOCKER_TEST: "1"
+      DATABASE_URL: "postgres://postgres:postgres@pgdog:6432/postgres?sslmode=disable"
+
+volumes:
+  none_mono_pg_data:

@@ -1,13 +1,11 @@
-module url-link-base
+module products-service
 
 go 1.26.4
-
-require github.com/natuleadan/sdk-api v0.0.0
 
 require (
 	github.com/gofiber/fiber/v2 v2.52.13
 	github.com/jackc/pgx/v5 v5.10.0
-	github.com/redis/go-redis/v9 v9.21.0
+	github.com/natuleadan/sdk-api v0.0.0
 )
 
 require (
@@ -65,6 +63,7 @@ require (
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.66.1 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
+	github.com/redis/go-redis/v9 v9.21.0 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/rs/xid v1.6.0 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
@@ -109,4 +108,4 @@ require (
 	turso.tech/database/tursogo v0.7.0-pre.14 // indirect
 )
 
-replace github.com/natuleadan/sdk-api => ../../
+replace github.com/natuleadan/sdk-api => ../../../

@@ -1,0 +1,31 @@
+name: auth-none-monolith
+port: 13000
+api_prefix: /api/v1
+
+auth:
+  driver: none
+
+entry:
+  - type: crud
+    path: /posts
+    model: Post
+    auth: false
+    db: main
+  - type: rest
+    path: /debug/items
+    method: GET
+    auth: false
+    handler: listAll
+
+databases:
+  - name: main
+    url: "${DATABASE_URL:-postgres://postgres:postgres@localhost:15432/postgres?sslmode=disable}"
+    driver: postgres
+    pool:
+      max_conns: 1000
+      min_conns: 20
+
+server:
+  host: "0.0.0.0"
+  max_conns: 10000
+  timeout: 30s

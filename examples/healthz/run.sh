@@ -7,7 +7,7 @@ export RAW=1
 SVC_PID=$!
 sleep 2
 wrk -t10 -c1000 -d30s --latency http://localhost:18081/healthz
-kill $SVC_PID 2>/dev/null; wait $SVC_PID 2>/dev/null; sleep 1
+kill $SVC_PID 2>/dev/null; wait $SVC_PID 2>/dev/null || true; sleep 1
 
 echo "=== healthz: SDK full middleware ==="
 unset RAW
@@ -15,4 +15,4 @@ unset RAW
 SVC_PID=$!
 sleep 2
 wrk -t10 -c1000 -d30s --latency http://localhost:18081/healthz
-kill $SVC_PID 2>/dev/null; wait $SVC_PID 2>/dev/null
+kill $SVC_PID 2>/dev/null; wait $SVC_PID 2>/dev/null || true

@@ -1,8 +1,17 @@
 name: url-link-base-bench
 services:
+  pgdog:
+    image: ghcr.io/pgdogdev/pgdog:main
+    volumes:
+      - ./pgdog.toml:/pgdog/pgdog.toml:ro
+      - ./users.toml:/pgdog/users.toml:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   postgres:
-    image: postgres:18-alpine
-    command: ["postgres", "-c", "max_connections=500"]
+    image: postgres:16-alpine
+    command: ["postgres", "-c", "max_connections=200"]
     environment:
       POSTGRES_USER: dev
       POSTGRES_PASSWORD: devpass
@@ -20,10 +29,15 @@ services:
     build:
       context: ../../..
       dockerfile: sdk-api/examples/url-link-base/Dockerfile
+    ports:
+      - "18083:18083"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_started
+      pgdog:
+        condition: service_started
     environment:
       REDIS_ADDR: redis:6379
+      DATABASE_URL: postgres://dev:devpass@pgdog:6432/postgres?sslmode=disable

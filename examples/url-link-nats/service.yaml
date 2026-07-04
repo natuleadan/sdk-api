@@ -1,17 +1,18 @@
 name: url-link-nats
-port: 8080
+port: 18084
 
 databases:
   - name: pg-main
     driver: postgres
-    url: "${DATABASE_URL}"
+    url: "${DATABASE_URL:-postgres://dev:devpass@localhost:15432/postgres?sslmode=disable}"
     pool:
-      max_conns: 20
-      min_conns: 5
+      max_conns: 500
+      min_conns: 10
 
-nats:
+event_streams:
   - name: primary
-    url: "${NATS_URL}"
+    driver: nats
+    url: "${NATS_URL:-nats://localhost:4222}"
 
 entry:
   - type: crud
@@ -19,7 +20,6 @@ entry:
     db: pg-main
     table: link
     path: /links
-
   - type: rest
     method: GET
     path: /expand/:shortCode
@@ -27,12 +27,11 @@ entry:
 
 server:
   host: "0.0.0.0"
+  prefork: true
   api_prefix: /api/v1
-  prefork: false
   max_conns: 10000
   timeout: 30s
   middleware:
     - path: "/api/v1/*"
       apply:
         - logger
-        - breaker

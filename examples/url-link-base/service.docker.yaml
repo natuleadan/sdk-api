@@ -4,10 +4,10 @@ port: 18083
 databases:
   - name: pg-main
     driver: postgres
-    url: "postgres://dev:devpass@postgres:5432/postgres?sslmode=disable"
+    url: "${DATABASE_URL:-postgres://dev:devpass@pgdog:6432/postgres?sslmode=disable}"
     pool:
-      max_conns: 20
-      min_conns: 5
+      max_conns: 500
+      min_conns: 10
 
 entry:
   - type: crud
@@ -15,7 +15,6 @@ entry:
     db: pg-main
     table: link
     path: /links
-
   - type: rest
     method: GET
     path: /expand/:shortCode
@@ -23,6 +22,7 @@ entry:
 
 server:
   host: "0.0.0.0"
+  prefork: true
   api_prefix: /api/v1
   max_conns: 10000
   timeout: 30s

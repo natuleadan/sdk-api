@@ -82,7 +82,7 @@ entry:
 **Go:**
 
 ```go
-svc.WithRest("onCustomList", func(c *fiber.Ctx) error {
+svc.WithRest("onCustomList", func(c fiber.Ctx) error {
     // Custom pagination logic
     return c.JSON(fiber.Map{"data": items, "total": total})
 })
@@ -112,8 +112,8 @@ entry:
 **Go:**
 
 ```go
-svc.WithRest("onTransformProduct", func(c *fiber.Ctx) error {
-    id := c.Params("id")
+svc.WithRest("onTransformProduct", func(c fiber.Ctx) error {
+    id := fiber.Params[string](c, "id")
     return c.JSON(fiber.Map{"transformed": true, "id": id})
 })
 ```
@@ -147,7 +147,7 @@ func (h *ProductHooks) BeforeTransform(ctx context.Context, req Product) (Produc
 }
 
 svc.WithRest("onConvertProduct", runtime.WrapTransformHandler(
-    func(c *fiber.Ctx) error {
+    func(c fiber.Ctx) error {
         input := c.Locals("transformed").(Product)
         return c.JSON(fiber.Map{"original": input.Name, "price": input.Price})
     },
@@ -180,7 +180,7 @@ entry:
 **Go:**
 
 ```go
-svc.WithRest("onCreateOrder", func(c *fiber.Ctx) error {
+svc.WithRest("onCreateOrder", func(c fiber.Ctx) error {
     // Handler runs first
     // If 2xx, SDK auto-publishes c.Body() to NATS
     return c.JSON(fiber.Map{"orderID": "123"})
@@ -210,7 +210,7 @@ entry:
 **Go:**
 
 ```go
-svc.WithRest("onInboundEmail", func(c *fiber.Ctx) error {
+svc.WithRest("onInboundEmail", func(c fiber.Ctx) error {
     // Process inbound webhook payload
     log.Printf("received: %s", string(c.Body()))
     return c.JSON(fiber.Map{"received": true})
@@ -307,7 +307,7 @@ entry:
 **Go:**
 
 ```go
-svc.WithRest("onFileUpload", func(c *fiber.Ctx) error {
+svc.WithRest("onFileUpload", func(c fiber.Ctx) error {
     file, _ := c.FormFile("file")
     src, _ := file.Open()
     defer src.Close()
@@ -316,8 +316,8 @@ svc.WithRest("onFileUpload", func(c *fiber.Ctx) error {
     return c.JSON(fiber.Map{"filename": file.Filename, "size": file.Size})
 })
 
-svc.WithRest("onFileDownload", func(c *fiber.Ctx) error {
-    id := c.Params("id")
+svc.WithRest("onFileDownload", func(c fiber.Ctx) error {
+    id := fiber.Params[string](c, "id")
     f, _ := os.Open("/data/uploads/" + id)
     defer f.Close()
     c.Set("Content-Disposition", `attachment; filename="`+id+`"`)

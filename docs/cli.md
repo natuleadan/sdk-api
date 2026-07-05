@@ -16,12 +16,12 @@ Print the SDK version.
 
 ### `sdk-api new <name> [flags]`
 
-Creates a new microservice scaffold with v2 YAML config. Generates three files:
+Creates a new microservice scaffold with YAML config. Generates three files:
 
 ```
 <name>/
 ├── main.go            # Entrypoint with runtime.New()
-├── service.yaml       # v2 YAML configuration
+├── service.yaml       # YAML configuration
 └── models/
     └── model.go       # Struct with db:"" tags + EntryHooks
 ```
@@ -116,7 +116,7 @@ sdk-api client --model Product --fields "name:string,price:float64" --lang ts
 ```
 my-svc/
 ├── main.go              # Entrypoint: runtime.New("service.yaml")
-├── service.yaml         # v2 YAML with entry/exit/cron
+├── service.yaml         # YAML with entry/exit/cron
 └── models/
     └── model.go         # Struct + EntryHooks
 ```

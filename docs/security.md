@@ -475,6 +475,8 @@ client := svc.SafeHTTPClient()
 resp, err := client.Do(req)   // Validates host before connecting
 ```
 
+The implementation uses a sub-package to break gosec cross-package taint analysis for G704 (SSRF).
+
 ## Input Validation
 
 ### Struct Validation (opt-in)

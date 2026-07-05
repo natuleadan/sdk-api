@@ -28,7 +28,7 @@ This generates:
 ```
 products-svc/
 ├── main.go              # Entrypoint: runtime.New("service.yaml")
-├── service.yaml         # v2 YAML configuration
+├── service.yaml         # YAML configuration
 └── models/
     └── model.go         # Product struct + hooks
 ```

@@ -1,6 +1,6 @@
 # HTTP Server
 
-The HTTP server wraps **Fiber v2** (fasthttp) with 14 built-in middlewares, per-route middleware configuration, security headers, CSRF, rate limiting, TLS support, and auto-generated OpenAPI documentation.
+The HTTP server wraps **Fiber v3** (fasthttp) with built-in middlewares, per-route middleware configuration, security headers, CSRF, rate limiting, TLS support, and auto-generated OpenAPI documentation.
 
 ## Configuration
 
@@ -273,7 +273,7 @@ server:
       dir: ./public
 ```
 
-Serves files from `./public` at `/static/*`.
+Serves files from `./public` at `/static/*`. Implemented via Fiber v3 `app.Get()` wildcard routing with `SendFile`.
 
 ## Health Endpoint
 

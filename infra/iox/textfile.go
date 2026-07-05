@@ -46,5 +46,5 @@ func checkNoEol(buf []byte, c int) bool {
 	if c <= 0 || c > len(buf) {
 		return false
 	}
-	return buf[c-1] != '\n'
+	return !bytes.HasSuffix(buf[:c], []byte{'\n'})
 }

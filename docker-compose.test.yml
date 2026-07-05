@@ -14,7 +14,7 @@ services:
       retries: 10
 
   nats:
-    image: nats:latest
+    image: nats:2.14-alpine
     command: ["--config", "/etc/nats/nats-server.conf"]
     ports:
       - "14222:4222"
@@ -22,7 +22,7 @@ services:
       - ./.docker/nats-server.conf:/etc/nats/nats-server.conf:ro
 
   kafka:
-    image: apache/kafka:latest
+    image: apache/kafka:4.3.1
     environment:
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_NODE_ID: 1
@@ -54,7 +54,7 @@ services:
       retries: 10
 
   openfga_migrate:
-    image: openfga/openfga:latest
+    image: openfga/openfga:v1.18.1
     command: migrate
     depends_on:
       postgres_openfga:
@@ -64,7 +64,7 @@ services:
       OPENFGA_DATASTORE_URI: postgres://openfga:openfgapass@postgres_openfga:5432/openfga?sslmode=disable
 
   openfga:
-    image: openfga/openfga:latest
+    image: openfga/openfga:v1.18.1
     command: run
     depends_on:
       openfga_migrate:
@@ -99,7 +99,7 @@ services:
       retries: 10
 
   zitadel:
-    image: ghcr.io/zitadel/zitadel:latest
+    image: ghcr.io/zitadel/zitadel:v4.15.3
     command: start-from-init --masterkey "MasterkeyNeedsToHave32Characters" --tlsMode disabled
     depends_on:
       postgres_zitadel:

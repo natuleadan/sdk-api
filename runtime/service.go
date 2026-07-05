@@ -77,6 +77,17 @@ func (s *Service) WithCRUD(model string, provider CRUDProvider) *Service {
 	return s
 }
 
+// WithCRUDFactory registers a lazy CRUD provider factory.
+// The factory is called once on the first HTTP request, after Run() has
+// initialized all resources (database pools, NATS connections, etc.).
+func (s *Service) WithCRUDFactory(model string, factory CRUDFactory) *Service {
+	if s.handlers.CRUD == nil {
+		s.handlers.CRUD = make(map[string]CRUDProvider)
+	}
+	s.handlers.CRUD[model] = &lazyCRUD{factory: factory}
+	return s
+}
+
 // WithRest registers a REST handler by name.
 func (s *Service) WithRest(name string, h func(*fiber.Ctx) error) *Service {
 	if s.handlers.Rest == nil {

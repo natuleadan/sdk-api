@@ -5,7 +5,7 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/natuleadan/sdk-api/infra/proc"
 	"github.com/natuleadan/sdk-api/infra/stores/mon"
@@ -32,24 +32,24 @@ func main() {
 	app.Use(sm.Logger())
 	app.Use(sm.Recovery())
 
-	app.Get("/api/v1/product/:id", func(c *fiber.Ctx) error {
+	app.Get("/api/v1/product/:id", func(c fiber.Ctx) error {
 		id, err := strconv.Atoi(c.Params("id"))
 		if err != nil {
 			return c.Status(400).JSON(fiber.Map{"error": "invalid id"})
 		}
 		var p Product
-		if err := model.FindOne(c.UserContext(), &p, bson.M{"_id": id}); err != nil {
+		if err := model.FindOne(c.Context(), &p, bson.M{"_id": id}); err != nil {
 			return c.Status(404).JSON(fiber.Map{"error": "not found"})
 		}
 		return c.JSON(p)
 	})
 
-	app.Post("/api/v1/products", func(c *fiber.Ctx) error {
+	app.Post("/api/v1/products", func(c fiber.Ctx) error {
 		var p Product
-		if err := c.BodyParser(&p); err != nil {
+		if err := c.Bind().Body(&p); err != nil {
 			return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 		}
-		if _, err := model.InsertOne(c.UserContext(), &p); err != nil {
+		if _, err := model.InsertOne(c.Context(), &p); err != nil {
 			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 		}
 		return c.Status(201).JSON(p)
@@ -69,3 +69,5 @@ func main() {
 	logx.Infof("mongo-bench starting on :%d", port)
 	log.Fatal(app.Listen(":" + strconv.Itoa(port)))
 }
+
+// fiber:context-methods migrated

@@ -5,7 +5,7 @@ import (
 	"log"
 
 	"github.com/goccy/go-json"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/natuleadan/sdk-api/runtime"
 )
 
@@ -22,12 +22,12 @@ func main() {
 	}
 
 	// Health endpoint
-	svc.WithRest("healthCheck", func(c *fiber.Ctx) error {
+	svc.WithRest("healthCheck", func(c fiber.Ctx) error {
 		return c.JSON(fiber.Map{"status": "ok", "mode": "entry+exit"})
 	})
 
 	// Webhook receives orders, auto-publishes to NATS via nats_publish config
-	svc.WithRest("onInboundOrder", func(c *fiber.Ctx) error {
+	svc.WithRest("onInboundOrder", func(c fiber.Ctx) error {
 		log.Printf("webhook received: %s", string(c.Body()))
 		return c.JSON(fiber.Map{"received": true})
 	})

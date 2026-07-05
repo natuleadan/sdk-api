@@ -39,13 +39,18 @@ examples/*/file-upload
 examples/*/url-link-nats
 examples/*/url-link-base
 examples/*/nla-*-amd64
-examples/auth-*/auth-*
 examples/auth-*/*/auth-*
 examples/auth-*/*/product-service
+examples/auth-*/*/products-service
+examples/auth-*/*/users-service
 examples/auth-*/*/order-service-fga
 examples/auth-*/*/product-service-fga
 examples/auth-*/*/doc-service-ory
 examples/auth-*/*/report-service-ory
+examples/*/auth-none-monolith
+examples/*/auth-ory-monolith
+examples/*/auth-openfga-zitadel-monolith
+examples/*/auth-manual-monolith
 
 # IDE
 .idea/

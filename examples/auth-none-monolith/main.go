@@ -5,7 +5,7 @@ import (
 	"log"
 	"sync"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/natuleadan/sdk-api/db"
@@ -28,9 +28,9 @@ func main() {
 	svc.WithCRUD("Post", crud)
 	svc.RegisterModel("Post", (*Post)(nil))
 
-	svc.WithRest("listAll", func(c *fiber.Ctx) error {
+	svc.WithRest("listAll", func(c fiber.Ctx) error {
 		pgPool := crud.getPool()
-		rows, err := pgPool.Query(c.UserContext(), "SELECT id, title, content FROM post ORDER BY id LIMIT 100")
+		rows, err := pgPool.Query(c.Context(), "SELECT id, title, content FROM post ORDER BY id LIMIT 100")
 		if err != nil {
 			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 		}
@@ -83,18 +83,20 @@ func (p *postCRUD) lazy() runtime.CRUDProvider {
 	return p.inner
 }
 
-func (p *postCRUD) List(c *fiber.Ctx, params runtime.ListParams) error {
+func (p *postCRUD) List(c fiber.Ctx, params runtime.ListParams) error {
 	return p.lazy().List(c, params)
 }
-func (p *postCRUD) Get(c *fiber.Ctx, id string) error {
+func (p *postCRUD) Get(c fiber.Ctx, id string) error {
 	return p.lazy().Get(c, id)
 }
-func (p *postCRUD) Create(c *fiber.Ctx, body []byte) error {
+func (p *postCRUD) Create(c fiber.Ctx, body []byte) error {
 	return p.lazy().Create(c, body)
 }
-func (p *postCRUD) Update(c *fiber.Ctx, id string, body []byte) error {
+func (p *postCRUD) Update(c fiber.Ctx, id string, body []byte) error {
 	return p.lazy().Update(c, id, body)
 }
-func (p *postCRUD) Delete(c *fiber.Ctx, id string) error {
+func (p *postCRUD) Delete(c fiber.Ctx, id string) error {
 	return p.lazy().Delete(c, id)
 }
+
+// fiber:context-methods migrated

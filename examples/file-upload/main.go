@@ -6,7 +6,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/natuleadan/sdk-api/runtime"
 )
 
@@ -23,7 +23,7 @@ func main() {
 	os.MkdirAll(uploadDir, 0750)
 
 	// Upload handler
-	svc.WithRest("onUpload", func(c *fiber.Ctx) error {
+	svc.WithRest("onUpload", func(c fiber.Ctx) error {
 		file, err := c.FormFile("file")
 		if err != nil {
 			return fiber.NewError(400, "missing file: "+err.Error())
@@ -54,7 +54,7 @@ func main() {
 	})
 
 	// Download handler
-	svc.WithRest("onDownload", func(c *fiber.Ctx) error {
+	svc.WithRest("onDownload", func(c fiber.Ctx) error {
 		id := c.Params("id")
 		path := uploadDir + "/" + id
 
@@ -69,7 +69,7 @@ func main() {
 	})
 
 	// File info handler
-	svc.WithRest("onFileInfo", func(c *fiber.Ctx) error {
+	svc.WithRest("onFileInfo", func(c fiber.Ctx) error {
 		id := c.Params("id")
 		path := uploadDir + "/" + id
 

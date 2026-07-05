@@ -9,7 +9,7 @@ import (
 
 	"url-link-base/models"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/natuleadan/sdk-api/db"
 	"github.com/natuleadan/sdk-api/runtime"
@@ -17,8 +17,8 @@ import (
 )
 
 var (
-	rdb      *redis.Client
-	rdbOnce  sync.Once
+	rdb     *redis.Client
+	rdbOnce sync.Once
 )
 
 type linkCRUD struct {
@@ -42,19 +42,19 @@ func (l *linkCRUD) init() runtime.CRUDProvider {
 	return l.inner
 }
 
-func (l *linkCRUD) List(c *fiber.Ctx, params runtime.ListParams) error {
+func (l *linkCRUD) List(c fiber.Ctx, params runtime.ListParams) error {
 	return l.init().List(c, params)
 }
-func (l *linkCRUD) Get(c *fiber.Ctx, id string) error {
+func (l *linkCRUD) Get(c fiber.Ctx, id string) error {
 	return l.init().Get(c, id)
 }
-func (l *linkCRUD) Create(c *fiber.Ctx, body []byte) error {
+func (l *linkCRUD) Create(c fiber.Ctx, body []byte) error {
 	return l.init().Create(c, body)
 }
-func (l *linkCRUD) Update(c *fiber.Ctx, id string, body []byte) error {
+func (l *linkCRUD) Update(c fiber.Ctx, id string, body []byte) error {
 	return l.init().Update(c, id, body)
 }
-func (l *linkCRUD) Delete(c *fiber.Ctx, id string) error {
+func (l *linkCRUD) Delete(c fiber.Ctx, id string) error {
 	return l.init().Delete(c, id)
 }
 
@@ -97,9 +97,9 @@ func main() {
 	provider := &linkCRUD{svc: svc}
 	svc.WithCRUD("Link", provider)
 
-	svc.WithRest("expandLink", func(c *fiber.Ctx) error {
+	svc.WithRest("expandLink", func(c fiber.Ctx) error {
 		code := c.Params("shortCode")
-		ctx := c.UserContext()
+		ctx := c.Context()
 		cache := getRedis()
 
 		if cache != nil {
@@ -133,3 +133,5 @@ func main() {
 		log.Fatalf("run: %v", err)
 	}
 }
+
+// fiber:context-methods migrated

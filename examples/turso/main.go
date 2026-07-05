@@ -8,7 +8,7 @@ import (
 
 	"turso-bench/models"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/natuleadan/sdk-api/db"
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/natuleadan/sdk-api/infra/proc"
@@ -35,9 +35,9 @@ func main() {
 	app.Use(sm.Logger())
 	app.Use(sm.Recovery())
 
-	app.Get("/api/v1/product/:id", func(c *fiber.Ctx) error {
+	app.Get("/api/v1/product/:id", func(c fiber.Ctx) error {
 		id := c.Params("id")
-		item, err := table.Get(c.UserContext(), id)
+		item, err := table.Get(c.Context(), id)
 		if err != nil {
 			if err == db.ErrNotFound {
 				return c.Status(404).JSON(fiber.Map{"error": "not found"})
@@ -47,12 +47,12 @@ func main() {
 		return c.JSON(item)
 	})
 
-	app.Post("/api/v1/products", func(c *fiber.Ctx) error {
+	app.Post("/api/v1/products", func(c fiber.Ctx) error {
 		var p models.Product
-		if err := c.BodyParser(&p); err != nil {
+		if err := c.Bind().Body(&p); err != nil {
 			return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 		}
-		if err := table.Create(c.UserContext(), &p); err != nil {
+		if err := table.Create(c.Context(), &p); err != nil {
 			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 		}
 		return c.Status(201).JSON(p)
@@ -73,3 +73,5 @@ func main() {
 	logx.Infof("turso-bench starting on :%d", port)
 	log.Fatal(app.Listen(":" + strconv.Itoa(port)))
 }
+
+// fiber:context-methods migrated

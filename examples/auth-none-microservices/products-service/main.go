@@ -4,7 +4,7 @@ import (
 	"context"
 	"log"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/natuleadan/sdk-api/db"
@@ -59,18 +59,18 @@ func (p *productCRUD) get() runtime.CRUDProvider {
 	return p.inner
 }
 
-func (p *productCRUD) List(c *fiber.Ctx, params runtime.ListParams) error {
+func (p *productCRUD) List(c fiber.Ctx, params runtime.ListParams) error {
 	return p.get().List(c, params)
 }
-func (p *productCRUD) Get(c *fiber.Ctx, id string) error {
+func (p *productCRUD) Get(c fiber.Ctx, id string) error {
 	return p.get().Get(c, id)
 }
-func (p *productCRUD) Create(c *fiber.Ctx, body []byte) error {
+func (p *productCRUD) Create(c fiber.Ctx, body []byte) error {
 	return p.get().Create(c, body)
 }
-func (p *productCRUD) Update(c *fiber.Ctx, id string, body []byte) error {
+func (p *productCRUD) Update(c fiber.Ctx, id string, body []byte) error {
 	return p.get().Update(c, id, body)
 }
-func (p *productCRUD) Delete(c *fiber.Ctx, id string) error {
+func (p *productCRUD) Delete(c fiber.Ctx, id string) error {
 	return p.get().Delete(c, id)
 }

@@ -3,10 +3,8 @@ package cache
 import (
 	"errors"
 	"fmt"
-	"math/rand/v2"
 	"runtime"
 	"strconv"
-	"sync"
 	"testing"
 	"time"
 
@@ -38,8 +36,7 @@ func TestCacheNode_DelCache(t *testing.T) {
 
 		cn := cacheNode{
 			rds:            store,
-r: rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
-			lock:           new(sync.Mutex),
+
 			unstableExpiry: mathx.NewUnstable(expiryDeviation),
 			stat:           NewStat("any"),
 			errNotFound:    errTestNotFound,
@@ -86,8 +83,7 @@ func TestCacheNode_DelCacheWithErrors(t *testing.T) {
 
 	cn := cacheNode{
 		rds:            store,
-		r: rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
-		lock:           new(sync.Mutex),
+		
 		unstableExpiry: mathx.NewUnstable(expiryDeviation),
 		stat:           NewStat("any"),
 		errNotFound:    errTestNotFound,
@@ -102,8 +98,7 @@ func TestCacheNode_InvalidCache(t *testing.T) {
 
 	cn := cacheNode{
 		rds:            redis.MustNewRedis(redis.RedisConf{Host: s.Addr(), Type: redis.NodeType}),
-		r: rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
-		lock:           new(sync.Mutex),
+		
 		unstableExpiry: mathx.NewUnstable(expiryDeviation),
 		stat:           NewStat("any"),
 		errNotFound:    errTestNotFound,
@@ -121,9 +116,7 @@ func TestCacheNode_SetWithExpire(t *testing.T) {
 
 	cn := cacheNode{
 		rds:            store,
-		r: rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
 		barrier:        syncx.NewSingleFlight(),
-		lock:           new(sync.Mutex),
 		unstableExpiry: mathx.NewUnstable(expiryDeviation),
 		stat:           NewStat("any"),
 		errNotFound:    errors.New("any"),
@@ -170,9 +163,7 @@ func TestCacheNode_TakeNotFound(t *testing.T) {
 
 		cn := cacheNode{
 			rds:            store,
-r: rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
 			barrier:        syncx.NewSingleFlight(),
-			lock:           new(sync.Mutex),
 			unstableExpiry: mathx.NewUnstable(expiryDeviation),
 			stat:           NewStat("any"),
 			errNotFound:    errTestNotFound,
@@ -214,9 +205,7 @@ r: rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
 
 		cn := cacheNode{
 			rds:            store,
-r: rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
 			barrier:        syncx.NewSingleFlight(),
-			lock:           new(sync.Mutex),
 			unstableExpiry: mathx.NewUnstable(expiryDeviation),
 			stat:           NewStat("any"),
 			errNotFound:    errTestNotFound,
@@ -243,9 +232,7 @@ func TestCacheNode_TakeCtxWithRedisError(t *testing.T) {
 
 		cn := cacheNode{
 			rds:            store,
-r: rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
 			barrier:        syncx.NewSingleFlight(),
-			lock:           new(sync.Mutex),
 			unstableExpiry: mathx.NewUnstable(expiryDeviation),
 			stat:           NewStat("any"),
 			errNotFound:    errTestNotFound,
@@ -265,9 +252,7 @@ func TestCacheNode_TakeNotFoundButChangedByOthers(t *testing.T) {
 
 	cn := cacheNode{
 		rds:            store,
-		r: rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
 		barrier:        syncx.NewSingleFlight(),
-		lock:           new(sync.Mutex),
 		unstableExpiry: mathx.NewUnstable(expiryDeviation),
 		stat:           NewStat("any"),
 		errNotFound:    errTestNotFound,
@@ -292,9 +277,7 @@ func TestCacheNode_TakeWithExpire(t *testing.T) {
 
 	cn := cacheNode{
 		rds:            store,
-		r: rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
 		barrier:        syncx.NewSingleFlight(),
-		lock:           new(sync.Mutex),
 		unstableExpiry: mathx.NewUnstable(expiryDeviation),
 		stat:           NewStat("any"),
 		errNotFound:    errors.New("any"),
@@ -317,9 +300,7 @@ func TestCacheNode_String(t *testing.T) {
 
 	cn := cacheNode{
 		rds:            store,
-		r: rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
 		barrier:        syncx.NewSingleFlight(),
-		lock:           new(sync.Mutex),
 		unstableExpiry: mathx.NewUnstable(expiryDeviation),
 		stat:           NewStat("any"),
 		errNotFound:    errors.New("any"),
@@ -332,9 +313,7 @@ func TestCacheValueWithBigInt(t *testing.T) {
 
 	cn := cacheNode{
 		rds:            store,
-		r: rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
 		barrier:        syncx.NewSingleFlight(),
-		lock:           new(sync.Mutex),
 		unstableExpiry: mathx.NewUnstable(expiryDeviation),
 		stat:           NewStat("any"),
 		errNotFound:    errors.New("any"),

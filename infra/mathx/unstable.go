@@ -1,7 +1,8 @@
 package mathx
 
 import (
-	"math/rand/v2"
+	"crypto/rand"
+	"encoding/binary"
 	"sync"
 	"time"
 )
@@ -9,8 +10,8 @@ import (
 // An Unstable is used to generate random value around the mean value based on given deviation.
 type Unstable struct {
 	deviation float64
-	r         *rand.Rand
 	lock      *sync.Mutex
+	buf       [8]byte
 }
 
 // NewUnstable returns an Unstable.
@@ -23,23 +24,27 @@ func NewUnstable(deviation float64) Unstable {
 	}
 	return Unstable{
 		deviation: deviation,
-		r:         rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
 		lock:      new(sync.Mutex),
 	}
+}
+
+func (u *Unstable) readFloat64() float64 {
+	if _, err := rand.Read(u.buf[:]); err != nil {
+		return 0
+	}
+	return float64(binary.LittleEndian.Uint64(u.buf[:])) / float64(1<<64)
 }
 
 // AroundDuration returns a random duration with given base and deviation.
 func (u Unstable) AroundDuration(base time.Duration) time.Duration {
 	u.lock.Lock()
-	val := time.Duration((1 + u.deviation - 2*u.deviation*u.r.Float64()) * float64(base))
-	u.lock.Unlock()
-	return val
+	defer u.lock.Unlock()
+	return time.Duration((1 + u.deviation - 2*u.deviation*u.readFloat64()) * float64(base))
 }
 
 // AroundInt returns a random int64 with given base and deviation.
 func (u Unstable) AroundInt(base int64) int64 {
 	u.lock.Lock()
-	val := int64((1 + u.deviation - 2*u.deviation*u.r.Float64()) * float64(base))
-	u.lock.Unlock()
-	return val
+	defer u.lock.Unlock()
+	return int64((1 + u.deviation - 2*u.deviation*u.readFloat64()) * float64(base))
 }

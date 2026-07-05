@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"math/rand/v2"
-	"sync"
 	"time"
 
 	"github.com/natuleadan/sdk-api/infra/jsonx"
@@ -32,8 +30,6 @@ type cacheNode struct {
 	expiry         time.Duration
 	notFoundExpiry time.Duration
 	barrier        syncx.SingleFlight
-	r              *rand.Rand
-	lock           *sync.Mutex
 	unstableExpiry mathx.Unstable
 	stat           *Stat
 	errNotFound    error
@@ -53,8 +49,6 @@ func NewNode(rds *redis.Redis, barrier syncx.SingleFlight, st *Stat,
 		expiry:         o.Expiry,
 		notFoundExpiry: o.NotFoundExpiry,
 		barrier:        barrier,
-		r:              rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
-		lock:           new(sync.Mutex),
 		unstableExpiry: mathx.NewUnstable(expiryDeviation),
 		stat:           st,
 		errNotFound:    errNotFound,

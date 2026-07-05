@@ -44,7 +44,7 @@ security-deps:
 security-sast:
 	@echo "Running static analysis security testing (SAST)..."
 	go install github.com/securego/gosec/v2/cmd/gosec@latest
-	gosec -quiet -exclude-dir=testdata ./...
+	gosec -quiet ./...
 
 security-sbom:
 	@echo "Generating SBOM (Software Bill of Materials)..."

@@ -11,6 +11,7 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/natuleadan/sdk-api/infra/logx"
 )
 
 // TokenRefreshConfig configures the token refresh endpoint behavior.
@@ -74,7 +75,11 @@ func zitadelTokenRefresh(c fiber.Ctx, cfg TokenRefreshConfig, refreshToken strin
 	if err != nil {
 		return c.Status(502).JSON(fiber.Map{"code": 502, "message": "token refresh failed"})
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			logx.Errorf("token refresh: body close: %v", err)
+		}
+	}()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -103,7 +108,11 @@ func kratosTokenRefresh(c fiber.Ctx, cfg TokenRefreshConfig, refreshToken string
 	if err != nil {
 		return c.Status(502).JSON(fiber.Map{"code": 502, "message": "token refresh failed"})
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			logx.Errorf("token refresh: body close: %v", err)
+		}
+	}()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {

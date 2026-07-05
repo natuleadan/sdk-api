@@ -38,7 +38,7 @@ jobs:
           cache: true
       - name: Run gosec
         continue-on-error: true
-        run: go run github.com/securego/gosec/v2/cmd/gosec@latest -fmt=sarif -out=gosec.sarif -quiet -exclude=G307 -exclude-dir=testdata ./...
+        run: go run github.com/securego/gosec/v2/cmd/gosec@latest -fmt=sarif -out=gosec.sarif -quiet -exclude-dir=testdata ./...
       - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@v3
         with:

@@ -1,4 +1,0 @@
-[[users]]
-name = "dev"
-database = "postgres"
-password = "devpass"

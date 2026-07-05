@@ -635,13 +635,12 @@ func (s *Redis) GetCtx(ctx context.Context, key string) (string, error) {
 		return "", err
 	}
 
-	if val, err := conn.Get(ctx, key).Result(); errors.Is(err, red.Nil) {
-		return "", nil
-	} else if err != nil {
+	val, err := conn.Get(ctx, key).Result()
+	if err != nil {
 		return "", err
-	} else {
-		return val, nil
 	}
+
+	return val, nil
 }
 
 // GetBit is the implementation of redis getbit command.

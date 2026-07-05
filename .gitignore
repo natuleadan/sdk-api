@@ -58,3 +58,4 @@ examples/*/auth-manual-monolith
 *.swp
 *.swo
 .DS_Store
+/examples/_deprecated

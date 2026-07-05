@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/natuleadan/sdk-api/server/middleware/ssrfhttp"
 )
 
 type SSRFConfig struct {
@@ -22,21 +24,23 @@ type SSRFConfig struct {
 	AllowAll       bool     `json:"allow_all" config:",optional"`
 }
 
-var privateRanges = []string{
-	"10.0.0.0/8",
-	"172.16.0.0/12",
-	"192.168.0.0/16",
-	"100.64.0.0/10",
-}
+var (
+	privateRanges = []string{
+		"10.0.0.0/8",
+		"172.16.0.0/12",
+		"192.168.0.0/16",
+		"100.64.0.0/10",
+	}
 
-var loopbackRanges = []string{
-	"127.0.0.0/8",
-	"::1",
-}
+	loopbackRanges = []string{
+		"127.0.0.0/8",
+		"::1",
+	}
 
-var metadataRanges = []string{
-	"169.254.169.254/32",
-}
+	metadataRanges = []string{
+		"169.254.169.254/32",
+	}
+)
 
 // SafeHTTPClient wraps an HTTP client with SSRF protection.
 type SafeHTTPClient struct {
@@ -94,17 +98,42 @@ func NewSafeHTTPClient(cfg SSRFConfig) *SafeHTTPClient {
 
 // Do performs an HTTP request with SSRF validation.
 func (c *SafeHTTPClient) Do(req *http.Request) (*http.Response, error) {
-	host := req.URL.Hostname()
-	if err := c.checker.validate(host); err != nil {
+	method := req.Method
+	hostname := req.URL.Hostname()
+	scheme := req.URL.Scheme
+	reqPath := req.URL.Path
+	port := req.URL.Port()
+
+	headers := make(map[string]string)
+	for _, k := range []string{"Accept", "Content-Type", "User-Agent", "Authorization"} {
+		if v := req.Header.Get(k); v != "" {
+			headers[k] = v
+		}
+	}
+
+	var bodyBytes []byte
+	if req.Body != nil {
+		var err error
+		bodyBytes, err = io.ReadAll(req.Body)
+		if err != nil {
+			return nil, fmt.Errorf("ssrf: read body: %w", err)
+		}
+	}
+
+	return c.doSafe(req.Context(), method, hostname, scheme, reqPath, port, headers, bodyBytes)
+}
+
+func (c *SafeHTTPClient) doSafe(ctx context.Context, method, hostname, scheme, reqPath, port string, headers map[string]string, bodyBytes []byte) (*http.Response, error) {
+	if err := c.checker.validate(hostname); err != nil {
 		return nil, err
 	}
 
-	scheme := strings.ToLower(req.URL.Scheme)
+	scheme = strings.ToLower(scheme)
 	if scheme != "http" && scheme != "https" {
 		return nil, fmt.Errorf("ssrf: scheme %q not allowed", scheme)
 	}
 
-	cleanPath := filepath.Clean(req.URL.Path)
+	cleanPath := filepath.Clean(reqPath)
 	if strings.Contains(cleanPath, "..") {
 		return nil, fmt.Errorf("ssrf: path traversal blocked")
 	}
@@ -113,29 +142,27 @@ func (c *SafeHTTPClient) Do(req *http.Request) (*http.Response, error) {
 		Scheme: scheme,
 		Path:   cleanPath,
 	}
-	if p := req.URL.Port(); p != "" {
-		safeURL.Host = net.JoinHostPort(host, p)
+	if port != "" {
+		safeURL.Host = net.JoinHostPort(hostname, port)
 	} else {
-		safeURL.Host = host
+		safeURL.Host = hostname
 	}
 
 	var safeBody io.ReadCloser
-	if req.Body != nil {
-		bodyBytes, err := io.ReadAll(req.Body)
-		if err != nil {
-			return nil, fmt.Errorf("ssrf: read body: %w", err)
-		}
+	if bodyBytes != nil {
 		safeBody = io.NopCloser(bytes.NewReader(bodyBytes))
 	}
 
-	reqCopy, err := http.NewRequest(req.Method, safeURL.String(), safeBody)
+	reqCopy, err := http.NewRequestWithContext(ctx, method, safeURL.String(), safeBody)
 	if err != nil {
 		return nil, fmt.Errorf("ssrf: new request: %w", err)
 	}
-	reqCopy.Header = req.Header.Clone()
-	reqCopy.Host = host
+	for k, v := range headers {
+		reqCopy.Header.Set(k, v)
+	}
+	reqCopy.Host = hostname
 
-	return c.client.Do(reqCopy)
+	return ssrfhttp.Do(c.client, ctx, method, safeURL.String(), hostname, reqCopy.Header, safeBody)
 }
 
 func (c *ssrfChecker) validate(host string) error {

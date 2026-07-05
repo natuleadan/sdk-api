@@ -25,7 +25,7 @@ func TestStableRunner(t *testing.T) {
 	var waitGroup sync.WaitGroup
 	waitGroup.Go(func() {
 		for i := range size {
-			assert.NoError(t, runner.Push(i))
+			assert.NoError(t, runner.Push(int(i)))
 		}
 		runner.Wait()
 	})
@@ -48,7 +48,7 @@ func TestStableRunner(t *testing.T) {
 
 func FuzzStableRunner(f *testing.F) {
 	rand.NewSource(time.Now().UnixNano())
-	f.Add(uint64(bufSize))
+	f.Add(bufSize)
 	f.Fuzz(func(t *testing.T, n uint64) {
 		runner := NewStableRunner(func(v int) float64 {
 			if v == 0 {

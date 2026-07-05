@@ -6,6 +6,7 @@ import (
 	"crypto/cipher"
 	"encoding/base64"
 	"errors"
+	"math"
 )
 
 // ErrPaddingSize indicates bad padding size.
@@ -175,7 +176,7 @@ func getKeyBytes(key string) ([]byte, error) {
 
 func pkcs5Padding(ciphertext []byte, blockSize int) []byte {
 	padding := blockSize - len(ciphertext)%blockSize
-	if padding > 255 {
+	if padding < 0 || padding > math.MaxUint8 {
 		return nil
 	}
 	padtext := bytes.Repeat([]byte{byte(padding)}, padding)

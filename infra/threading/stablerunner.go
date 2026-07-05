@@ -13,7 +13,7 @@ const factor = 10
 var (
 	ErrRunnerClosed = errors.New("runner closed")
 
-	bufSize = runtime.NumCPU() * factor
+	bufSize = uint64(runtime.NumCPU() * factor)
 )
 
 // StableRunner is a runner that guarantees messages are taken out with the pushed order.
@@ -35,9 +35,9 @@ func NewStableRunner[I, O any](fn func(I) O) *StableRunner[I, O] {
 	ring := make([]*struct {
 		value chan O
 		lock  sync.Mutex
-	}, bufSize)
+	}, int(bufSize))
 	for i := range bufSize {
-		ring[i] = &struct {
+		ring[int(i)] = &struct {
 			value chan O
 			lock  sync.Mutex
 		}{
@@ -59,8 +59,8 @@ func (r *StableRunner[I, O]) Get() (O, error) {
 	defer atomic.AddUint64(&r.consumedIndex, 1)
 
 	index := atomic.LoadUint64(&r.consumedIndex)
-	idx := index % uint64(bufSize)
-	if idx > uint64(bufSize) {
+	idx := index % bufSize
+	if idx > bufSize {
 		idx = 0
 	}
 	offset := int(idx)
@@ -87,8 +87,8 @@ func (r *StableRunner[I, O]) Push(v I) error {
 		return ErrRunnerClosed
 	default:
 		index := atomic.AddUint64(&r.writtenIndex, 1)
-		idx := (index - 1) % uint64(bufSize)
-		if idx > uint64(bufSize) {
+		idx := (index - 1) % bufSize
+		if idx > bufSize {
 			idx = 0
 		}
 		offset := int(idx)

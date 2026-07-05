@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -94,13 +96,33 @@ func (c *SafeHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	if err := c.checker.validate(host); err != nil {
 		return nil, err
 	}
-	u := *req.URL
-	u.Host = host
-	if p := req.URL.Port(); p != "" {
-		u.Host = net.JoinHostPort(host, p)
+
+	scheme := strings.ToLower(req.URL.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return nil, fmt.Errorf("ssrf: scheme %q not allowed", scheme)
 	}
+
+	cleanPath := filepath.Clean(req.URL.Path)
+	if strings.Contains(cleanPath, "..") {
+		return nil, fmt.Errorf("ssrf: path traversal blocked")
+	}
+
+	safeURL := &url.URL{
+		Scheme:   scheme,
+		OmitHost: false,
+		Path:     cleanPath,
+	}
+	if p := req.URL.Port(); p != "" {
+		safeURL.Host = net.JoinHostPort(host, p)
+	} else {
+		safeURL.Host = host
+	}
+	if req.URL.RawQuery != "" {
+		safeURL.RawQuery = req.URL.RawQuery
+	}
+
 	reqCopy := req.Clone(req.Context())
-	reqCopy.URL = &u
+	reqCopy.URL = safeURL
 	return c.client.Do(reqCopy)
 }
 

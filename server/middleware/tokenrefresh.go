@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -30,11 +30,11 @@ type TokenRefreshConfig struct {
 // TokenRefreshHandler returns a handler that delegates token refresh to the
 // configured identity provider, or re-signs the JWT in manual mode.
 func TokenRefreshHandler(cfg TokenRefreshConfig) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		var req struct {
 			RefreshToken string `json:"refresh_token"`
 		}
-		if err := c.BodyParser(&req); err != nil {
+		if err := c.Bind().Body(&req); err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"code":    400,
 				"message": "invalid request body",
@@ -58,12 +58,12 @@ func TokenRefreshHandler(cfg TokenRefreshConfig) fiber.Handler {
 	}
 }
 
-func zitadelTokenRefresh(c *fiber.Ctx, cfg TokenRefreshConfig, refreshToken string) error {
+func zitadelTokenRefresh(c fiber.Ctx, cfg TokenRefreshConfig, refreshToken string) error {
 	body := fmt.Sprintf(
 		"grant_type=refresh_token&refresh_token=%s&client_id=%s",
 		refreshToken, cfg.ZitadelClientID,
 	)
-	req, err := http.NewRequestWithContext(c.UserContext(), http.MethodPost,
+	req, err := http.NewRequestWithContext(c.Context(), http.MethodPost,
 		cfg.ZitadelTokenURL, strings.NewReader(body))
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"code": 500, "message": "internal error"})
@@ -87,12 +87,12 @@ func zitadelTokenRefresh(c *fiber.Ctx, cfg TokenRefreshConfig, refreshToken stri
 	return c.Status(resp.StatusCode).JSON(result)
 }
 
-func kratosTokenRefresh(c *fiber.Ctx, cfg TokenRefreshConfig, refreshToken string) error {
+func kratosTokenRefresh(c fiber.Ctx, cfg TokenRefreshConfig, refreshToken string) error {
 	body, err := json.Marshal(map[string]string{"session_token": refreshToken})
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"code": 500, "message": "internal error"})
 	}
-	req, err := http.NewRequestWithContext(c.UserContext(), http.MethodPost,
+	req, err := http.NewRequestWithContext(c.Context(), http.MethodPost,
 		cfg.KratosRefreshURL, bytes.NewReader(body))
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"code": 500, "message": "internal error"})
@@ -116,7 +116,7 @@ func kratosTokenRefresh(c *fiber.Ctx, cfg TokenRefreshConfig, refreshToken strin
 	return c.Status(resp.StatusCode).JSON(result)
 }
 
-func manualTokenRefresh(c *fiber.Ctx, cfg TokenRefreshConfig, _ string) error {
+func manualTokenRefresh(c fiber.Ctx, cfg TokenRefreshConfig, _ string) error {
 	auth := GetAuth(c)
 	if auth == nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -146,8 +146,10 @@ func manualTokenRefresh(c *fiber.Ctx, cfg TokenRefreshConfig, _ string) error {
 	}
 
 	return c.JSON(fiber.Map{
-		"access_token":  signed,
-		"token_type":    "Bearer",
-		"expires_in":    int(ttl.Seconds()),
+		"access_token": signed,
+		"token_type":   "Bearer",
+		"expires_in":   int(ttl.Seconds()),
 	})
 }
+
+// fiber:context-methods migrated

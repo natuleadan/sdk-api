@@ -3,7 +3,7 @@ package runtime
 import (
 	"fmt"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 func registerAsync(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string) error {

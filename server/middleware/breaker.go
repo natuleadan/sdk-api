@@ -1,13 +1,13 @@
 package middleware
 
 import (
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/natuleadan/sdk-api/infra/breaker"
 	"github.com/natuleadan/sdk-api/infra/logx"
 )
 
 func Breaker() fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		name := c.Method() + ":" + c.Route().Path
 		b := breaker.NewBreaker(breaker.WithName(name))
 

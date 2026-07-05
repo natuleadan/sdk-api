@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -23,7 +23,6 @@ func DefaultJWTConfig() JWTConfig {
 	return JWTConfig{
 		Secret:      "",
 		PrevSecret:  "",
-		ContextKey:  "claims",
 		TokenLookup: "header:Authorization",
 		Algorithm:   "HS256",
 	}
@@ -48,7 +47,7 @@ func JWT(cfg JWTConfig) fiber.Handler {
 		prevParser = newParser(prevCfg)
 	}
 
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		token, rawToken := extractToken(c, cfg.TokenLookup)
 		if token == "" {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -133,7 +132,7 @@ func (p *jwtParser) parse(tokenStr string) (jwt.MapClaims, error) {
 	return nil, jwt.ErrSignatureInvalid
 }
 
-func extractToken(c *fiber.Ctx, lookup string) (token, raw string) {
+func extractToken(c fiber.Ctx, lookup string) (token, raw string) {
 	parts := strings.SplitN(lookup, ":", 2)
 	if len(parts) != 2 {
 		return "", ""

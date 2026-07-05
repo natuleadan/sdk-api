@@ -5,7 +5,7 @@ import (
 	"encoding/base64"
 	"strings"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 type CSRFConfig struct {
@@ -29,7 +29,7 @@ func CSRF(cfg CSRFConfig) fiber.Handler {
 	}
 	sameSite := parseSameSite(cfg.SameSite)
 
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		if isExcludedPath(c.Path(), cfg.ExcludePaths) {
 			return c.Next()
 		}
@@ -71,7 +71,7 @@ func CSRF(cfg CSRFConfig) fiber.Handler {
 	}
 }
 
-func isJSONContentType(c *fiber.Ctx) bool {
+func isJSONContentType(c fiber.Ctx) bool {
 	ct := c.Get("Content-Type")
 	return strings.HasPrefix(ct, "application/json")
 }

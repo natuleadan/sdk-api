@@ -3,7 +3,7 @@ package runtime
 import (
 	"net/http"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/graphql-go/graphql"
 	"github.com/natuleadan/sdk-api/db"
 	"github.com/natuleadan/sdk-api/infra/logx"
@@ -17,12 +17,12 @@ func registerGraphQL(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, p
 		return err
 	}
 
-	app.Post(path, func(c *fiber.Ctx) error {
+	app.Post(path, func(c fiber.Ctx) error {
 		var req struct {
 			Query     string         `json:"query"`
 			Variables map[string]any `json:"variables,omitempty"`
 		}
-		if err := c.BodyParser(&req); err != nil {
+		if err := c.Bind().Body(&req); err != nil {
 			return c.Status(400).JSON(fiber.Map{"error": "invalid request body"})
 		}
 		if req.Query == "" {

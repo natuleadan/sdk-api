@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	"github.com/natuleadan/sdk-api/server/auth/openfga"
 )
@@ -33,7 +33,7 @@ func APIKey(cfg APIKeyConfig) fiber.Handler {
 		cfg.Relation = "can_access"
 	}
 
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		raw := c.Get(cfg.Header)
 		if raw == "" {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -63,7 +63,7 @@ func APIKey(cfg APIKeyConfig) fiber.Handler {
 		// Build OpenFGA subject
 		subject := fmt.Sprintf("apikey:%s", keyID)
 
-		allowed, err := cfg.Client.Check(c.UserContext(), openfga.CheckRequest{
+		allowed, err := cfg.Client.Check(c.Context(), openfga.CheckRequest{
 			User:     subject,
 			Relation: cfg.Relation,
 			Object:   cfg.Object,
@@ -100,3 +100,5 @@ func deriveKeyID(key string) string {
 	}
 	return clean.String()
 }
+
+// fiber:context-methods migrated

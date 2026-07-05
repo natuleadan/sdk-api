@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/healthcheck"
-	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/healthcheck"
+	"github.com/gofiber/fiber/v3/middleware/recover"
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/natuleadan/sdk-api/infra/proc"
 	"github.com/natuleadan/sdk-api/server/middleware"
@@ -112,7 +112,6 @@ func New(cfg Config, telemetry TelemetryConfig, security SecurityConfig, corsCfg
 	}
 
 	app := fiber.New(fiber.Config{
-		Prefork:      cfg.Prefork,
 		BodyLimit:    cfg.BodyLimit,
 		ReadTimeout:  cfg.Timeout,
 		WriteTimeout: cfg.Timeout,
@@ -132,9 +131,8 @@ func New(cfg Config, telemetry TelemetryConfig, security SecurityConfig, corsCfg
 func setupGlobalMiddlewares(app *fiber.App, cfg Config, telemetry TelemetryConfig) {
 	app.Use(recover.New(recover.Config{EnableStackTrace: cfg.RecoverStack}))
 	app.Use(middleware.HeaderSanitize())
-	app.Use(healthcheck.New(healthcheck.Config{
-		LivenessProbe:    func(c *fiber.Ctx) bool { return true },
-		LivenessEndpoint: cfg.HealthPath,
+	app.Get(cfg.HealthPath, healthcheck.New(healthcheck.Config{
+		Probe: func(c fiber.Ctx) bool { return true },
 	}))
 	if telemetry.Enabled {
 		app.Use(middleware.Trace(middleware.TraceConfig{
@@ -286,7 +284,7 @@ type ErrorResponse struct {
 	Message string `json:"message"`
 }
 
-func errorHandler(c *fiber.Ctx, err error) error {
+func errorHandler(c fiber.Ctx, err error) error {
 	code := fiber.StatusInternalServerError
 	if e, ok := err.(*fiber.Error); ok {
 		code = e.Code

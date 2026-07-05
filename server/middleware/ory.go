@@ -3,7 +3,7 @@ package middleware
 import (
 	"fmt"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	"github.com/natuleadan/sdk-api/server/auth/ory"
 )
@@ -22,7 +22,7 @@ func Ory(cfg OryConfig) fiber.Handler {
 		panic("ory middleware: client is required")
 	}
 
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		auth := GetAuth(c)
 		if auth == nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -55,9 +55,9 @@ func Ory(cfg OryConfig) fiber.Handler {
 	}
 }
 
-func checkRolesViaKeto(c *fiber.Ctx, client *ory.Client, auth *AuthContext, roles []string) (bool, error) {
+func checkRolesViaKeto(c fiber.Ctx, client *ory.Client, auth *AuthContext, roles []string) (bool, error) {
 	for _, role := range roles {
-		allowed, err := client.KetoCheck(c.UserContext(), ory.KetoCheckRequest{
+		allowed, err := client.KetoCheck(c.Context(), ory.KetoCheckRequest{
 			Namespace: "roles",
 			Object:    role,
 			Relation:  "assignee",
@@ -73,13 +73,13 @@ func checkRolesViaKeto(c *fiber.Ctx, client *ory.Client, auth *AuthContext, role
 	return false, nil
 }
 
-func checkPermissionsViaKeto(c *fiber.Ctx, client *ory.Client, auth *AuthContext, permissions []string) (bool, error) {
+func checkPermissionsViaKeto(c fiber.Ctx, client *ory.Client, auth *AuthContext, permissions []string) (bool, error) {
 	for _, perm := range permissions {
 		parts := splitPermission(perm)
 		if parts == nil {
 			continue
 		}
-		allowed, err := client.KetoCheck(c.UserContext(), ory.KetoCheckRequest{
+		allowed, err := client.KetoCheck(c.Context(), ory.KetoCheckRequest{
 			Namespace: parts[0],
 			Object:    parts[1],
 			Relation:  "perform",
@@ -103,3 +103,5 @@ func splitPermission(perm string) []string {
 	}
 	return nil
 }
+
+// fiber:context-methods migrated

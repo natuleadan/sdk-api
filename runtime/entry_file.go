@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gofiber/fiber/v2"
-	"github.com/natuleadan/sdk-api/infra/logx"
+	"github.com/gofiber/fiber/v3"
 	"github.com/natuleadan/sdk-api/events"
+	"github.com/natuleadan/sdk-api/infra/logx"
 )
 
 func registerFile(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker) error {
@@ -51,8 +51,8 @@ func registerFile(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, pref
 	return nil
 }
 
-func fileValidator(entry *EntryDef) func(*fiber.Ctx) error {
-	return func(c *fiber.Ctx) error {
+func fileValidator(entry *EntryDef) func(fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		contentType := string(c.Request().Header.ContentType())
 		if len(entry.AllowedTypes) > 0 && !isContentTypeAllowed(contentType, entry.AllowedTypes) {
 			return fiber.NewError(415, fmt.Sprintf("content-type %q not allowed", contentType))

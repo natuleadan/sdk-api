@@ -3,8 +3,8 @@ package middleware
 import (
 	"time"
 
-	"github.com/gofiber/contrib/websocket"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/contrib/v3/websocket"
+	"github.com/gofiber/fiber/v3"
 )
 
 type WebSocketConfig struct {
@@ -19,11 +19,7 @@ func WebSocket(handler func(*websocket.Conn)) fiber.Handler {
 }
 
 func WebSocketWithConfig(cfg WebSocketConfig, handler func(*websocket.Conn)) fiber.Handler {
-	wsCfg := websocket.Config{
-		Filter: func(c *fiber.Ctx) bool {
-			return true
-		},
-	}
+	wsCfg := websocket.Config{}
 	if len(cfg.Origins) > 0 {
 		wsCfg.Origins = cfg.Origins
 	}

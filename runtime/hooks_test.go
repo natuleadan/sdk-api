@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 // testModel simulates a CRUD model
@@ -247,7 +247,7 @@ func TestTableCRUD_SetHooks(t *testing.T) {
 
 func TestWrapTransformHandler(t *testing.T) {
 	called := false
-	handler := func(c *fiber.Ctx) error {
+	handler := func(c fiber.Ctx) error {
 		called = true
 		return c.JSON(fiber.Map{"ok": true})
 	}

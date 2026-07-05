@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gofiber/contrib/websocket"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/contrib/v3/websocket"
+	"github.com/gofiber/fiber/v3"
 	"github.com/natuleadan/sdk-api/events"
 )
 
@@ -49,7 +49,7 @@ func TestService_WithRest(t *testing.T) {
 		config:   &ServiceConfig{Name: "test", Port: 19002},
 		handlers: &EntryHandlers{},
 	}
-	fn := func(c *fiber.Ctx) error { return nil }
+	fn := func(c fiber.Ctx) error { return nil }
 	svc.WithRest("myHandler", fn)
 
 	if svc.handlers.Rest["myHandler"] == nil {
@@ -105,7 +105,7 @@ entry:
 		t.Fatalf("New: %v", err)
 	}
 
-	svc.WithRest("ping", func(c *fiber.Ctx) error {
+	svc.WithRest("ping", func(c fiber.Ctx) error {
 		return c.JSON(fiber.Map{"ok": true})
 	})
 
@@ -205,10 +205,10 @@ entry:
 		t.Fatalf("New: %v", err)
 	}
 	svc.WithCRUD("Product", &mockCRUDProvider{})
-	svc.WithRest("sayHello", func(c *fiber.Ctx) error {
+	svc.WithRest("sayHello", func(c fiber.Ctx) error {
 		return c.JSON(fiber.Map{"hello": "world"})
 	})
-	svc.WithRest("onWebhook", func(c *fiber.Ctx) error {
+	svc.WithRest("onWebhook", func(c fiber.Ctx) error {
 		return c.JSON(fiber.Map{"webhook": true})
 	})
 
@@ -284,7 +284,7 @@ entry:
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	svc.WithRest("status", func(c *fiber.Ctx) error {
+	svc.WithRest("status", func(c fiber.Ctx) error {
 		return c.SendString("no-db works")
 	})
 

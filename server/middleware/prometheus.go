@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 type metricEntry struct {
@@ -31,7 +31,7 @@ func durationKey(method, path string) string {
 }
 
 func Prometheus() fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		metrics.Lock()
 		metrics.active++
 		metrics.Unlock()
@@ -52,7 +52,7 @@ func Prometheus() fiber.Handler {
 }
 
 func PrometheusHandler() fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		metrics.Lock()
 		defer metrics.Unlock()
 
@@ -61,14 +61,14 @@ func PrometheusHandler() fiber.Handler {
 		b.WriteString("# TYPE http_server_requests_total counter\n")
 		for key, val := range metrics.count {
 			parts := strings.SplitN(key, ":", 3)
-		fmt.Fprintf(&b, "http_server_requests_total{method=%q,path=%q,code=%q} %d\n", parts[0], parts[1], parts[2], val)
+			fmt.Fprintf(&b, "http_server_requests_total{method=%q,path=%q,code=%q} %d\n", parts[0], parts[1], parts[2], val)
 		}
 		b.WriteString("\n")
 		b.WriteString("# HELP http_server_request_duration_ms HTTP request duration in ms\n")
 		b.WriteString("# TYPE http_server_request_duration_ms summary\n")
 		for key, val := range metrics.duration {
 			parts := strings.SplitN(key, ":", 2)
-		fmt.Fprintf(&b, "http_server_request_duration_ms{method=%q,path=%q,quantile=\"0.99\"} %.2f\n", parts[0], parts[1], val)
+			fmt.Fprintf(&b, "http_server_request_duration_ms{method=%q,path=%q,quantile=\"0.99\"} %.2f\n", parts[0], parts[1], val)
 		}
 		b.WriteString("\n")
 		b.WriteString("# HELP http_server_requests_active Active requests\n")

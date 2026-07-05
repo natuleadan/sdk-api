@@ -3,7 +3,7 @@ package middleware
 import (
 	"fmt"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	"github.com/natuleadan/sdk-api/server/auth/zitadel"
 )
@@ -18,7 +18,7 @@ func JWTWithZitadel(cfg JWTConfig, zClient *zitadel.Client) fiber.Handler {
 		cfg.ContextKey = "claims"
 	}
 
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		token, rawToken := extractToken(c, cfg.TokenLookup)
 		if token == "" {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -27,7 +27,7 @@ func JWTWithZitadel(cfg JWTConfig, zClient *zitadel.Client) fiber.Handler {
 			})
 		}
 
-		claims, err := zClient.ValidateToken(c.UserContext(), token)
+		claims, err := zClient.ValidateToken(c.Context(), token)
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"code":    401,
@@ -40,3 +40,5 @@ func JWTWithZitadel(cfg JWTConfig, zClient *zitadel.Client) fiber.Handler {
 		return c.Next()
 	}
 }
+
+// fiber:context-methods migrated

@@ -4,16 +4,16 @@ import (
 	"context"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/natuleadan/sdk-api/infra/logx"
 )
 
 func Timeout(d time.Duration) fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		ctx, cancel := context.WithTimeout(c.UserContext(), d)
+	return func(c fiber.Ctx) error {
+		ctx, cancel := context.WithTimeout(c.Context(), d)
 		defer cancel()
 
-		c.SetUserContext(ctx)
+		c.SetContext(ctx)
 
 		err := c.Next()
 
@@ -28,3 +28,5 @@ func Timeout(d time.Duration) fiber.Handler {
 		return err
 	}
 }
+
+// fiber:context-methods migrated

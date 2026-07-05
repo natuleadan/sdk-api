@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/natuleadan/sdk-api/db"
 	"github.com/natuleadan/sdk-api/events"
 	"github.com/natuleadan/sdk-api/infra/logx"
@@ -25,21 +26,21 @@ import (
 // initializes databases, NATS connections, entry endpoints, and
 // optionally exit workers and cron jobs.
 type Service struct {
-	config     *ServiceConfig
-	srv        *server.Server
-	pools      map[string]any
-	natsConns  map[string]events.EventBroker
-	handlers   *EntryHandlers
-	hooks      map[string]any // model → EntryHooks[T]
-	exitFuncs  map[string]ExitHandler
-	exitHooks  map[string]ExitHooks
-	exitMgr    *ExitWorkerManager
-	cronSched  *CronScheduler
-	cronFuncs  map[string]CronJobFunc
-	models     map[string]*db.TableInfo
-	safeClient *middleware.SafeHTTPClient
-	jwtCfg     *middleware.JWTConfig
-	fgaClient  openfga.Checker
+	config        *ServiceConfig
+	srv           *server.Server
+	pools         map[string]any
+	natsConns     map[string]events.EventBroker
+	handlers      *EntryHandlers
+	hooks         map[string]any // model → EntryHooks[T]
+	exitFuncs     map[string]ExitHandler
+	exitHooks     map[string]ExitHooks
+	exitMgr       *ExitWorkerManager
+	cronSched     *CronScheduler
+	cronFuncs     map[string]CronJobFunc
+	models        map[string]*db.TableInfo
+	safeClient    *middleware.SafeHTTPClient
+	jwtCfg        *middleware.JWTConfig
+	fgaClient     openfga.Checker
 	zitadelClient *zitadel.Client
 	oryClient     *ory.Client
 	authValidator func(context.Context, *middleware.AuthContext, []string, []string) error
@@ -89,9 +90,9 @@ func (s *Service) WithCRUDFactory(model string, factory CRUDFactory) *Service {
 }
 
 // WithRest registers a REST handler by name.
-func (s *Service) WithRest(name string, h func(*fiber.Ctx) error) *Service {
+func (s *Service) WithRest(name string, h func(fiber.Ctx) error) *Service {
 	if s.handlers.Rest == nil {
-		s.handlers.Rest = make(map[string]func(*fiber.Ctx) error)
+		s.handlers.Rest = make(map[string]func(fiber.Ctx) error)
 	}
 	s.handlers.Rest[name] = h
 	return s
@@ -325,7 +326,12 @@ func (s *Service) registerEntryRoutes() error {
 
 func (s *Service) serveStaticFiles() {
 	for _, sd := range s.config.Server.Static {
-		s.srv.App().Static(sd.Prefix, sd.Dir)
+		dir := sd.Dir
+		prefix := sd.Prefix
+		s.srv.App().Get(prefix+"/*", func(c fiber.Ctx) error {
+			path := filepath.Join(dir, fiber.Params[string](c, "*"))
+			return c.SendFile(path, fiber.SendFile{})
+		})
 	}
 }
 
@@ -403,7 +409,7 @@ func (s *Service) initServer() {
 	// Auto-register CSP report endpoint if configured
 	if sc.SecurityHeaders != nil && sc.SecurityHeaders.CSPReportPath != "" {
 		path := sc.SecurityHeaders.CSPReportPath
-		s.srv.App().Post(path, func(c *fiber.Ctx) error {
+		s.srv.App().Post(path, func(c fiber.Ctx) error {
 			body := string(c.Body())
 			logx.Errorf("CSP violation reported: %s", body)
 			return c.SendStatus(204)
@@ -425,7 +431,9 @@ func (s *Service) shutdown() {
 		s.exitMgr.Shutdown(5 * time.Second)
 	}
 	for name, broker := range s.natsConns {
-		if err := broker.Close(); err != nil { fmt.Fprintf(os.Stderr, "service: broker close error: %v\n", err) }
+		if err := broker.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "service: broker close error: %v\n", err)
+		}
 		logx.Infof("nats %s drained", name)
 	}
 	for name, pool := range s.pools {
@@ -540,7 +548,6 @@ func buildJWTCfg(auth *AuthConfig) *middleware.JWTConfig {
 		PrevSecret:  auth.PrevSecret,
 		Algorithm:   auth.Algorithm,
 		TokenLookup: auth.TokenLookup,
-		ContextKey:  auth.ContextKey,
 		Issuer:      auth.Issuer,
 		Audience:    auth.Audience,
 	}

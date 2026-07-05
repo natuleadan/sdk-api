@@ -3,7 +3,7 @@ package middleware
 import (
 	"context"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -44,13 +44,13 @@ func buildAuthContext(claims jwt.MapClaims, rawToken string) *AuthContext {
 	return auth
 }
 
-func injectAuth(c *fiber.Ctx, auth *AuthContext) {
+func injectAuth(c fiber.Ctx, auth *AuthContext) {
 	c.Locals("auth", auth)
-	ctx := context.WithValue(c.UserContext(), authCtxKey, auth)
-	c.SetUserContext(ctx)
+	ctx := context.WithValue(c.Context(), authCtxKey, auth)
+	c.SetContext(ctx)
 }
 
-func GetAuth(c *fiber.Ctx) *AuthContext {
+func GetAuth(c fiber.Ctx) *AuthContext {
 	if a, ok := c.Locals("auth").(*AuthContext); ok {
 		return a
 	}
@@ -70,3 +70,5 @@ func stringOr(claims jwt.MapClaims, key string) string {
 	}
 	return ""
 }
+
+// fiber:context-methods migrated

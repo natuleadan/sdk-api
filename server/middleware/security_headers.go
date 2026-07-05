@@ -1,26 +1,26 @@
 package middleware
 
 import (
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 type SecurityHeadersConfig struct {
-	FrameOptions      string   `json:"frame_options" config:",optional"`
-	ReferrerPolicy    string   `json:"referrer_policy" config:",optional"`
-	PermissionsPolicy string   `json:"permissions_policy" config:",optional"`
-	HSTS              bool     `json:"hsts" config:",optional"`
-	HSTSMaxAge        int      `json:"hsts_max_age" config:",optional"`
-	HSTSIncludeSubs   bool     `json:"hsts_include_subdomains" config:",optional"`
-	CSP               string   `json:"csp" config:",optional"`
-	COOP              string   `json:"coop" config:",optional"`
-	COEP              string   `json:"coep" config:",optional"`
-	CORP              string   `json:"corp" config:",optional"`
-	CacheControl      string   `json:"cache_control" config:",optional"`
-	CSPReportPath     string   `json:"csp_report_path" config:",optional"`
+	FrameOptions      string `json:"frame_options" config:",optional"`
+	ReferrerPolicy    string `json:"referrer_policy" config:",optional"`
+	PermissionsPolicy string `json:"permissions_policy" config:",optional"`
+	HSTS              bool   `json:"hsts" config:",optional"`
+	HSTSMaxAge        int    `json:"hsts_max_age" config:",optional"`
+	HSTSIncludeSubs   bool   `json:"hsts_include_subdomains" config:",optional"`
+	CSP               string `json:"csp" config:",optional"`
+	COOP              string `json:"coop" config:",optional"`
+	COEP              string `json:"coep" config:",optional"`
+	CORP              string `json:"corp" config:",optional"`
+	CacheControl      string `json:"cache_control" config:",optional"`
+	CSPReportPath     string `json:"csp_report_path" config:",optional"`
 }
 
 func SecurityHeaders(cfg SecurityHeadersConfig) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		c.Set("X-Content-Type-Options", "nosniff")
 
 		if cfg.FrameOptions != "" {

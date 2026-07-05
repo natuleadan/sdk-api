@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gofiber/contrib/websocket"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/contrib/v3/websocket"
+	"github.com/gofiber/fiber/v3"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/natuleadan/sdk-api/db"
 	"github.com/natuleadan/sdk-api/infra/jsonx"
@@ -21,43 +21,42 @@ import (
 // --- Mock CRUDProvider ---
 
 type mockCRUDProvider struct {
-	listFn   func(ctx *fiber.Ctx, params ListParams) error
-	getFn    func(ctx *fiber.Ctx, id string) error
-	createFn func(ctx *fiber.Ctx, body []byte) error
-	updateFn func(ctx *fiber.Ctx, id string, body []byte) error
-	deleteFn func(ctx *fiber.Ctx, id string) error
+	listFn   func(ctx fiber.Ctx, params ListParams) error
+	getFn    func(ctx fiber.Ctx, id string) error
+	createFn func(ctx fiber.Ctx, body []byte) error
+	updateFn func(ctx fiber.Ctx, id string, body []byte) error
+	deleteFn func(ctx fiber.Ctx, id string) error
 }
 
-func (m *mockCRUDProvider) List(ctx *fiber.Ctx, params ListParams) error {
+func (m *mockCRUDProvider) List(ctx fiber.Ctx, params ListParams) error {
 	if m.listFn != nil {
 		return m.listFn(ctx, params)
 	}
 	return nil
 }
 
-
-func (m *mockCRUDProvider) Get(ctx *fiber.Ctx, id string) error {
+func (m *mockCRUDProvider) Get(ctx fiber.Ctx, id string) error {
 	if m.getFn != nil {
 		return m.getFn(ctx, id)
 	}
 	return ctx.JSON(fiber.Map{"id": id, "name": "test"})
 }
 
-func (m *mockCRUDProvider) Create(ctx *fiber.Ctx, body []byte) error {
+func (m *mockCRUDProvider) Create(ctx fiber.Ctx, body []byte) error {
 	if m.createFn != nil {
 		return m.createFn(ctx, body)
 	}
 	return ctx.Status(201).JSON(fiber.Map{"id": "new", "data": string(body)})
 }
 
-func (m *mockCRUDProvider) Update(ctx *fiber.Ctx, id string, body []byte) error {
+func (m *mockCRUDProvider) Update(ctx fiber.Ctx, id string, body []byte) error {
 	if m.updateFn != nil {
 		return m.updateFn(ctx, id, body)
 	}
 	return ctx.JSON(fiber.Map{"id": id, "data": string(body)})
 }
 
-func (m *mockCRUDProvider) Delete(ctx *fiber.Ctx, id string) error {
+func (m *mockCRUDProvider) Delete(ctx fiber.Ctx, id string) error {
 	if m.deleteFn != nil {
 		return m.deleteFn(ctx, id)
 	}
@@ -68,7 +67,7 @@ func (m *mockCRUDProvider) Delete(ctx *fiber.Ctx, id string) error {
 
 func testApp() *fiber.App {
 	return fiber.New(fiber.Config{
-		ErrorHandler: func(c *fiber.Ctx, err error) error {
+		ErrorHandler: func(c fiber.Ctx, err error) error {
 			code := fiber.StatusInternalServerError
 			if e, ok := err.(*fiber.Error); ok {
 				code = e.Code
@@ -80,7 +79,7 @@ func testApp() *fiber.App {
 
 func testHandlers(provider CRUDProvider) *EntryHandlers {
 	return &EntryHandlers{
-		Rest: make(map[string]func(*fiber.Ctx) error),
+		Rest: make(map[string]func(fiber.Ctx) error),
 		WS:   make(map[string]WSHandler),
 		SSE:  make(map[string]SSEHandler),
 		CRUD: func() map[string]CRUDProvider {
@@ -201,7 +200,7 @@ func TestRegisterEntries_CRUD_Overrides(t *testing.T) {
 		app := testApp()
 		provider := &mockCRUDProvider{}
 		handlers := testHandlers(provider)
-		handlers.Rest["customList"] = func(c *fiber.Ctx) error {
+		handlers.Rest["customList"] = func(c fiber.Ctx) error {
 			return c.JSON(fiber.Map{"custom": true})
 		}
 
@@ -234,11 +233,11 @@ func TestRegisterEntries_CRUD_Overrides(t *testing.T) {
 func TestRegisterEntries_REST(t *testing.T) {
 	app := testApp()
 	handlers := &EntryHandlers{
-		Rest: map[string]func(*fiber.Ctx) error{
-			"onTransform": func(c *fiber.Ctx) error {
+		Rest: map[string]func(fiber.Ctx) error{
+			"onTransform": func(c fiber.Ctx) error {
 				return c.JSON(fiber.Map{"transformed": true})
 			},
-			"onCustom": func(c *fiber.Ctx) error {
+			"onCustom": func(c fiber.Ctx) error {
 				return c.SendString("ok")
 			},
 		},
@@ -275,8 +274,8 @@ func TestRegisterEntries_REST(t *testing.T) {
 func TestRegisterEntries_Webhook(t *testing.T) {
 	app := testApp()
 	handlers := &EntryHandlers{
-		Rest: map[string]func(*fiber.Ctx) error{
-			"onWebhook": func(c *fiber.Ctx) error {
+		Rest: map[string]func(fiber.Ctx) error{
+			"onWebhook": func(c fiber.Ctx) error {
 				return c.JSON(fiber.Map{"received": true})
 			},
 		},
@@ -304,12 +303,12 @@ func TestRegisterEntries_Webhook(t *testing.T) {
 func TestRegisterEntries_Webhook_AllMethods(t *testing.T) {
 	app := testApp()
 	handlers := &EntryHandlers{
-		Rest: map[string]func(*fiber.Ctx) error{
-			"whGet":    func(c *fiber.Ctx) error { return c.SendString("get") },
-			"whPost":   func(c *fiber.Ctx) error { return c.SendString("post") },
-			"whPut":    func(c *fiber.Ctx) error { return c.SendString("put") },
-			"whPatch":  func(c *fiber.Ctx) error { return c.SendString("patch") },
-			"whDelete": func(c *fiber.Ctx) error { return c.SendString("delete") },
+		Rest: map[string]func(fiber.Ctx) error{
+			"whGet":    func(c fiber.Ctx) error { return c.SendString("get") },
+			"whPost":   func(c fiber.Ctx) error { return c.SendString("post") },
+			"whPut":    func(c fiber.Ctx) error { return c.SendString("put") },
+			"whPatch":  func(c fiber.Ctx) error { return c.SendString("patch") },
+			"whDelete": func(c fiber.Ctx) error { return c.SendString("delete") },
 		},
 	}
 
@@ -415,8 +414,8 @@ func TestRegisterEntries_File(t *testing.T) {
 	t.Run("upload_with_validation", func(t *testing.T) {
 		app := testApp()
 		handlers := &EntryHandlers{
-			Rest: map[string]func(*fiber.Ctx) error{
-				"onUpload": func(c *fiber.Ctx) error {
+			Rest: map[string]func(fiber.Ctx) error{
+				"onUpload": func(c fiber.Ctx) error {
 					return c.JSON(fiber.Map{"uploaded": true})
 				},
 			},
@@ -473,8 +472,8 @@ func TestRegisterEntries_File(t *testing.T) {
 	t.Run("download_no_validation", func(t *testing.T) {
 		app := testApp()
 		handlers := &EntryHandlers{
-			Rest: map[string]func(*fiber.Ctx) error{
-				"onDownload": func(c *fiber.Ctx) error {
+			Rest: map[string]func(fiber.Ctx) error{
+				"onDownload": func(c fiber.Ctx) error {
 					return c.SendString("file content")
 				},
 			},
@@ -502,9 +501,9 @@ func TestRegisterEntries_File(t *testing.T) {
 	t.Run("patch_and_delete", func(t *testing.T) {
 		app := testApp()
 		handlers := &EntryHandlers{
-			Rest: map[string]func(*fiber.Ctx) error{
-				"onPatch":  func(c *fiber.Ctx) error { return c.SendString("patched") },
-				"onDelete": func(c *fiber.Ctx) error { return c.SendString("deleted") },
+			Rest: map[string]func(fiber.Ctx) error{
+				"onPatch":  func(c fiber.Ctx) error { return c.SendString("patched") },
+				"onDelete": func(c fiber.Ctx) error { return c.SendString("deleted") },
 			},
 		}
 
@@ -541,14 +540,14 @@ func TestRegisterEntries_MixedTypes(t *testing.T) {
 	app := testApp()
 	provider := &mockCRUDProvider{}
 	handlers := &EntryHandlers{
-		Rest: map[string]func(*fiber.Ctx) error{
-			"onTransform": func(c *fiber.Ctx) error {
+		Rest: map[string]func(fiber.Ctx) error{
+			"onTransform": func(c fiber.Ctx) error {
 				return c.JSON(fiber.Map{"ok": true})
 			},
-			"onWebhook": func(c *fiber.Ctx) error {
+			"onWebhook": func(c fiber.Ctx) error {
 				return c.JSON(fiber.Map{"webhook": true})
 			},
-			"onSSE": func(c *fiber.Ctx) error {
+			"onSSE": func(c fiber.Ctx) error {
 				return c.SendString("stream")
 			},
 		},
@@ -624,7 +623,7 @@ func TestRegisterEntries_Errors(t *testing.T) {
 	t.Run("missing REST handler", func(t *testing.T) {
 		app := testApp()
 		handlers := &EntryHandlers{
-			Rest: map[string]func(*fiber.Ctx) error{},
+			Rest: map[string]func(fiber.Ctx) error{},
 		}
 		cfg := &ServiceConfig{
 			Entry: []EntryDef{
@@ -695,7 +694,7 @@ func TestFileValidator(t *testing.T) {
 				MaxSize:      tt.maxSize,
 			}
 
-			app.Post("/test", fileValidator(entry), func(c *fiber.Ctx) error {
+			app.Post("/test", fileValidator(entry), func(c fiber.Ctx) error {
 				return c.SendString("ok")
 			})
 
@@ -770,7 +769,7 @@ func TestBuildIDParam(t *testing.T) {
 
 func TestParseListParams(t *testing.T) {
 	app := fiber.New()
-	app.Get("/test", func(c *fiber.Ctx) error {
+	app.Get("/test", func(c fiber.Ctx) error {
 		params := parseListParams(c)
 		return c.JSON(fiber.Map{
 			"page":    params.Page,
@@ -1020,7 +1019,7 @@ func TestSanitizeFilename_Truncates(t *testing.T) {
 
 func TestValidateEntryAuth_NoRoles(t *testing.T) {
 	entry := &EntryDef{Auth: true}
-	handlers := &EntryHandlers{Rest: map[string]func(*fiber.Ctx) error{"test": nil}}
+	handlers := &EntryHandlers{Rest: map[string]func(fiber.Ctx) error{"test": nil}}
 	err := validateEntryAuth(entry, handlers)
 	if err != nil {
 		t.Errorf("expected nil for no roles, got %v", err)
@@ -1029,7 +1028,7 @@ func TestValidateEntryAuth_NoRoles(t *testing.T) {
 
 func TestValidateEntryAuth_MissingHandler(t *testing.T) {
 	entry := &EntryDef{Auth: true, Roles: []string{"admin"}, Handler: "nonexistent"}
-	handlers := &EntryHandlers{Rest: map[string]func(*fiber.Ctx) error{}}
+	handlers := &EntryHandlers{Rest: map[string]func(fiber.Ctx) error{}}
 	err := validateEntryAuth(entry, handlers)
 	if err == nil {
 		t.Error("expected error for missing handler")
@@ -1038,7 +1037,7 @@ func TestValidateEntryAuth_MissingHandler(t *testing.T) {
 
 func TestValidateEntryAuth_ValidHandler(t *testing.T) {
 	entry := &EntryDef{Auth: true, Roles: []string{"admin"}, Handler: "getHealth"}
-	handlers := &EntryHandlers{Rest: map[string]func(*fiber.Ctx) error{"getHealth": nil}}
+	handlers := &EntryHandlers{Rest: map[string]func(fiber.Ctx) error{"getHealth": nil}}
 	err := validateEntryAuth(entry, handlers)
 	if err != nil {
 		t.Errorf("expected nil for valid handler, got %v", err)
@@ -1060,7 +1059,7 @@ func TestRegisterOneEntry_DriverNone(t *testing.T) {
 		Type: "rest", Path: "/test", Method: "GET", Handler: "testHandler",
 		Auth: true,
 	}
-	handlers := &EntryHandlers{Rest: map[string]func(*fiber.Ctx) error{"testHandler": func(c *fiber.Ctx) error { return c.SendString("ok") }}}
+	handlers := &EntryHandlers{Rest: map[string]func(fiber.Ctx) error{"testHandler": func(c fiber.Ctx) error { return c.SendString("ok") }}}
 	cfg := &ServiceConfig{Auth: &AuthConfig{Driver: "none"}}
 
 	err := registerOneEntry(app, entry, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, "none")
@@ -1082,10 +1081,10 @@ func TestRegisterOneEntry_DriverManualWithValidator(t *testing.T) {
 		Type: "rest", Path: "/manual-test", Method: "GET", Handler: "manualHandler",
 		Auth: true, Roles: []string{"admin"},
 	}
-	handlers := &EntryHandlers{Rest: map[string]func(*fiber.Ctx) error{"manualHandler": func(c *fiber.Ctx) error { return c.SendString("ok") }}}
+	handlers := &EntryHandlers{Rest: map[string]func(fiber.Ctx) error{"manualHandler": func(c fiber.Ctx) error { return c.SendString("ok") }}}
 
 	validatorCalled := false
-		validator := func(ctx context.Context, auth *middleware.AuthContext, roles, permissions []string) error {
+	validator := func(ctx context.Context, auth *middleware.AuthContext, roles, permissions []string) error {
 		validatorCalled = true
 		if len(roles) != 1 || roles[0] != "admin" {
 			t.Errorf("expected roles [admin], got %v", roles)

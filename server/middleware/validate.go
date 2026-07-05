@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 var validate = validator.New()
@@ -21,7 +21,7 @@ func RegisterValidation(name string, input any) {
 }
 
 func ValidateInput(modelName string) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		inputType, ok := validationModels[modelName]
 		if !ok {
 			return c.Status(500).JSON(fiber.Map{
@@ -31,7 +31,7 @@ func ValidateInput(modelName string) fiber.Handler {
 		}
 
 		input := reflect.New(inputType).Interface()
-		if err := c.BodyParser(input); err != nil {
+		if err := c.Bind().Body(input); err != nil {
 			return c.Status(400).JSON(fiber.Map{
 				"code":    400,
 				"message": "invalid request body",

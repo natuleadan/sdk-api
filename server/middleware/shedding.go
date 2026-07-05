@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/natuleadan/sdk-api/infra/load"
 	"github.com/natuleadan/sdk-api/infra/logx"
 )
@@ -9,7 +9,7 @@ import (
 var shedder = load.NewAdaptiveShedder()
 
 func Shedding() fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		cb, err := shedder.Allow()
 		if err != nil {
 			logx.Errorf("shedding reject: %s %s", c.Method(), c.Path())

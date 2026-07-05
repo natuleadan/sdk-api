@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/natuleadan/sdk-api/events"
 	"github.com/natuleadan/sdk-api/infra/logx"
 )
@@ -43,8 +43,8 @@ func getPublishTargets(entry *EntryDef) []EventPublishTarget {
 	return entry.NATSPublish
 }
 
-func wrapEventPublish(ctx context.Context, handler func(*fiber.Ctx) error, targets []EventPublishTarget, entryEventStream string, brokers map[string]events.EventBroker) func(*fiber.Ctx) error {
-	return func(c *fiber.Ctx) error {
+func wrapEventPublish(ctx context.Context, handler func(fiber.Ctx) error, targets []EventPublishTarget, entryEventStream string, brokers map[string]events.EventBroker) func(fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		err := handler(c)
 		if err == nil && c.Response().StatusCode() < 400 {
 			for _, target := range targets {

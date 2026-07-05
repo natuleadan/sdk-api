@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	"github.com/natuleadan/sdk-api/server/auth/openfga"
 )
@@ -26,7 +26,7 @@ func OpenFGA(cfg OpenFGAConfig) fiber.Handler {
 		panic("openfga middleware: client is required")
 	}
 
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		auth := GetAuth(c)
 		if auth == nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -61,7 +61,7 @@ func OpenFGA(cfg OpenFGAConfig) fiber.Handler {
 	}
 }
 
-func checkOpenFGARoles(c *fiber.Ctx, client openfga.Checker, user string, auth *AuthContext, roles []string) (bool, error) {
+func checkOpenFGARoles(c fiber.Ctx, client openfga.Checker, user string, auth *AuthContext, roles []string) (bool, error) {
 	if len(roles) == 0 {
 		return true, nil
 	}
@@ -71,14 +71,14 @@ func checkOpenFGARoles(c *fiber.Ctx, client openfga.Checker, user string, auth *
 	return checkRolesViaFGA(c, client, user, roles)
 }
 
-func checkOpenFGAPermissions(c *fiber.Ctx, client openfga.Checker, user string, permissions []string) (bool, error) {
+func checkOpenFGAPermissions(c fiber.Ctx, client openfga.Checker, user string, permissions []string) (bool, error) {
 	if len(permissions) == 0 {
 		return true, nil
 	}
 	return checkPermissionsViaFGA(c, client, user, permissions)
 }
 
-func checkOpenFGARelation(c *fiber.Ctx, cfg OpenFGAConfig, user string) error {
+func checkOpenFGARelation(c fiber.Ctx, cfg OpenFGAConfig, user string) error {
 	if cfg.Object == "" && cfg.Relation == "" {
 		return nil
 	}
@@ -91,7 +91,7 @@ func checkOpenFGARelation(c *fiber.Ctx, cfg OpenFGAConfig, user string) error {
 	if object == "" || cfg.Relation == "" {
 		return nil
 	}
-	allowed, err := cfg.Client.Check(c.UserContext(), openfga.CheckRequest{
+	allowed, err := cfg.Client.Check(c.Context(), openfga.CheckRequest{
 		User:     user,
 		Relation: cfg.Relation,
 		Object:   object,
@@ -122,9 +122,9 @@ func hasAnyRole(auth *AuthContext, requiredRoles []string) bool {
 	return false
 }
 
-func checkRolesViaFGA(c *fiber.Ctx, client openfga.Checker, user string, roles []string) (bool, error) {
+func checkRolesViaFGA(c fiber.Ctx, client openfga.Checker, user string, roles []string) (bool, error) {
 	for _, role := range roles {
-		allowed, err := client.Check(c.UserContext(), openfga.CheckRequest{
+		allowed, err := client.Check(c.Context(), openfga.CheckRequest{
 			User:     user,
 			Relation: fmt.Sprintf("role:%s", role),
 			Object:   "role-assignment",
@@ -139,13 +139,13 @@ func checkRolesViaFGA(c *fiber.Ctx, client openfga.Checker, user string, roles [
 	return false, nil
 }
 
-func checkPermissionsViaFGA(c *fiber.Ctx, client openfga.Checker, user string, permissions []string) (bool, error) {
+func checkPermissionsViaFGA(c fiber.Ctx, client openfga.Checker, user string, permissions []string) (bool, error) {
 	for _, perm := range permissions {
 		parts := strings.SplitN(perm, ":", 2)
 		if len(parts) != 2 {
 			continue
 		}
-		allowed, err := client.Check(c.UserContext(), openfga.CheckRequest{
+		allowed, err := client.Check(c.Context(), openfga.CheckRequest{
 			User:     user,
 			Relation: fmt.Sprintf("can_%s", parts[1]),
 			Object:   fmt.Sprintf("%s:%s", parts[0], parts[1]),
@@ -167,3 +167,5 @@ func ParseObject(object string) (objType, objID string, err error) {
 	}
 	return parts[0], parts[1], nil
 }
+
+// fiber:context-methods migrated

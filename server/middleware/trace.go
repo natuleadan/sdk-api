@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/natuleadan/sdk-api/infra/trace"
 )
@@ -25,7 +25,7 @@ func Trace(cfg TraceConfig) fiber.Handler {
 		Batcher:  batcher,
 	})
 
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		logx.Infof("trace: %s %s", c.Method(), c.Path())
 		return c.Next()
 	}

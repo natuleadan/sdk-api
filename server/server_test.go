@@ -1,14 +1,15 @@
 package server
 
 import (
-	"crypto/tls"
 	"context"
-	"github.com/goccy/go-json"
+	"crypto/tls"
 	"io"
 	"net/http"
 	"testing"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/goccy/go-json"
+
+	"github.com/gofiber/fiber/v3"
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"golang.org/x/crypto/acme/autocert"
 )
@@ -39,7 +40,7 @@ func TestHealthEndpoint(t *testing.T) {
 func TestErrorHandler(t *testing.T) {
 	logx.Disable()
 	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, nil)
-	app.app.Get("/error", func(c *fiber.Ctx) error {
+	app.app.Get("/error", func(c fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusInternalServerError, "something went wrong")
 	})
 
@@ -65,7 +66,7 @@ func TestErrorHandler(t *testing.T) {
 func TestCustomRoute(t *testing.T) {
 	logx.Disable()
 	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, nil)
-	app.app.Get("/api/v1/hello", func(c *fiber.Ctx) error {
+	app.app.Get("/api/v1/hello", func(c fiber.Ctx) error {
 		return c.JSON(map[string]string{"message": "hello"})
 	})
 
@@ -99,7 +100,7 @@ func TestDefaultConfig(t *testing.T) {
 func TestRecoveryMiddleware(t *testing.T) {
 	logx.Disable()
 	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, nil)
-	app.app.Get("/panic", func(c *fiber.Ctx) error {
+	app.app.Get("/panic", func(c fiber.Ctx) error {
 		panic("test panic")
 	})
 
@@ -133,7 +134,7 @@ func TestTLS_Disabled(t *testing.T) {
 	cfg.TLS = nil
 	app := New(cfg, TelemetryConfig{}, SecurityConfig{}, nil)
 	// HTTP should work normally
-	app.app.Get("/ping", func(c *fiber.Ctx) error {
+	app.app.Get("/ping", func(c fiber.Ctx) error {
 		return c.SendString("pong")
 	})
 	req := testRequest("/ping")
@@ -174,7 +175,7 @@ func TestTLS_Config_Autocert(t *testing.T) {
 	logx.Disable()
 	cfg := DefaultConfig()
 	cfg.TLS = &TLSConfig{
-		Enabled:  true,
+		Enabled: true,
 		Autocert: &AutocertTLS{
 			Domains:  []string{"api.example.com"},
 			Email:    "admin@example.com",
@@ -257,7 +258,7 @@ func TestTLS_AutocertManager(t *testing.T) {
 func TestErrorHandler_SanitizesInternalError(t *testing.T) {
 	logx.Disable()
 	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, nil)
-	app.app.Get("/db-error", func(c *fiber.Ctx) error {
+	app.app.Get("/db-error", func(c fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusInternalServerError, "dial tcp 10.0.0.5:5432: connection refused")
 	})
 
@@ -278,7 +279,7 @@ func TestErrorHandler_SanitizesInternalError(t *testing.T) {
 func TestErrorHandler_LeavesClientErrors(t *testing.T) {
 	logx.Disable()
 	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, nil)
-	app.app.Get("/bad-request", func(c *fiber.Ctx) error {
+	app.app.Get("/bad-request", func(c fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid input")
 	})
 

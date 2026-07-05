@@ -3,11 +3,11 @@ package middleware
 import (
 	"bytes"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 func HeaderSanitize() fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		var hasInvalid bool
 		for _, value := range c.Request().Header.All() {
 			if containsCRLF(value) {

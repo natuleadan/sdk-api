@@ -9,12 +9,12 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/natuleadan/sdk-api/infra/logx"
 )
 
 func Cryption(key []byte) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		encrypted := c.Body()
 		if len(encrypted) == 0 {
 			return c.Next()

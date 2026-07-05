@@ -7,21 +7,21 @@ import (
 	"net"
 	"strings"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"golang.org/x/crypto/acme/autocert"
 )
 
 type TLSConfig struct {
-	Enabled        bool           `json:"enabled"`
-	Manual         *ManualTLS     `json:"manual" config:",optional"`
-	Autocert       *AutocertTLS   `json:"autocert" config:",optional"`
-	MinVersion     string         `json:"min_version" config:",optional"`
-	MaxVersion     string         `json:"max_version" config:",optional"`
-	CurvePrefs     []string       `json:"curve_preferences" config:",optional"`
-	CipherSuites   []string       `json:"cipher_suites" config:",optional"`
-	RedirectHTTP   bool           `json:"redirect_http" config:",optional"`
-	RedirectPort   int            `json:"redirect_port" config:",optional"`
+	Enabled      bool         `json:"enabled"`
+	Manual       *ManualTLS   `json:"manual" config:",optional"`
+	Autocert     *AutocertTLS `json:"autocert" config:",optional"`
+	MinVersion   string       `json:"min_version" config:",optional"`
+	MaxVersion   string       `json:"max_version" config:",optional"`
+	CurvePrefs   []string     `json:"curve_preferences" config:",optional"`
+	CipherSuites []string     `json:"cipher_suites" config:",optional"`
+	RedirectHTTP bool         `json:"redirect_http" config:",optional"`
+	RedirectPort int          `json:"redirect_port" config:",optional"`
 }
 
 type ManualTLS struct {
@@ -42,15 +42,19 @@ func (s *Server) listenTLS() error {
 
 	if tlsCfg == nil || !tlsCfg.Enabled {
 		logx.Infof("server listening on %s (HTTP)", addr)
-		return s.app.Listen(addr)
+		return s.app.Listen(addr, fiber.ListenConfig{EnablePrefork: s.config.Prefork})
 	}
 
 	if tlsCfg.Manual != nil && tlsCfg.Manual.CertFile != "" {
 		if tlsCfg.RedirectHTTP {
-			go startRedirectServer(tlsCfg.RedirectPort)
+			go startRedirectServer(tlsCfg.RedirectPort, s.config.Prefork)
 		}
 		logx.Infof("server listening on %s (HTTPS manual)", addr)
-		return s.app.ListenTLS(addr, tlsCfg.Manual.CertFile, tlsCfg.Manual.KeyFile)
+		return s.app.Listen(addr, fiber.ListenConfig{
+			CertFile:     tlsCfg.Manual.CertFile,
+			CertKeyFile:  tlsCfg.Manual.KeyFile,
+			EnablePrefork: s.config.Prefork,
+		})
 	}
 
 	if tlsCfg.Autocert != nil && len(tlsCfg.Autocert.Domains) > 0 {
@@ -73,7 +77,7 @@ func (s *Server) listenTLS() error {
 		tlsLn := tls.NewListener(ln, tlsCfgOut)
 
 		if tlsCfg.RedirectHTTP {
-			go startRedirectServer(tlsCfg.RedirectPort)
+			go startRedirectServer(tlsCfg.RedirectPort, s.config.Prefork)
 		}
 		logx.Infof("server listening on %s (HTTPS autocert)", addr)
 		return s.app.Listener(tlsLn)
@@ -81,7 +85,7 @@ func (s *Server) listenTLS() error {
 
 	// Enabled but no config → fallback to HTTP
 	logx.Infof("server listening on %s (HTTP)", addr)
-	return s.app.Listen(addr)
+	return s.app.Listen(addr, fiber.ListenConfig{EnablePrefork: s.config.Prefork})
 }
 
 func applyTLSConfig(tlsCfg *tls.Config, cfg *TLSConfig) {
@@ -154,19 +158,19 @@ func parseCiphers(ciphers []string) []uint16 {
 	return ids
 }
 
-func startRedirectServer(port int) {
+func startRedirectServer(port int, prefork bool) {
 	if port <= 0 {
 		port = 80
 	}
 	app := fiber.New()
-	app.Use(func(c *fiber.Ctx) error {
+	app.Use(func(c fiber.Ctx) error {
 		host := c.Hostname()
 		target := fmt.Sprintf("https://%s%s", host, c.OriginalURL())
-		return c.Redirect(target, 308)
+		return c.Redirect().Status(308).To(target)
 	})
 	addr := fmt.Sprintf(":%d", port)
 	logx.Infof("HTTP→HTTPS redirect server on %s", addr)
-	if err := app.Listen(addr); err != nil {
+	if err := app.Listen(addr, fiber.ListenConfig{EnablePrefork: prefork}); err != nil {
 		logx.Errorf("redirect server error: %v", err)
 	}
 }

@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/goccy/go-json"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/natuleadan/sdk-api/server/auth/openfga"
@@ -39,7 +39,7 @@ func TestJWTValid(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()
 	app.Use(JWT(JWTConfig{Secret: "secret123"}))
-	app.Get("/protected", func(c *fiber.Ctx) error {
+	app.Get("/protected", func(c fiber.Ctx) error {
 		claims := c.Locals("claims")
 		return c.JSON(fiber.Map{"claims": claims})
 	})
@@ -56,7 +56,7 @@ func TestJWTMissing(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()
 	app.Use(JWT(JWTConfig{Secret: "secret123"}))
-	app.Get("/protected", func(c *fiber.Ctx) error {
+	app.Get("/protected", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -71,7 +71,7 @@ func TestJWTInvalid(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()
 	app.Use(JWT(JWTConfig{Secret: "secret123"}))
-	app.Get("/protected", func(c *fiber.Ctx) error {
+	app.Get("/protected", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -90,7 +90,7 @@ func TestJWTSecretRotation(t *testing.T) {
 		Secret:     "new-secret",
 		PrevSecret: "old-secret",
 	}))
-	app.Get("/protected", func(c *fiber.Ctx) error {
+	app.Get("/protected", func(c fiber.Ctx) error {
 		return c.JSON(fiber.Map{"ok": true})
 	})
 
@@ -106,7 +106,7 @@ func TestJWTAlgorithmPinning(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()
 	app.Use(JWT(JWTConfig{Secret: "secret123", Algorithm: "HS256"}))
-	app.Get("/protected", func(c *fiber.Ctx) error {
+	app.Get("/protected", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -134,7 +134,7 @@ func TestJWTIssuerValidation(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()
 	app.Use(JWT(JWTConfig{Secret: "secret123", Issuer: "sdk-api"}))
-	app.Get("/protected", func(c *fiber.Ctx) error {
+	app.Get("/protected", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -169,7 +169,7 @@ func TestJWTAudienceValidation(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()
 	app.Use(JWT(JWTConfig{Secret: "secret123", Audience: "api.example.com"}))
-	app.Get("/protected", func(c *fiber.Ctx) error {
+	app.Get("/protected", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -204,7 +204,7 @@ func TestJWTExpiredToken(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()
 	app.Use(JWT(JWTConfig{Secret: "secret123"}))
-	app.Get("/protected", func(c *fiber.Ctx) error {
+	app.Get("/protected", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -224,9 +224,9 @@ func TestJWTExpiredToken(t *testing.T) {
 func TestJWTUserClaimExtraction(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()
-	app.Use(JWT(JWTConfig{Secret: "secret123", ContextKey: "user"}))
-	app.Get("/whoami", func(c *fiber.Ctx) error {
-		claims := c.Locals("user").(jwt.MapClaims)
+	app.Use(JWT(JWTConfig{Secret: "secret123"}))
+	app.Get("/whoami", func(c fiber.Ctx) error {
+		claims := c.Locals("claims").(jwt.MapClaims)
 		return c.JSON(claims)
 	})
 
@@ -245,8 +245,8 @@ func TestJWTUserClaimExtraction(t *testing.T) {
 func TestAuthContextExtraction(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()
-	app.Use(JWT(JWTConfig{Secret: "secret123", ContextKey: "user"}))
-	app.Get("/whoami", func(c *fiber.Ctx) error {
+	app.Use(JWT(JWTConfig{Secret: "secret123"}))
+	app.Get("/whoami", func(c fiber.Ctx) error {
 		auth := GetAuth(c)
 		if auth == nil {
 			return c.Status(500).SendString("nil auth")
@@ -272,7 +272,7 @@ func TestAuthContextFromFiberCtx(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()
 	app.Use(JWT(JWTConfig{Secret: "secret123"}))
-	app.Get("/extract", func(c *fiber.Ctx) error {
+	app.Get("/extract", func(c fiber.Ctx) error {
 		auth := GetAuth(c)
 		if auth == nil {
 			return c.Status(500).SendString("nil auth")
@@ -302,8 +302,8 @@ func TestAuthContextFromContext(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()
 	app.Use(JWT(JWTConfig{Secret: "secret123"}))
-	app.Get("/fromctx", func(c *fiber.Ctx) error {
-		auth := AuthFromContext(c.UserContext())
+	app.Get("/fromctx", func(c fiber.Ctx) error {
+		auth := AuthFromContext(c.Context())
 		if auth == nil {
 			return c.Status(500).SendString("nil auth")
 		}
@@ -328,12 +328,12 @@ func TestAuthContextNoJWT(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()
 
-	app.Get("/noauth", func(c *fiber.Ctx) error {
+	app.Get("/noauth", func(c fiber.Ctx) error {
 		auth := GetAuth(c)
 		if auth != nil {
 			return c.Status(500).SendString("should be nil")
 		}
-		authCtx := AuthFromContext(c.UserContext())
+		authCtx := AuthFromContext(c.Context())
 		if authCtx != nil {
 			return c.Status(500).SendString("ctx should be nil")
 		}
@@ -361,7 +361,7 @@ func TestJWTWithZitadel_NoToken(t *testing.T) {
 	app := fiber.New()
 	zClient := zitadel.NewClient(zitadel.Config{Issuer: "https://example.com"})
 	app.Use(JWTWithZitadel(JWTConfig{Secret: "test"}, zClient))
-	app.Get("/protected", func(c *fiber.Ctx) error {
+	app.Get("/protected", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 	req := testRequest(context.Background(), "GET", "/protected", nil)
@@ -375,7 +375,7 @@ func TestAPIKey_MissingHeader(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()
 	app.Use(APIKey(APIKeyConfig{Prefix: "sk-"}))
-	app.Get("/protected", func(c *fiber.Ctx) error {
+	app.Get("/protected", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 	req := testRequest(context.Background(), "GET", "/protected", nil)
@@ -389,7 +389,7 @@ func TestAPIKey_WrongPrefix(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()
 	app.Use(APIKey(APIKeyConfig{Prefix: "sk-"}))
-	app.Get("/protected", func(c *fiber.Ctx) error {
+	app.Get("/protected", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 	req := testRequest(context.Background(), "GET", "/protected", nil)
@@ -404,7 +404,7 @@ func TestAPIKey_ValidWithoutFGA(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()
 	app.Use(APIKey(APIKeyConfig{Prefix: "sk-"}))
-	app.Get("/protected", func(c *fiber.Ctx) error {
+	app.Get("/protected", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 	req := testRequest(context.Background(), "GET", "/protected", nil)
@@ -449,7 +449,7 @@ func TestOry_NoAuthContext(t *testing.T) {
 	app := fiber.New()
 	oryClient := ory.NewClient(ory.Config{})
 	app.Use(Ory(OryConfig{Client: oryClient}))
-	app.Get("/protected", func(c *fiber.Ctx) error {
+	app.Get("/protected", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 	req := testRequest(context.Background(), "GET", "/protected", nil)
@@ -529,7 +529,7 @@ func TestOpenFGA_NoAuthContext(t *testing.T) {
 		t.Skip("skipping: could not create FGA client")
 	}
 	app.Use(OpenFGA(OpenFGAConfig{Client: fgaClient}))
-	app.Get("/protected", func(c *fiber.Ctx) error {
+	app.Get("/protected", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 	req := testRequest(context.Background(), "GET", "/protected", nil)
@@ -556,7 +556,7 @@ func TestCORS(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()
 	app.Use(CORS(DefaultCORSConfig()))
-	app.Get("/test", func(c *fiber.Ctx) error {
+	app.Get("/test", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -572,7 +572,7 @@ func TestLogger(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()
 	app.Use(Logger())
-	app.Get("/test", func(c *fiber.Ctx) error {
+	app.Get("/test", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -587,7 +587,7 @@ func TestRecovery(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()
 	app.Use(Recovery())
-	app.Get("/panic", func(c *fiber.Ctx) error {
+	app.Get("/panic", func(c fiber.Ctx) error {
 		panic("oops")
 	})
 
@@ -609,7 +609,7 @@ func TestMaxConns(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()
 	app.Use(MaxConns(5))
-	app.Get("/test", func(c *fiber.Ctx) error {
+	app.Get("/test", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -626,7 +626,7 @@ func TestGunzip(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()
 	app.Use(Gunzip())
-	app.Post("/test", func(c *fiber.Ctx) error {
+	app.Post("/test", func(c fiber.Ctx) error {
 		return c.Send(c.Body())
 	})
 
@@ -645,7 +645,7 @@ func TestGunzipNoEncoding(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()
 	app.Use(Gunzip())
-	app.Post("/test", func(c *fiber.Ctx) error {
+	app.Post("/test", func(c fiber.Ctx) error {
 		return c.Send(c.Body())
 	})
 
@@ -663,7 +663,7 @@ func TestGunzipNoEncoding(t *testing.T) {
 func TestSSE(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()
-	app.Get("/events", SSE(), func(c *fiber.Ctx) error {
+	app.Get("/events", SSE(), func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -684,7 +684,7 @@ func TestShedding(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()
 	app.Use(Shedding())
-	app.Get("/test", func(c *fiber.Ctx) error {
+	app.Get("/test", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -699,7 +699,7 @@ func TestBreaker(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()
 	app.Use(Breaker())
-	app.Get("/test", func(c *fiber.Ctx) error {
+	app.Get("/test", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -714,7 +714,7 @@ func TestBreakerClientError(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()
 	app.Use(Breaker())
-	app.Get("/test", func(c *fiber.Ctx) error {
+	app.Get("/test", func(c fiber.Ctx) error {
 		return c.Status(400).SendString("bad")
 	})
 
@@ -730,7 +730,7 @@ func TestTimeout(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()
 	app.Use(Timeout(100 * time.Millisecond))
-	app.Get("/fast", func(c *fiber.Ctx) error {
+	app.Get("/fast", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -745,7 +745,7 @@ func TestTrace(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()
 	app.Use(Trace(TraceConfig{}))
-	app.Get("/test", func(c *fiber.Ctx) error {
+	app.Get("/test", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -770,7 +770,7 @@ func TestContentSecurityStrict(t *testing.T) {
 	_, pub := testKeyPair(t)
 	app := fiber.New()
 	app.Use(ContentSecurity(pub, true))
-	app.Post("/test", func(c *fiber.Ctx) error {
+	app.Post("/test", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -787,7 +787,7 @@ func TestContentSecurityNonStrict(t *testing.T) {
 	_, pub := testKeyPair(t)
 	app := fiber.New()
 	app.Use(ContentSecurity(pub, false))
-	app.Post("/test", func(c *fiber.Ctx) error {
+	app.Post("/test", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -804,7 +804,7 @@ func TestContentSecurityValidSignature(t *testing.T) {
 	priv, pub := testKeyPair(t)
 	app := fiber.New()
 	app.Use(ContentSecurity(pub, true))
-	app.Post("/test", func(c *fiber.Ctx) error {
+	app.Post("/test", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -827,7 +827,7 @@ func TestContentSecurityInvalidSignature(t *testing.T) {
 	_, pub := testKeyPair(t)
 	app := fiber.New()
 	app.Use(ContentSecurity(pub, true))
-	app.Post("/test", func(c *fiber.Ctx) error {
+	app.Post("/test", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -846,7 +846,7 @@ func TestCryption(t *testing.T) {
 	key := []byte("0123456789abcdef0123456789abcdef")
 	app := fiber.New()
 	app.Use(Cryption(key))
-	app.Post("/test", func(c *fiber.Ctx) error {
+	app.Post("/test", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -868,7 +868,7 @@ func TestCryptionInvalidBody(t *testing.T) {
 	key := []byte("0123456789abcdef0123456789abcdef")
 	app := fiber.New()
 	app.Use(Cryption(key))
-	app.Post("/test", func(c *fiber.Ctx) error {
+	app.Post("/test", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -885,7 +885,7 @@ func TestCryptionEmptyBody(t *testing.T) {
 	key := []byte("0123456789abcdef0123456789abcdef")
 	app := fiber.New()
 	app.Use(Cryption(key))
-	app.Post("/test", func(c *fiber.Ctx) error {
+	app.Post("/test", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -902,7 +902,7 @@ func TestCryptionInvalidKey(t *testing.T) {
 	key := []byte("short")
 	app := fiber.New()
 	app.Use(Cryption(key))
-	app.Post("/test", func(c *fiber.Ctx) error {
+	app.Post("/test", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -919,7 +919,7 @@ func TestPrometheus(t *testing.T) {
 	app := fiber.New()
 	app.Use(Prometheus())
 	app.Get("/metrics", PrometheusHandler())
-	app.Get("/test", func(c *fiber.Ctx) error {
+	app.Get("/test", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -948,7 +948,7 @@ func TestPrometheusMultipleRequests(t *testing.T) {
 	app := fiber.New()
 	app.Use(Prometheus())
 	app.Get("/metrics", PrometheusHandler())
-	app.Get("/ping", func(c *fiber.Ctx) error {
+	app.Get("/ping", func(c fiber.Ctx) error {
 		return c.SendString("pong")
 	})
 
@@ -975,7 +975,7 @@ func TestTimeoutShort(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()
 	app.Use(Timeout(5 * time.Millisecond))
-	app.Get("/slow", func(c *fiber.Ctx) error {
+	app.Get("/slow", func(c fiber.Ctx) error {
 		time.Sleep(100 * time.Millisecond)
 		return c.SendString("too late")
 	})
@@ -1018,7 +1018,7 @@ func TestMaxBytes(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()
 	app.Use(MaxBytes(10))
-	app.Post("/test", func(c *fiber.Ctx) error {
+	app.Post("/test", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -1048,7 +1048,7 @@ func TestSecurityHeaders_Default(t *testing.T) {
 		HSTS:           true,
 		HSTSMaxAge:     31536000,
 	}))
-	app.Get("/test", func(c *fiber.Ctx) error {
+	app.Get("/test", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -1076,7 +1076,7 @@ func TestSecurityHeaders_EmptyConfig(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()
 	app.Use(SecurityHeaders(SecurityHeadersConfig{}))
-	app.Get("/test", func(c *fiber.Ctx) error {
+	app.Get("/test", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -1097,7 +1097,7 @@ func TestSecurityHeaders_CSP(t *testing.T) {
 	app.Use(SecurityHeaders(SecurityHeadersConfig{
 		CSP: "default-src 'self'; script-src 'self'; img-src 'self' data:;",
 	}))
-	app.Get("/test", func(c *fiber.Ctx) error {
+	app.Get("/test", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -1126,7 +1126,7 @@ func TestSecurityHeaders_AllHeaders(t *testing.T) {
 		CORP:              "same-origin",
 		CacheControl:      "no-store",
 	}))
-	app.Get("/test", func(c *fiber.Ctx) error {
+	app.Get("/test", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -1211,7 +1211,7 @@ func TestCSRF_InjectOnGET(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()
 	app.Use(CSRF(CSRFConfig{Enabled: true}))
-	app.Get("/test", func(c *fiber.Ctx) error {
+	app.Get("/test", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -1238,7 +1238,7 @@ func TestCSRF_ValidateOnPOST(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()
 	app.Use(CSRF(CSRFConfig{Enabled: true, CookieName: "csrf_test", HeaderName: "X-CSRF-Test"}))
-	app.Post("/test", func(c *fiber.Ctx) error {
+	app.Post("/test", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -1262,7 +1262,7 @@ func TestCSRF_RejectOnMismatch(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()
 	app.Use(CSRF(CSRFConfig{Enabled: true}))
-	app.Post("/test", func(c *fiber.Ctx) error {
+	app.Post("/test", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -1283,7 +1283,7 @@ func TestCSRF_SkipExcludedPath(t *testing.T) {
 		Enabled:      true,
 		ExcludePaths: []string{"/webhooks/*"},
 	}))
-	app.Post("/webhooks/stripe", func(c *fiber.Ctx) error {
+	app.Post("/webhooks/stripe", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -1323,7 +1323,7 @@ func TestRateLimit_Global_UnderLimit(t *testing.T) {
 	app.Use(RateLimit(RateLimitConfig{
 		Global: &RateLimitEntry{RequestsPerSecond: 1000, Burst: 1000},
 	}))
-	app.Get("/test", func(c *fiber.Ctx) error {
+	app.Get("/test", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -1342,7 +1342,7 @@ func TestRateLimit_Global_OverLimit(t *testing.T) {
 	app.Use(RateLimit(RateLimitConfig{
 		Global: &RateLimitEntry{RequestsPerSecond: 1, Burst: 1},
 	}))
-	app.Get("/test", func(c *fiber.Ctx) error {
+	app.Get("/test", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -1367,7 +1367,7 @@ func TestRateLimit_Disabled(t *testing.T) {
 	// If no rate limit config is set (or not enabled), no middleware should be added.
 	// Passing empty RateLimitConfig with no entries = no limiter created, all pass.
 	app.Use(RateLimit(RateLimitConfig{}))
-	app.Get("/test", func(c *fiber.Ctx) error {
+	app.Get("/test", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -1387,7 +1387,7 @@ func TestRateLimit_PerIP(t *testing.T) {
 	app.Use(RateLimit(RateLimitConfig{
 		PerIP: &RateLimitEntry{RequestsPerSecond: 1, Burst: 1},
 	}))
-	app.Get("/test", func(c *fiber.Ctx) error {
+	app.Get("/test", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -1412,7 +1412,7 @@ func TestRateLimit_RetryAfterHeader(t *testing.T) {
 	app.Use(RateLimit(RateLimitConfig{
 		Global: &RateLimitEntry{RequestsPerSecond: 1, Burst: 1},
 	}))
-	app.Get("/test", func(c *fiber.Ctx) error {
+	app.Get("/test", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -1437,7 +1437,7 @@ func TestHeaderSanitize_Clean(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()
 	app.Use(HeaderSanitize())
-	app.Get("/test", func(c *fiber.Ctx) error {
+	app.Get("/test", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -1564,3 +1564,5 @@ func TestSSRF_AllowAll(t *testing.T) {
 		t.Errorf("expected no error with allowAll, got %v", err)
 	}
 }
+
+// fiber:context-methods migrated

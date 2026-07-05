@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/natuleadan/sdk-api/db"
 	"github.com/natuleadan/sdk-api/events"
 	"github.com/natuleadan/sdk-api/server"
@@ -15,11 +15,11 @@ import (
 )
 
 type CRUDProvider interface {
-	List(ctx *fiber.Ctx, params ListParams) error
-	Get(ctx *fiber.Ctx, id string) error
-	Create(ctx *fiber.Ctx, body []byte) error
-	Update(ctx *fiber.Ctx, id string, body []byte) error
-	Delete(ctx *fiber.Ctx, id string) error
+	List(ctx fiber.Ctx, params ListParams) error
+	Get(ctx fiber.Ctx, id string) error
+	Create(ctx fiber.Ctx, body []byte) error
+	Update(ctx fiber.Ctx, id string, body []byte) error
+	Delete(ctx fiber.Ctx, id string) error
 }
 
 type ListParams struct {
@@ -30,7 +30,7 @@ type ListParams struct {
 }
 
 type EntryHandlers struct {
-	Rest      map[string]func(*fiber.Ctx) error
+	Rest      map[string]func(fiber.Ctx) error
 	WS        map[string]WSHandler
 	SSE       map[string]SSEHandler
 	CRUD      map[string]CRUDProvider
@@ -168,7 +168,7 @@ func registerManualAuth(app *fiber.App, entry *EntryDef, prefix string, roles, p
 	if !entry.Auth || validator == nil {
 		return
 	}
-	app.Use(prefix + entry.Path, func(c *fiber.Ctx) error {
+	app.Use(prefix+entry.Path, func(c fiber.Ctx) error {
 		auth := middleware.GetAuth(c)
 		if auth == nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -176,7 +176,7 @@ func registerManualAuth(app *fiber.App, entry *EntryDef, prefix string, roles, p
 				"message": "auth context required",
 			})
 		}
-		if err := validator(c.UserContext(), auth, roles, permissions); err != nil {
+		if err := validator(c.Context(), auth, roles, permissions); err != nil {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 				"code":    403,
 				"message": err.Error(),
@@ -208,3 +208,5 @@ func registerEntryRateLimit(app *fiber.App, entry *EntryDef, prefix string) {
 	}
 	app.Use(prefix+entry.Path, middleware.RateLimit(rlCfg))
 }
+
+// fiber:context-methods migrated

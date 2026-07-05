@@ -3,7 +3,7 @@ package runtime
 import (
 	"sync"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 // CRUDFactory creates a CRUDProvider when needed (lazy initialization).
@@ -28,8 +28,10 @@ func (l *lazyCRUD) init() CRUDProvider {
 	return l.provider
 }
 
-func (l *lazyCRUD) List(ctx *fiber.Ctx, params ListParams) error   { return l.init().List(ctx, params) }
-func (l *lazyCRUD) Get(ctx *fiber.Ctx, id string) error            { return l.init().Get(ctx, id) }
-func (l *lazyCRUD) Create(ctx *fiber.Ctx, body []byte) error        { return l.init().Create(ctx, body) }
-func (l *lazyCRUD) Update(ctx *fiber.Ctx, id string, body []byte) error { return l.init().Update(ctx, id, body) }
-func (l *lazyCRUD) Delete(ctx *fiber.Ctx, id string) error          { return l.init().Delete(ctx, id) }
+func (l *lazyCRUD) List(ctx fiber.Ctx, params ListParams) error { return l.init().List(ctx, params) }
+func (l *lazyCRUD) Get(ctx fiber.Ctx, id string) error          { return l.init().Get(ctx, id) }
+func (l *lazyCRUD) Create(ctx fiber.Ctx, body []byte) error     { return l.init().Create(ctx, body) }
+func (l *lazyCRUD) Update(ctx fiber.Ctx, id string, body []byte) error {
+	return l.init().Update(ctx, id, body)
+}
+func (l *lazyCRUD) Delete(ctx fiber.Ctx, id string) error { return l.init().Delete(ctx, id) }

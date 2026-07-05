@@ -5,11 +5,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gofiber/contrib/websocket"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/contrib/v3/websocket"
+	"github.com/gofiber/fiber/v3"
 
-	sm "github.com/natuleadan/sdk-api/server/middleware"
 	"github.com/natuleadan/sdk-api/infra/logx"
+	sm "github.com/natuleadan/sdk-api/server/middleware"
 )
 
 func registerWebSocket(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string) error {
@@ -34,12 +34,12 @@ func registerSSE(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefi
 	}
 	path := prefix + entry.Path
 	handler := h
-	app.Get(path, func(c *fiber.Ctx) error {
+	app.Get(path, func(c fiber.Ctx) error {
 		c.Set("Content-Type", "text/event-stream")
 		c.Set("Cache-Control", "no-cache")
 		c.Set("Connection", "keep-alive")
-		ctx := c.UserContext()
-		c.Context().SetBodyStreamWriter(func(w *bufio.Writer) {
+		ctx := c.Context()
+		c.RequestCtx().SetBodyStreamWriter(func(w *bufio.Writer) {
 			send := func(data string) {
 				if _, err := w.WriteString(data); err != nil {
 					logx.Errorf("sse write string error: %v", err)
@@ -59,3 +59,5 @@ func registerSSE(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefi
 	})
 	return nil
 }
+
+// fiber:context-methods migrated

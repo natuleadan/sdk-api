@@ -38,7 +38,11 @@ func TestKafkaBroker_RequestNotSupported(t *testing.T) {
 }
 
 func TestKafkaBroker_EnsureStreamNoop(t *testing.T) {
-	b := NewKafkaBroker("test", []string{"localhost:9092"}, "test-group")
+	kafkaURL := os.Getenv("KAFKA_URL")
+	if kafkaURL == "" {
+		t.Skip("KAFKA_URL not set, skipping kafka test")
+	}
+	b := NewKafkaBroker("test", []string{kafkaURL}, "test-group")
 	defer b.Close()
 
 	if err := b.EnsureStream(StreamConfig{Name: "x"}); err != nil {

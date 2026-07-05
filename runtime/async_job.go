@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/natuleadan/sdk-api/infra/logx"
 )
 
@@ -38,34 +38,34 @@ func generateJobID() string {
 
 // HandleSubmit returns a Fiber handler for POST requests that creates a job.
 func (m *AsyncJobManager) HandleSubmit() fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		id := generateJobID()
-	js := m.store.Create(id)
-	status := js.Status
-	body := append([]byte{}, c.Body()...) // copy: safe for goroutine
+		js := m.store.Create(id)
+		status := js.Status
+		body := append([]byte{}, c.Body()...) // copy: safe for goroutine
 
-	if m.processor != nil {
-		go func() {
-			m.store.Update(id, JobProcessing, nil, "")
-			if err := m.processor(body, js); err != nil {
-				m.store.Update(id, JobFailed, nil, err.Error())
-			} else {
-				m.store.Update(id, JobCompleted, js.Result, "")
-			}
-		}()
-	}
+		if m.processor != nil {
+			go func() {
+				m.store.Update(id, JobProcessing, nil, "")
+				if err := m.processor(body, js); err != nil {
+					m.store.Update(id, JobFailed, nil, err.Error())
+				} else {
+					m.store.Update(id, JobCompleted, js.Result, "")
+				}
+			}()
+		}
 
-	return c.Status(202).JSON(fiber.Map{
-		"job_id":     id,
-		"status":     status,
-		"status_url": fmt.Sprintf("%s/%s", c.Path(), id),
-	})
+		return c.Status(202).JSON(fiber.Map{
+			"job_id":     id,
+			"status":     status,
+			"status_url": fmt.Sprintf("%s/%s", c.Path(), id),
+		})
 	}
 }
 
 // HandleStatus returns a Fiber handler for GET /path/:job_id requests.
 func (m *AsyncJobManager) HandleStatus() fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		id := c.Params("job_id")
 		js, ok := m.store.Get(id)
 		if !ok {

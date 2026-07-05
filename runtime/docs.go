@@ -2,7 +2,7 @@ package runtime
 
 import (
 	scalargo "github.com/bdpiprava/scalar-go"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/natuleadan/sdk-api/db"
 	"github.com/natuleadan/sdk-api/infra/logx"
 )
@@ -31,7 +31,7 @@ func registerDocs(app *fiber.App, cfg *ServiceConfig, models map[string]*db.Tabl
 	if specPath == "" {
 		specPath = "/openapi.json"
 	}
-	app.Get(specPath, func(c *fiber.Ctx) error {
+	app.Get(specPath, func(c fiber.Ctx) error {
 		c.Set("Content-Type", "application/json")
 		return c.Send(jsonData)
 	})
@@ -54,7 +54,7 @@ func registerDocs(app *fiber.App, cfg *ServiceConfig, models map[string]*db.Tabl
 	if docsPath == "" {
 		docsPath = "/docs"
 	}
-	app.Get(docsPath, func(c *fiber.Ctx) error {
+	app.Get(docsPath, func(c fiber.Ctx) error {
 		c.Set("Content-Type", "text/html; charset=utf-8")
 		return c.SendString(scalarHTML)
 	})

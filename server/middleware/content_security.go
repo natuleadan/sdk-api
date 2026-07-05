@@ -10,12 +10,12 @@ import (
 	"encoding/pem"
 	"fmt"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/natuleadan/sdk-api/infra/logx"
 )
 
 func ContentSecurity(key *rsa.PublicKey, strict bool) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		sig := c.Get("X-Content-Security")
 		if sig == "" {
 			if strict {
@@ -55,10 +55,16 @@ func SignBody(key *rsa.PrivateKey, body []byte) (string, error) {
 
 func ParsePublicKey(pemStr string) (*rsa.PublicKey, error) {
 	block, _ := pem.Decode([]byte(pemStr))
-	if block == nil { return nil, fmt.Errorf("failed to decode PEM") }
+	if block == nil {
+		return nil, fmt.Errorf("failed to decode PEM")
+	}
 	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
-	if err != nil { return nil, fmt.Errorf("parse: %w", err) }
+	if err != nil {
+		return nil, fmt.Errorf("parse: %w", err)
+	}
 	key, ok := pub.(*rsa.PublicKey)
-	if !ok { return nil, fmt.Errorf("not RSA") }
+	if !ok {
+		return nil, fmt.Errorf("not RSA")
+	}
 	return key, nil
 }

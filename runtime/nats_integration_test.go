@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/nats-io/nats.go"
 	"github.com/natuleadan/sdk-api/events"
 )
@@ -193,7 +193,7 @@ server:
 		t.Fatalf("New: %v", err)
 	}
 
-	svc.WithRest("onWh", func(c *fiber.Ctx) error {
+	svc.WithRest("onWh", func(c fiber.Ctx) error {
 		return c.JSON(fiber.Map{"ok": true})
 	})
 
@@ -346,7 +346,7 @@ func TestIntegration_CRUD_NATSPublish(t *testing.T) {
 	defer sub.Unsubscribe()
 
 	app := fiber.New(fiber.Config{
-		ErrorHandler: func(c *fiber.Ctx, err error) error {
+		ErrorHandler: func(c fiber.Ctx, err error) error {
 			code := fiber.StatusInternalServerError
 			if e, ok := err.(*fiber.Error); ok {
 				code = e.Code

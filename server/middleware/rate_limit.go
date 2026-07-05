@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/natuleadan/sdk-api/infra/limit"
 	"github.com/natuleadan/sdk-api/infra/stores/redis"
 	xrate "golang.org/x/time/rate"
@@ -32,17 +32,17 @@ func (l *redisLimiter) Remaining() int {
 }
 
 type RateLimitConfig struct {
-	Enabled       bool            `json:"enabled" config:",optional"`
-	Driver        string          `json:"driver" config:",default=memory"`
-	RedisURL      string          `json:"redis_url" config:",optional"`
-	Global        *RateLimitEntry `json:"global" config:",optional"`
-	PerIP         *RateLimitEntry `json:"per_ip" config:",optional"`
-	PerUser       *RateLimitEntry `json:"per_user" config:",optional"`
+	Enabled  bool            `json:"enabled" config:",optional"`
+	Driver   string          `json:"driver" config:",default=memory"`
+	RedisURL string          `json:"redis_url" config:",optional"`
+	Global   *RateLimitEntry `json:"global" config:",optional"`
+	PerIP    *RateLimitEntry `json:"per_ip" config:",optional"`
+	PerUser  *RateLimitEntry `json:"per_user" config:",optional"`
 }
 
 type RateLimitEntry struct {
-	RequestsPerSecond int  `json:"requests_per_second"`
-	Burst             int  `json:"burst"`
+	RequestsPerSecond int `json:"requests_per_second"`
+	Burst             int `json:"burst"`
 }
 
 type rateLimiterStore struct {
@@ -70,7 +70,7 @@ func RateLimit(cfg RateLimitConfig) fiber.Handler {
 		store.global = newLimiter(cfg.Driver, "sdk:rl:global", cfg.Global, store.rdb)
 	}
 
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		var limit, remaining int
 
 		if store.global != nil {
@@ -121,7 +121,7 @@ func newLimiter(driver, key string, entry *RateLimitEntry, rdb *redis.Redis) lim
 	return &xrateLimiter{xrate.NewLimiter(xrate.Limit(entry.RequestsPerSecond), entry.Burst)}
 }
 
-func setRateLimitHeaders(c *fiber.Ctx, limit, remaining int) {
+func setRateLimitHeaders(c fiber.Ctx, limit, remaining int) {
 	if limit > 0 {
 		c.Set("X-RateLimit-Limit", strconv.Itoa(limit))
 	}
@@ -155,7 +155,7 @@ func getOrCreateLimiter(store *rateLimiterStore, prefix, key string, entry *Rate
 	return l
 }
 
-func extractUserID(c *fiber.Ctx) string {
+func extractUserID(c fiber.Ctx) string {
 	if claims := c.Locals("claims"); claims != nil {
 		if m, ok := claims.(map[string]any); ok {
 			if sub, ok := m["sub"]; ok {
@@ -168,7 +168,7 @@ func extractUserID(c *fiber.Ctx) string {
 	return ""
 }
 
-func rateLimitResponse(c *fiber.Ctx) error {
+func rateLimitResponse(c fiber.Ctx) error {
 	c.Set("Retry-After", "1")
 	return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
 		"code":    429,

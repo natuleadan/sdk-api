@@ -3,7 +3,7 @@ package runtime
 import (
 	"encoding/json"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/valyala/fasthttp"
 )
 
@@ -84,7 +84,7 @@ func callCRUDDelete(provider CRUDProvider, id string) error {
 	return provider.Delete(fctx, id)
 }
 
-func parseCRUDResponse(c *fiber.Ctx) any {
+func parseCRUDResponse(c fiber.Ctx) any {
 	body := c.Response().Body()
 	if len(body) > 0 {
 		var result any

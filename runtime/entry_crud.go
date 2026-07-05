@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/natuleadan/sdk-api/events"
 )
 
@@ -55,7 +55,7 @@ func registerCRUDList(app *fiber.App, base string, ov *CRUDOverrides, handlers *
 		}
 		app.Get(base, h)
 	} else {
-		app.Get(base, func(c *fiber.Ctx) error {
+		app.Get(base, func(c fiber.Ctx) error {
 			params := parseListParams(c)
 			return provider.List(c, params)
 		})
@@ -75,7 +75,7 @@ func registerCRUDGet(app *fiber.App, base string, ov *CRUDOverrides, handlers *E
 		}
 		app.Get(base+idParam, h)
 	} else {
-		app.Get(base+idParam, func(c *fiber.Ctx) error {
+		app.Get(base+idParam, func(c fiber.Ctx) error {
 			return provider.Get(c, c.Params("id"))
 		})
 	}
@@ -92,7 +92,7 @@ func registerCRUDCreate(app *fiber.App, base string, ov *CRUDOverrides, handlers
 			return fmt.Errorf("crud create override: handler %q not found", ov.Create)
 		}
 	} else {
-		handler = func(c *fiber.Ctx) error {
+		handler = func(c fiber.Ctx) error {
 			return provider.Create(c, c.Body())
 		}
 	}
@@ -114,7 +114,7 @@ func registerCRUDUpdate(app *fiber.App, base string, ov *CRUDOverrides, handlers
 			return fmt.Errorf("crud update override: handler %q not found", ov.Update)
 		}
 	} else {
-		handler = func(c *fiber.Ctx) error {
+		handler = func(c fiber.Ctx) error {
 			return provider.Update(c, c.Params("id"), c.Body())
 		}
 	}
@@ -136,7 +136,7 @@ func registerCRUDDelete(app *fiber.App, base string, ov *CRUDOverrides, handlers
 			return fmt.Errorf("crud delete override: handler %q not found", ov.Delete)
 		}
 	} else {
-		handler = func(c *fiber.Ctx) error {
+		handler = func(c fiber.Ctx) error {
 			return provider.Delete(c, c.Params("id"))
 		}
 	}
@@ -161,7 +161,7 @@ func isOverridden(ov *CRUDOverrides, field string) bool {
 	return field != "" && field != "-"
 }
 
-func resolveHandler(m map[string]func(*fiber.Ctx) error, name string) func(*fiber.Ctx) error {
+func resolveHandler(m map[string]func(fiber.Ctx) error, name string) func(fiber.Ctx) error {
 	if m == nil {
 		return nil
 	}
@@ -177,9 +177,9 @@ func buildIDParam(path string) string {
 	return "/:id"
 }
 
-func parseListParams(c *fiber.Ctx) ListParams {
-	page := c.QueryInt("page", 1)
-	size := c.QueryInt("size", 10)
+func parseListParams(c fiber.Ctx) ListParams {
+	page := fiber.Query[int](c, "page", 1)
+	size := fiber.Query[int](c, "size", 10)
 	sort := c.Query("sort", "id")
 
 	filters := make(map[string]string)

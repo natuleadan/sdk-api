@@ -1539,8 +1539,7 @@ func TestSSRF_AllowedHost(t *testing.T) {
 		t.Fatal("expected non-nil client")
 	}
 	// allowed host is not blocked (even if DNS fails, it won't error with private IP)
-	req := testRequest(context.Background(), "GET", "https://api.example.com/test", nil)
-	_, err := client.Do(req)
+	_, err := client.DoURL(context.Background(), "https://api.example.com/test", "GET", nil)
 	if err != nil && err.Error() != "ssrf: cannot resolve host api.example.com" {
 		t.Logf("unexpected error: %v", err)
 	}

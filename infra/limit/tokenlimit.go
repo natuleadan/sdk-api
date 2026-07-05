@@ -16,8 +16,8 @@ import (
 	xrate "golang.org/x/time/rate"
 )
 
-const (
-	redisTokenKeyFormat     = "{%s}.tokens"
+var (
+	redisTokenKeyFormat     = "{%s}." + "tokens"
 	redisTimestampKeyFormat = "{%s}.ts"
 	pingInterval            = time.Millisecond * 100
 )

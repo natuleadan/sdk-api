@@ -1085,7 +1085,7 @@ func TestRegisterOneEntry_DriverManualWithValidator(t *testing.T) {
 	handlers := &EntryHandlers{Rest: map[string]func(*fiber.Ctx) error{"manualHandler": func(c *fiber.Ctx) error { return c.SendString("ok") }}}
 
 	validatorCalled := false
-	validator := func(ctx context.Context, auth *middleware.AuthContext, roles []string) error {
+		validator := func(ctx context.Context, auth *middleware.AuthContext, roles, permissions []string) error {
 		validatorCalled = true
 		if len(roles) != 1 || roles[0] != "admin" {
 			t.Errorf("expected roles [admin], got %v", roles)

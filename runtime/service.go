@@ -42,7 +42,7 @@ type Service struct {
 	fgaClient  openfga.Checker
 	zitadelClient *zitadel.Client
 	oryClient     *ory.Client
-	authValidator func(context.Context, *middleware.AuthContext, []string) error
+	authValidator func(context.Context, *middleware.AuthContext, []string, []string) error
 
 	stop context.CancelFunc
 }
@@ -166,9 +166,9 @@ func (s *Service) WithAsync(name string, handler AsyncHandler) *Service {
 }
 
 // WithAuthValidator registers a custom authorization validator for "manual" auth mode.
-// The validator receives the AuthContext and the YAML-defined roles for the entry.
+// The validator receives the AuthContext, YAML-defined roles, and YAML-defined permissions.
 // Return nil if allowed, an error with message if denied.
-func (s *Service) WithAuthValidator(fn func(context.Context, *middleware.AuthContext, []string) error) *Service {
+func (s *Service) WithAuthValidator(fn func(context.Context, *middleware.AuthContext, []string, []string) error) *Service {
 	s.authValidator = fn
 	return s
 }

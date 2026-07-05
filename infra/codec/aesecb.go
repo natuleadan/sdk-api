@@ -175,7 +175,10 @@ func getKeyBytes(key string) ([]byte, error) {
 
 func pkcs5Padding(ciphertext []byte, blockSize int) []byte {
 	padding := blockSize - len(ciphertext)%blockSize
-	padtext := bytes.Repeat([]byte{uint8(padding)}, padding)
+	if padding > 255 {
+		return nil
+	}
+	padtext := bytes.Repeat([]byte{byte(padding)}, padding)
 	return append(ciphertext, padtext...)
 }
 

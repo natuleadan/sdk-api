@@ -121,7 +121,11 @@ func (h *ConsistentHash) Get(v any) (any, bool) {
 		if n == 0 {
 			return nil, false
 		}
-		pos := int(innerIndex % uint64(n))
+		idx := innerIndex % uint64(n)
+		if idx > uint64(n) {
+			idx = 0
+		}
+		pos := int(idx)
 		return nodes[pos], true
 	}
 }

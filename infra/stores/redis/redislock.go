@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"errors"
+	"math"
 	"math/rand"
 	"strconv"
 	"sync/atomic"
@@ -104,6 +105,9 @@ func (rl *RedisLock) ReleaseCtx(ctx context.Context) (bool, error) {
 // SetExpire sets the expiration.
 func (rl *RedisLock) SetExpire(seconds int) {
 	if seconds < 0 {
+		return
+	}
+	if seconds > math.MaxUint32 {
 		return
 	}
 	atomic.StoreUint32(&rl.seconds, uint32(seconds))

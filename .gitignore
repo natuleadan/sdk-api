@@ -41,6 +41,11 @@ examples/*/url-link-base
 examples/*/nla-*-amd64
 examples/auth-*/auth-*
 examples/auth-*/*/auth-*
+examples/auth-*/*/product-service
+examples/auth-*/*/order-service-fga
+examples/auth-*/*/product-service-fga
+examples/auth-*/*/doc-service-ory
+examples/auth-*/*/report-service-ory
 
 # IDE
 .idea/

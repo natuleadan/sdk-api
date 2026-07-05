@@ -24,11 +24,6 @@ auth_type = "trust"         # Trust mode — auth delegated to users.toml
 log_format = "text"
 log_level = "info"
 
-[admin]
-name = "admin"              # Admin user for SHOW POOLS, RELOAD, etc.
-password = "admin"
-user = "admin"
-
 [[databases]]
 name = "postgres"           # Database name (must match users.toml and connection string)
 role = "primary"            # Read-write role. Replicas can be added for read splitting

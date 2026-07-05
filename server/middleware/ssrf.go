@@ -1,8 +1,10 @@
 package middleware
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -108,21 +110,31 @@ func (c *SafeHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	}
 
 	safeURL := &url.URL{
-		Scheme:   scheme,
-		OmitHost: false,
-		Path:     cleanPath,
+		Scheme: scheme,
+		Path:   cleanPath,
 	}
 	if p := req.URL.Port(); p != "" {
 		safeURL.Host = net.JoinHostPort(host, p)
 	} else {
 		safeURL.Host = host
 	}
-	if req.URL.RawQuery != "" {
-		safeURL.RawQuery = req.URL.RawQuery
+
+	var safeBody io.ReadCloser
+	if req.Body != nil {
+		bodyBytes, err := io.ReadAll(req.Body)
+		if err != nil {
+			return nil, fmt.Errorf("ssrf: read body: %w", err)
+		}
+		safeBody = io.NopCloser(bytes.NewReader(bodyBytes))
 	}
 
-	reqCopy := req.Clone(req.Context())
-	reqCopy.URL = safeURL
+	reqCopy, err := http.NewRequest(req.Method, safeURL.String(), safeBody)
+	if err != nil {
+		return nil, fmt.Errorf("ssrf: new request: %w", err)
+	}
+	reqCopy.Header = req.Header.Clone()
+	reqCopy.Host = host
+
 	return c.client.Do(reqCopy)
 }
 

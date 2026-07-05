@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"text/template"
 )
@@ -96,7 +97,7 @@ func runClient(args []string) error {
 	if *output == "" || *output == "-" {
 		w = os.Stdout
 	} else {
-		f, err := os.Create(*output)
+		f, err := os.Create(filepath.Clean(*output))
 		if err != nil {
 			return fmt.Errorf("create output: %w", err)
 		}

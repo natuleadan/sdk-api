@@ -285,19 +285,20 @@ func (l *RotateLogger) getBackupFilename() string {
 func (l *RotateLogger) initialize() error {
 	l.backup = l.rule.BackupFileName()
 
-	if fileInfo, err := os.Stat(l.filename); err != nil {
-		basePath := path.Dir(l.filename)
+	cleanFilename := filepath.Clean(l.filename)
+	if fileInfo, err := os.Stat(cleanFilename); err != nil {
+		basePath := path.Dir(cleanFilename)
 		if _, err = os.Stat(basePath); err != nil {
 			if err = os.MkdirAll(basePath, defaultDirMode); err != nil {
 				return err
 			}
 		}
 
-		if l.fp, err = os.Create(l.filename); err != nil {
+		if l.fp, err = os.Create(cleanFilename); err != nil {
 			return err
 		}
 	} else {
-		if l.fp, err = os.OpenFile(l.filename, os.O_APPEND|os.O_WRONLY, defaultFileMode); err != nil {
+		if l.fp, err = os.OpenFile(cleanFilename, os.O_APPEND|os.O_WRONLY, defaultFileMode); err != nil {
 			return err
 		}
 
@@ -354,10 +355,11 @@ func (l *RotateLogger) rotate() error {
 		}
 	}
 
-	_, err := os.Stat(l.filename)
+	cleanFilename := filepath.Clean(l.filename)
+	_, err := os.Stat(cleanFilename)
 	if err == nil && len(l.backup) > 0 {
 		backupFilename := l.getBackupFilename()
-		err = os.Rename(l.filename, backupFilename)
+		err = os.Rename(cleanFilename, backupFilename)
 		if err != nil {
 			return err
 		}
@@ -366,7 +368,7 @@ func (l *RotateLogger) rotate() error {
 	}
 
 	l.backup = l.rule.BackupFileName()
-	if l.fp, err = os.Create(l.filename); err == nil {
+	if l.fp, err = os.Create(cleanFilename); err == nil {
 		fs.CloseOnExec(l.fp)
 	}
 

@@ -24,7 +24,7 @@ event_streams:
       - name: page-views
 ```
 
-Both `nats:` and `event_streams:` config sections are supported. They are merged at startup. New projects should use `event_streams:`.
+Only `event_streams:` config section is supported. The legacy `nats:` key has been removed. Migrate to `event_streams:` with `driver: nats`.
 
 ### Stream Default Subjects (NATS)
 

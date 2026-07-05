@@ -66,7 +66,8 @@ General-purpose Go SDK for event-driven microservices and monoliths. YAML-driven
 2. `sdk-api new <name> --model M --fields "a:string,b:int"`
 3. Verify `service.yaml` (databases, entry, server)
 4. Write hooks in `models/model.go`
-5. Wire main.go: `New()` → `WithCRUD()` (lazy proxy) → `Run()`
+5. Wire main.go: `New()` → `WithCRUDFactory()` → `Run()`
+   (or `WithCRUD()` with a pre-built provider when pool is not needed)
 
 ### Add a REST endpoint
 1. Add `entry: - type: rest method: GET path: ... handler: name`
@@ -96,7 +97,7 @@ go test ./...                 # All tests (requires Docker: PG + NATS)
 - **Cron** — 5-field expressions only (`min hour dom month dow`). No seconds support.
 - **OpenAPI** — requires `RegisterModel()` for schema generation. Without it, paths exist but schemas are empty.
 - **Auth: JWT middleware is wired per-entry** — Use `entry.auth: true` to enable, configure via `auth:` block. See `examples/auth-*` for 4 driver modes (none/manual/openfga-zitadel/ory).
-- **Pool access before Run** — `svc.Pool()` returns nil before `svc.Run()`. Use `sync.Once` + lazy init for CRUD tables. See `examples/auth-none-monolith/main.go` for the pattern.
+- **Pool access before Run** — `svc.Pool()` returns nil before `svc.Run()`. Use `WithCRUDFactory()` (preferred, no manual sync.Once) or `sync.Once` + lazy init for CRUD tables.
 - **WARNING: `go build` skips `*_test.go` files, `go test` includes them.** When `bench_test.go` uses `exec.Command("go", "build", ...)`, the test binary and the service binary are different. The test binary compiles both `main.go` and `bench_test.go`. The service binary (`go build`) compiles only `main.go`.
 - **SSRF is disabled by default** — enable via `server.ssrf.enabled: true` to activate `SafeHTTPClient()`.
 - **Rate limit `driver: redis`** — requires `redis_url` configured and Redis running.

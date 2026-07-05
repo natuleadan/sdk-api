@@ -16,6 +16,51 @@ const (
 	baseURL  = "http://localhost:" + httpPort
 )
 
+var docker bool
+
+func TestMain(m *testing.M) {
+	docker = os.Getenv("DOCKER_TEST") == "1"
+	if !docker {
+		if _, err := exec.LookPath("go"); err != nil {
+			fmt.Println("skip: no go compiler")
+			os.Exit(0)
+		}
+	}
+	if !docker {
+		exec.Command("go", "build", "-buildvcs=false", "-o", "/tmp/healthz-svc", ".").Run()
+	}
+	os.Exit(m.Run())
+}
+
+func TestHealthz_OK(t *testing.T) {
+	if !docker {
+		cmd := exec.Command("/tmp/healthz-svc")
+		cmd.Env = append(os.Environ(), "PORT="+httpPort)
+		cmd.Stderr = os.Stderr
+		if err := cmd.Start(); err != nil {
+			t.Fatalf("start: %v", err)
+		}
+		defer cmd.Process.Kill()
+		waitHTTP(t, baseURL+"/healthz", 10*time.Second)
+	} else {
+		waitHTTP(t, baseURL+"/healthz", 30*time.Second)
+	}
+
+	resp, err := http.Get(baseURL + "/healthz")
+	if err != nil {
+		t.Fatalf("GET /healthz: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	if string(body) != "OK" {
+		t.Errorf("expected body 'OK', got '%s'", string(body))
+	}
+	t.Log("healthz OK")
+}
+
 func buildService() (string, error) {
 	out, err := exec.Command("go", "build", "-buildvcs=false", "-o", "/tmp/healthz-svc", ".").CombinedOutput()
 	if err != nil {
@@ -38,7 +83,7 @@ func startService(b *testing.B, path string, raw bool) *exec.Cmd {
 	return cmd
 }
 
-func waitHTTP(b *testing.B, url string, timeout time.Duration) {
+func waitHTTP(tb testing.TB, url string, timeout time.Duration) {
 	client := &http.Client{Timeout: 2 * time.Second}
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
@@ -49,7 +94,7 @@ func waitHTTP(b *testing.B, url string, timeout time.Duration) {
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
-	b.Fatalf("service not ready after %v", timeout)
+	tb.Fatalf("service not ready after %v", timeout)
 }
 
 func BenchmarkHealthzRaw(b *testing.B) {

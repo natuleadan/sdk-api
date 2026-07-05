@@ -1,0 +1,8 @@
+name: healthz-bench
+services:
+  bench:
+    build:
+      context: ../../..
+      dockerfile: sdk-api/examples/100-healthz/Dockerfile
+    environment:
+      DOCKER_TEST: "1"

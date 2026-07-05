@@ -23,10 +23,9 @@ func getCluster(r *Redis) (*red.ClusterClient, error) {
 	val, err := clusterManager.GetResource(r.Addr, func() (io.Closer, error) {
 		var tlsConfig *tls.Config
 		if r.tls {
-			tlsConfig = &tls.Config{
-				InsecureSkipVerify: r.tlsSkipVerify,
-			}
+			tlsConfig = &tls.Config{}
 			if r.tlsSkipVerify {
+				tlsConfig.InsecureSkipVerify = true
 				logx.Errorf("redis: TLS InsecureSkipVerify enabled for %s (cluster)", r.Addr)
 			}
 		}

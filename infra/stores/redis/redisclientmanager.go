@@ -26,10 +26,9 @@ func getClient(r *Redis) (*red.Client, error) {
 	val, err := clientManager.GetResource(r.Addr, func() (io.Closer, error) {
 		var tlsConfig *tls.Config
 		if r.tls {
-			tlsConfig = &tls.Config{
-				InsecureSkipVerify: r.tlsSkipVerify,
-			}
+			tlsConfig = &tls.Config{}
 			if r.tlsSkipVerify {
+				tlsConfig.InsecureSkipVerify = true
 				logx.Errorf("redis: TLS InsecureSkipVerify enabled for %s (node)", r.Addr)
 			}
 		}

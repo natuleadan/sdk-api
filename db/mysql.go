@@ -98,7 +98,8 @@ func (t *MySQLTable[T]) AutoInit(ctx context.Context) error {
 		var sb strings.Builder
 		sb.WriteString(idx)
 		if _, err := t.db.ExecContext(ctx, sb.String()); err != nil {
-			return fmt.Errorf("db: mysql index: %w", err)
+			// index may already exist (MySQL < 8 / MariaDB lacks IF NOT EXISTS)
+			fmt.Printf("db: mysql index warn: %v\n", err)
 		}
 	}
 	return nil
@@ -137,6 +138,9 @@ func (t *MySQLTable[T]) buildColumnDef(f FieldInfo) string {
 			parts = append(parts, "NOT NULL")
 		} else {
 			parts = append(parts, "NULL")
+		}
+		if f.Primary {
+			parts = append(parts, "PRIMARY KEY")
 		}
 		if f.Default != "" {
 			parts = append(parts, "DEFAULT "+f.Default)

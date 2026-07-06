@@ -48,6 +48,13 @@ func TursoOpen(url string) (*sql.DB, error) {
 }
 
 func NewTursoTableFrom[T any](db *sql.DB, tableName string, info *TableInfo) (*TursoTable[T], error) {
+	if info == nil {
+		var err error
+		info, err = parseStruct[T]()
+		if err != nil {
+			return nil, err
+		}
+	}
 	cols := make([]string, 0, len(info.Fields))
 	for _, f := range info.Fields {
 		if f.Skip { continue }

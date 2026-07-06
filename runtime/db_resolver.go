@@ -28,6 +28,8 @@ func initDatabases(ctx context.Context, databases []DBConfig) (map[string]any, e
 			pool, err = initTurso(&dbCfg)
 		case "mysql":
 			pool, err = initMySQL(&dbCfg)
+		case "mongo":
+			pool, err = initMongo(&dbCfg)
 		default:
 			return nil, fmt.Errorf("unknown driver %q", dbCfg.Driver)
 		}
@@ -85,11 +87,24 @@ func initPostgres(ctx context.Context, cfg *DBConfig) (*pgxpool.Pool, error) {
 }
 
 func initTurso(cfg *DBConfig) (*sql.DB, error) {
-	return db.TursoOpen(cfg.URL)
+	db, err := db.TursoOpen(cfg.URL)
+	if err != nil {
+		return nil, err
+	}
+	if cfg.Pool != nil && cfg.Pool.MaxConns > 0 {
+		db.SetMaxOpenConns(int(cfg.Pool.MaxConns))
+	}
+	return db, nil
 }
 
 func initMySQL(cfg *DBConfig) (*sql.DB, error) {
 	return db.MySQLOpen(cfg.URL)
+}
+
+// initMongo stores a MongoDB URI string in the pools map. The actual connection
+// is lazily established by mon.MustNewModel on first CRUD access.
+func initMongo(cfg *DBConfig) (string, error) {
+	return cfg.URL, nil
 }
 
 // Pool returns a pool by name. Returns nil if not found or not the expected type.

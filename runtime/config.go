@@ -194,10 +194,11 @@ type OpenAPIConf struct {
 // ---- Database ----
 
 type DBConfig struct {
-	Name   string    `json:"name"`
-	Driver string    `json:"driver" config:",default=postgres"`
-	URL    string    `json:"url"`
-	Pool   *PoolConf `json:"pool" config:",optional"`
+	Name     string    `json:"name"`
+	Driver   string    `json:"driver" config:",default=postgres"`
+	URL      string    `json:"url"`
+	Database string    `json:"database" config:",optional"`
+	Pool     *PoolConf `json:"pool" config:",optional"`
 }
 
 type PoolConf struct {
@@ -222,9 +223,12 @@ func (d *DBConfig) Validate() error {
 	switch d.Driver {
 	case "postgres", "pg":
 		d.Driver = "postgres"
-	case "turso", "mysql":
+	case "turso", "mysql", "mongo":
 	default:
-		return fmt.Errorf("unknown driver %q (use postgres, turso, or mysql)", d.Driver)
+		return fmt.Errorf("unknown driver %q (use postgres, turso, mysql, or mongo)", d.Driver)
+	}
+	if d.Driver == "mongo" {
+		return nil
 	}
 	if d.Pool == nil {
 		d.Pool = &PoolConf{MaxConns: 10, MinConns: 2, ReservedConns: 10}

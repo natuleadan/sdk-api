@@ -7,6 +7,8 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/natuleadan/sdk-api/db"
 	"github.com/natuleadan/sdk-api/infra/logx"
+	"github.com/natuleadan/sdk-api/infra/stores/mon"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // NewCRUDProvider wraps a db.Table[T] (PostgreSQL) into a CRUDProvider.
@@ -337,4 +339,75 @@ func (t *tursoCRUD[T]) Delete(ctx fiber.Ctx, id string) error {
 	return ctx.SendStatus(204)
 }
 
-// fiber:context-methods migrated
+// ---- MongoDB CRUDProvider ----
+
+type mongoCRUD struct {
+	model       *mon.Model
+	lookupField string
+}
+
+// NewMongoCRUDProvider creates a CRUDProvider backed by MongoDB.
+// lookupField is the document field used for Get/Update/Delete (e.g. "_id" or "short_code").
+func NewMongoCRUDProvider(model *mon.Model, lookupField string) CRUDProvider {
+	return &mongoCRUD{model: model, lookupField: lookupField}
+}
+
+func (m *mongoCRUD) List(ctx fiber.Ctx, params ListParams) error {
+	var results []any
+	if err := m.model.Find(ctx.Context(), &results, bson.M{}); err != nil {
+		return fiber.NewError(500, err.Error())
+	}
+	return ctx.JSON(results)
+}
+
+func (m *mongoCRUD) Get(ctx fiber.Ctx, id string) error {
+	var result any
+	filter := m.filterFor(id)
+	if err := m.model.FindOne(ctx.Context(), &result, filter); err != nil {
+		return fiber.NewError(404, "not found")
+	}
+	return ctx.JSON(result)
+}
+
+func (m *mongoCRUD) Create(ctx fiber.Ctx, body []byte) error {
+	var doc any
+	if err := json.Unmarshal(body, &doc); err != nil {
+		return fiber.NewError(400, fmt.Sprintf("invalid body: %v", err))
+	}
+	res, err := m.model.InsertOne(ctx.Context(), doc)
+	if err != nil {
+		return fiber.NewError(500, err.Error())
+	}
+	if m, ok := doc.(map[string]any); ok && res.InsertedID != nil {
+		m["_id"] = res.InsertedID
+	}
+	return ctx.Status(201).JSON(doc)
+}
+
+func (m *mongoCRUD) Update(ctx fiber.Ctx, id string, body []byte) error {
+	var patch map[string]any
+	if err := json.Unmarshal(body, &patch); err != nil {
+		return fiber.NewError(400, fmt.Sprintf("invalid body: %v", err))
+	}
+	if _, err := m.model.UpdateOne(ctx.Context(), m.filterFor(id), bson.M{"$set": patch}); err != nil {
+		return fiber.NewError(500, err.Error())
+	}
+	return ctx.JSON(patch)
+}
+
+func (m *mongoCRUD) Delete(ctx fiber.Ctx, id string) error {
+	if _, err := m.model.DeleteOne(ctx.Context(), m.filterFor(id)); err != nil {
+		return fiber.NewError(500, err.Error())
+	}
+	return ctx.SendStatus(204)
+}
+
+// filterFor converts the id string into a BSON filter, handling _id as ObjectID.
+func (m *mongoCRUD) filterFor(id string) bson.M {
+	if m.lookupField == "_id" {
+		if oid, err := bson.ObjectIDFromHex(id); err == nil {
+			return bson.M{"_id": oid}
+		}
+	}
+	return bson.M{m.lookupField: id}
+}

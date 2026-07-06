@@ -2,7 +2,10 @@ package runtime
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
+	"log"
 	"maps"
 	"os"
 	"path/filepath"
@@ -11,10 +14,16 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/natuleadan/sdk-api/db"
 	"github.com/natuleadan/sdk-api/events"
+	"github.com/natuleadan/sdk-api/infra/collection"
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/natuleadan/sdk-api/infra/proc"
+	"github.com/natuleadan/sdk-api/infra/stores/cache"
+	"github.com/natuleadan/sdk-api/infra/stores/mon"
+	"github.com/natuleadan/sdk-api/infra/stores/redis"
+	"github.com/natuleadan/sdk-api/infra/syncx"
 	"github.com/natuleadan/sdk-api/server"
 	"github.com/natuleadan/sdk-api/server/auth/openfga"
 	"github.com/natuleadan/sdk-api/server/auth/ory"
@@ -87,6 +96,265 @@ func (s *Service) WithCRUDFactory(model string, factory CRUDFactory) *Service {
 	}
 	s.handlers.CRUD[model] = &lazyCRUD{factory: factory}
 	return s
+}
+
+// MustRegister auto-creates the table and registers a CRUDProvider for the model.
+// The pool, table, and hooks are lazily initialized on the first HTTP request.
+func MustRegister[T any](svc *Service, name, poolName, tableName string, hooks EntryHooks[T]) {
+	svc.WithCRUDFactory(name, func() CRUDProvider {
+		pool, ok := svc.pools[poolName].(*pgxpool.Pool)
+		if !ok {
+			log.Fatalf("runtime: pool %q not found or not a pgxpool", poolName)
+		}
+		tbl, err := db.NewTable[T](pool, tableName)
+		if err != nil {
+			log.Fatalf("runtime: new table %s: %v", name, err)
+		}
+		if err := tbl.AutoInit(context.Background()); err != nil {
+			log.Fatalf("runtime: autoinit %s: %v", name, err)
+		}
+		return NewCRUDProvider(tbl, hooks)
+	})
+}
+
+// MySQLMustRegister is like MustRegister but uses MySQL (*sql.DB) instead of PostgreSQL.
+func MySQLMustRegister[T any](svc *Service, name, poolName, tableName string, hooks EntryHooks[T]) {
+	svc.WithCRUDFactory(name, func() CRUDProvider {
+		pool, ok := svc.pools[poolName].(*sql.DB)
+		if !ok {
+			log.Fatalf("runtime: mysql pool %q not found", poolName)
+		}
+		tbl, err := db.NewMySQLTable[T](pool, tableName)
+		if err != nil {
+			log.Fatalf("runtime: new mysql table %s: %v", name, err)
+		}
+		if err := tbl.AutoInit(context.Background()); err != nil {
+			log.Fatalf("runtime: autoinit %s: %v", name, err)
+		}
+		return NewMySQLCRUDProvider(tbl, hooks)
+	})
+}
+
+// CachedCRUD registers a CRUD provider with automatic L1 (memory) + L2 (Redis/Dragonfly) cache-aside.
+// Cache is populated on miss using the DB primary key lookup. List/Create/Update/Delete return 405.
+// The redisConf points to Dragonfly or Redis (NodeType or ClusterType).
+// If l1TTL > 0, an in-process L1 cache (collection.Cache) is added in front of L2 for sub-μs reads.
+func CachedCRUD[T any](svc *Service, name, poolName, tableName string,
+	redisConf redis.RedisConf, keyPrefix string, l2TTL time.Duration, l1TTL time.Duration) {
+
+	var l1 *collection.Cache
+	if l1TTL > 0 {
+		var err error
+		l1, err = collection.NewCache(l1TTL, collection.WithLimit(10000))
+		if err != nil {
+			log.Fatalf("runtime: l1 cache %s: %v", name, err)
+		}
+	}
+
+	cc := cache.NewNode(
+		redis.MustNewRedis(redisConf),
+		syncx.NewSingleFlight(),
+		&cache.Stat{},
+		db.ErrNotFound,
+		cache.WithExpiry(l2TTL),
+	)
+
+	svc.WithCRUDFactory(name, func() CRUDProvider {
+		pool, ok := svc.pools[poolName].(*pgxpool.Pool)
+		if !ok {
+			log.Fatalf("runtime: pool %q not found or not a pgxpool", poolName)
+		}
+		tbl, err := db.NewTable[T](pool, tableName)
+		if err != nil {
+			log.Fatalf("runtime: new table %s: %v", name, err)
+		}
+		if err := tbl.AutoInit(context.Background()); err != nil {
+			log.Fatalf("runtime: autoinit %s: %v", name, err)
+		}
+		return &cachedCRUD[T]{table: tbl, l2: cc, l1: l1, keyPrefix: keyPrefix}
+	})
+}
+
+type cachedCRUD[T any] struct {
+	table     *db.Table[T]
+	l2        cache.Cache
+	l1        *collection.Cache
+	keyPrefix string
+}
+
+func (c *cachedCRUD[T]) Get(fc fiber.Ctx, id string) error {
+	key := c.keyPrefix + id
+
+	if c.l1 != nil {
+		if val, ok := c.l1.Get(key); ok {
+			return fc.JSON(val)
+		}
+	}
+
+	var val T
+	err := c.l2.TakeWithExpireCtx(fc.Context(), &val, key,
+		func(v any, expire time.Duration) error {
+			found, err := c.table.Get(fc.Context(), id)
+			if err != nil {
+				return err
+			}
+			reflect.ValueOf(v).Elem().Set(reflect.ValueOf(*found))
+			return nil
+		})
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return fc.Status(404).JSON(map[string]any{"code": 404, "message": "link not found"})
+		}
+		return fc.Status(500).JSON(map[string]any{"code": 500, "message": err.Error()})
+	}
+
+	if c.l1 != nil {
+		c.l1.Set(key, val)
+	}
+
+	return fc.JSON(val)
+}
+
+func (c *cachedCRUD[T]) List(fc fiber.Ctx, params ListParams) error {
+	return fc.SendStatus(405)
+}
+
+func (c *cachedCRUD[T]) Create(fc fiber.Ctx, body []byte) error {
+	return fc.SendStatus(405)
+}
+
+func (c *cachedCRUD[T]) Update(fc fiber.Ctx, id string, body []byte) error {
+	return fc.SendStatus(405)
+}
+
+func (c *cachedCRUD[T]) Delete(fc fiber.Ctx, id string) error {
+	return fc.SendStatus(405)
+}
+
+// MySQLCachedCRUD registers a CRUD provider with L1+L2 cache using MySQL as DB backend.
+// Identical to CachedCRUD but uses *sql.DB and db.NewMySQLTable internally.
+func MySQLCachedCRUD[T any](svc *Service, name, poolName, tableName string,
+	redisConf redis.RedisConf, keyPrefix string, l2TTL time.Duration, l1TTL time.Duration) {
+
+	var l1 *collection.Cache
+	if l1TTL > 0 {
+		var err error
+		l1, err = collection.NewCache(l1TTL, collection.WithLimit(10000))
+		if err != nil {
+			log.Fatalf("runtime: l1 cache %s: %v", name, err)
+		}
+	}
+
+	cc := cache.NewNode(
+		redis.MustNewRedis(redisConf),
+		syncx.NewSingleFlight(),
+		&cache.Stat{},
+		db.ErrNotFound,
+		cache.WithExpiry(l2TTL),
+	)
+
+	svc.WithCRUDFactory(name, func() CRUDProvider {
+		sqlPool, ok := svc.pools[poolName].(*sql.DB)
+		if !ok {
+			log.Fatalf("runtime: pool %q not found or not a *sql.DB", poolName)
+		}
+		tbl, err := db.NewMySQLTable[T](sqlPool, tableName)
+		if err != nil {
+			log.Fatalf("runtime: new mysql table %s: %v", name, err)
+		}
+		if err := tbl.AutoInit(context.Background()); err != nil {
+			log.Fatalf("runtime: autoinit %s: %v", name, err)
+		}
+		return &mysqlCachedCRUD[T]{table: tbl, l2: cc, l1: l1, keyPrefix: keyPrefix}
+	})
+}
+
+type mysqlCachedCRUD[T any] struct {
+	table     *db.MySQLTable[T]
+	l2        cache.Cache
+	l1        *collection.Cache
+	keyPrefix string
+}
+
+func (c *mysqlCachedCRUD[T]) Get(fc fiber.Ctx, id string) error {
+	key := c.keyPrefix + id
+
+	if c.l1 != nil {
+		if val, ok := c.l1.Get(key); ok {
+			return fc.JSON(val)
+		}
+	}
+
+	var val T
+	err := c.l2.TakeWithExpireCtx(fc.Context(), &val, key,
+		func(v any, expire time.Duration) error {
+			found, err := c.table.Get(fc.Context(), id)
+			if err != nil {
+				return err
+			}
+			reflect.ValueOf(v).Elem().Set(reflect.ValueOf(*found))
+			return nil
+		})
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return fc.Status(404).JSON(map[string]any{"code": 404, "message": "link not found"})
+		}
+		return fc.Status(500).JSON(map[string]any{"code": 500, "message": err.Error()})
+	}
+
+	if c.l1 != nil {
+		c.l1.Set(key, val)
+	}
+
+	return fc.JSON(val)
+}
+
+func (c *mysqlCachedCRUD[T]) List(fc fiber.Ctx, params ListParams) error {
+	return fc.SendStatus(405)
+}
+
+func (c *mysqlCachedCRUD[T]) Create(fc fiber.Ctx, body []byte) error {
+	return fc.SendStatus(405)
+}
+
+func (c *mysqlCachedCRUD[T]) Update(fc fiber.Ctx, id string, body []byte) error {
+	return fc.SendStatus(405)
+}
+
+func (c *mysqlCachedCRUD[T]) Delete(fc fiber.Ctx, id string) error {
+	return fc.SendStatus(405)
+}
+
+// TursoMustRegister registers a CRUD provider for Turso/SQLite backend.
+func TursoMustRegister[T any](svc *Service, name, poolName, tableName string, hooks EntryHooks[T]) {
+	svc.WithCRUDFactory(name, func() CRUDProvider {
+		pool, ok := svc.pools[poolName].(*sql.DB)
+		if !ok {
+			log.Fatalf("runtime: turso pool %q not found", poolName)
+		}
+		tbl, err := db.NewTursoTableFrom[T](pool, tableName, nil)
+		if err != nil {
+			log.Fatalf("runtime: new turso table %s: %v", name, err)
+		}
+		if err := tbl.AutoInit(context.Background()); err != nil {
+			log.Fatalf("runtime: autoinit %s: %v", name, err)
+		}
+		return NewTursoCRUDProvider(tbl, hooks)
+	})
+}
+
+// MongoMustRegister registers a CRUD provider for MongoDB backend.
+// The model is lazily initialized on the first HTTP request.
+// lookupField is the document field used for Get (e.g. "_id" or "short_code").
+func MongoMustRegister(svc *Service, name, poolName, database, collection, lookupField string) {
+	svc.WithCRUDFactory(name, func() CRUDProvider {
+		uri, ok := svc.pools[poolName].(string)
+		if !ok {
+			log.Fatalf("runtime: mongo pool %q not found", poolName)
+		}
+		model := mon.MustNewModel(uri, database, collection)
+		return NewMongoCRUDProvider(model, lookupField)
+	})
 }
 
 // WithRest registers a REST handler by name.

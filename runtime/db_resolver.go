@@ -107,7 +107,17 @@ func initTurso(cfg *DBConfig) (*sql.DB, error) {
 }
 
 func initMySQL(cfg *DBConfig) (*sql.DB, error) {
-	return db.MySQLOpen(cfg.URL)
+	db, err := db.MySQLOpen(cfg.URL)
+	if err != nil {
+		return nil, err
+	}
+	if cfg.Pool != nil && cfg.Pool.MaxConns > 0 {
+		db.SetMaxOpenConns(int(cfg.Pool.MaxConns))
+		if cfg.Pool.MinConns > 0 {
+			db.SetMaxIdleConns(int(cfg.Pool.MinConns))
+		}
+	}
+	return db, nil
 }
 
 // initMongo stores a MongoDB URI string in the pools map with optional pool params.

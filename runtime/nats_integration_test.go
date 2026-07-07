@@ -193,7 +193,7 @@ server:
 		t.Fatalf("New: %v", err)
 	}
 
-	svc.WithRest("onWh", func(c fiber.Ctx) error {
+	svc.WithRest("onWh", func(c *RestCtx) error {
 		return c.JSON(fiber.Map{"ok": true})
 	})
 

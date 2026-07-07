@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -101,10 +102,16 @@ func initMySQL(cfg *DBConfig) (*sql.DB, error) {
 	return db.MySQLOpen(cfg.URL)
 }
 
-// initMongo stores a MongoDB URI string in the pools map. The actual connection
-// is lazily established by mon.MustNewModel on first CRUD access.
+// initMongo stores a MongoDB URI string in the pools map with optional pool params.
 func initMongo(cfg *DBConfig) (string, error) {
-	return cfg.URL, nil
+	uri := cfg.URL
+	if cfg.Pool != nil && cfg.Pool.MaxConns > 0 {
+		if !strings.Contains(uri, "/?") && !strings.Contains(uri, "?") {
+			uri += "/"
+		}
+		uri = fmt.Sprintf("%s?maxPoolSize=%d&maxConnecting=%d", uri, cfg.Pool.MaxConns, min(cfg.Pool.MaxConns/10, 10))
+	}
+	return uri, nil
 }
 
 // Pool returns a pool by name. Returns nil if not found or not the expected type.

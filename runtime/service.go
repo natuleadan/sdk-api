@@ -358,11 +358,11 @@ func MongoMustRegister(svc *Service, name, poolName, database, collection, looku
 }
 
 // WithRest registers a REST handler by name.
-func (s *Service) WithRest(name string, h func(fiber.Ctx) error) *Service {
+func (s *Service) WithRest(name string, h func(*RestCtx) error) *Service {
 	if s.handlers.Rest == nil {
 		s.handlers.Rest = make(map[string]func(fiber.Ctx) error)
 	}
-	s.handlers.Rest[name] = h
+	s.handlers.Rest[name] = func(c fiber.Ctx) error { return h(newRestCtx(c)) }
 	return s
 }
 

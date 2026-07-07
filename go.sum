@@ -364,5 +364,5 @@ gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
 gopkg.in/yaml.v3 v3.0.1/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
 k8s.io/utils v0.0.0-20260626114624-be93311217bd h1:Ea7fgQ5we8Y9T0OX5o0dAHzQOBRI07D/dEYRaB9ZZEs=
 k8s.io/utils v0.0.0-20260626114624-be93311217bd/go.mod h1:xDxuJ0whA3d0I4mf/C4ppKHxXynQ+fxnkmQH0vTHnuk=
-turso.tech/database/tursogo v0.7.0-pre.17 h1:OYRgM5sIGJMrtIZRtpMudQiUsdTDiOPckQRwc1q9E+8=
-turso.tech/database/tursogo v0.7.0-pre.17/go.mod h1:MUF+GzN422yVdDosvPIjKn+WyN93K9qkIRCak+DfvsA=
+turso.tech/database/tursogo v0.6.1 h1:FPqbvwjEAbV2w5lDTRivR9sTE+nZnfGL+kr4Jat5RO0=
+turso.tech/database/tursogo v0.6.1/go.mod h1:VzWSW6CFBTSS9uVts78GcWH6IB8LEqDLmlPY9NBd238=

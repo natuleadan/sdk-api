@@ -95,6 +95,14 @@ func initTurso(cfg *DBConfig) (*sql.DB, error) {
 	if cfg.Pool != nil && cfg.Pool.MaxConns > 0 {
 		db.SetMaxOpenConns(int(cfg.Pool.MaxConns))
 	}
+	if cfg.Turso != nil && cfg.Turso.Mode == "local" && cfg.Turso.BusyTimeout > 0 {
+		conn, err := db.Conn(context.Background())
+		if err == nil {
+			_, _ = conn.ExecContext(context.Background(),
+				fmt.Sprintf("PRAGMA busy_timeout = %d", cfg.Turso.BusyTimeout))
+			conn.Close()
+		}
+	}
 	return db, nil
 }
 

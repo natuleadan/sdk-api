@@ -13,7 +13,7 @@ docker compose up --abort-on-container-exit
 
 ## Benchmark (wrk -t10 -c1000 -d15s, 3 runs)
 
-| Mode | Run 1 | Run 2 | Run 3 | Media |
+| Mode | Run 1 | Run 2 | Run 3 | Average |
 |------|:-----:|:-----:|:-----:|:-----:|
 | Raw Fiber | 729,998 | 742,123 | 745,646 | **739,256** |
 | SDK middleware | 686,174 | 710,107 | 749,452 | **715,244** |

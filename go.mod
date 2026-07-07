@@ -51,7 +51,7 @@ require (
 	gopkg.in/h2non/gock.v1 v1.1.2
 	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/utils v0.0.0-20260626114624-be93311217bd
-	turso.tech/database/tursogo v0.7.0-pre.17
+	turso.tech/database/tursogo v0.6.1
 )
 
 require (

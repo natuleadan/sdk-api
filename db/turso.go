@@ -42,7 +42,6 @@ func TursoOpen(url string) (*sql.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("db: turso open: %w", err)
 	}
-	db.SetMaxOpenConns(1)
 	db.SetConnMaxLifetime(5 * time.Minute)
 	return db, nil
 }
@@ -66,7 +65,6 @@ func NewTursoTableFrom[T any](db *sql.DB, tableName string, info *TableInfo) (*T
 func (t *TursoTable[T]) columnsList() string { return strings.Join(t.columns, ", ") }
 
 func (t *TursoTable[T]) placeholder(n int) string {
-	// SQLite uses ? placeholders, not $1
 	ps := make([]string, n)
 	for i := range ps {
 		ps[i] = "?"
@@ -75,6 +73,10 @@ func (t *TursoTable[T]) placeholder(n int) string {
 }
 
 func (t *TursoTable[T]) AutoInit(ctx context.Context) error {
+	// Check if table already exists (read-only, no write lock needed)
+	if t.tableExists(ctx) {
+		return nil
+	}
 	var parts []string
 	var indexes []string
 
@@ -104,6 +106,12 @@ func (t *TursoTable[T]) AutoInit(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+func (t *TursoTable[T]) tableExists(ctx context.Context) bool {
+	row := t.db.QueryRowContext(ctx, "SELECT name FROM sqlite_master WHERE type='table' AND name=?", t.tableName)
+	var name string
+	return row.Scan(&name) == nil
 }
 
 func (t *TursoTable[T]) buildColumnDef(f FieldInfo) string {
@@ -264,7 +272,6 @@ func (t *TursoTable[T]) Update(ctx context.Context, id any, patch map[string]any
 	b.WriteString(" = ? RETURNING ")
 	b.WriteString(t.columnsList())
 	query := b.String()
-	// SQLite supports RETURNING since 3.35.0
 	row := t.db.QueryRowContext(ctx, query, args...)
 	var entity T
 	if err := t.scanRow(row, &entity); err != nil {

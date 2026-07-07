@@ -194,11 +194,17 @@ type OpenAPIConf struct {
 // ---- Database ----
 
 type DBConfig struct {
-	Name     string    `json:"name"`
-	Driver   string    `json:"driver" config:",default=postgres"`
-	URL      string    `json:"url"`
-	Database string    `json:"database" config:",optional"`
-	Pool     *PoolConf `json:"pool" config:",optional"`
+	Name     string      `json:"name"`
+	Driver   string      `json:"driver" config:",default=postgres"`
+	URL      string      `json:"url"`
+	Database string      `json:"database" config:",optional"`
+	Pool     *PoolConf   `json:"pool" config:",optional"`
+	Turso    *TursoConf  `json:"turso" config:",optional"`
+}
+
+type TursoConf struct {
+	Mode        string `json:"mode" config:",default=local"`         // local | remote
+	BusyTimeout int    `json:"busy_timeout" config:",default=30000"` // ms, 0 = no wait
 }
 
 type PoolConf struct {
@@ -223,7 +229,17 @@ func (d *DBConfig) Validate() error {
 	switch d.Driver {
 	case "postgres", "pg":
 		d.Driver = "postgres"
-	case "turso", "mysql", "mongo":
+	case "turso":
+		if d.Turso == nil {
+			d.Turso = &TursoConf{Mode: "local", BusyTimeout: 30000}
+		}
+		if d.Turso.Mode != "local" && d.Turso.Mode != "remote" {
+			return fmt.Errorf("turso mode %q invalid (use local or remote)", d.Turso.Mode)
+		}
+		if d.Turso.BusyTimeout < 0 {
+			d.Turso.BusyTimeout = 30000
+		}
+	case "mysql", "mongo":
 	default:
 		return fmt.Errorf("unknown driver %q (use postgres, turso, mysql, or mongo)", d.Driver)
 	}

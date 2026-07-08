@@ -1,7 +1,7 @@
 package main
 
 import (
-	"context"
+	_ "embed"
 	"flag"
 	"log"
 
@@ -10,11 +10,14 @@ import (
 	"{{.SDKModule}}/runtime"
 )
 
+//go:embed service.yaml
+var configYAML []byte
+
 func main() {
 	mode := flag.String("mode", "entry", "run mode: entry (HTTP) or exit (workers)")
 	flag.Parse()
 
-	svc, err := runtime.New("service.yaml")
+	svc, err := runtime.NewFromYAML(configYAML)
 	if err != nil {
 		log.Fatalf("init: %v", err)
 	}

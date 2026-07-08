@@ -57,12 +57,25 @@ type Service struct {
 	stop context.CancelFunc
 }
 
-// New creates a Service from a YAML config file.
+// New creates a Service from a YAML config file path.
 func New(configPath string) (*Service, error) {
 	cfg, err := LoadConfig(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("runtime: %w", err)
 	}
+	return newFromConfig(cfg)
+}
+
+// NewFromYAML creates a Service from in-memory YAML content (e.g. //go:embed).
+func NewFromYAML(content []byte) (*Service, error) {
+	cfg, err := ParseConfig(content)
+	if err != nil {
+		return nil, fmt.Errorf("runtime: %w", err)
+	}
+	return newFromConfig(cfg)
+}
+
+func newFromConfig(cfg *ServiceConfig) (*Service, error) {
 	return &Service{
 		config:    cfg,
 		pools:     make(map[string]any),

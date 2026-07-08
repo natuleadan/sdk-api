@@ -680,8 +680,27 @@ func expandEnvDefaults(content string) (string, error) {
 }
 
 func LoadConfig(path string) (*ServiceConfig, error) {
+	if path == "" {
+		return nil, nil
+	}
+	content, err := os.ReadFile(filepath.Clean(path))
+	if err != nil {
+		return nil, fmt.Errorf("read config: %w", err)
+	}
+	return ParseConfig(content)
+}
+
+func ParseConfig(content []byte) (*ServiceConfig, error) {
 	var cfg ServiceConfig
-	if err := loadConfigFile(path, &cfg); err != nil {
+	decrypted, err := trySOPSDecrypt(content)
+	if err != nil {
+		return nil, fmt.Errorf("decrypt config: %w", err)
+	}
+	expanded, err := expandEnvDefaults(string(decrypted))
+	if err != nil {
+		return nil, err
+	}
+	if err := conf.LoadFromYamlBytes([]byte(expanded), &cfg); err != nil {
 		return nil, err
 	}
 	applyEnvOverrides(&cfg)
@@ -705,25 +724,6 @@ func LoadConfig(path string) (*ServiceConfig, error) {
 	}
 	checkPlaintextSecrets(&cfg)
 	return &cfg, nil
-}
-
-func loadConfigFile(path string, cfg *ServiceConfig) error {
-	if path == "" {
-		return nil
-	}
-	content, err := os.ReadFile(filepath.Clean(path))
-	if err != nil {
-		return fmt.Errorf("read config: %w", err)
-	}
-	decrypted, err := trySOPSDecrypt(content)
-	if err != nil {
-		return fmt.Errorf("decrypt config: %w", err)
-	}
-	expanded, err := expandEnvDefaults(string(decrypted))
-	if err != nil {
-		return err
-	}
-	return conf.LoadFromYamlBytes([]byte(expanded), cfg)
 }
 
 func applyEnvOverrides(cfg *ServiceConfig) {

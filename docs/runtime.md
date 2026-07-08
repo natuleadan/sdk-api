@@ -9,8 +9,13 @@ The `Service` struct is the core orchestrator. It loads YAML config, initializes
 ## Service API
 
 ```go
-// Create service from YAML
+// Create service from YAML file
 svc, err := runtime.New("service.yaml")
+
+// Create service from embedded YAML (recommended for production)
+//go:embed service.yaml
+var configYAML []byte
+svc, err := runtime.NewFromYAML(configYAML)
 
 // Register entry handlers
 svc.WithCRUD("Product", provider)           // CRUD auto-routes
@@ -48,22 +53,45 @@ svc.Run()
 
 ## Lifecycle
 
+### Standard (file or embedded config)
+
 ```
-New(configPath) → LoadConfig + validate
-  → Run()
-    1. initDatabases()        — connect PG/Turso/MySQL/Mongo pools
-    2. initEventStreams()     — connect NATS/Kafka + create streams
-    3. initSSRF()             — SafeHTTPClient (if configured)
-    4. initServer()           — Fiber HTTP + middlewares + TLS + security headers + CSRF + rate limit
-    5. RegisterEntries()      — register all entry routes (9 types)
-    6. Static files
-    7. registerDocs()         — OpenAPI + Scalar UI
-    8. initExit()             — start all event workers
-    9. initCron()             — start cron scheduler
-    → HTTP server starts
+New("service.yaml") ─────────────┐
+                                 ├─ LoadConfig() + ParseConfig()
+NewFromYAML(content) ────────────┘    │
+                                       ├─ validateConfigDeploy()  ← checks deploy.target
+                                       ├─ validateConfig*()       ← databases, entries, exits, cron
+                                       ├─ applyEnvOverrides()     ← resolves PORT env
+                                       │
+                                  → Run()
+                                      1. initDatabases()        — connect PG/Turso/MySQL/Mongo pools
+                                      2. initEventStreams()     — connect NATS/Kafka + create streams
+                                      3. initSSRF()             — SafeHTTPClient (if configured)
+                                      4. initServer()           — Fiber HTTP + middlewares + TLS + security + CSRF + rate limit
+                                      5. RegisterEntries()      — register all entry routes (9 types)
+                                      6. Static files
+                                      7. registerDocs()         — OpenAPI + Scalar UI
+                                      8. initExit()             — start all event workers
+                                      9. initCron()             — start cron scheduler
+                                      → HTTP server starts
 ```
 
 All steps are optional. No databases? Skip `databases:` in YAML. No HTTP? Only define `exit:` and `cron:`.
+
+### Deploy target validation
+
+Set `deploy.target` in `service.yaml` to enable platform-specific validation at startup:
+
+```yaml
+deploy:
+  target: vercel    # auto | vercel | docker | kube | bare-metal
+```
+
+| Target | Enforced rules |
+|--------|---------------|
+| `vercel` | `server.prefork` must be `false`, `server.tls.enabled` must be `false` |
+| `docker` / `kube` / `bare-metal` | No extra restrictions |
+| `auto` (default) | No validation — runtime behavior unchanged |
 
 ## Async Jobs
 

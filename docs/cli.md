@@ -96,6 +96,23 @@ Generates:
 - Service (ClusterIP)
 - HorizontalPodAutoscaler (target CPU: 80%)
 
+### `sdk-api vercel [flags]`
+
+Generates `vercel.json` for Vercel deployment. Validates the `service.yaml` against Vercel compatibility rules (prefork must be false, TLS must be disabled).
+
+```bash
+sdk-api vercel --output vercel.json
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--config` | `service.yaml` | Path to YAML config |
+| `--output` | stdout | Output file path |
+| `--build-command` | — | Custom build command (e.g., `make build`) |
+| `--go-flags` | — | Extra GO_BUILD_FLAGS (e.g., `-ldflags '-s -w'`) |
+
+The generated `vercel.json` sets `{"framework": "go"}`. If `--build-command` or `--go-flags` are provided, they are included in the config.
+
 ### `sdk-api client [flags]`
 
 Generates typed client SDK in multiple languages.
@@ -115,13 +132,15 @@ sdk-api client --model Product --fields "name:string,price:float64" --lang ts
 
 ```
 my-svc/
-├── main.go              # Entrypoint: runtime.New("service.yaml")
-├── service.yaml         # YAML with entry/exit/cron
+├── main.go              # Entrypoint with //go:embed + runtime.NewFromYAML()
+├── service.yaml         # YAML with entry/exit/cron (embedded in binary)
 └── models/
     └── model.go         # Struct + EntryHooks
 ```
 
-The generated `main.go` supports `--mode`:
+The generated `main.go` uses `//go:embed` to embed `service.yaml` directly into the binary. This eliminates filesystem dependencies at runtime and works on any deployment platform (Vercel, Docker, Kubernetes, bare-metal).
+
+The binary supports `--mode`:
 
 ```bash
 go run . --mode entry    # HTTP server

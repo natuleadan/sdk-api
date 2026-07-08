@@ -188,6 +188,37 @@ All errors must be handled explicitly. Silent ignores (`_ = funcCall()`, `_, _ =
 - **Interface implementations**: if the interface requires unused params, use the param name (not `_`) and document why
 - **`crypto/rand` failures**: log via `logx.Errorf` — extremely rare but should not silently produce zero bytes
 
+## Deployment
+
+### Config embedding
+
+The generated `main.go` uses `//go:embed service.yaml` with `runtime.NewFromYAML()`. This embeds the config into the binary, eliminating filesystem dependencies at runtime.
+
+```go
+//go:embed service.yaml
+var configYAML []byte
+
+svc, err := runtime.NewFromYAML(configYAML)
+```
+
+This works on all platforms — Vercel, Docker, Kubernetes, bare-metal — without extra deployment steps.
+
+### Platform-specific validation
+
+Set `deploy.target` in `service.yaml` to validate platform-specific constraints at startup:
+
+```yaml
+deploy:
+  target: vercel    # auto | vercel | docker | kube | bare-metal
+```
+
+| Target | CLI command | Enforced rules |
+|--------|-------------|---------------|
+| Vercel | `sdk-api vercel` | prefork=false, tls=false |
+| Docker | `sdk-api docker` | Project structure |
+| Kubernetes | `sdk-api kube` | name + image required |
+| bare-metal | — | No restrictions |
+
 ## Linting Rules
 
 The project enforces these rules via `golangci-lint`:

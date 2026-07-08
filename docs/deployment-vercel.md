@@ -12,11 +12,32 @@ Deploy a project built with sdk-api on Vercel using the Go Framework Preset (ser
 
 Vercel detects a root `go.mod` and an entrypoint (`main.go`, `cmd/api/main.go`, or `cmd/server/main.go`), builds the Go binary, and runs it. The binary must listen on the `PORT` environment variable assigned by Vercel.
 
-sdk-api handles this automatically via `applyEnvOverrides` in `LoadConfig` — no code changes needed.
+sdk-api handles this automatically:
+- `runtime.NewFromYAML()` embeds `service.yaml` in the binary via `//go:embed` — no external file needed at runtime
+- `applyEnvOverrides` in `LoadConfig` resolves `PORT` — no code changes needed
+- `deploy.target: vercel` validates incompatible settings (prefork, TLS) at startup
 
 ## Step-by-step
 
-### 1. Configure `service.yaml`
+### 1. Create a project
+
+```bash
+sdk-api new my-service --model Product --fields "name:string,price:float64"
+```
+
+The generated `main.go` uses `//go:embed` to embed `service.yaml` into the binary:
+
+```go
+//go:embed service.yaml
+var configYAML []byte
+
+func main() {
+    svc, err := runtime.NewFromYAML(configYAML)
+    // ...
+}
+```
+
+### 2. Configure `service.yaml`
 
 Set `deploy.target: vercel` to enable validation:
 
@@ -31,7 +52,7 @@ server:
   # tls.enabled must be false (Vercel terminates TLS at edge)
 ```
 
-### 2. Generate `vercel.json`
+### 3. Generate `vercel.json`
 
 ```bash
 sdk-api vercel --output vercel.json
@@ -43,7 +64,7 @@ Or with custom build flags:
 sdk-api vercel --output vercel.json --go-flags "-ldflags '-s -w'"
 ```
 
-### 3. Deploy
+### 4. Deploy
 
 ```bash
 vercel deploy --prod
@@ -63,7 +84,7 @@ vercel deploy --prod
 | WebSocket | ⚠️ | Vercel supports WebSocket upgrades in server mode |
 | Cron jobs (runtime-based) | ❌ | Use Vercel Cron Jobs instead |
 
-## Project structure required by Vercel
+## Project structure
 
 ```
 my-project/
@@ -97,3 +118,11 @@ With custom build:
   }
 }
 ```
+
+## Validation
+
+When `deploy.target: vercel` is set in `service.yaml`, the runtime enforces:
+
+- `server.prefork` must be `false` — rejected at startup with a clear error
+- `server.tls.enabled` must be `false` — rejected at startup with a clear error
+- Local storage on writable paths logs a warning (filesystem is ephemeral on Vercel)

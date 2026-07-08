@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/goccy/go-json"
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/segmentio/kafka-go"
 )
@@ -48,6 +49,14 @@ func (b *KafkaBroker) Publish(ctx context.Context, subject string, data []byte) 
 
 	_, err = conn.WriteMessages(kafka.Message{Value: data})
 	return err
+}
+
+func (b *KafkaBroker) PublishJSON(ctx context.Context, subject string, msg any) error {
+	data, err := json.Marshal(msg)
+	if err != nil {
+		return fmt.Errorf("events: marshal: %w", err)
+	}
+	return b.Publish(ctx, subject, data)
 }
 
 func (b *KafkaBroker) ensureTopic(topic string) error {

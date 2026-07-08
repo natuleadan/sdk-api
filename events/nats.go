@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/goccy/go-json"
 	"github.com/nats-io/nats.go"
 	"github.com/natuleadan/sdk-api/infra/logx"
 )
@@ -67,6 +68,14 @@ func (c *Conn) Name() string { return c.name }
 func (c *Conn) Publish(ctx context.Context, subject string, data []byte) error {
 	_, err := c.JS.Publish(subject, data)
 	return err
+}
+
+func (c *Conn) PublishJSON(ctx context.Context, subject string, msg any) error {
+	data, err := json.Marshal(msg)
+	if err != nil {
+		return fmt.Errorf("events: marshal: %w", err)
+	}
+	return c.Publish(ctx, subject, data)
 }
 
 func (c *Conn) Subscribe(ctx context.Context, subject string, durable string, handler MessageHandler) (Subscription, error) {

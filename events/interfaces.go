@@ -8,6 +8,7 @@ import (
 type EventBroker interface {
 	Name() string
 	Publish(ctx context.Context, subject string, data []byte) error
+	PublishJSON(ctx context.Context, subject string, msg any) error
 	Subscribe(ctx context.Context, subject string, durable string, handler MessageHandler) (Subscription, error)
 	PullSubscribe(ctx context.Context, subject string, durable string) (PullConsumer, error)
 	Request(ctx context.Context, subject string, data []byte, timeout time.Duration) ([]byte, error)

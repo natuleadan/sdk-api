@@ -87,7 +87,7 @@ entry:
 ```go
 svc.WithRest("onCustomList", func(c *runtime.RestCtx) error {
     // Custom pagination logic
-    return c.JSON(fiber.Map{"data": items, "total": total})
+    return c.JSON(map[string]any{"data": items, "total": total})
 })
 ```
 
@@ -117,7 +117,7 @@ entry:
 ```go
 svc.WithRest("onTransformProduct", func(c *runtime.RestCtx) error {
     id := c.Params("id")
-    return c.JSON(fiber.Map{"transformed": true, "id": id})
+    return c.JSON(map[string]any{"transformed": true, "id": id})
 })
 ```
 
@@ -152,7 +152,7 @@ func (h *ProductHooks) BeforeTransform(ctx context.Context, req Product) (Produc
 svc.WithRest("onConvertProduct", runtime.WrapTransformHandler(
     func(c *runtime.RestCtx) error {
         input := c.Locals("transformed").(Product)
-        return c.JSON(fiber.Map{"original": input.Name, "price": input.Price})
+        return c.JSON(map[string]any{"original": input.Name, "price": input.Price})
     },
     &ProductHooks{},
 ))
@@ -186,7 +186,7 @@ entry:
 svc.WithRest("onCreateOrder", func(c *runtime.RestCtx) error {
     // Handler runs first
     // If 2xx, SDK auto-publishes c.Body() to NATS
-    return c.JSON(fiber.Map{"orderID": "123"})
+    return c.JSON(map[string]any{"orderID": "123"})
 })
 ```
 
@@ -216,7 +216,7 @@ entry:
 svc.WithRest("onInboundEmail", func(c *runtime.RestCtx) error {
     // Process inbound webhook payload
     log.Printf("received: %s", string(c.Body()))
-    return c.JSON(fiber.Map{"received": true})
+    return c.JSON(map[string]any{"received": true})
 })
 ```
 
@@ -316,7 +316,7 @@ svc.WithRest("onFileUpload", func(c fiber.Ctx) error {
     defer src.Close()
     dst, _ := os.Create("/data/uploads/" + file.Filename)
     io.Copy(dst, src)
-    return c.JSON(fiber.Map{"filename": file.Filename, "size": file.Size})
+    return c.JSON(map[string]any{"filename": file.Filename, "size": file.Size})
 })
 
 svc.WithRest("onFileDownload", func(c fiber.Ctx) error {
@@ -397,7 +397,7 @@ svc.WithExit("onValidateOrder", func(ctx context.Context, msg []byte) ([]byte, e
     var req struct { ID string `json:"id"` }
     json.Unmarshal(msg, &req)
     valid := req.ID != ""
-    resp, _ := json.Marshal(fiber.Map{"valid": valid})
+    resp, _ := json.Marshal(map[string]any{"valid": valid})
     return resp, nil  // SDK calls msg.Respond(resp)
 })
 ```

@@ -1,0 +1,9 @@
+{
+  "framework": "go"{{if .BuildCmd}},
+  "buildCommand": "{{.BuildCmd}}"{{end}}{{if .GoFlags}},
+  "build": {
+    "env": {
+      "GO_BUILD_FLAGS": "{{.GoFlags}}"
+    }
+  }{{end}}
+}

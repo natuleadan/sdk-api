@@ -514,6 +514,11 @@ func (s *Service) RunWithContext(ctx context.Context) error {
 	ctx, cancel = context.WithCancel(ctx)
 	s.stop = cancel
 
+	if err := validateConfigDeploy(s.config); err != nil {
+		return fmt.Errorf("deploy validation: %w", err)
+	}
+	CheckVercelWarnings(s.config)
+
 	if err := s.initDatabases(ctx); err != nil {
 		return err
 	}

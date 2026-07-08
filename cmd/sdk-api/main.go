@@ -35,6 +35,11 @@ func main() {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			os.Exit(1)
 		}
+	case "vercel":
+		if err := runVercel(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
 	case "help", "--help", "-h":
 		printUsage()
 	default:
@@ -52,6 +57,7 @@ Commands:
   sdk-api new <name> [flags]   Generate a new microservice
   sdk-api docker [flags]          Generate Dockerfile
   sdk-api kube [flags]            Generate Kubernetes deployment YAML
+  sdk-api vercel [flags]          Generate vercel.json for Vercel deployment
   sdk-api client [flags]          Generate client SDK (TypeScript, Python)
 
 Flags for "new":
@@ -75,6 +81,12 @@ Flags for "kube":
   --port int           Container port (default: 8080)
   --replicas int       Replicas (default: 3)
 
+Flags for "vercel":
+  --config string      Path to service.yaml (default: service.yaml)
+  --output string      Output file (default: stdout)
+  --build-command string  Custom build command (e.g., "make build")
+  --go-flags string    Extra GO_BUILD_FLAGS (e.g., "-ldflags '-s -w'")
+
 Flags for "client":
   --model string       Model name (required)
   --fields string      Field definitions: "name:string,price:float64"
@@ -86,5 +98,7 @@ Examples:
   sdk-api new products-svc --model Product --fields "name:string,price:float64"
   sdk-api docker --name products-svc --port 8080
   sdk-api kube --name products-svc --image products:v1 --port 8080
+  sdk-api vercel
+  sdk-api vercel --config service.yaml --output vercel.json --go-flags "-ldflags '-s -w'"
   sdk-api client --model Product --fields "name:string,price:float64" --lang ts --output ./sdk.ts`)
 }

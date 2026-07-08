@@ -16,9 +16,14 @@ import (
 
 // ---- Top-level ----
 
+type DeployConfig struct {
+	Target string `json:"target" config:",default=auto"`
+}
+
 type ServiceConfig struct {
 	Name         string                `json:"name"`
 	Port         int                   `json:"port" config:",default=8080"`
+	Deploy       *DeployConfig         `json:"deploy" config:",optional"`
 	Server       ServerConf            `json:"server" config:",optional"`
 	Databases    []DBConfig            `json:"databases" config:",optional"`
 	EventStreams []EventStreamConnConf `json:"event_streams" config:",optional"`
@@ -673,6 +678,9 @@ func LoadConfig(path string) (*ServiceConfig, error) {
 		return nil, err
 	}
 	applyEnvOverrides(&cfg)
+	if err := validateConfigDeploy(&cfg); err != nil {
+		return nil, err
+	}
 	if err := validateConfigDatabases(&cfg); err != nil {
 		return nil, err
 	}

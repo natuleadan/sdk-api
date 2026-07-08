@@ -2,6 +2,7 @@ package threading
 
 import (
 	"errors"
+	"math"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -32,7 +33,7 @@ type StableRunner[I, O any] struct {
 
 // NewStableRunner returns a new StableRunner with given message processor fn.
 func NewStableRunner[I, O any](fn func(I) O) *StableRunner[I, O] {
-	n := min(bufSize, uint64(^uint(0)>>1))
+	n := min(min(bufSize, uint64(^uint(0)>>1)), uint64(math.MaxInt))
 	ringSize := int(n)
 	ring := make([]*struct {
 		value chan O

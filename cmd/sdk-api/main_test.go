@@ -28,7 +28,7 @@ func TestRunNew(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	checkFile(t, dir, "main.go", `runtime.New("service.yaml")`)
+	checkFile(t, dir, "main.go", `runtime.NewFromYAML(configYAML)`)
 	checkFile(t, dir, "main.go", "db.NewTable[models.Product]")
 	checkFile(t, dir, "main.go", `runtime.NewCRUDProvider`)
 	checkFile(t, dir, "service.yaml", "name: my-service")

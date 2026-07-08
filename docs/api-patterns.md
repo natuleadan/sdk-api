@@ -37,8 +37,11 @@ func (h *ProductHooks) BeforeCreate(ctx context.Context, req Product) (Product, 
     return req, nil
 }
 
+//go:embed service.yaml
+var configYAML []byte
+
 func main() {
-    svc, _ := runtime.New("service.yaml")
+    svc, _ := runtime.NewFromYAML(configYAML)
     pool := svc.Pool("pg-main").(*pgxpool.Pool)
     table, _ := db.NewTable[Product](pool, "products")
     svc.WithCRUD("Product", runtime.NewCRUDProvider(table, &ProductHooks{}))
@@ -82,7 +85,7 @@ entry:
 **Go:**
 
 ```go
-svc.WithRest("onCustomList", func(c fiber.Ctx) error {
+svc.WithRest("onCustomList", func(c *runtime.RestCtx) error {
     // Custom pagination logic
     return c.JSON(fiber.Map{"data": items, "total": total})
 })
@@ -112,8 +115,8 @@ entry:
 **Go:**
 
 ```go
-svc.WithRest("onTransformProduct", func(c fiber.Ctx) error {
-    id := fiber.Params[string](c, "id")
+svc.WithRest("onTransformProduct", func(c *runtime.RestCtx) error {
+    id := c.Params("id")
     return c.JSON(fiber.Map{"transformed": true, "id": id})
 })
 ```
@@ -147,7 +150,7 @@ func (h *ProductHooks) BeforeTransform(ctx context.Context, req Product) (Produc
 }
 
 svc.WithRest("onConvertProduct", runtime.WrapTransformHandler(
-    func(c fiber.Ctx) error {
+    func(c *runtime.RestCtx) error {
         input := c.Locals("transformed").(Product)
         return c.JSON(fiber.Map{"original": input.Name, "price": input.Price})
     },
@@ -172,7 +175,7 @@ entry:
     path: /orders
     handler: onCreateOrder
     db: pg-main
-    nats_publish:
+    event_publish:
       - stream: orders
         subject: orders.created
 ```
@@ -180,7 +183,7 @@ entry:
 **Go:**
 
 ```go
-svc.WithRest("onCreateOrder", func(c fiber.Ctx) error {
+svc.WithRest("onCreateOrder", func(c *runtime.RestCtx) error {
     // Handler runs first
     // If 2xx, SDK auto-publishes c.Body() to NATS
     return c.JSON(fiber.Map{"orderID": "123"})
@@ -193,7 +196,7 @@ The `wrapNATSPublish` wrapper publishes only when the handler returns no error a
 
 ## 6. Webhook
 
-HTTP endpoint that defaults to POST when no method is specified. No JWT by default. Often combined with `nats_publish`.
+HTTP endpoint that defaults to POST when no method is specified. No JWT by default. Often combined with `event_publish`.
 
 **YAML:**
 
@@ -202,7 +205,7 @@ entry:
   - type: webhook
     path: /webhooks/sendgrid
     handler: onInboundEmail
-    nats_publish:
+    event_publish:
       - stream: email
         subject: email.received
 ```
@@ -210,7 +213,7 @@ entry:
 **Go:**
 
 ```go
-svc.WithRest("onInboundEmail", func(c fiber.Ctx) error {
+svc.WithRest("onInboundEmail", func(c *runtime.RestCtx) error {
     // Process inbound webhook payload
     log.Printf("received: %s", string(c.Body()))
     return c.JSON(fiber.Map{"received": true})
@@ -317,7 +320,7 @@ svc.WithRest("onFileUpload", func(c fiber.Ctx) error {
 })
 
 svc.WithRest("onFileDownload", func(c fiber.Ctx) error {
-    id := fiber.Params[string](c, "id")
+    id := c.Params("id")
     f, _ := os.Open("/data/uploads/" + id)
     defer f.Close()
     c.Set("Content-Disposition", `attachment; filename="`+id+`"`)

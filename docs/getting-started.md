@@ -99,6 +99,7 @@ func (h *ProductHooks) BeforeCreate(ctx context.Context, req Product) (Product, 
 package main
 
 import (
+    _ "embed"
     "log"
 
     "products-svc/models"
@@ -108,8 +109,11 @@ import (
     "github.com/natuleadan/sdk-api/runtime"
 )
 
+//go:embed service.yaml
+var configYAML []byte
+
 func main() {
-    svc, err := runtime.New("service.yaml")
+    svc, err := runtime.NewFromYAML(configYAML)
     if err != nil {
         log.Fatalf("init: %v", err)
     }

@@ -141,8 +141,10 @@ Full benchmarks in [`docs/benchmarks.md`](docs/benchmarks.md).
 ```go
 import "github.com/natuleadan/sdk-api"
 
-// Option 1: YAML-driven
-svc, _ := runtime.New("service.yaml")
+// Option 1: YAML-driven (config embedded in binary)
+//go:embed service.yaml
+var configYAML []byte
+svc, _ := runtime.NewFromYAML(configYAML)
 pool := svc.Pool("pg-main").(*pgxpool.Pool)
 table, _ := db.NewTable[Product](pool, "products")
 svc.WithCRUD("Product", runtime.NewCRUDProvider(table, &ProductHooks{}))
@@ -202,7 +204,7 @@ resp, _ := client.Request("orders", "orders.transform", []byte(`{"id": 1}`))
 ## 6. Event Flow
 
 ```
-HTTP Entry → nats_publish → NATS Stream → Exit Worker → DB/NATS/Email
+HTTP Entry → event_publish → NATS Stream → Exit Worker → DB/NATS/Email
       ↑                                      │
       └────── Request-Reply (reply: true) ───┘
 
@@ -240,7 +242,8 @@ Packages involved:
 | [docs/secrets.md](docs/secrets.md) | Secrets management: ${VAR}, SOPS/age, best practices |
 | [docs/api-patterns.md](docs/api-patterns.md) | Entry types, exit workers, cron, hooks with YAML + Go examples |
 | [docs/best-practices.md](docs/best-practices.md) | Gotchas, patterns, anti-patterns |
-| [docs/cli.md](docs/cli.md) | `sdk-api new/docker/kube/client` subcommands |
+| [docs/cli.md](docs/cli.md) | `sdk-api new/docker/kube/vercel/client` subcommands |
+| [docs/deployment-vercel.md](docs/deployment-vercel.md) | Vercel deployment guide with embed config and validation |
 | [docs/benchmarks.md](docs/benchmarks.md) | Full benchmark results and methodology |
 | [docs/architecture.md](docs/architecture.md) | Architecture, entry router, exit system, cron design |
 | [docs/getting-started.md](docs/getting-started.md) | Step-by-step tutorial for first service |
@@ -271,7 +274,7 @@ table, _ := db.NewTable[Product](pool, "products")
 svc.WithCRUD("Product", runtime.NewCRUDProvider(table, &ProductHooks{}))
 ```
 
-### 8.2 REST endpoint with nats_publish
+### 8.2 REST endpoint with event_publish
 
 ```yaml
 entry:
@@ -279,13 +282,13 @@ entry:
     method: POST
     path: /orders/transform
     handler: onTransform
-    nats_publish:
+    event_publish:
       - stream: orders
         subject: orders.transformed
 ```
 
 ```go
-svc.WithRest("onTransform", func(c *fiber.Ctx) error {
+svc.WithRest("onTransform", func(c *runtime.RestCtx) error {
     var req Order
     jsonx.Unmarshal(c.Body(), &req)
     req.Status = "transformed"

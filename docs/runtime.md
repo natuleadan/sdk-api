@@ -78,6 +78,25 @@ NewFromYAML(content) ────────────┘    │
 
 All steps are optional. No databases? Skip `databases:` in YAML. No HTTP? Only define `exit:` and `cron:`.
 
+### ParseConfig
+
+`ParseConfig` parses raw YAML bytes into a `*ServiceConfig`. It is called by both `New()` and `NewFromYAML()` internally, but is also available as a standalone public API for advanced use cases:
+
+```go
+cfg, err := runtime.ParseConfig(yamlContent)
+if err != nil {
+    log.Fatalf("parse: %v", err)
+}
+log.Printf("loaded config: %s on port %d", cfg.Name, cfg.Port)
+```
+
+This is useful when you need to inspect or modify the config before creating the service:
+
+```go
+cfg, _ := runtime.ParseConfig(yamlContent)
+cfg.Port = 9090 // override before building the service
+```
+
 ### Deploy target validation
 
 Set `deploy.target` in `service.yaml` to enable platform-specific validation at startup:

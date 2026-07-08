@@ -66,7 +66,7 @@ General-purpose Go SDK for event-driven microservices and monoliths. YAML-driven
 2. `sdk-api new <name> --model M --fields "a:string,b:int"`
 3. Verify `service.yaml` (databases, entry, server)
 4. Write hooks in `models/model.go`
-5. Wire main.go: `New()` → `WithCRUDFactory()` → `Run()`
+5. Wire main.go: `NewFromYAML(configYAML)` with `//go:embed` → `WithCRUDFactory()` → `Run()`
    (or `WithCRUD()` with a pre-built provider when pool is not needed)
 
 ### Add a REST endpoint
@@ -80,6 +80,15 @@ General-purpose Go SDK for event-driven microservices and monoliths. YAML-driven
 ### Add a cron job
 1. Add `cron: - name: c schedule: "0 6 * * *" mode: handler handler: onTask`
 2. `svc.WithCron("onTask", func(ctx) error { ... })`
+
+### Deploy to Vercel
+1. Add `deploy.target: vercel` to `service.yaml`
+2. `sdk-api vercel --output vercel.json` (validates prefork=false, tls=false)
+3. `vercel deploy --prod`
+
+### Change runtime mode
+1. By default, the generated project uses `runtime.NewFromYAML` with embedded config
+2. For file-based config (not recommended for production), use `runtime.New("service.yaml")`
 
 ## Testing
 

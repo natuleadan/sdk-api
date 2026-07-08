@@ -84,6 +84,5 @@ func (c *RestCtx) Redirect(url string, statusCode ...int) error {
 	if len(statusCode) > 0 {
 		code = statusCode[0]
 	}
-	c.fc.Status(code)
-	return c.fc.Redirect().To(url)
+	return c.fc.Redirect().Status(code).To(url)
 }

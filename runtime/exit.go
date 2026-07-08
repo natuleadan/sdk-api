@@ -216,9 +216,17 @@ func NewExitWorkerManager() *ExitWorkerManager {
 func (m *ExitWorkerManager) Start(ctx context.Context, exitDefs []ExitWorker, brokers map[string]events.EventBroker, handlers map[string]ExitHandler, hooks map[string]ExitHooks) error {
 	for _, cfg := range exitDefs {
 		var broker events.EventBroker
-		for _, b := range brokers {
-			broker = b
-			break
+		if cfg.EventStream != "" {
+			var ok bool
+			broker, ok = brokers[cfg.EventStream]
+			if !ok {
+				return fmt.Errorf("exit %q: event_stream %q not found", cfg.Name, cfg.EventStream)
+			}
+		} else {
+			for _, b := range brokers {
+				broker = b
+				break
+			}
 		}
 		if broker == nil {
 			return fmt.Errorf("exit %q: no event broker available", cfg.Name)

@@ -212,6 +212,16 @@ type TursoConf struct {
 	BusyTimeout int    `json:"busy_timeout" config:",default=30000"` // ms, 0 = no wait
 }
 
+func (t *TursoConf) Validate() error {
+	if t.Mode != "local" && t.Mode != "remote" {
+		return fmt.Errorf("turso mode %q invalid (use local or remote)", t.Mode)
+	}
+	if t.BusyTimeout < 0 {
+		t.BusyTimeout = 30000
+	}
+	return nil
+}
+
 type PoolConf struct {
 	MaxConns          int32  `json:"max_conns" config:",default=10"`
 	MinConns          int32  `json:"min_conns" config:",default=2"`
@@ -238,11 +248,8 @@ func (d *DBConfig) Validate() error {
 		if d.Turso == nil {
 			d.Turso = &TursoConf{Mode: "local", BusyTimeout: 30000}
 		}
-		if d.Turso.Mode != "local" && d.Turso.Mode != "remote" {
-			return fmt.Errorf("turso mode %q invalid (use local or remote)", d.Turso.Mode)
-		}
-		if d.Turso.BusyTimeout < 0 {
-			d.Turso.BusyTimeout = 30000
+		if err := d.Turso.Validate(); err != nil {
+			return err
 		}
 	case "mysql", "mongo":
 	default:

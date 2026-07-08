@@ -30,7 +30,7 @@ func initDatabases(ctx context.Context, databases []DBConfig) (map[string]any, e
 		case "mysql":
 			pool, err = initMySQL(&dbCfg)
 		case "mongo":
-			pool, err = initMongo(&dbCfg)
+			pool = initMongo(&dbCfg)
 		default:
 			return nil, fmt.Errorf("unknown driver %q", dbCfg.Driver)
 		}
@@ -100,7 +100,9 @@ func initTurso(cfg *DBConfig) (*sql.DB, error) {
 		if err == nil {
 			_, _ = conn.ExecContext(context.Background(),
 				fmt.Sprintf("PRAGMA busy_timeout = %d", cfg.Turso.BusyTimeout))
-			conn.Close()
+			if err := conn.Close(); err != nil {
+				logx.Errorf("close turso conn: %v", err)
+			}
 		}
 	}
 	return db, nil
@@ -121,7 +123,7 @@ func initMySQL(cfg *DBConfig) (*sql.DB, error) {
 }
 
 // initMongo stores a MongoDB URI string in the pools map with optional pool params.
-func initMongo(cfg *DBConfig) (string, error) {
+func initMongo(cfg *DBConfig) string {
 	uri := cfg.URL
 	if cfg.Pool != nil && cfg.Pool.MaxConns > 0 {
 		if !strings.Contains(uri, "/?") && !strings.Contains(uri, "?") {
@@ -129,7 +131,7 @@ func initMongo(cfg *DBConfig) (string, error) {
 		}
 		uri = fmt.Sprintf("%s?maxPoolSize=%d&maxConnecting=%d", uri, cfg.Pool.MaxConns, min(cfg.Pool.MaxConns/10, 10))
 	}
-	return uri, nil
+	return uri
 }
 
 // Pool returns a pool by name. Returns nil if not found or not the expected type.

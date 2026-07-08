@@ -1,0 +1,25 @@
+name: url-shortener-mongo-bench
+services:
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh --quiet 2>/dev/null || exit 1
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
+  bench:
+    build:
+      context: ../../../..
+      dockerfile: sdk-api/examples/200-url-shortener/mongo/Dockerfile
+    ports:
+      - "18090:18090"
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      DOCKER_TEST: "1"
+      RPS_BENCH: "${RPS_BENCH}"
+      MONGO_URI: "mongodb://mongo:27017"

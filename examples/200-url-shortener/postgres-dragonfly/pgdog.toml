@@ -1,0 +1,19 @@
+[general]
+host = "0.0.0.0"
+port = 6432
+workers = 4
+default_pool_size = 20
+min_pool_size = 10
+connect_timeout = 10_000
+pooler_mode = "transaction"
+prepared_statements = "extended"
+query_parser = "on"
+auth_type = "trust"
+log_format = "text"
+log_level = "info"
+
+[[databases]]
+name = "postgres"
+role = "primary"
+host = "postgres"
+port = 5432

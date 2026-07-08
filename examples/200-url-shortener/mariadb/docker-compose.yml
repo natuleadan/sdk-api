@@ -1,0 +1,31 @@
+name: url-shortener-maria-bench
+services:
+  mariadb:
+    image: mariadb:11
+    command: --max_connections=2000
+    environment:
+      MYSQL_ROOT_PASSWORD: devpass
+      MYSQL_DATABASE: shorturl
+      MYSQL_USER: dev
+      MYSQL_PASSWORD: devpass
+    ports:
+      - "13306:3306"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 3s
+      timeout: 10s
+      retries: 30
+
+  bench:
+    build:
+      context: ../../../..
+      dockerfile: sdk-api/examples/200-url-shortener/mariadb/Dockerfile
+    ports:
+      - "18088:18088"
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    environment:
+      DOCKER_TEST: "1"
+      RPS_BENCH: "${RPS_BENCH}"
+      DATABASE_URL: "dev:devpass@tcp(mariadb:3306)/shorturl?charset=utf8mb4&parseTime=true"

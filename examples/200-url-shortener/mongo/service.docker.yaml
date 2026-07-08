@@ -1,0 +1,40 @@
+name: url-shortener
+port: 18090
+
+databases:
+  - name: mongo-main
+    driver: mongo
+    url: "${MONGO_URI}"
+    database: shorturl
+    pool:
+      max_conns: 100
+      min_conns: 10
+
+entry:
+  - type: crud
+    model: Link
+    db: mongo-main
+    table: links
+    path: /links
+
+  - type: crud
+    model: LinkExpand
+    db: mongo-main
+    table: links
+    path: /expand
+    overrides:
+      list: "-"
+      create: "-"
+      update: "-"
+      delete: "-"
+
+server:
+  host: "0.0.0.0"
+  prefork: true
+  api_prefix: /api/v1
+  max_conns: 10000
+  timeout: 30s
+  middleware:
+    - path: "/api/v1/*"
+      apply:
+        - logger

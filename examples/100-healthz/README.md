@@ -23,17 +23,16 @@ docker compose up --abort-on-container-exit
 ```
 docker compose up → build image → bench container starts
   ↓
-run.sh (Docker CMD):
-  1. /app/tester -test.run=TestHealthz_OK   ← functional test (200 OK)
-  2. /app/svc & → wrk raw Fiber → kill
-  3. /app/svc & → wrk SDK middleware → kill
+run-test-logic.sh (Docker CMD via run.sh):
+  1. /app/svc & → wait /healthz
+  2. /app/tester -test.run=TestHealthz_OK   ← functional test (200 OK)
   ↓
 container exit 0 → compose stops
 ```
 
 | File | Purpose |
 |------|---------|
-| `bench_test.go` | TestHealthz_OK + Go benchmarks (compiled into /app/tester) |
-| `run.sh` | Docker CMD: functional test → wrk benchmarks |
+| `bench_test.go` | `TestHealthz_OK` + Go benchmarks (compiled into /app/tester) |
+| `run.sh` | Entrypoint: functional tests only (`RPS_BENCH=1` has no effect — no wrk in healthz) |
 | `Dockerfile` | Multi-stage: builds svc + tester binaries |
 | `docker-compose.yml` | Single bench container, no DB dependencies |

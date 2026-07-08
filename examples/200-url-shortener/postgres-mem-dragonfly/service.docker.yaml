@@ -1,0 +1,39 @@
+name: url-shortener
+port: 18087
+
+databases:
+  - name: pg-main
+    driver: postgres
+    url: "${DATABASE_URL:-postgres://dev:devpass@pgdog:6432/postgres?sslmode=disable}"
+    pool:
+      max_conns: 500
+      min_conns: 10
+
+entry:
+  - type: crud
+    model: Link
+    db: pg-main
+    table: link
+    path: /links
+
+  - type: crud
+    model: LinkExpand
+    db: pg-main
+    table: link
+    path: /expand
+    overrides:
+      list: "-"
+      create: "-"
+      update: "-"
+      delete: "-"
+
+server:
+  host: "0.0.0.0"
+  prefork: true
+  api_prefix: /api/v1
+  max_conns: 10000
+  timeout: 30s
+  middleware:
+    - path: "/api/v1/*"
+      apply:
+        - logger

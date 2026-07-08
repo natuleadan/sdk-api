@@ -1,0 +1,12 @@
+name: url-shortener-turso-bench
+services:
+  bench:
+    build:
+      context: ../../../..
+      dockerfile: sdk-api/examples/200-url-shortener/sqlite/Dockerfile
+    ports:
+      - "18089:18089"
+    environment:
+      DOCKER_TEST: "1"
+      RPS_BENCH: "${RPS_BENCH}"
+      DATABASE_URL: "/app/data/shorturl.db?_busy_timeout=30000"

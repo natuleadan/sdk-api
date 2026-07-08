@@ -1,0 +1,42 @@
+name: url-shortener
+port: 18089
+
+databases:
+  - name: turso-main
+    driver: turso
+    url: "${DATABASE_URL}"
+    pool:
+      max_conns: 500
+      min_conns: 10
+    turso:
+      mode: local
+      busy_timeout: 30000
+
+entry:
+  - type: crud
+    model: Link
+    db: turso-main
+    table: link
+    path: /links
+
+  - type: crud
+    model: LinkExpand
+    db: turso-main
+    table: link
+    path: /expand
+    overrides:
+      list: "-"
+      create: "-"
+      update: "-"
+      delete: "-"
+
+server:
+  host: "0.0.0.0"
+  prefork: false
+  api_prefix: /api/v1
+  max_conns: 10000
+  timeout: 30s
+  middleware:
+    - path: "/api/v1/*"
+      apply:
+        - logger

@@ -1,0 +1,48 @@
+name: url-shortener-bench
+services:
+  pgdog:
+    image: ghcr.io/pgdogdev/pgdog:main
+    volumes:
+      - ./pgdog.toml:/pgdog/pgdog.toml:ro
+      - ./users.toml:/pgdog/users.toml:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:18-alpine
+    command: ["postgres", "-c", "max_connections=200"]
+    environment:
+      POSTGRES_USER: dev
+      POSTGRES_PASSWORD: devpass
+      POSTGRES_DB: postgres
+    ports:
+      - "15435:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dev"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+  dragonfly:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly
+    command: ["--cluster_mode=emulated"]
+
+  bench:
+    build:
+      context: ../../../..
+      dockerfile: sdk-api/examples/200-url-shortener/postgres-dragonfly/Dockerfile
+    ports:
+      - "18086:18086"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      dragonfly:
+        condition: service_started
+      pgdog:
+        condition: service_started
+    environment:
+      DOCKER_TEST: "1"
+      RPS_BENCH: "${RPS_BENCH}"
+      DRAGONFLY_ADDR: dragonfly:6379
+      DATABASE_URL: postgres://dev:devpass@pgdog:6432/postgres?sslmode=disable

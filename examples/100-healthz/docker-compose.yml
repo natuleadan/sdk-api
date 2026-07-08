@@ -6,3 +6,4 @@ services:
       dockerfile: sdk-api/examples/100-healthz/Dockerfile
     environment:
       DOCKER_TEST: "1"
+      RPS_BENCH: "${RPS_BENCH}"

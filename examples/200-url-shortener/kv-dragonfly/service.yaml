@@ -1,0 +1,30 @@
+name: kv-only
+port: 18091
+
+entry:
+  - type: rest
+    method: POST
+    path: /links
+    handler: createLink
+  - type: rest
+    method: GET
+    path: /links
+    handler: listLinks
+  - type: rest
+    method: GET
+    path: /links/:code
+    handler: getLink
+  - type: rest
+    method: DELETE
+    path: /links/:code
+    handler: deleteLink
+
+server:
+  host: "0.0.0.0"
+  prefork: true
+  api_prefix: /api/v1
+  max_conns: 10000
+  timeout: 30s
+  middleware:
+    - path: "/api/v1/*"
+      apply: []

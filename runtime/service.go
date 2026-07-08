@@ -516,6 +516,14 @@ func (s *Service) App() *fiber.App {
 	return s.srv.App()
 }
 
+// Storage returns the storage backend registered for a given entry path.
+func (s *Service) Storage(path string) server.StorageBackend {
+	if s.handlers == nil || s.handlers.Storage == nil {
+		return nil
+	}
+	return s.handlers.Storage[path]
+}
+
 // Run starts the service: init DBs, NATS, register routes, start HTTP server.
 func (s *Service) Run() error {
 	return s.RunWithContext(context.Background())
@@ -1051,12 +1059,23 @@ func initStorageFromDef(s *StorageDef) (server.StorageBackend, error) {
 	case "local":
 		return server.NewLocalStorage(s.Path)
 	case "s3":
+		endpoint := s.Endpoint
+		useSSL := false
+		if endpoint != "" {
+			if len(endpoint) > 8 && endpoint[:8] == "https://" {
+				endpoint = endpoint[8:]
+				useSSL = true
+			} else if len(endpoint) > 7 && endpoint[:7] == "http://" {
+				endpoint = endpoint[7:]
+			}
+		}
 		return server.NewS3Storage(server.S3Config{
-			Endpoint:        s.Endpoint,
+			Endpoint:        endpoint,
 			Region:          s.Region,
 			Bucket:          s.Bucket,
 			AccessKeyID:     s.AccessKey,
 			SecretAccessKey: s.SecretKey,
+			UseSSL:          useSSL,
 		})
 	default:
 		return nil, fmt.Errorf("unsupported storage mode %q", s.Mode)

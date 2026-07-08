@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -17,6 +18,12 @@ type StorageBackend interface {
 	Upload(ctx context.Context, key string, reader io.Reader, size int64, contentType string) error
 	Download(ctx context.Context, key string) (io.ReadCloser, error)
 	Delete(ctx context.Context, key string) error
+}
+
+// Presigner generates presigned URLs for direct client access.
+// Optional extension of StorageBackend for S3-compatible storage.
+type Presigner interface {
+	PresignURL(ctx context.Context, key string, ttl time.Duration) (string, error)
 }
 
 // ---- S3 ----
@@ -84,6 +91,14 @@ func (s *S3Storage) Download(ctx context.Context, key string) (io.ReadCloser, er
 
 func (s *S3Storage) Delete(ctx context.Context, key string) error {
 	return s.client.RemoveObject(ctx, s.bucket, key, minio.RemoveObjectOptions{})
+}
+
+func (s *S3Storage) PresignURL(ctx context.Context, key string, ttl time.Duration) (string, error) {
+	url, err := s.client.PresignedGetObject(ctx, s.bucket, key, ttl, nil)
+	if err != nil {
+		return "", fmt.Errorf("s3 presign %s: %w", key, err)
+	}
+	return url.String(), nil
 }
 
 // ---- Local ----

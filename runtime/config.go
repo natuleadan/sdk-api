@@ -387,13 +387,15 @@ type EventPublishTarget struct {
 }
 
 type StorageDef struct {
-	Mode      string `json:"mode"` // s3, local
-	Bucket    string `json:"bucket" config:",optional"`
-	Path      string `json:"path" config:",optional"`
-	Region    string `json:"region" config:",optional"`
-	Endpoint  string `json:"endpoint" config:",optional"`
-	AccessKey string `json:"access_key" config:",optional"`
-	SecretKey string `json:"secret_key" config:",optional"`
+	Mode       string `json:"mode"` // s3, local
+	Bucket     string `json:"bucket" config:",optional"`
+	Path       string `json:"path" config:",optional"`
+	Region     string `json:"region" config:",optional"`
+	Endpoint   string `json:"endpoint" config:",optional"`
+	AccessKey  string `json:"access_key" config:",optional"`
+	SecretKey  string `json:"secret_key" config:",optional"`
+	Presign    bool   `json:"presign" config:",optional"`
+	PresignTTL string `json:"presign_ttl" config:",default=5m"`
 }
 
 func (e *EntryDef) Validate() error {

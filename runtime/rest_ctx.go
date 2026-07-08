@@ -78,3 +78,12 @@ func (c *RestCtx) Path() string {
 func (c *RestCtx) ResponseBody() string {
 	return string(c.fc.Response().Body())
 }
+
+func (c *RestCtx) Redirect(url string, statusCode ...int) error {
+	code := fiber.StatusFound
+	if len(statusCode) > 0 {
+		code = statusCode[0]
+	}
+	c.fc.Status(code)
+	return c.fc.Redirect().To(url)
+}

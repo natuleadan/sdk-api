@@ -5,8 +5,8 @@ Create a Go microservice with auto-generated CRUD, NATS messaging, and OpenAPI d
 ## Prerequisites
 
 - Go 1.26.x
-- Docker (for PostgreSQL, NATS JetStream)
-- PostgreSQL 18+
+- Docker (for PostgreSQL, NATS JetStream, etc.)
+- Docker Compose v2 (for running examples)
 
 ## 1. Install the CLI
 
@@ -149,6 +149,19 @@ export DATABASE_URL="postgres://dev:devpass@localhost:5432/postgres?sslmode=disa
 cd products-svc && go mod tidy && go run .
 ```
 
+### Run with Docker Compose (recommended for examples)
+
+Each example in `examples/` is self-contained:
+
+```bash
+# Functional tests only (default)
+cd examples/200-url-shortener/postgres
+docker compose up --abort-on-container-exit
+
+# Functional tests + RPS benchmark
+RPS_BENCH=1 docker compose up --abort-on-container-exit
+```
+
 ## 7. Test
 
 ```bash
@@ -181,7 +194,7 @@ curl http://localhost:8080/health
 
 ## What's next
 
-- **Multiple databases** — Add `databases:` entries for MySQL/Turso
+- **Multiple databases** — Add `databases:` entries for MySQL/Turso/MongoDB
 - **Event-driven workers** — Add `event_streams:` + `exit:` for NATS/Kafka consumers
 - **Custom endpoints** — Add `type: rest` or `type: webhook` entries
 - **WebSocket/SSE** — Add `type: websocket` or `type: sse` entries

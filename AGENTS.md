@@ -4,7 +4,7 @@
 
 General-purpose Go SDK for event-driven microservices and monoliths. YAML-driven, entry/exit architecture, security built-in.
 
-**Stack:** Fiber (fasthttp) + pgxpool (PostgreSQL) + NATS JetStream + Kafka + go-zero infra (45+ packages)
+**Stack:** Fiber (fasthttp) + pgxpool (PostgreSQL) + MongoDB + NATS JetStream + Kafka + go-zero infra (45+ packages)
 
 **Security:** Security headers, CSRF, rate limiting, TLS (manual + autocert), SSRF protection, input validation, error sanitization, column whitelist, secrets validation — all YAML-driven.
 
@@ -32,7 +32,7 @@ General-purpose Go SDK for event-driven microservices and monoliths. YAML-driven
 - `cmd/sdk-api/` — CLI generator (new/docker/kube/client)
 - `runtime/` — Service orchestrator, entry router, exit workers, cron, hooks
 - `server/` — Fiber HTTP + 14 middlewares + storage backends
-- `db/` — Table[T] CRUD (pgx, Turso, MySQL) + AutoInit
+- `db/` — Table[T] CRUD (pgx, Turso, MySQL, MongoDB) + AutoInit
 - `events/` — NATS JetStream: producers, consumers, KV cache, request-reply
 - `infra/` — 45+ go-zero packages (conf, logx, trace, breaker, redis, discover)
 
@@ -48,7 +48,7 @@ General-purpose Go SDK for event-driven microservices and monoliths. YAML-driven
  │ AutoInit │ Security    │  Exit Workers│ Entry routes│ trace,brk │
  │ PG/Turso │ Headers     │  KV Cache    │ 9 entry     │ redis,mon │
  │ MySQL    │ CSRF/RL/TLS │  Request-    │ types       │ discov    │
- │          │ SSRF/Valid  │  Reply       │ Security    │           │
+ │ MongoDB  │ SSRF/Valid  │  Reply       │ Security    │           │
  └──────────┴─────────────┴──────────────┴─────────────┴───────────┘
 ```
 
@@ -71,7 +71,7 @@ General-purpose Go SDK for event-driven microservices and monoliths. YAML-driven
 
 ### Add a REST endpoint
 1. Add `entry: - type: rest method: GET path: ... handler: name`
-2. `svc.WithRest("name", func(c *fiber.Ctx) error { ... })`
+2. `svc.WithRest("name", func(c *runtime.RestCtx) error { ... })`
 
 ### Add an exit worker
 1. Add `exit: - name: w subscribe.stream: s handler: onMsg`
@@ -103,6 +103,10 @@ go test ./...                 # All tests (requires Docker: PG + NATS)
 - **Rate limit `driver: redis`** — requires `redis_url` configured and Redis running.
 - **CSRF excludes webhooks** — use `entry[].csrf: false` or `server.csrf.exclude_paths`.
 - **Secrets warning** — the SDK logs when values look like plaintext secrets. Always use `${VAR}`.
+- **`svc.WithRest` uses `*RestCtx`, not `*fiber.Ctx`** — the SDK wraps Fiber's context so handlers don't need to import `github.com/gofiber/fiber/v3`. Use `c.Params()`, `c.JSON()`, `c.Status()` etc. on the `*RestCtx` parameter.
+- **Turso `_busy_timeout`** — set via DSN: `"mydb.db?_busy_timeout=30000"` or via YAML `turso: {mode: local, busy_timeout: 30000}`. `mode: remote` skips PRAGMAs (for Turso Cloud).
+- **RPS benchmarks** — `docker compose up --abort-on-container-exit` runs only functional tests by default. Add `RPS_BENCH=1` to run wrk benchmarks with 6 endpoints.
+- **Mongo pool config** — set via YAML `pool.max_conns` (appends `?maxPoolSize=N&maxConnecting=10` to URI). Does not improve RPS; MongoDB's bottleneck is BSON overhead.
 
 ## Linting Rules
 

@@ -8,9 +8,13 @@ How to measure and maximize RPS with the sdk-api framework.
 2. **Use wrk, not Go testing.B** for high-concurrency benchmarks. Go goroutines have scheduling overhead at 1000+ concurrency.
 3. **Each folder is self-contained.** `docker compose up --abort-on-container-exit` builds, seeds, and runs.
 4. **PostgreSQL max_connections must match pool size.** Use `command: ["postgres", "-c", "max_connections=200"]` with PgDog managing the pool.
-5. **Services using runtime.New must lazy-init the DB pool.** `svc.Pool()` returns nil before `svc.Run()`. Use `sync.Once` or `WithCRUDFactory` to defer pool access.
-6. **Results are maintained in each example's README.** Run `docker compose up --abort-on-container-exit` and verify RPS matches the documented value. Update the README if the result changes.
-7. **Each example uses `run.sh`** as the Docker CMD: it runs functional tests (via `go test -c`), seeds data (100 POST requests), then executes `wrk -t10 -c1000 -d30s`. Cache variants run 2 wrk passes (warmup + measure).
+5. **Results are maintained in each example's README.** Re-run `docker compose up --abort-on-container-exit` to verify. Update the README if the result changes.
+6. **Functional tests run by default.** The container entrypoint (`run.sh`) always runs `tester -test.run=TestURL`. To also run the RPS benchmark:
+   ```bash
+   RPS_BENCH=1 docker compose up --abort-on-container-exit
+   ```
+7. **Each example seeds 200 hot keys** before the RPS benchmark (via curl POST). This ensures caches are warm and every request hits the fast path.
+8. **Six endpoints are measured sequentially** per `run.sh`: expand → list → getbyid → create → update → delete. Each endpoint gets 30s warmup + 30s measurement.
 
 ## Maximizing RPS
 
@@ -50,33 +54,33 @@ Use cache-aside pattern: try L1, then L2, then DB. Populate caches on miss.
 
 ### 5. Seed Data
 
-Pre-seed 100+ hot keys before the benchmark. This ensures the cache is warm and every request hits the fast path.
+Pre-seed 200 hot keys before the benchmark. This ensures the cache is warm and every request hits the fast path.
 
 ### 6. Warmup
 
-Run two wrk passes:
+Each endpoint runs 30s warmup before 30s measurement:
 ```
-wrk -t10 -c1000 -d30s ...    # pass 1: warmup (populates caches)
-wrk -t10 -c1000 -d30s ...    # pass 2: measurement
+wrk -t10 -c1000 -d30s ...    # warmup (populates caches)
+wrk -t10 -c1000 -d30s ...    # measurement
 ```
 
-The first pass warms caches across all prefork children. Report the second pass.
+Report the second pass.
 
 ## Methodology
 
 1. Multi-stage Dockerfile builds the Go binary
 2. Data services (PG, Redis, MariaDB, MongoDB, Dragonfly) start in the same Docker network
 3. Service starts, health check passes
-4. Functional tests verify correctness
-5. 100 records seeded via POST endpoints
-6. `wrk -t10 -c1000 -d30s` runs against the read endpoint
-7. Report: Requests/sec (pass 2)
+4. Functional tests verify correctness (`go test -c` → `tester -test.run=TestURL`)
+5. 200 records seeded via POST endpoints (curl)
+6. `wrk -t10 -c1000 -d30s` runs sequentially for each of the 6 endpoints (expand, list, getbyid, create, update, delete) — each with warmup + measure
+7. Report: Requests/sec for each endpoint (pass 2)
 
 ## Environment
 
 | Key | Value |
 |-----|-------|
-| Hardware | Bare Metal, 10 cores |
+| Hardware | Bare Metal, Apple Silicon (10 cores @ 3GHz ARM) |
 | Docker | Docker Desktop (macOS) |
 | Go | 1.26.4 |
 | Benchmark tool | `wrk -t10 -c1000 -d30s` |

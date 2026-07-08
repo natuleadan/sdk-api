@@ -1,5 +1,11 @@
 # Best Practices
 
+## Benchmarking
+
+- **`docker compose up --abort-on-container-exit`** runs functional tests by default. To run RPS benchmarks, set `RPS_BENCH=1`: `RPS_BENCH=1 docker compose up`.
+- **6 endpoints are measured**: expand, list, getbyid, create, update, delete — each with 30s warmup + 30s measure.
+- **Turso/Mongo writes are slow at high concurrency**: SQLite is single-writer; MongoDB BSON overhead limits throughput. Use Dragonfly/Redis as an L2 cache for read-heavy workloads.
+
 ## Entry vs Exit
 
 - **Entry** = HTTP. User-initiated requests. Runs in `--mode entry`.

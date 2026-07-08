@@ -1,6 +1,6 @@
 # Database
 
-sdk-api supports **PostgreSQL** (primary driver, via pgx), **MySQL** (via go-sql-driver), and **Turso** (SQLite-compatible, via tursogo).
+sdk-api supports **PostgreSQL** (primary driver, via pgx), **MySQL** (via go-sql-driver), **Turso** (SQLite-compatible, via tursogo), and **MongoDB** (via mongo-driver).
 
 ## Configuration
 
@@ -12,6 +12,21 @@ databases:
     pool:
       max_conns: 10
       min_conns: 2
+  - name: mongo-main
+    driver: mongo
+    url: "${MONGO_URI}"
+    database: shorturl
+    pool:
+      max_conns: 100
+      min_conns: 10
+  - name: local-turso
+    driver: turso
+    url: "${DATABASE_URL}"
+    pool:
+      max_conns: 500
+    turso:
+      mode: local
+      busy_timeout: 30000
 ```
 
 Multiple databases = multiple entries in the `databases:` array. Each is referenced by name via `entry[].db` or `exit[].db`.
@@ -23,6 +38,7 @@ Multiple databases = multiple entries in the `databases:` array. Each is referen
 | `postgres` / `pg` | `*pgxpool.Pool` | `db.Table[T]` | `NewCRUDProvider[T]` |
 | `mysql` | `*sql.DB` | `db.MySQLTable[T]` | `NewMySQLCRUDProvider[T]` |
 | `turso` | `*sql.DB` | `db.TursoTable[T]` | `NewTursoCRUDProvider[T]` |
+| `mongo` | `string` (URI) | — | `NewMongoCRUDProvider` |
 
 ## Model Definition
 
@@ -75,8 +91,37 @@ svc.WithCRUD("Product", runtime.NewMySQLCRUDProvider(table, &ProductHooks{}))
 ### Turso
 
 ```go
-table, _ := db.NewTursoTable[Product]("file://bench.db", "products")
+table, _ := db.NewTursoTable[Product]("file://bench.db?_busy_timeout=30000", "products")
 svc.WithCRUD("Product", runtime.NewTursoCRUDProvider(table, &ProductHooks{}))
+```
+
+Or via YAML with `turso:` block:
+```yaml
+databases:
+  - driver: turso
+    url: "${DATABASE_URL}"
+    pool:
+      max_conns: 500
+    turso:
+      mode: local        # local | remote — remote skips PRAGMAs (Turso Cloud)
+      busy_timeout: 30000
+```
+
+### MongoDB
+
+```go
+runtime.MongoMustRegister(svc, "Product", "mongo-main", "mydb", "products", "_id")
+```
+
+Pool config is set via YAML (`pool.max_conns` → `maxPoolSize`, `min_conns` → `maxConnecting`):
+```yaml
+databases:
+  - driver: mongo
+    url: "${MONGO_URI}"
+    database: mydb
+    pool:
+      max_conns: 100
+      min_conns: 10
 ```
 
 ## Pool Sizing

@@ -2,6 +2,10 @@
 
 The `Service` struct is the core orchestrator. It loads YAML config, initializes databases and event streams, registers HTTP routes (entry), starts workers (exit), schedules cron jobs, and configures security — all from a single `Run()` call.
 
+**Stack:** Fiber (fasthttp) + pgxpool (PostgreSQL) + MongoDB + NATS JetStream + Kafka + go-zero infra (45+ packages)
+
+The `Service` struct is the core orchestrator. It loads YAML config, initializes databases and event streams, registers HTTP routes (entry), starts workers (exit), schedules cron jobs, and configures security — all from a single `Run()` call.
+
 ## Service API
 
 ```go
@@ -10,7 +14,7 @@ svc, err := runtime.New("service.yaml")
 
 // Register entry handlers
 svc.WithCRUD("Product", provider)           // CRUD auto-routes
-svc.WithRest("hello", func(c) { ... })      // REST endpoints
+svc.WithRest("hello", func(c *runtime.RestCtx) error { ... })  // REST endpoints (no fiber import)
 svc.WithWS("chat", chatHandler)             // WebSocket
 svc.WithSSE("stream", sseHandler)           // SSE
 svc.WithAsync("processReport", handler)     // Async job (202 Accepted)
@@ -47,7 +51,7 @@ svc.Run()
 ```
 New(configPath) → LoadConfig + validate
   → Run()
-    1. initDatabases()        — connect PG/Turso/MySQL pools
+    1. initDatabases()        — connect PG/Turso/MySQL/Mongo pools
     2. initEventStreams()     — connect NATS/Kafka + create streams
     3. initSSRF()             — SafeHTTPClient (if configured)
     4. initServer()           — Fiber HTTP + middlewares + TLS + security headers + CSRF + rate limit
@@ -172,12 +176,37 @@ Wraps a REST handler with `BeforeTransform`/`AfterTransform` hooks:
 
 ```go
 svc.WithRest("convert", runtime.WrapTransformHandler(
-    func(c *fiber.Ctx) error {
+    func(c *runtime.RestCtx) error {
         input := c.Locals("transformed").(MyModel)
         return c.JSON(fiber.Map{"name": input.Name})
     },
     &MyHooks{},
 ))
+```
+
+## RestCtx API
+
+The `RestCtx` type wraps `fiber.Ctx` so REST handlers don't need to import Fiber directly:
+
+```go
+func(c *runtime.RestCtx) error {
+    c.Body()                 // []byte — request body
+    c.Params("id")           // string — URL parameter
+    c.Query("sort", "id")    // string — query parameter with default
+    c.JSON(data)             // error — send JSON response
+    c.Status(code)           // *RestCtx — set status code (chainable)
+    c.SendStatus(code)       // error — send status only
+    c.Context()              // context.Context
+    c.Method()               // string — HTTP method
+    c.Locals(key, val...)    // any — get/set locals
+    c.SendString(s)          // error — send plain text
+    c.Get(key)               // string — request header
+    c.Set(key, val)          // set response header
+    c.Bind(v)                // error — bind body to struct
+    c.StatusCode()           // int — response status code
+    c.Path()                 // string — request path
+    c.ResponseBody()         // string — response body as string
+}
 ```
 
 ## CRUD Provider
@@ -192,10 +221,11 @@ type CRUDProvider interface {
 }
 ```
 
-Three implementations:
+Four implementations:
 - `NewCRUDProvider[T](table, hooks)` — PostgreSQL
 - `NewMySQLCRUDProvider[T](table, hooks)` — MySQL
 - `NewTursoCRUDProvider[T](table, hooks)` — Turso
+- `NewMongoCRUDProvider(model, lookupField)` — MongoDB
 
 ## Pool helpers
 

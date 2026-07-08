@@ -32,10 +32,7 @@ type StableRunner[I, O any] struct {
 
 // NewStableRunner returns a new StableRunner with given message processor fn.
 func NewStableRunner[I, O any](fn func(I) O) *StableRunner[I, O] {
-	n := bufSize
-	if n > uint64(^uint(0)>>1) {
-		n = uint64(^uint(0) >> 1)
-	}
+	n := min(bufSize, uint64(^uint(0)>>1))
 	ringSize := int(n)
 	ring := make([]*struct {
 		value chan O

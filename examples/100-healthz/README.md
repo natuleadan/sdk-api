@@ -11,12 +11,12 @@ Simple HTTP health-check endpoint with zero dependencies. Measures raw Fiber vs 
 docker compose up --abort-on-container-exit
 ```
 
-## Benchmark (wrk -t10 -c1000 -d15s, 3 runs)
+## Benchmark (wrk -t10 -c1000 -d15s)
 
-| Mode | Run 1 | Run 2 | Run 3 | Average |
-|------|:-----:|:-----:|:-----:|:-----:|
-| Raw Fiber | 729,998 | 742,123 | 745,646 | **739,256** |
-| SDK middleware | 686,174 | 710,107 | 749,452 | **715,244** |
+| Mode | RPS | ±5% | ±10% |
+|------|:---:|:---:|:----:|
+| Raw Fiber | 739,256 | 702,293–776,219 | 665,330–813,182 |
+| SDK middleware | 715,244 | 679,482–751,006 | 643,720–786,768 |
 
 ## Architecture
 

@@ -32,16 +32,16 @@ databases:
 docker compose up --abort-on-container-exit
 ```
 
-## Benchmark (wrk -t10 -c1000 -d30s, 3 runs each endpoint)
+## Benchmark (wrk -t10 -c1000 -d30s)
 
-| Endpoint | Run 1 | Run 2 | Run 3 | Average |
-|----------|:-----:|:-----:|:-----:|:-----:|
-| Expand (GET /expand/:shortCode) | 62,009 | 59,184 | 61,113 | **60,768** |
-| List (GET /links) | 5,344 | 5,056 | 4,983 | **5,127** |
-| GetByID (GET /links/:id) | 58,559 | 57,986 | 61,590 | **59,378** |
-| Create (POST /links) | 16.09 | 15.25 | 7.41 | **12.91** |
-| Update (PUT /links/:id) | 93,509 | 87,750 | 64,664 | **81,974** |
-| Delete (DELETE /links/:id) | 21,703 | 20,840 | 21,872 | **21,471** |
+| Endpoint | RPS | ±5% | ±10% |
+|----------|:---:|:---:|:----:|
+| Expand (GET /expand/:shortCode) | 60,768 | 57,730–63,806 | 54,691–66,845 |
+| List (GET /links) | 5,127 | 4,871–5,383 | 4,614–5,640 |
+| GetByID (GET /links/:id) | 59,378 | 56,409–62,347 | 53,440–65,316 |
+| Create (POST /links) | 12.91 | 12.26–13.56 | 11.62–14.20 |
+| Update (PUT /links/:id) | 81,974 | 77,875–86,073 | 73,777–90,171 |
+| Delete (DELETE /links/:id) | 21,471 | 20,397–22,545 | 19,324–23,618 |
 
 ## Limitations
 

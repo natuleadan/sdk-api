@@ -16,25 +16,27 @@ Pool config is set via YAML (`pool.max_conns` / `min_conns`) and applied by `ini
 ## Quick Start
 
 ```bash
-docker compose up --abort-on-container-exit
+docker compose up --build -d
+docker compose logs bench -f
+docker compose down -v
 ```
 
 ## Endpoints
 
 Same CRUD set as all other examples: `POST/GET/GET/PUT/DELETE /links` + `GET /expand/:shortCode`. Uses `type: crud` — auto-generated routes.
 
-## Benchmark (wrk -t10 -c1000 -d30s, 2 runs)
+## Benchmark (wrk -t10 -c1000 -d30s, 1 measure run)
 
-| Endpoint | Run 1 (cold) | Run 2 | Run 3 | Average (warm) |
-|----------|:-----------:|:-----:|:-----:|:--------------:|
-| Expand (GET /expand/:shortCode) | 3,292 | 38,813 | 42,851 | **40,832** |
-| List (GET /links) | 5,700 | 25,555 | 26,167 | **25,861** |
-| GetByID (GET /links/:id) | 7,355 | 40,649 | 40,675 | **40,662** |
-| Create (POST /links) | 4,109 | 3,307 | 2,969 | **3,138** |
-| Update (PUT /links/:id) | 102,809 | 105,697 | 102,476 | **104,086** |
-| Delete (DELETE /links/:id) | 203 | 316 | 568 | **442** |
+| Endpoint | RPS | ±5% | ±10% |
+|----------|:---:|:---:|:----:|
+| Expand (GET /expand/:shortCode) | 53,984 | 51,285–56,683 | 48,586–59,382 |
+| List (GET /links) | 24,434 | 23,212–25,656 | 21,991–26,877 |
+| GetByID (GET /links/:id) | 44,157 | 41,949–46,365 | 39,741–48,573 |
+| Create (POST /links) | 10,566 | 10,038–11,094 | 9,509–11,623 |
+| Update (PUT /links/:id) | 184,178 | 174,969–193,387 | 165,760–202,596 |
+| Delete (DELETE /links/:id) | 36,486 | 34,662–38,310 | 32,837–40,135 |
 
-Run 1 suffered from cold connection pool + `max_connections` saturation (`invalid connection` errors). Runs 2-3 use `min_conns=50` + `--max_connections=2000`.
+**Performance notes:** Pool `max_conns=20` (PgDog-like), `innodb_flush_log_at_trx_commit=2`, `innodb_buffer_pool_size=256M`. Without these tunings, MariaDB delete benchmarked at 442 RPS (InnoDB fsync per transaction bottleneck).
 
 ## Architecture
 
@@ -44,7 +46,7 @@ Run 1 suffered from cold connection pool + `max_connections` saturation (`invali
 | `models/link_expand.go` | LinkExpand model (primary key: `short_code`) |
 | `hooks.go` | `BeforeCreate` auto-generates short codes |
 | `main.go` | `MySQLMustRegister` (no cache) |
-| `service.docker.yaml` | Prefork on, pool=100, CRUD entries |
+| `service.docker.yaml` | Prefork on, pool=20 (PgDog-like), CRUD entries |
 | `bench_test.go` | Functional tests + BenchmarkExpand |
 | `run.sh` | Entrypoint: functional tests always, RPS benchmark only with `RPS_BENCH=1` (6 endpoints) |
 | `docker-compose.yml` | MariaDB 11 (max_connections=2000) |

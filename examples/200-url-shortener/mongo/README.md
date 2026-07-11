@@ -23,16 +23,16 @@ docker compose up --abort-on-container-exit
 
 Same CRUD set as all other examples: `POST/GET/GET/PUT/DELETE /links` + `GET /expand/:shortCode`. Uses `type: crud` — auto-generated routes.
 
-## Benchmark (wrk -t10 -c1000 -d30s, 3 runs each endpoint)
+## Benchmark (wrk -t10 -c1000 -d30s)
 
-| Endpoint | Run 1 | Run 2 | Run 3 | Average |
-|----------|:-----:|:-----:|:-----:|:-------:|
-| Expand (GET /expand/:shortCode) | 27,336 | 27,145 | 27,510 | **27,330** |
-| List (GET /links) | 4,321 | 4,469 | 4,759 | **4,516** |
-| GetByID (GET /links/:id) | 28,792 | 29,416 | 27,201 | **28,469** |
-| Create (POST /links) | 25,414 | 29,296 | 27,543 | **27,417** |
-| Update (PUT /links/:id) | 99,767 | 97,338 | 92,725 | **96,610** |
-| Delete (DELETE /links/:id) | 29,748 | 30,480 | 29,646 | **29,958** |
+| Endpoint | RPS | ±5% | ±10% |
+|----------|:---:|:---:|:----:|
+| Expand (GET /expand/:shortCode) | 27,330 | 25,964–28,697 | 24,597–30,063 |
+| List (GET /links) | 4,516 | 4,290–4,742 | 4,064–4,968 |
+| GetByID (GET /links/:id) | 28,469 | 27,046–29,892 | 25,622–31,316 |
+| Create (POST /links) | 27,417 | 26,046–28,788 | 24,675–30,159 |
+| Update (PUT /links/:id) | 96,610 | 91,780–101,441 | 86,949–106,271 |
+| Delete (DELETE /links/:id) | 29,958 | 28,460–31,456 | 26,962–32,954 |
 
 ## Architecture
 

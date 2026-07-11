@@ -19,18 +19,16 @@ URL shortener with dual-layer cache: L1 in-process memory (`collection.Cache`) +
 docker compose up --abort-on-container-exit
 ```
 
-## Benchmark (wrk -t10 -c1000 -d30s, 3 runs each endpoint)
+## Benchmark (wrk -t10 -c1000 -d30s)
 
-All 6 endpoints are benchmarked sequentially within the same container (200 pre-seeded keys). Expand uses L1+L2 cache.
-
-| Endpoint | Run 1 | Run 2 | Run 3 | Average |
-|----------|:-----:|:-----:|:-----:|:-----:|
-| Expand (GET /expand/:shortCode) | 100,760 | 110,617 | 109,791 | **107,056** |
-| List (GET /links) | 24,151 | 24,244 | 24,428 | **24,274** |
-| GetByID (GET /links/:id) | 45,318 | 45,972 | 46,659 | **45,983** |
-| Create (POST /links) | 19,096 | 18,918 | 18,728 | **18,914** |
-| Update (PUT /links/:id) | 107,225 | 100,732 | 106,489 | **104,815** |
-| Delete (DELETE /links/:id) | 44,395 | 44,573 | 43,934 | **44,300** |
+| Endpoint | RPS | ±5% | ±10% |
+|----------|:---:|:---:|:----:|
+| Expand (GET /expand/:shortCode) | 107,056 | 101,703–112,409 | 96,350–117,762 |
+| List (GET /links) | 24,274 | 23,060–25,488 | 21,847–26,701 |
+| GetByID (GET /links/:id) | 45,983 | 43,684–48,282 | 41,385–50,581 |
+| Create (POST /links) | 18,914 | 17,968–19,860 | 17,023–20,805 |
+| Update (PUT /links/:id) | 104,815 | 99,574–110,056 | 94,334–115,297 |
+| Delete (DELETE /links/:id) | 44,300 | 42,085–46,515 | 39,870–48,730 |
 
 ## Architecture
 

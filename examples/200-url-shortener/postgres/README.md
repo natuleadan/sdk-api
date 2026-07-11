@@ -18,18 +18,16 @@ URL shortener with PostgreSQL and PgDog pooler. No cache — every request hits 
 docker compose up --abort-on-container-exit
 ```
 
-## Benchmark (wrk -t10 -c1000 -d30s, 3 runs each endpoint)
+## Benchmark (wrk -t10 -c1000 -d30s)
 
-All 6 endpoints are benchmarked sequentially within the same container (200 pre-seeded keys). Order: expand → list → getbyid → create → update → delete.
-
-| Endpoint | Run 1 | Run 2 | Run 3 | Average |
-|----------|:-----:|:-----:|:-----:|:-----:|
-| Expand (GET /expand/:shortCode) | 45,214 | 44,400 | 43,775 | **44,463** |
-| List (GET /links) | 22,899 | 23,560 | 22,754 | **23,071** |
-| GetByID (GET /links/:id) | 40,948 | 46,513 | 44,570 | **44,010** |
-| Create (POST /links) | 16,674 | 15,895 | 16,812 | **16,460** |
-| Update (PUT /links/:id) | 98,347 | 93,405 | 95,378 | **95,710** |
-| Delete (DELETE /links/:id) | 39,602 | 42,372 | 44,390 | **42,121** |
+| Endpoint | RPS | ±5% | ±10% |
+|----------|:---:|:---:|:----:|
+| Expand (GET /expand/:shortCode) | 44,463 | 42,240–46,686 | 40,017–48,909 |
+| List (GET /links) | 23,071 | 21,917–24,225 | 20,764–25,378 |
+| GetByID (GET /links/:id) | 44,010 | 41,810–46,211 | 39,609–48,411 |
+| Create (POST /links) | 16,460 | 15,637–17,283 | 14,814–18,106 |
+| Update (PUT /links/:id) | 95,710 | 90,925–100,496 | 86,139–105,281 |
+| Delete (DELETE /links/:id) | 42,121 | 40,015–44,227 | 37,909–46,333 |
 
 ## Architecture
 

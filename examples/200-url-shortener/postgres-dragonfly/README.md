@@ -18,18 +18,16 @@ URL shortener with PostgreSQL and Dragonfly cache (L2). Cache-aside via `runtime
 docker compose up --abort-on-container-exit
 ```
 
-## Benchmark (wrk -t10 -c1000 -d30s, 3 runs each endpoint)
+## Benchmark (wrk -t10 -c1000 -d30s)
 
-All 6 endpoints are benchmarked sequentially within the same container (200 pre-seeded keys). Expand uses L2 Dragonfly cache.
-
-| Endpoint | Run 1 | Run 2 | Run 3 | Average |
-|----------|:-----:|:-----:|:-----:|:-----:|
-| Expand (GET /expand/:shortCode) | 76,626 | 76,065 | 72,798 | **75,163** |
-| List (GET /links) | 24,352 | 24,366 | 24,156 | **24,291** |
-| GetByID (GET /links/:id) | 46,856 | 46,734 | 45,461 | **46,350** |
-| Create (POST /links) | 19,037 | 19,399 | 19,185 | **19,207** |
-| Update (PUT /links/:id) | 105,269 | 110,268 | 106,848 | **107,461** |
-| Delete (DELETE /links/:id) | 45,126 | 45,317 | 45,286 | **45,243** |
+| Endpoint | RPS | ±5% | ±10% |
+|----------|:---:|:---:|:----:|
+| Expand (GET /expand/:shortCode) | 75,163 | 71,405–78,921 | 67,647–82,679 |
+| List (GET /links) | 24,291 | 23,076–25,506 | 21,862–26,720 |
+| GetByID (GET /links/:id) | 46,350 | 44,033–48,668 | 41,715–50,985 |
+| Create (POST /links) | 19,207 | 18,247–20,167 | 17,286–21,128 |
+| Update (PUT /links/:id) | 107,461 | 102,088–112,834 | 96,715–118,207 |
+| Delete (DELETE /links/:id) | 45,243 | 42,981–47,505 | 40,719–49,767 |
 
 ## Architecture
 

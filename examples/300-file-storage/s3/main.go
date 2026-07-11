@@ -81,6 +81,27 @@ func main() {
 		return c.Redirect(url, 302)
 	})
 
+	svc.WithRest("onSignOnly", func(c *runtime.RestCtx) error {
+		key := c.Params("key")
+		backend := svc.Storage("/files/upload/:key")
+		if backend == nil {
+			return c.Status(500).JSON(map[string]any{"error": "storage not configured"})
+		}
+		presigner, ok := backend.(server.Presigner)
+		if !ok {
+			return c.Status(500).JSON(map[string]any{"error": "presigner not available"})
+		}
+		url, err := presigner.PresignURL(c.Context(), fmt.Sprintf("uploads/%s", key), 5*time.Minute)
+		if err != nil {
+			return c.Status(500).JSON(map[string]any{"error": err.Error()})
+		}
+		return c.JSON(map[string]any{
+			"url":     url,
+			"key":     key,
+			"expires": "5m0s",
+		})
+	})
+
 	if err := svc.Run(); err != nil {
 		log.Fatalf("run: %v", err)
 	}

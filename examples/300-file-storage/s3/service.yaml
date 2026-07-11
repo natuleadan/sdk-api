@@ -30,3 +30,8 @@ entry:
     method: GET
     path: /files/presign/:key
     handler: onDownloadPresign
+
+  - type: rest
+    method: GET
+    path: /files/sign/:key
+    handler: onSignOnly

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -243,6 +244,41 @@ func TestFile_PresignRedirect(t *testing.T) {
 		t.Fatalf("presign URL missing signature: %s", loc)
 	}
 	t.Logf("presigned URL valid: %.60s...", loc)
+}
+
+func TestFile_SignOnlyJSON(t *testing.T) {
+	setup(t)
+	code := fmt.Sprintf("sign-%d", time.Now().UnixNano())
+
+	// Upload first so the file exists
+	_, _ = http.Post(apiUpload+"/"+code+".dat", "text/plain", strings.NewReader("sign-data"))
+
+	resp, err := http.Get(baseURL + "/api/v1/files/sign/" + code + ".dat")
+	if err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("sign status %d", resp.StatusCode)
+	}
+	var body map[string]any
+	json.NewDecoder(resp.Body).Decode(&body)
+	url, _ := body["url"].(string)
+	if url == "" {
+		t.Fatal("sign: expected url in JSON response")
+	}
+	if !strings.Contains(url, "X-Amz-Signature") {
+		t.Fatalf("sign: URL missing signature: %s", url)
+	}
+	key, _ := body["key"].(string)
+	if key == "" {
+		t.Fatal("sign: expected key in JSON response")
+	}
+	exp, _ := body["expires"].(string)
+	if exp == "" {
+		t.Error("sign: expected expires in JSON response")
+	}
+	t.Logf("sign: url=%.60s... key=%s expires=%s", url, key, exp)
 }
 
 func BenchmarkUpload(b *testing.B) {

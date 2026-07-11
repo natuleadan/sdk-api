@@ -34,8 +34,8 @@ if [ "$RPS_BENCH" = "1" ]; then
 		sleep 1
 	}
 
-	bench_one create   create.lua
 	bench_one list     list.lua
+	bench_one create   create.lua
 fi
 
 echo "=== Benchmark complete ==="

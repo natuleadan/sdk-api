@@ -33,8 +33,9 @@ if [ "$RPS_BENCH" = "1" ]; then
 		sleep 1
 	}
 
-	bench_one upload   upload.lua
-	bench_one download download.lua
+	bench_one upload     upload.lua
+	bench_one download   download.lua
+	bench_one sign-only  sign.lua
 fi
 
 echo "=== Benchmark complete ==="

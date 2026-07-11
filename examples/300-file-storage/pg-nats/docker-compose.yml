@@ -7,13 +7,20 @@ services:
       POSTGRES_USER: dev
       POSTGRES_PASSWORD: devpass
       POSTGRES_DB: postgres
-    ports:
-      - "15438:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U dev"]
       interval: 3s
       timeout: 3s
       retries: 10
+
+  pgdog:
+    image: ghcr.io/pgdogdev/pgdog:main
+    volumes:
+      - ./pgdog.toml:/pgdog/pgdog.toml:ro
+      - ./users.toml:/pgdog/users.toml:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   nats:
     image: nats:latest
@@ -54,6 +61,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      pgdog:
+        condition: service_started
       nats:
         condition: service_started
       createbucket:
@@ -61,7 +70,7 @@ services:
     environment:
       DOCKER_TEST: "1"
       RPS_BENCH: "${RPS_BENCH}"
-      DATABASE_URL: postgres://dev:devpass@postgres:5432/postgres?sslmode=disable
+      DATABASE_URL: postgres://dev:devpass@pgdog:6432/postgres?sslmode=disable
       NATS_URL: nats://nats:4222
       S3_ENDPOINT: http://minio:9000
       S3_BUCKET: dummy-bucket

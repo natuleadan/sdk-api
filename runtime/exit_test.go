@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -139,6 +140,158 @@ func TestExitWorkerManager_MissingHandler(t *testing.T) {
 }
 
 // Integration test requiring NATS — skipped in unit tests
+func TestNakWithLog(t *testing.T) {
+	// nakWithLog is a fire-and-forget helper; just verify it doesn't panic
+	var called atomic.Bool
+	m := &mockMessage{nakFn: func() error { called.Store(true); return nil }}
+	nakWithLog(m, "test-worker", "test-context")
+	if !called.Load() {
+		t.Error("Nak not called")
+	}
+}
+
+func TestExitWorker_PullBatchDefaults(t *testing.T) {
+	w := ExitWorker{
+		Name:          "puller",
+		Subscribe:     SubscribeDef{Stream: "s", Subject: "s"},
+		Handler:       "h",
+		ConsumerMode:  "pull",
+		MaxConcurrent: 1,
+	}
+	err := w.Validate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w.PullBatch != 0 {
+		t.Errorf("PullBatch = %d, want 0", w.PullBatch)
+	}
+}
+
+// mockMessage implements events.Message for unit testing
+type mockMessage struct {
+	events.Message
+	nakFn func() error
+}
+
+func (m *mockMessage) Nak(_ ...time.Duration) error {
+	if m.nakFn != nil {
+		return m.nakFn()
+	}
+	return nil
+}
+
+type mockExitHooks struct {
+	onMessage func(ctx context.Context, msg []byte) ([]byte, error)
+	onSuccess func(ctx context.Context)
+	onError   func(ctx context.Context, err error)
+}
+
+func (m *mockExitHooks) OnMessage(ctx context.Context, msg []byte) ([]byte, error) {
+	if m.onMessage != nil {
+		return m.onMessage(ctx, msg)
+	}
+	return msg, nil
+}
+
+func (m *mockExitHooks) OnSuccess(ctx context.Context) {
+	if m.onSuccess != nil {
+		m.onSuccess(ctx)
+	}
+}
+
+func (m *mockExitHooks) OnError(ctx context.Context, err error) {
+	if m.onError != nil {
+		m.onError(ctx, err)
+	}
+}
+
+func TestExitWorker_Hooks(t *testing.T) {
+	natsURL := os.Getenv("NATS_URL")
+	if natsURL == "" {
+		t.Skip("NATS_URL not set, skipping integration test")
+	}
+
+	ctx := context.Background()
+	conn, err := events.Connect(ctx, events.ConnOptions{
+		URL:     natsURL,
+		Timeout: 3 * time.Second,
+	})
+	if err != nil {
+		t.Skipf("NATS not available: %v", err)
+	}
+	defer conn.Drain()
+
+	streamName := "hooks-test-" + fmt.Sprintf("%d", time.Now().UnixNano())
+	err = conn.EnsureStream(events.StreamConfig{
+		Name:     streamName,
+		Subjects: []string{streamName},
+	})
+	if err != nil {
+		t.Skipf("stream setup: %v", err)
+	}
+
+	mgr := NewExitWorkerManager()
+
+	var hookCalls []string
+	var mu sync.Mutex
+	record := func(s string) {
+		mu.Lock()
+		hookCalls = append(hookCalls, s)
+		mu.Unlock()
+	}
+
+	exitDefs := []ExitWorker{
+		{
+			Name:          "hook-tester",
+			Subscribe:     SubscribeDef{Stream: streamName, Subject: streamName},
+			Handler:       "onHook",
+			MaxConcurrent: 1,
+		},
+	}
+
+	err = mgr.Start(ctx, exitDefs, map[string]events.EventBroker{"default": conn}, map[string]ExitHandler{
+		"onHook": func(ctx context.Context, msg []byte) ([]byte, error) {
+			record("handler")
+			return nil, nil
+		},
+	}, map[string]ExitHooks{
+		"hook-tester": &mockExitHooks{
+			onMessage: func(ctx context.Context, msg []byte) ([]byte, error) {
+				record("onMessage")
+				return msg, nil
+			},
+			onSuccess: func(ctx context.Context) {
+				record("onSuccess")
+			},
+			onError: func(ctx context.Context, err error) {
+				record("onError")
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	_, err = conn.JS.Publish(streamName, []byte(`{"test":true}`))
+	if err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+
+	time.Sleep(time.Second)
+
+	mu.Lock()
+	calls := make([]string, len(hookCalls))
+	copy(calls, hookCalls)
+	mu.Unlock()
+
+	if len(calls) < 3 {
+		t.Fatalf("expected at least 3 hook calls (onMessage+handler+onSuccess), got %v", calls)
+	}
+	t.Logf("hook calls: %v", calls)
+
+	mgr.Shutdown(2 * time.Second)
+}
+
 func TestExitWorker_StartStop_NATS(t *testing.T) {
 	natsURL := os.Getenv("NATS_URL")
 	if natsURL == "" {

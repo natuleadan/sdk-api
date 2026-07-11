@@ -402,6 +402,186 @@ func TestIntegration_CRUD_NATSPublish(t *testing.T) {
 	t.Logf("CRUD nats_publish: %d messages published", received.Load())
 }
 
+func TestIntegration_ExitWorker_Pull(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	natsURL := getNATSTestURL(t)
+
+	ctx := context.Background()
+	conn, err := events.Connect(ctx, events.ConnOptions{URL: natsURL, Timeout: 3 * time.Second})
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	defer conn.Drain()
+
+	streamName := "it-pull-" + randSuffix()
+	conn.EnsureStream(events.StreamConfig{Name: streamName, Subjects: []string{streamName}})
+
+	mgr := NewExitWorkerManager()
+	var received atomic.Int64
+
+	err = mgr.Start(ctx, []ExitWorker{
+		{
+			Name:          "puller",
+			Subscribe:     SubscribeDef{Stream: streamName, Subject: streamName},
+			Handler:       "onPull",
+			MaxConcurrent: 2,
+			ConsumerMode:  "pull",
+			PullBatch:     5,
+			PullMaxWait:   "3s",
+		},
+	}, map[string]events.EventBroker{"default": conn}, map[string]ExitHandler{
+		"onPull": func(ctx context.Context, msg []byte) ([]byte, error) {
+			received.Add(1)
+			return nil, nil
+		},
+	}, nil)
+
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	time.Sleep(200 * time.Millisecond)
+
+	for i := range 3 {
+		conn.JS.Publish(streamName, fmt.Appendf(nil, `{"n":%d}`, i))
+	}
+	time.Sleep(2 * time.Second)
+
+	if received.Load() < 3 {
+		t.Errorf("received %d, want 3", received.Load())
+	}
+	t.Logf("pull worker received %d messages", received.Load())
+
+	mgr.Shutdown(2 * time.Second)
+}
+
+func TestIntegration_ExitWorker_HandlerErrorNak(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	natsURL := getNATSTestURL(t)
+
+	ctx := context.Background()
+	conn, err := events.Connect(ctx, events.ConnOptions{URL: natsURL, Timeout: 3 * time.Second})
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	defer conn.Drain()
+
+	streamName := "it-errnak-" + randSuffix()
+	conn.EnsureStream(events.StreamConfig{Name: streamName, Subjects: []string{streamName}})
+
+	mgr := NewExitWorkerManager()
+	var count atomic.Int64
+
+	err = mgr.Start(ctx, []ExitWorker{
+		{
+			Name:          "errhandler",
+			Subscribe:     SubscribeDef{Stream: streamName, Subject: streamName},
+			Handler:       "onErr",
+			MaxConcurrent: 1,
+		},
+	}, map[string]events.EventBroker{"default": conn}, map[string]ExitHandler{
+		"onErr": func(ctx context.Context, msg []byte) ([]byte, error) {
+			n := count.Add(1)
+			if n <= 1 {
+				return nil, fmt.Errorf("simulated error")
+			}
+			return nil, nil
+		},
+	}, nil)
+
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	time.Sleep(200 * time.Millisecond)
+
+	conn.JS.Publish(streamName, []byte(`{"test":true}`))
+	time.Sleep(3 * time.Second)
+
+	n := count.Load()
+	if n < 2 {
+		t.Errorf("expected >= 2 (error + retry), got %d", n)
+	}
+	t.Logf("handler error retry count: %d", n)
+
+	mgr.Shutdown(2 * time.Second)
+}
+
+func TestIntegration_MultiBroker(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	natsURL := getNATSTestURL(t)
+
+	ctx := context.Background()
+	conn1, err := events.Connect(ctx, events.ConnOptions{URL: natsURL, Timeout: 3 * time.Second, Name: "broker1"})
+	if err != nil {
+		t.Fatalf("connect broker1: %v", err)
+	}
+	defer conn1.Drain()
+
+	conn2, err := events.Connect(ctx, events.ConnOptions{URL: natsURL, Timeout: 3 * time.Second, Name: "broker2"})
+	if err != nil {
+		t.Fatalf("connect broker2: %v", err)
+	}
+	defer conn2.Drain()
+
+	streamA := "it-multi-a-" + randSuffix()
+	streamB := "it-multi-b-" + randSuffix()
+	conn1.EnsureStream(events.StreamConfig{Name: streamA, Subjects: []string{streamA}})
+	conn2.EnsureStream(events.StreamConfig{Name: streamB, Subjects: []string{streamB}})
+
+	mgr := NewExitWorkerManager()
+	var countA, countB atomic.Int64
+
+	err = mgr.Start(ctx, []ExitWorker{
+		{
+			Name:          "worker-a",
+			EventStream:   "primary",
+			Subscribe:     SubscribeDef{Stream: streamA, Subject: streamA},
+			Handler:       "onA",
+			MaxConcurrent: 1,
+		},
+		{
+			Name:          "worker-b",
+			EventStream:   "secondary",
+			Subscribe:     SubscribeDef{Stream: streamB, Subject: streamB},
+			Handler:       "onB",
+			MaxConcurrent: 1,
+		},
+	}, map[string]events.EventBroker{"primary": conn1, "secondary": conn2}, map[string]ExitHandler{
+		"onA": func(ctx context.Context, msg []byte) ([]byte, error) {
+			countA.Add(1)
+			return nil, nil
+		},
+		"onB": func(ctx context.Context, msg []byte) ([]byte, error) {
+			countB.Add(1)
+			return nil, nil
+		},
+	}, nil)
+
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	time.Sleep(200 * time.Millisecond)
+
+	conn1.JS.Publish(streamA, []byte(`{"from":"broker1"}`))
+	conn2.JS.Publish(streamB, []byte(`{"from":"broker2"}`))
+	time.Sleep(2 * time.Second)
+
+	if countA.Load() < 1 {
+		t.Error("expected worker-a to receive message")
+	}
+	if countB.Load() < 1 {
+		t.Error("expected worker-b to receive message")
+	}
+	t.Logf("multi-broker: A=%d, B=%d", countA.Load(), countB.Load())
+
+	mgr.Shutdown(2 * time.Second)
+}
+
 // --- Helpers ---
 
 func getNATSTestURL(t *testing.T) string {

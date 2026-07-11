@@ -3,6 +3,8 @@ package events
 import (
 	"testing"
 	"time"
+
+	"github.com/nats-io/nats.go"
 )
 
 func TestDefaultConsumerConfig(t *testing.T) {
@@ -105,5 +107,50 @@ func TestConsumerSubOpts(t *testing.T) {
 	opts = consumerSubOpts(cfg)
 	if len(opts) != 4 {
 		t.Errorf("expected 4 opts (DeliverNew counted), got %d", len(opts))
+	}
+}
+
+func TestConvertStorage(t *testing.T) {
+	if got := convertStorage(FileStorage); got != nats.FileStorage {
+		t.Errorf("FileStorage = %v, want %v", got, nats.FileStorage)
+	}
+	if got := convertStorage(MemoryStorage); got != nats.MemoryStorage {
+		t.Errorf("MemoryStorage = %v, want %v", got, nats.MemoryStorage)
+	}
+	var unknown StorageType = 99
+	if got := convertStorage(unknown); got != nats.FileStorage {
+		t.Errorf("unknown StorageType = %v, want FileStorage", got)
+	}
+}
+
+func TestConvertCompression(t *testing.T) {
+	if got := convertCompression(S2Compression); got != nats.S2Compression {
+		t.Errorf("S2Compression = %v, want %v", got, nats.S2Compression)
+	}
+	if got := convertCompression(NoCompression); got != nats.NoCompression {
+		t.Errorf("NoCompression = %v, want %v", got, nats.NoCompression)
+	}
+	var unknown CompressionType = 99
+	if got := convertCompression(unknown); got != nats.S2Compression {
+		t.Errorf("unknown CompressionType = %v, want S2Compression", got)
+	}
+}
+
+func TestDefaultKVConfig(t *testing.T) {
+	cfg := DefaultKVConfig("test-bucket")
+	if cfg.Bucket != "test-bucket" {
+		t.Errorf("Bucket = %q", cfg.Bucket)
+	}
+	if cfg.Description != "test-bucket KV store" {
+		t.Errorf("Description = %q", cfg.Description)
+	}
+	if cfg.TTL != 5*time.Minute {
+		t.Errorf("TTL = %v", cfg.TTL)
+	}
+	if cfg.MaxBytes != 256*1024*1024 {
+		t.Errorf("MaxBytes = %d", cfg.MaxBytes)
+	}
+	if cfg.Storage != MemoryStorage {
+		t.Errorf("Storage = %v", cfg.Storage)
 	}
 }

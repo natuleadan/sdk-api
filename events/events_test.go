@@ -359,6 +359,401 @@ func TestCacheTyped(t *testing.T) {
 	}
 }
 
+func TestSubscribeRaw(t *testing.T) {
+	conn := testConn(t)
+	subject := "test.raw." + testStreamName("raw")
+
+	var received atomic.Int32
+	err := conn.SubscribeRaw(subject, func(msg []byte) {
+		received.Add(1)
+	})
+	if err != nil {
+		t.Fatalf("SubscribeRaw: %v", err)
+	}
+
+	conn.NC.Publish(subject, []byte("hello"))
+	time.Sleep(500 * time.Millisecond)
+
+	if received.Load() < 1 {
+		t.Error("expected at least 1 message via SubscribeRaw")
+	}
+}
+
+func TestSubscribeRawReply(t *testing.T) {
+	conn := testConn(t)
+	subject := "test.rr." + testStreamName("rawrr")
+
+	err := conn.SubscribeRawReply(subject, func(msg []byte) []byte {
+		return append([]byte("echo:"), msg...)
+	})
+	if err != nil {
+		t.Fatalf("SubscribeRawReply: %v", err)
+	}
+
+	resp, err := conn.NC.Request(subject, []byte("ping"), 3*time.Second)
+	if err != nil {
+		t.Fatalf("Request: %v", err)
+	}
+	if string(resp.Data) != "echo:ping" {
+		t.Errorf("expected 'echo:ping', got %q", resp.Data)
+	}
+}
+
+func TestConnName(t *testing.T) {
+	ctx := context.Background()
+	conn, err := Connect(ctx, ConnOptions{URL: os.Getenv("NATS_URL"), Name: "my-test-conn"})
+	if err != nil {
+		t.Skipf("NATS not available: %v", err)
+	}
+	defer conn.Drain()
+	if conn.Name() != "my-test-conn" {
+		t.Errorf("Name() = %q, want 'my-test-conn'", conn.Name())
+	}
+}
+
+func TestConnContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	conn, err := Connect(ctx, ConnOptions{URL: os.Getenv("NATS_URL")})
+	if err != nil {
+		t.Skipf("NATS not available: %v", err)
+	}
+	defer conn.Drain()
+	if err := conn.Context().Err(); err == nil {
+		t.Error("expected cancelled context")
+	}
+}
+
+func TestConnClose(t *testing.T) {
+	conn := testConn(t)
+	if err := conn.Close(); err != nil {
+		t.Errorf("Close: %v", err)
+	}
+	// second Close should be safe
+	if err := conn.Close(); err != nil {
+		t.Errorf("Close (second): %v", err)
+	}
+}
+
+func TestConnPublishJSON(t *testing.T) {
+	conn := testConn(t)
+	name := testStream(t, conn, "pubjson")
+
+	err := conn.PublishJSON(context.Background(), name, testEvent{ID: 42, Payload: "json-test"})
+	if err != nil {
+		t.Fatalf("PublishJSON: %v", err)
+	}
+
+	var received atomic.Int32
+	cfg := DefaultConsumerConfig(name, name+"-c1")
+	cfg.Subject = name
+	err = ConsumePull[testEvent](context.Background(), conn.JS, cfg,
+		func(ctx context.Context, msg Msg[testEvent]) (AckAction, error) {
+			if msg.Data.ID == 42 {
+				received.Add(1)
+			}
+			return Ack, nil
+		})
+	if err != nil {
+		t.Fatalf("ConsumePull: %v", err)
+	}
+	time.Sleep(2 * time.Second)
+
+	if received.Load() < 1 {
+		t.Error("PublishJSON message not received")
+	}
+}
+
+func TestConnRequest(t *testing.T) {
+	conn := testConn(t)
+	subject := "conn.req." + testStreamName("req")
+
+	conn.NC.Subscribe(subject, func(m *nats.Msg) {
+		m.Respond([]byte("pong"))
+	})
+	conn.NC.Flush()
+
+	resp, err := conn.Request(context.Background(), subject, []byte("ping"), 3*time.Second)
+	if err != nil {
+		t.Fatalf("Conn.Request: %v", err)
+	}
+	if string(resp) != "pong" {
+		t.Errorf("expected 'pong', got %q", resp)
+	}
+}
+
+func TestConnEnsureStreams(t *testing.T) {
+	conn := testConn(t)
+	name1 := testStreamName("es1")
+	name2 := testStreamName("es2")
+
+	err := conn.EnsureStreams(
+		DefaultStreamConfig(name1),
+		DefaultStreamConfig(name2),
+	)
+	if err != nil {
+		t.Fatalf("EnsureStreams: %v", err)
+	}
+
+	if err := conn.EnsureStreams(); err != nil {
+		t.Errorf("EnsureStreams (empty): %v", err)
+	}
+}
+
+func TestConnKVGet(t *testing.T) {
+	conn := testConn(t)
+	name := testStreamName("kvget")
+
+	rev, err := conn.KVPut(name, "k", []byte("val"))
+	if err != nil {
+		t.Skipf("KVPut: %v (server may not support KV)", err)
+	}
+	if rev == 0 {
+		t.Error("expected non-zero revision")
+	}
+
+	data, err := conn.KVGet(name, "k")
+	if err != nil {
+		t.Fatalf("KVGet: %v", err)
+	}
+	if string(data) != "val" {
+		t.Errorf("expected 'val', got %q", data)
+	}
+}
+
+func TestConnKVGetNonExistent(t *testing.T) {
+	conn := testConn(t)
+	name := testStreamName("kvgne")
+
+	_, err := conn.KVGet(name, "nonexistent")
+	if err == nil {
+		t.Fatal("expected error for non-existent key")
+	}
+}
+
+func TestConnKVDelete(t *testing.T) {
+	conn := testConn(t)
+	name := testStreamName("kvdel")
+
+	_, err := conn.KVPut(name, "del", []byte("bye"))
+	if err != nil {
+		t.Skipf("KVPut: %v (server may not support KV)", err)
+	}
+
+	if err := conn.KVDelete(name, "del"); err != nil {
+		t.Fatalf("KVDelete: %v", err)
+	}
+}
+
+func TestConnKVDeleteNonExistent(t *testing.T) {
+	conn := testConn(t)
+	name := testStreamName("kvdne")
+
+	err := conn.KVDelete(name, "never-existed")
+	if err != nil {
+		t.Errorf("expected no error deleting non-existent key, got %v", err)
+	}
+}
+
+func TestConnectInvalidURL(t *testing.T) {
+	ctx := context.Background()
+	_, err := Connect(ctx, ConnOptions{URL: "nats://invalid.local:14222", Timeout: time.Second})
+	if err == nil {
+		t.Error("expected error for invalid NATS URL")
+	}
+}
+
+func TestConsumeNakDelay(t *testing.T) {
+	conn := testConn(t)
+	name := testStream(t, conn, "nakdelay")
+
+	var count atomic.Int32
+	ctx := t.Context()
+
+	cfg := DefaultConsumerConfig(name, name+"-c1")
+	cfg.Subject = name
+	cfg.MaxDeliver = 10
+	cfg.NakDelay = time.Second
+	err := ConsumePush[testEvent](ctx, conn.JS, cfg,
+		func(ctx context.Context, msg Msg[testEvent]) (AckAction, error) {
+			n := count.Add(1)
+			if n <= 1 {
+				return NakDelay, nil
+			}
+			return Ack, nil
+		})
+	if err != nil {
+		t.Fatalf("ConsumePush: %v", err)
+	}
+	time.Sleep(500 * time.Millisecond)
+
+	producer := NewProducer[testEvent](conn.NC, conn.JS, name)
+	producer.Publish(testEvent{ID: 1, Payload: "nakdelay-test"})
+	time.Sleep(4 * time.Second)
+
+	n := count.Load()
+	if n < 2 {
+		t.Errorf("expected at least 2 (1 NakDelay + 1 Ack), got %d", n)
+	}
+}
+
+func TestConsumeHandlerError(t *testing.T) {
+	conn := testConn(t)
+	name := testStream(t, conn, "handlerr")
+
+	var count atomic.Int32
+	ctx := t.Context()
+
+	cfg := DefaultConsumerConfig(name, name+"-c1")
+	cfg.Subject = name
+	cfg.MaxDeliver = 10
+	err := ConsumePush[testEvent](ctx, conn.JS, cfg,
+		func(ctx context.Context, msg Msg[testEvent]) (AckAction, error) {
+			n := count.Add(1)
+			if n <= 1 {
+				return Ack, fmt.Errorf("simulated handler error")
+			}
+			return Ack, nil
+		})
+	if err != nil {
+		t.Fatalf("ConsumePush: %v", err)
+	}
+	time.Sleep(500 * time.Millisecond)
+
+	producer := NewProducer[testEvent](conn.NC, conn.JS, name)
+	producer.Publish(testEvent{ID: 1, Payload: "handlerr-test"})
+	time.Sleep(4 * time.Second)
+
+	n := count.Load()
+	if n < 2 {
+		t.Errorf("expected at least 2 (1 err + 1 retry), got %d", n)
+	}
+}
+
+func TestConsumeDefaultAck(t *testing.T) {
+	conn := testConn(t)
+	name := testStream(t, conn, "defack")
+
+	var received atomic.Int32
+	ctx := t.Context()
+
+	cfg := DefaultConsumerConfig(name, name+"-c1")
+	cfg.Subject = name
+	err := ConsumePush[testEvent](ctx, conn.JS, cfg,
+		func(ctx context.Context, msg Msg[testEvent]) (AckAction, error) {
+			received.Add(1)
+			return AckAction(99), nil // unknown action → default Ack
+		})
+	if err != nil {
+		t.Fatalf("ConsumePush: %v", err)
+	}
+	time.Sleep(500 * time.Millisecond)
+
+	producer := NewProducer[testEvent](conn.NC, conn.JS, name)
+	producer.Publish(testEvent{ID: 1, Payload: "defack-test"})
+	time.Sleep(2 * time.Second)
+
+	if received.Load() < 1 {
+		t.Error("expected message to be received and default-acked")
+	}
+}
+
+func TestNatsMessageRespond(t *testing.T) {
+	conn := testConn(t)
+	subject := "natsmsg.respond." + testStreamName("respond")
+
+	conn.NC.Subscribe(subject, func(m *nats.Msg) {
+		nm := &natsMessage{msg: m}
+		nm.Respond([]byte("reply-ok"))
+	})
+	conn.NC.Flush()
+
+	resp, err := conn.NC.Request(subject, []byte("req"), 3*time.Second)
+	if err != nil {
+		t.Fatalf("Request: %v", err)
+	}
+	if string(resp.Data) != "reply-ok" {
+		t.Errorf("expected 'reply-ok', got %q", resp.Data)
+	}
+}
+
+func TestCacheGetNilValue(t *testing.T) {
+	conn := testConn(t)
+	name := testStreamName("cachenil")
+
+	kv, err := conn.EnsureKeyValue(DefaultKVConfig(name))
+	if err != nil {
+		t.Skipf("EnsureKeyValue: %v", err)
+	}
+
+	cache := NewCache[string](kv, 5*time.Minute)
+	ctx := context.Background()
+
+	got, err := cache.Get(ctx, "nonexistent")
+	if err != nil {
+		t.Fatalf("Get non-existent: %v", err)
+	}
+	if got != nil {
+		t.Error("expected nil for non-existent key")
+	}
+}
+
+func TestCacheGetOrSetFnReturnsNil(t *testing.T) {
+	conn := testConn(t)
+	name := testStreamName("cachenilfn")
+
+	kv, err := conn.EnsureKeyValue(DefaultKVConfig(name))
+	if err != nil {
+		t.Skipf("EnsureKeyValue: %v", err)
+	}
+
+	cache := NewCache[string](kv, 5*time.Minute)
+	ctx := context.Background()
+
+	val, err := cache.GetOrSet(ctx, "nilkey", func() (*string, error) {
+		return nil, nil
+	})
+	if err != nil {
+		t.Fatalf("GetOrSet: %v", err)
+	}
+	if val != nil {
+		t.Error("expected nil when fn returns nil")
+	}
+}
+
+func TestNatsSubscriptionUnsubscribe(t *testing.T) {
+	conn := testConn(t)
+	name := testStream(t, conn, "subunsub")
+
+	sub, err := conn.JS.Subscribe(name, func(m *nats.Msg) { m.Ack() }, nats.ManualAck())
+	if err != nil {
+		t.Fatalf("Subscribe: %v", err)
+	}
+	ns := &natsSubscription{sub: sub}
+	if err := ns.Unsubscribe(); err != nil {
+		t.Errorf("Unsubscribe: %v", err)
+	}
+}
+
+func TestEnsureKeyValueIdempotent(t *testing.T) {
+	conn := testConn(t)
+	name := testStreamName("kvido")
+
+	kv1, err := conn.EnsureKeyValue(DefaultKVConfig(name))
+	if err != nil {
+		t.Skipf("EnsureKeyValue: %v (server may not support KV)", err)
+	}
+
+	kv2, err := conn.EnsureKeyValue(DefaultKVConfig(name))
+	if err != nil {
+		t.Fatalf("EnsureKeyValue (second): %v", err)
+	}
+
+	if kv1 != kv2 {
+		t.Error("expected same KV store instance from cache")
+	}
+}
+
 func TestCacheGetOrSet(t *testing.T) {
 	conn := testConn(t)
 	name := testStreamName("getset")

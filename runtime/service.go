@@ -1124,11 +1124,17 @@ func (c *cachedStorage) Download(ctx context.Context, key string) (io.ReadCloser
 	}
 	if c.path != "" {
 		safeKey := sanitizeKey(key)
-		if data, err := os.ReadFile(filepath.Join(c.path, safeKey)); err == nil { //nolint:gosec
-			if c.l1 != nil {
-				c.l1.Set(key, data)
+		fsys := os.DirFS(c.path)
+		f, err := fsys.Open(safeKey)
+		if err == nil {
+			defer func() { if cerr := f.Close(); cerr != nil { logx.Errorf("cachedStorage close: %v", cerr) } }()
+			data, rErr := io.ReadAll(f)
+			if rErr == nil {
+				if c.l1 != nil {
+					c.l1.Set(key, data)
+				}
+				return io.NopCloser(bytes.NewReader(data)), nil
 			}
-			return io.NopCloser(bytes.NewReader(data)), nil
 		}
 	}
 	r, err := c.StorageBackend.Download(ctx, key)

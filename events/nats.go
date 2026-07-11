@@ -191,6 +191,69 @@ func (c *Conn) EnsureKeyValue(cfg KVConfig) (nats.KeyValue, error) {
 	return kv, nil
 }
 
+func (c *Conn) KVGet(bucket, key string) ([]byte, error) {
+	kv, err := c.EnsureKeyValue(DefaultKVConfig(bucket))
+	if err != nil {
+		return nil, err
+	}
+	entry, err := kv.Get(key)
+	if err != nil {
+		return nil, err
+	}
+	return entry.Value(), nil
+}
+
+func (c *Conn) KVPut(bucket, key string, value []byte) (uint64, error) {
+	kv, err := c.EnsureKeyValue(DefaultKVConfig(bucket))
+	if err != nil {
+		return 0, err
+	}
+	rev, err := kv.Put(key, value)
+	if err != nil {
+		return 0, err
+	}
+	return rev, nil
+}
+
+func (c *Conn) KVDelete(bucket, key string) error {
+	kv, err := c.EnsureKeyValue(DefaultKVConfig(bucket))
+	if err != nil {
+		return err
+	}
+	return kv.Delete(key)
+}
+
+func (c *Conn) SubscribeRaw(subject string, handler func(msg []byte)) error {
+	_, err := c.NC.Subscribe(subject, func(m *nats.Msg) {
+		handler(m.Data)
+	})
+	if err != nil {
+		return err
+	}
+	if err := c.NC.Flush(); err != nil {
+		logx.Errorf("nats: flush error: %v", err)
+	}
+	return nil
+}
+
+func (c *Conn) SubscribeRawReply(subject string, handler func(msg []byte) []byte) error {
+	_, err := c.NC.Subscribe(subject, func(m *nats.Msg) {
+		reply := handler(m.Data)
+		if reply != nil {
+			if err := m.Respond(reply); err != nil {
+				logx.Errorf("nats: respond error: %v", err)
+			}
+		}
+	})
+	if err != nil {
+		return err
+	}
+	if err := c.NC.Flush(); err != nil {
+		logx.Errorf("nats: flush error: %v", err)
+	}
+	return nil
+}
+
 func (c *Conn) Drain() {
 	if c.NC == nil {
 		return

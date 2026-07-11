@@ -33,6 +33,9 @@ import (
 	"github.com/natuleadan/sdk-api/server/middleware"
 )
 
+// ErrNotFound is returned when a database record is not found.
+var ErrNotFound = db.ErrNotFound
+
 // Service is the main runtime orchestrator. It reads a service YAML,
 // initializes databases, NATS connections, entry endpoints, and
 // optionally exit workers and cron jobs.
@@ -43,6 +46,7 @@ type Service struct {
 	natsConns     map[string]events.EventBroker
 	handlers      *EntryHandlers
 	hooks         map[string]any // model → EntryHooks[T]
+	tables        map[string]any // model → *db.Table[T] (set by MustRegister)
 	exitFuncs     map[string]ExitHandler
 	exitHooks     map[string]ExitHooks
 	exitMgr       *ExitWorkerManager
@@ -84,6 +88,7 @@ func newFromConfig(cfg *ServiceConfig) (*Service, error) {
 		natsConns: make(map[string]events.EventBroker),
 		handlers:  &EntryHandlers{},
 		exitMgr:   NewExitWorkerManager(),
+		tables:    make(map[string]any),
 	}, nil
 }
 
@@ -128,6 +133,7 @@ func MustRegister[T any](svc *Service, name, poolName, tableName string, hooks E
 		if err := tbl.AutoInit(context.Background()); err != nil {
 			log.Fatalf("runtime: autoinit %s: %v", name, err)
 		}
+		svc.tables[name] = tbl
 		return NewCRUDProvider(tbl, hooks)
 	})
 }
@@ -492,9 +498,31 @@ func (s *Service) Pool(name string) any {
 	return s.pools[name]
 }
 
-// PoolPG returns a *pgxpool.Pool by name.
+// PoolPG returns a *pgxpool.Pool by name (as any).
 func (s *Service) PoolPG(name string) any {
 	return PoolPG(s.pools, name)
+}
+
+// PoolPGTyped returns a *pgxpool.Pool by name, or nil if not found.
+func (s *Service) PoolPGTyped(name string) *pgxpool.Pool {
+	return PoolPG(s.pools, name)
+}
+
+// Table returns a *db.Table[T] by model name (registered via MustRegister).
+func (s *Service) Table(name string) any {
+	if s.tables == nil {
+		return nil
+	}
+	return s.tables[name]
+}
+
+// GetTable returns a typed *db.Table[T] for a model registered via MustRegister.
+func GetTable[T any](s *Service, name string) *db.Table[T] {
+	if s.tables == nil {
+		return nil
+	}
+	tbl, _ := s.tables[name].(*db.Table[T])
+	return tbl
 }
 
 // NATS returns a event broker connection by name.
@@ -1174,7 +1202,7 @@ func initStorageFromDef(s *StorageDef) (server.StorageBackend, error) {
 		if s3err != nil {
 			return nil, s3err
 		}
-		if s.Cache != nil && s.Cache.L1 == "ram" {
+		if s.Cache != nil && (s.Cache.L1 == "ram" || s.Cache.L2 == "disk") {
 			ttl, _ := time.ParseDuration(s.Cache.L1TTL)
 			if ttl <= 0 {
 				ttl = 5 * time.Minute

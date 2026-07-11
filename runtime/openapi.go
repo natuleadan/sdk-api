@@ -71,6 +71,7 @@ func addCRUDPaths(doc *openapi3.T, entry *EntryDef, models map[string]*db.TableI
 			Parameters: openapi3.Parameters{
 				param("page", "query", "integer"),
 				param("size", "query", "integer"),
+				param("cursor", "query", "string"),
 				param("sort", "query", "string"),
 			},
 			Responses: responses200(schemaRef),

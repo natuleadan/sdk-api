@@ -368,6 +368,12 @@ type EntryDef struct {
 
 	// Validation
 	ValidationModel string `json:"validate" config:",optional"` // validation model name
+
+	// Pagination (CRUD only)
+	PageSize    int      `json:"page_size" config:",optional"`     // default 10, also min
+	MaxPageSize int      `json:"max_page_size" config:",optional"` // default 100, also max
+	Pagination  string   `json:"pagination" config:",optional"`    // "offset" | "keyset"
+	Sortable    []string `json:"sortable" config:",optional"`      // allowed sort columns
 }
 
 type CRUDOverrides struct {

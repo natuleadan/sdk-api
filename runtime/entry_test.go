@@ -770,11 +770,15 @@ func TestBuildIDParam(t *testing.T) {
 func TestParseListParams(t *testing.T) {
 	app := fiber.New()
 	app.Get("/test", func(c fiber.Ctx) error {
-		params := parseListParams(c)
+		params, err := parseListParams(c, 10, 100, nil, "offset")
+		if err != nil {
+			return err
+		}
 		return c.JSON(fiber.Map{
 			"page":    params.Page,
 			"size":    params.Size,
 			"sort":    params.Sort,
+			"cursor":  params.Cursor,
 			"filters": params.Filters,
 		})
 	})
@@ -786,6 +790,7 @@ func TestParseListParams(t *testing.T) {
 		Page    int               `json:"page"`
 		Size    int               `json:"size"`
 		Sort    string            `json:"sort"`
+		Cursor  string            `json:"cursor"`
 		Filters map[string]string `json:"filters"`
 	}
 	body, _ := io.ReadAll(resp.Body)
@@ -800,12 +805,133 @@ func TestParseListParams(t *testing.T) {
 	if result.Sort != "name" {
 		t.Errorf("sort = %q, want name", result.Sort)
 	}
+	if result.Cursor != "" {
+		t.Errorf("cursor = %q, want empty", result.Cursor)
+	}
 	if result.Filters["status"] != "active" {
 		t.Errorf("filter status = %q", result.Filters["status"])
 	}
 	if result.Filters["category"] != "books" {
 		t.Errorf("filter category = %q", result.Filters["category"])
 	}
+}
+
+func TestParseListParams_SizeClamp(t *testing.T) {
+	app := fiber.New()
+	app.Get("/test", func(c fiber.Ctx) error {
+		params, err := parseListParams(c, 10, 100, nil, "offset")
+		if err != nil {
+			return err
+		}
+		return c.JSON(fiber.Map{"size": params.Size})
+	})
+
+	// below min
+	req, _ := http.NewRequestWithContext(context.Background(), "GET", "/test?size=3", nil)
+	resp, _ := app.Test(req)
+	var r struct{ Size int }
+	jsonx.Unmarshal(mustRead(resp.Body), &r)
+	if r.Size != 10 {
+		t.Errorf("size below min: got %d, want 10", r.Size)
+	}
+
+	// above max
+	req, _ = http.NewRequestWithContext(context.Background(), "GET", "/test?size=999", nil)
+	resp, _ = app.Test(req)
+	jsonx.Unmarshal(mustRead(resp.Body), &r)
+	if r.Size != 100 {
+		t.Errorf("size above max: got %d, want 100", r.Size)
+	}
+
+	// within range
+	req, _ = http.NewRequestWithContext(context.Background(), "GET", "/test?size=50", nil)
+	resp, _ = app.Test(req)
+	jsonx.Unmarshal(mustRead(resp.Body), &r)
+	if r.Size != 50 {
+		t.Errorf("size in range: got %d, want 50", r.Size)
+	}
+}
+
+func TestParseListParams_SortValidation(t *testing.T) {
+	app := fiber.New()
+	app.Get("/test", func(c fiber.Ctx) error {
+		_, err := parseListParams(c, 10, 100, []string{"id", "name"}, "offset")
+		return err
+	})
+
+	// valid sort
+	req, _ := http.NewRequestWithContext(context.Background(), "GET", "/test?sort=name", nil)
+	resp, _ := app.Test(req)
+	if resp.StatusCode != 200 {
+		t.Errorf("valid sort: expected 200, got %d", resp.StatusCode)
+	}
+
+	// invalid sort
+	req, _ = http.NewRequestWithContext(context.Background(), "GET", "/test?sort=invalid_col", nil)
+	resp, _ = app.Test(req)
+	if resp.StatusCode != 400 {
+		t.Errorf("invalid sort: expected 400, got %d", resp.StatusCode)
+	}
+
+	// no sortable config = any sort allowed
+	app2 := fiber.New()
+	app2.Get("/test", func(c fiber.Ctx) error {
+		params, err := parseListParams(c, 10, 100, nil, "offset")
+		if err != nil {
+			return err
+		}
+		return c.JSON(fiber.Map{"sort": params.Sort})
+	})
+	req, _ = http.NewRequestWithContext(context.Background(), "GET", "/test?sort=anything", nil)
+	resp, _ = app2.Test(req)
+	var r struct{ Sort string }
+	jsonx.Unmarshal(mustRead(resp.Body), &r)
+	if r.Sort != "anything" {
+		t.Errorf("empty sortable: expected sort=%q, got %q", "anything", r.Sort)
+	}
+}
+
+func TestParseListParams_Cursor(t *testing.T) {
+	app := fiber.New()
+	app.Get("/test", func(c fiber.Ctx) error {
+		params, err := parseListParams(c, 10, 100, nil, "keyset")
+		if err != nil {
+			return err
+		}
+		return c.JSON(fiber.Map{
+			"cursor":   params.Cursor,
+			"page":     params.Page,
+			"size":     params.Size,
+			"paginate": params.Pagination,
+		})
+	})
+
+	req, _ := http.NewRequestWithContext(context.Background(), "GET", "/test?cursor=42&size=20", nil)
+	resp, _ := app.Test(req)
+	var r struct {
+		Cursor   string `json:"cursor"`
+		Page     int    `json:"page"`
+		Size     int    `json:"size"`
+		Paginate string `json:"paginate"`
+	}
+	jsonx.Unmarshal(mustRead(resp.Body), &r)
+	if r.Cursor != "42" {
+		t.Errorf("cursor = %q, want 42", r.Cursor)
+	}
+	if r.Page != 1 {
+		t.Errorf("page = %d, want 1", r.Page)
+	}
+	if r.Size != 20 {
+		t.Errorf("size = %d, want 20", r.Size)
+	}
+	if r.Paginate != "keyset" {
+		t.Errorf("paginate = %q, want keyset", r.Paginate)
+	}
+}
+
+func mustRead(r io.Reader) []byte {
+	b, _ := io.ReadAll(r)
+	return b
 }
 
 // --- Helpers for body reading ---

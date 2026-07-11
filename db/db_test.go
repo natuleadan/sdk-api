@@ -294,6 +294,62 @@ func TestTablePaginated(t *testing.T) {
 	}
 }
 
+func TestTableQueryKeyset(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	table, _ := NewTable[testProduct](pool, "test_keyset")
+	pool.Exec(ctx, "DROP TABLE IF EXISTS test_keyset")
+	table.AutoInit(ctx)
+	for i := range 10 {
+		table.Create(ctx, &testProduct{Name: fmt.Sprintf("p%d", i), Price: float64(i)})
+	}
+
+	// First page (no cursor)
+	items, next, err := table.QueryKeyset(ctx, "", 4, "id", nil)
+	if err != nil {
+		t.Fatalf("QueryKeyset page1: %v", err)
+	}
+	if len(items) != 4 {
+		t.Errorf("page1: expected 4 items, got %d", len(items))
+	}
+	if next == "" {
+		t.Error("page1: expected non-empty nextCursor")
+	}
+
+	// Second page with cursor
+	items, next, err = table.QueryKeyset(ctx, next, 4, "id", nil)
+	if err != nil {
+		t.Fatalf("QueryKeyset page2: %v", err)
+	}
+	if len(items) != 4 {
+		t.Errorf("page2: expected 4 items, got %d", len(items))
+	}
+	if next == "" {
+		t.Error("page2: expected non-empty nextCursor")
+	}
+
+	// Third page (last)
+	items, next, err = table.QueryKeyset(ctx, next, 4, "id", nil)
+	if err != nil {
+		t.Fatalf("QueryKeyset page3: %v", err)
+	}
+	if len(items) != 2 {
+		t.Errorf("page3: expected 2 items, got %d", len(items))
+	}
+	if next != "" {
+		t.Errorf("page3: expected empty nextCursor, got %q", next)
+	}
+
+	// Test with filter
+	items, _, err = table.QueryKeyset(ctx, "", 5, "id", map[string]any{"price": 3.0})
+	if err != nil {
+		t.Fatalf("QueryKeyset filter: %v", err)
+	}
+	if len(items) != 1 {
+		t.Errorf("filter: expected 1 item, got %d", len(items))
+	}
+}
+
 type testUpsertModel struct {
 	ID    int64  `db:"id,primary,auto"`
 	Name  string `db:"name,unique"`

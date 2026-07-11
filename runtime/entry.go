@@ -23,10 +23,12 @@ type CRUDProvider interface {
 }
 
 type ListParams struct {
-	Page    int
-	Size    int
-	Sort    string
-	Filters map[string]string
+	Page       int
+	Size       int
+	Sort       string
+	Filters    map[string]string
+	Cursor     string // keyset pagination cursor
+	Pagination string // "offset" | "keyset"
 }
 
 type EntryHandlers struct {

@@ -9,6 +9,7 @@ import (
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/natuleadan/sdk-api/infra/stores/mon"
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 // NewCRUDProvider wraps a db.Table[T] (PostgreSQL) into a CRUDProvider.
@@ -32,6 +33,15 @@ func (t *tableCRUD[T]) SetHooks(hooks any) {
 }
 
 func (t *tableCRUD[T]) List(ctx fiber.Ctx, params ListParams) error {
+	if params.Pagination == "keyset" {
+		where := makeFiltersMap(params.Filters)
+		items, nextCursor, err := t.table.QueryKeyset(ctx.Context(), params.Cursor, params.Size, params.Sort, where)
+		if err != nil {
+			return fiber.NewError(500, err.Error())
+		}
+		return ctx.JSON(KeysetResponse{Data: items, NextCursor: nextCursor, PageSize: params.Size})
+	}
+
 	if len(params.Filters) > 0 {
 		where := make(map[string]any, len(params.Filters))
 		var wcs []db.ColumnValue
@@ -133,12 +143,19 @@ func (t *tableCRUD[T]) Delete(ctx fiber.Ctx, id string) error {
 	return ctx.SendStatus(204)
 }
 
-// PaginatedResponse is used by tableCRUD.List.
+// PaginatedResponse is used by tableCRUD.List (offset mode).
 type PaginatedResponse struct {
 	Data  any   `json:"data"`
 	Total int64 `json:"total"`
 	Page  int   `json:"page"`
 	Size  int   `json:"size"`
+}
+
+// KeysetResponse is used by tableCRUD.List (keyset mode).
+type KeysetResponse struct {
+	Data       any    `json:"data"`
+	NextCursor string `json:"nextCursor,omitempty"`
+	PageSize   int    `json:"pageSize"`
 }
 
 // ---- MySQL CRUDProvider ----
@@ -163,6 +180,14 @@ func (t *mysqlCRUD[T]) SetHooks(hooks any) {
 }
 
 func (t *mysqlCRUD[T]) List(ctx fiber.Ctx, params ListParams) error {
+	if params.Pagination == "keyset" {
+		where := makeFiltersMap(params.Filters)
+		items, nextCursor, err := t.table.QueryKeyset(ctx.Context(), params.Cursor, params.Size, params.Sort, where)
+		if err != nil {
+			return fiber.NewError(500, err.Error())
+		}
+		return ctx.JSON(KeysetResponse{Data: items, NextCursor: nextCursor, PageSize: params.Size})
+	}
 	items, err := t.table.List(ctx.Context())
 	if err != nil {
 		return fiber.NewError(500, err.Error())
@@ -262,6 +287,14 @@ func (t *tursoCRUD[T]) SetHooks(hooks any) {
 }
 
 func (t *tursoCRUD[T]) List(ctx fiber.Ctx, params ListParams) error {
+	if params.Pagination == "keyset" {
+		where := makeFiltersMap(params.Filters)
+		items, nextCursor, err := t.table.QueryKeyset(ctx.Context(), params.Cursor, params.Size, params.Sort, where)
+		if err != nil {
+			return fiber.NewError(500, err.Error())
+		}
+		return ctx.JSON(KeysetResponse{Data: items, NextCursor: nextCursor, PageSize: params.Size})
+	}
 	items, err := t.table.List(ctx.Context())
 	if err != nil {
 		return fiber.NewError(500, err.Error())
@@ -353,6 +386,32 @@ func NewMongoCRUDProvider(model *mon.Model, lookupField string) CRUDProvider {
 }
 
 func (m *mongoCRUD) List(ctx fiber.Ctx, params ListParams) error {
+	filter := bson.M{}
+
+	if params.Pagination == "keyset" {
+		size := params.Size + 1
+		findOpts := options.Find().SetLimit(int64(size)).SetSort(bson.D{{Key: "_id", Value: 1}})
+		if params.Cursor != "" {
+			oid, err := bson.ObjectIDFromHex(params.Cursor)
+			if err != nil {
+				return fiber.NewError(400, "invalid cursor")
+			}
+			filter["_id"] = bson.M{"$gt": oid}
+		}
+		var results []bson.M
+		if err := m.model.Find(ctx.Context(), &results, filter, findOpts); err != nil {
+			return fiber.NewError(500, err.Error())
+		}
+		nextCursor := ""
+		if len(results) > params.Size {
+			if id, ok := results[params.Size-1]["_id"].(bson.ObjectID); ok {
+				nextCursor = id.Hex()
+			}
+			results = results[:params.Size]
+		}
+		return ctx.JSON(KeysetResponse{Data: results, NextCursor: nextCursor, PageSize: params.Size})
+	}
+
 	var results []any
 	if err := m.model.Find(ctx.Context(), &results, bson.M{}); err != nil {
 		return fiber.NewError(500, err.Error())
@@ -400,6 +459,18 @@ func (m *mongoCRUD) Delete(ctx fiber.Ctx, id string) error {
 		return fiber.NewError(500, err.Error())
 	}
 	return ctx.SendStatus(204)
+}
+
+// makeFiltersMap converts ListParams.Filters (map[string]string) to map[string]any.
+func makeFiltersMap(filters map[string]string) map[string]any {
+	if len(filters) == 0 {
+		return nil
+	}
+	m := make(map[string]any, len(filters))
+	for k, v := range filters {
+		m[k] = v
+	}
+	return m
 }
 
 // filterFor converts the id string into a BSON filter, handling _id as ObjectID.

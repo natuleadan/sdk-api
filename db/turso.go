@@ -199,6 +199,73 @@ func (t *TursoTable[T]) List(ctx context.Context) ([]T, error) {
 	return t.scanRows(rows)
 }
 
+func (t *TursoTable[T]) QueryKeyset(ctx context.Context, cursor string, size int, orderBy string, where map[string]any) ([]T, string, error) {
+	if orderBy == "" {
+		orderBy = t.info.PrimaryKey
+	}
+	var b strings.Builder
+	b.Grow(128)
+	b.WriteString("SELECT ")
+	b.WriteString(t.columnsList())
+	b.WriteString(" FROM ")
+	b.WriteString(t.tableName)
+
+	var args []any
+	if cursor != "" {
+		b.WriteString(" WHERE ")
+		b.WriteString(orderBy)
+		b.WriteString(" > ?")
+		args = append(args, cursor)
+	}
+	for col, val := range where {
+		if cursor != "" || len(args) > 0 {
+			b.WriteString(" AND ")
+			b.WriteString(col)
+			b.WriteString(" = ?")
+		} else {
+			b.WriteString(" WHERE ")
+			b.WriteString(col)
+			b.WriteString(" = ?")
+		}
+		args = append(args, val)
+	}
+	b.WriteString(" ORDER BY ")
+	b.WriteString(orderBy)
+	if orderBy != t.info.PrimaryKey {
+		b.WriteString(", ")
+		b.WriteString(t.info.PrimaryKey)
+	}
+	b.WriteString(" LIMIT ?")
+	args = append(args, size+1)
+
+	rows, err := t.db.QueryContext(ctx, b.String(), args...)
+	if err != nil {
+		return nil, "", fmt.Errorf("db: turso keyset: %w", err)
+	}
+	defer func() { if err := rows.Close(); err != nil { fmt.Printf("close error: %v\n", err) } }()
+
+	result, err := t.scanRows(rows)
+	if err != nil {
+		return nil, "", err
+	}
+
+	nextCursor := ""
+	if len(result) > size {
+		v := reflect.ValueOf(result[size-1])
+		for _, f := range t.info.Fields {
+			if f.Column == orderBy {
+				fv := v.FieldByName(f.GoName)
+				if fv.IsValid() {
+					nextCursor = fmt.Sprintf("%v", fv.Interface())
+				}
+				break
+			}
+		}
+		result = result[:size]
+	}
+	return result, nextCursor, nil
+}
+
 func (t *TursoTable[T]) Get(ctx context.Context, id any) (*T, error) {
 	var b strings.Builder
 	b.Grow(128)

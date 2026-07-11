@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/gofiber/fiber/v3"
@@ -25,7 +26,7 @@ func registerCRUD(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, pref
 	pubTargets := getPublishTargets(entry)
 	hasPublish := len(pubTargets) > 0 && len(brokers) > 0
 
-	if err := registerCRUDList(app, base, ov, handlers, provider); err != nil {
+	if err := registerCRUDList(app, base, ov, handlers, provider, entry); err != nil {
 		return err
 	}
 	if err := registerCRUDGet(app, base, ov, handlers, provider); err != nil {
@@ -44,7 +45,7 @@ func registerCRUD(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, pref
 	return nil
 }
 
-func registerCRUDList(app *fiber.App, base string, ov *CRUDOverrides, handlers *EntryHandlers, provider CRUDProvider) error {
+func registerCRUDList(app *fiber.App, base string, ov *CRUDOverrides, handlers *EntryHandlers, provider CRUDProvider, entry *EntryDef) error {
 	if isDisabled(ov, ov.List) {
 		return nil
 	}
@@ -55,8 +56,28 @@ func registerCRUDList(app *fiber.App, base string, ov *CRUDOverrides, handlers *
 		}
 		app.Get(base, h)
 	} else {
+		pageSize := entry.PageSize
+		if pageSize < 1 {
+			pageSize = 10
+		}
+		maxPageSize := entry.MaxPageSize
+		if maxPageSize < 1 {
+			maxPageSize = 100
+		}
+		if maxPageSize < pageSize {
+			maxPageSize = pageSize
+		}
+		pagination := entry.Pagination
+		if pagination == "" {
+			pagination = "offset"
+		}
+		sortable := entry.Sortable
+
 		app.Get(base, func(c fiber.Ctx) error {
-			params := parseListParams(c)
+			params, err := parseListParams(c, pageSize, maxPageSize, sortable, pagination)
+			if err != nil {
+				return err
+			}
 			return provider.List(c, params)
 		})
 	}
@@ -177,23 +198,35 @@ func buildIDParam(path string) string {
 	return "/:id"
 }
 
-func parseListParams(c fiber.Ctx) ListParams {
-	page := fiber.Query[int](c, "page", 1)
-	size := fiber.Query[int](c, "size", 10)
+func parseListParams(c fiber.Ctx, pageSize, maxPageSize int, sortable []string, pagination string) (ListParams, error) {
+	size := min(max(fiber.Query[int](c, "size", pageSize), pageSize), maxPageSize)
+
 	sort := c.Query("sort", "id")
+	if sort == "" {
+		sort = "id"
+	}
+	if len(sortable) > 0 && !slices.Contains(sortable, sort) {
+		return ListParams{}, fiber.NewError(400, fmt.Sprintf("invalid sort column %q, allowed: %v", sort, sortable))
+	}
+
+	page := max(fiber.Query[int](c, "page", 1), 1)
+
+	cursor := c.Query("cursor", "")
 
 	filters := make(map[string]string)
 	for key, value := range c.Request().URI().QueryArgs().All() {
 		k := string(key)
-		if k != "page" && k != "size" && k != "sort" {
+		if k != "page" && k != "size" && k != "sort" && k != "cursor" {
 			filters[k] = string(value)
 		}
 	}
 
 	return ListParams{
-		Page:    page,
-		Size:    size,
-		Sort:    sort,
-		Filters: filters,
-	}
+		Page:       page,
+		Size:       size,
+		Sort:       sort,
+		Filters:    filters,
+		Cursor:     cursor,
+		Pagination: pagination,
+	}, nil
 }

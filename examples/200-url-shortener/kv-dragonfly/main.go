@@ -87,9 +87,18 @@ func main() {
 
 	svc.WithRest("listLinks", func(c *runtime.RestCtx) error {
 		r := getRedis()
-		keys, err := r.KeysCtx(c.Context(), "link:id:*")
-		if err != nil {
-			return c.Status(500).JSON(map[string]any{"error": err.Error()})
+		var keys []string
+		cursor := uint64(0)
+		for {
+			batch, next, err := r.ScanCtx(c.Context(), cursor, "link:id:*", 100)
+			if err != nil {
+				return c.Status(500).JSON(map[string]any{"error": err.Error()})
+			}
+			keys = append(keys, batch...)
+			if next == 0 {
+				break
+			}
+			cursor = next
 		}
 		var results []linkData
 		for _, key := range keys {

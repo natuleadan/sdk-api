@@ -2,7 +2,7 @@ name: url-shortener-maria-bench
 services:
   mariadb:
     image: mariadb:11
-    command: --max_connections=2000
+    command: --max_connections=2000 --innodb_flush_log_at_trx_commit=2 --innodb_buffer_pool_size=256M
     environment:
       MYSQL_ROOT_PASSWORD: devpass
       MYSQL_DATABASE: shorturl

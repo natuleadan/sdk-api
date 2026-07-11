@@ -6,8 +6,8 @@ databases:
     driver: mysql
     url: "${DATABASE_URL}"
     pool:
-      max_conns: 100
-      min_conns: 50
+      max_conns: 20
+      min_conns: 5
 
 entry:
   - type: crud

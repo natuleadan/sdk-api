@@ -1,41 +1,65 @@
 package main
 
 import (
+	_ "embed"
 	"log"
 	"os"
-	"time"
 
-	"github.com/gofiber/fiber/v3"
-	"github.com/natuleadan/sdk-api/server"
+	"github.com/natuleadan/sdk-api/runtime"
 )
 
+//go:embed service.docker.yaml
+var dockerConfig []byte
+
 func main() {
-	cfg := server.Config{
-		Port:            18081,
-		Host:            "0.0.0.0",
-		Prefork:         true,
-		BodyLimit:       4 << 20,
-		MaxBytes:        4 << 20,
-		MaxConns:        10000,
-		Timeout:         30 * time.Second,
-		ShutdownTimeout: 10 * time.Second,
-		MetricsPath:     "/metrics",
-		HealthPath:      "/healthz",
-		RecoverStack:    false,
-	}
+	cfg := dockerConfig
+	if len(cfg) == 0 || os.Getenv("DOCKER_TEST") != "1" {
+		config := `name: healthz
+port: 18081
 
-	if os.Getenv("MINIMAL") == "1" {
-		cfg.Routes = []server.RouteConfig{
-			{Path: "/", Middleware: []string{}},
+server:
+  host: "0.0.0.0"
+  prefork: true
+  timeout: 30s
+  body_limit: 4194304
+  max_conns: 10000
+  health_path: /healthz
+  api_prefix: ""
+  shutdown_timeout: 10s
+  middleware:
+    - path: "/*"
+      apply:
+        - logger
+`
+		if os.Getenv("MINIMAL") == "1" {
+			config = `name: healthz
+port: 18081
+
+server:
+  host: "0.0.0.0"
+  prefork: true
+  timeout: 30s
+  body_limit: 4194304
+  max_conns: 10000
+  health_path: /healthz
+  api_prefix: ""
+  shutdown_timeout: 10s
+  middleware:
+    - path: "/*"
+      apply: []
+`
 		}
+		cfg = []byte(config)
 	}
 
-	srv := server.New(cfg, server.TelemetryConfig{}, server.SecurityConfig{}, nil)
-	srv.App().Get("/healthz", func(c fiber.Ctx) error {
-		return c.SendString("OK")
-	})
-	srv.App().Get("/ping", func(c fiber.Ctx) error {
+	svc, err := runtime.NewFromYAML(cfg)
+	if err != nil {
+		log.Fatalf("init: %v", err)
+	}
+
+	svc.WithRest("ping", func(c *runtime.RestCtx) error {
 		return c.SendString("pong")
 	})
-	log.Fatal(srv.Start())
+
+	log.Fatal(svc.Run())
 }

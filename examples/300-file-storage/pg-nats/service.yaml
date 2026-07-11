@@ -6,7 +6,8 @@ databases:
     driver: postgres
     url: "${DATABASE_URL}"
     pool:
-      max_conns: 20
+      max_conns: 500
+      min_conns: 10
 
 event_streams:
   - name: primary
@@ -21,6 +22,10 @@ entry:
     db: pg-main
     table: products
     path: /products
+    pagination: keyset
+    page_size: 20
+    max_page_size: 100
+    sortable: [id]
     event_publish:
       - stream: media
         subject: media.created
@@ -84,9 +89,3 @@ server:
         - logger
         - cors
 
-endpoints:
-  list:
-    page_size: 10
-    max_page_size: 100
-    sortable:
-      - id

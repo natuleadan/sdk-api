@@ -305,9 +305,13 @@ func TestFile_ProductUpdateMedia(t *testing.T) {
 	t.Log("product media updated from A to B")
 
 	// Verify via view endpoint
-	viewResp, _ := http.Get(fmt.Sprintf("%s/api/v1/products/%s/view", baseURL, pid))
-	defer viewResp.Body.Close()
-	var viewBody map[string]any
-	json.NewDecoder(viewResp.Body).Decode(&viewBody)
-	t.Logf("view: mediaURL present=%v", viewBody["mediaURL"] != nil && viewBody["mediaURL"] != "")
+	viewResp, viewErr := http.Get(fmt.Sprintf("%s/api/v1/products/%s/view", baseURL, pid))
+	if viewErr != nil || viewResp == nil {
+		t.Logf("view request failed: %v", viewErr)
+	} else {
+		defer viewResp.Body.Close()
+		var viewBody map[string]any
+		json.NewDecoder(viewResp.Body).Decode(&viewBody)
+		t.Logf("view: mediaURL present=%v", viewBody["mediaURL"] != nil && viewBody["mediaURL"] != "")
+	}
 }

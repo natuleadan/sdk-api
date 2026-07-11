@@ -1,0 +1,15 @@
+name: healthz
+port: 18081
+
+server:
+  host: "0.0.0.0"
+  prefork: true
+  timeout: 30s
+  body_limit: 4194304
+  max_conns: 10000
+  health_path: /healthz
+  api_prefix: ""
+  shutdown_timeout: 10s
+  middleware:
+    - path: "/*"
+      apply: []

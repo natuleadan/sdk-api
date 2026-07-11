@@ -7,7 +7,6 @@ import (
 
 	"201-url-shortener-kv/models"
 
-	"github.com/natuleadan/sdk-api/infra/stores/redis"
 	"github.com/natuleadan/sdk-api/runtime"
 )
 
@@ -28,8 +27,8 @@ func main() {
 		addr = "localhost:6379"
 	}
 	runtime.CachedCRUD[models.LinkExpand](svc, "LinkExpand", "pg-main", "link",
-		redis.RedisConf{Host: addr, Type: redis.NodeType},
-		"sc:", 5*time.Minute, 0,
+		runtime.RedisConfig{Host: addr, Type: runtime.NodeType},
+		"sc:", 5*time.Minute, 30*time.Second,
 	)
 
 	log.Fatal(svc.Run())

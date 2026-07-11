@@ -185,8 +185,8 @@ func currentCgroupV1() (cgroup, error) {
 
 		// https://man7.org/linux/man-pages/man7/cgroups.7.html
 		// comma-separated list of controllers for cgroup version 1
-		fields := strings.Split(subsys, ",")
-		for _, val := range fields {
+		fields := strings.SplitSeq(subsys, ",")
+		for val := range fields {
 			cgroups[val] = path.Join(cgroupDir, val)
 		}
 	}
@@ -260,8 +260,8 @@ func parseUints(val string) ([]uint64, error) {
 
 	var sets []uint64
 	ints := make(map[uint64]lang.PlaceholderType)
-	cols := strings.Split(val, ",")
-	for _, r := range cols {
+	cols := strings.SplitSeq(val, ",")
+	for r := range cols {
 		if strings.Contains(r, "-") {
 			fields := strings.SplitN(r, "-", 2)
 			minimum, err := parseUint(fields[0])

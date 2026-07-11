@@ -17,7 +17,7 @@ func TestReport(t *testing.T) {
 	SetReporter(func(s string) {
 		atomic.AddInt32(&count, 1)
 	})
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		Report(strconv.Itoa(i))
 	}
 	assert.Equal(t, int32(1), count)

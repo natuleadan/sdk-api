@@ -6,15 +6,20 @@ How to measure and maximize RPS with the sdk-api framework.
 
 1. **All benchmarks run fully inside Docker.** Running the Go binary on the host while data services run in Docker adds 2-4x latency due to Docker Desktop port mapping.
 2. **Use wrk, not Go testing.B** for high-concurrency benchmarks. Go goroutines have scheduling overhead at 1000+ concurrency.
-3. **Each folder is self-contained.** `docker compose up --abort-on-container-exit` builds, seeds, and runs.
-4. **PostgreSQL max_connections must match pool size.** Use `command: ["postgres", "-c", "max_connections=200"]` with PgDog managing the pool.
-5. **Results are maintained in each example's README.** Re-run `docker compose up --abort-on-container-exit` to verify. Update the README if the result changes.
-6. **Functional tests run by default.** The container entrypoint (`run.sh`) always runs `tester -test.run=TestURL`. To also run the RPS benchmark:
+3. **Each folder is self-contained.** `docker compose up --build -d` builds, seeds, and runs. Follow logs and tear down:
    ```bash
-   RPS_BENCH=1 docker compose up --abort-on-container-exit
+   RPS_BENCH=1 docker compose up --build -d
+   docker compose logs app -f   # or bench -f for URL shortener variants
+   docker compose down -v
    ```
-7. **Each example seeds 200 hot keys** before the RPS benchmark (via curl POST). This ensures caches are warm and every request hits the fast path.
-8. **Six endpoints are measured sequentially** per `run.sh`: expand → list → getbyid → create → update → delete. Each endpoint gets 30s warmup + 30s measurement.
+4. **PostgreSQL max_connections must match pool size.** Use `command: ["postgres", "-c", "max_connections=200"]` with PgDog managing the pool.
+5. **Results are maintained in each example's README.** Re-run the benchmark to verify. Update the README if the result changes.
+6. **Functional tests run by default.** The container entrypoint (`run.sh`) always runs the test binary for that variant (e.g., `-test.run=TestURL` for URL shortener, `-test.run=TestFile` for file storage). To also run the RPS benchmark:
+   ```bash
+   RPS_BENCH=1 docker compose up --build -d
+   ```
+7. **Each example seeds hot keys** before the RPS benchmark (via curl POST). 200 for URL shortener, 50 for pg-nats, etc. This ensures caches are warm and every request hits the fast path.
+8. **Endpoints are measured sequentially** — 2–8 depending on the variant. Each endpoint gets 30s warmup + 30s measurement.
 
 ## Maximizing RPS
 
@@ -71,16 +76,16 @@ Report the second pass.
 1. Multi-stage Dockerfile builds the Go binary
 2. Data services (PG, Redis, MariaDB, MongoDB, Dragonfly) start in the same Docker network
 3. Service starts, health check passes
-4. Functional tests verify correctness (`go test -c` → `tester -test.run=TestURL`)
-5. 200 records seeded via POST endpoints (curl)
-6. `wrk -t10 -c1000 -d30s` runs sequentially for each of the 6 endpoints (expand, list, getbyid, create, update, delete) — each with warmup + measure
+4. Functional tests verify correctness (`go test -c` → `tester -test.run=TestURL|TestFile|TestNATS|...`)
+5. Hot keys seeded via POST endpoints (curl) — 200 for URL shortener, 50–200 for file storage
+6. `wrk -t10 -c1000 -d30s` runs sequentially for each endpoint (2–8 per variant) — each with warmup + measure
 7. Report: Requests/sec for each endpoint (pass 2)
 
 ## Environment
 
 | Key | Value |
 |-----|-------|
-| Hardware | Bare Metal, Apple Silicon (10 cores @ 3GHz ARM) |
+| Hardware | bare-metal, Apple Silicon (10 cores @ 3GHz ARM) |
 | Docker | Docker Desktop (macOS) |
 | Go | 1.26.4 |
 | Benchmark tool | `wrk -t10 -c1000 -d30s` |

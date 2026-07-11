@@ -202,6 +202,6 @@ curl http://localhost:8080/health
 - **Event-driven workers** — Add `event_streams:` + `exit:` for NATS/Kafka consumers
 - **Custom endpoints** — Add `type: rest` or `type: webhook` entries
 - **WebSocket/SSE** — Add `type: websocket` or `type: sse` entries
-- **File upload** — Add `type: file` entries with storage backend
+- **File upload** — Add `type: file` entries with S3 storage, pool config, cache, and presigned URLs. See `examples/300-file-storage/` for 5 complete variants
 - **Cron jobs** — Add `cron:` entries for scheduled tasks
 - **Multi-mode deployment** — Use `--mode entry` (HTTP) vs `--mode exit` (workers)

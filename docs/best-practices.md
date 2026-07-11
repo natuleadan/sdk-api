@@ -203,6 +203,25 @@ svc, err := runtime.NewFromYAML(configYAML)
 
 This works on all platforms — Vercel, Docker, Kubernetes, bare-metal — without extra deployment steps.
 
+### S3 storage best practices
+
+**HTTP pool sizing:** Configure `storage.pool` in `type: file` entries to match expected concurrency. Default `max_idle_conns=200` handles `wrk -c1000`. Without it, `MaxIdleConnsPerHost=2` limits throughput to ~500 req/s.
+
+```yaml
+storage:
+  mode: s3
+  pool:
+    max_idle_conns: 200
+    max_idle_conns_per_host: 100
+    max_conns_per_host: 250
+```
+
+**Cache strategy:** Use `cache:` for read-heavy workloads. L1 RAM (hot data) + L2 disk (warm data) + S3 (cold data). First request hits S3, subsequent requests served from RAM (~50x faster).
+
+**Presigned URLs vs proxy:** Use `presign: true` for downloads where the client can follow a redirect. Server bandwidth drops to zero. Use proxy (default) when you need access control, logging, or transformation on every request.
+
+**Provider compatibility:** All S3-compatible providers work (AWS, MinIO, R2, Backblaze B2, DigitalOcean Spaces). Set `endpoint` to your provider's S3 URL.
+
 ### Platform-specific validation
 
 Set `deploy.target` in `service.yaml` to validate platform-specific constraints at startup:

@@ -133,6 +133,12 @@ curl http://localhost:8080/health
 | Product by ID | SDK (MySQL) | ~25k |
 | Product by ID | SDK (Turso) | ~20k |
 | Product by ID | SDK (MongoDB) | ~18k |
+| File download (RAM cache) | SDK (S3 + L1 RAM) | ~134k |
+| File sign-only | SDK (S3 presign) | ~64k |
+| File download (ephemeral) | SDK (Go map) | ~82k |
+| File list (PG paginated, 50 rows) | SDK (CRUD + PG via PgDog) | ~25k |
+| File create (PG+PgDog+NATS+MinIO) | SDK (CRUD + NATS + S3) | ~18k |
+| File upload (S3 proxy) | SDK (S3) | ~2k |
 
 Full benchmarks in [`docs/benchmarks.md`](docs/benchmarks.md).
 
@@ -343,7 +349,8 @@ db/              # Table[T] CRUD (PG, Turso, MySQL) + AutoInit
 events/          # NATS JetStream producers, consumers, KV cache, request-reply
 infra/           # 45+ go-zero packages (conf, logx, trace, breaker, redis, discover, ...)
 docs/            # Documentation + API patterns
-examples/        # 8 dockerized example services + benchmarks
+examples/200-url-shortener/  # URL shortener with 8 backend variants (PG, MySQL, Turso, NATS, Dragonfly...)
+examples/300-file-storage/   # File storage patterns: ephemeral, proxy, s3, cached, pg-nats
 ```
 
 ## 10. License

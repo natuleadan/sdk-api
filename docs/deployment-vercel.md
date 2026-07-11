@@ -79,6 +79,8 @@ vercel deploy --prod
 | TLS | ❌ | Handled by Vercel edge network |
 | Prefork | ❌ | SO_REUSEPORT not available |
 | Local file storage | ⚠️ | Ephemeral filesystem, OK for reads |
+| S3 presigned URLs | ✅ | Redirect-based downloads, zero server bandwidth |
+| S3 cached (L2 disk) | ⚠️ | L1 RAM works, L2 disk is ephemeral on Vercel |
 | PostgreSQL / Turso / MySQL | ✅ | Via external connection strings |
 | NATS / Kafka | ✅ | Via external servers |
 | WebSocket | ⚠️ | Vercel supports WebSocket upgrades in server mode |

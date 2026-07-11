@@ -4,8 +4,6 @@ The `Service` struct is the core orchestrator. It loads YAML config, initializes
 
 **Stack:** Fiber (fasthttp) + pgxpool (PostgreSQL) + MongoDB + NATS JetStream + Kafka + go-zero infra (45+ packages)
 
-The `Service` struct is the core orchestrator. It loads YAML config, initializes databases and event streams, registers HTTP routes (entry), starts workers (exit), schedules cron jobs, and configures security — all from a single `Run()` call.
-
 ## Service API
 
 ```go
@@ -43,9 +41,22 @@ svc.RegisterModel("Product", (*Product)(nil))
 // Access databases and event streams
 svc.Pool("pg-main")              // any — returns the pool by name
 svc.PoolPG("pg-main")            // *pgxpool.Pool — typed access
+svc.PoolPGTyped("pg-main")       // *pgxpool.Pool — returns nil if not a pgx pool
 svc.NATS("primary")              // events.EventBroker — event broker
 svc.SafeHTTPClient()             // *middleware.SafeHTTPClient — SSRF-protected HTTP client
 svc.App()                        // *fiber.App — raw Fiber access
+svc.Storage("/files/upload")     // server.StorageBackend — storage by entry path
+svc.Table("Product")             // any — *db.Table[T] registered via MustRegister
+
+// Package-level helpers
+runtime.GetTable[Product](svc, "Product")   // *db.Table[T] — typed table by model name
+runtime.TableFor[Product](pools, "pg-main", "link") // *db.Table[T] — new table from pools map
+runtime.PoolPG(pools, "pg-main")           // *pgxpool.Pool — typed pool from pools map
+runtime.PoolSQL(pools, "pg-main")          // *sql.DB — SQL pool by name
+runtime.ErrNotFound                        // error — record not found sentinel
+
+// Redis config (re-exported from infra/stores/redis)
+runtime.RedisConfig{Host: "localhost:6379", Type: runtime.NodeType}
 
 // Start everything
 svc.Run()
@@ -314,11 +325,66 @@ store, _ := server.NewLocalStorage("/data/uploads")
 
 // S3-compatible (AWS S3, MinIO, R2)
 store, _ := server.NewS3Storage(server.S3Config{
-    Endpoint:  "http://minio:9000",
-    Bucket:    "uploads",
-    AccessKey: "minioadmin",
-    SecretKey: "minioadmin",
+    Endpoint:  os.Getenv("S3_ENDPOINT"),
+    Bucket:    os.Getenv("S3_BUCKET"),
+    AccessKey: os.Getenv("S3_ACCESS_KEY"),
+    SecretKey: os.Getenv("S3_SECRET_KEY"),
 })
 ```
 
-Storage backends in YAML are auto-created when `entry[].storage` is specified.
+Storage backends in YAML are auto-created when `entry[].storage` is specified. Access them in handlers via `svc.Storage(path)`:
+
+```go
+store := svc.Storage("/files/upload")
+store.Upload(ctx, "key", reader, size, contentType)
+reader, _ := store.Download(ctx, "key")
+```
+
+### Cached storage (L1 RAM + L2 disk)
+
+When `cache:` is configured in YAML, the SDK wraps the backend with `cachedStorage`. L1 and L2 are independent — either, both, or none can be active:
+
+```yaml
+storage:
+  mode: s3
+  cache:
+    l1: ram
+    l1_ttl: 5m
+    l1_size: 10000
+    l2: disk
+    l2_path: /data/cache
+```
+
+First request hits S3, a goroutine populates the cache. Subsequent requests served from RAM (~50x faster). L2 disk provides persistence across restarts.
+
+### Presigned URLs
+
+For S3 backends with `presign: true`, assert the `Presigner` interface to generate temporary S3 URLs:
+
+```go
+if p, ok := store.(server.Presigner); ok {
+    url, err := p.PresignURL(ctx, "uploads/file.pdf", 5*time.Minute)
+    // url is valid for 5 minutes, client downloads directly from S3
+}
+```
+
+Three download modes:
+- **Proxy** — server reads from S3 and streams to client (no presign needed)
+- **Redirect (302)** — server returns a signed URL, client follows redirect (zero server bandwidth)
+- **Sign-only JSON** — server returns signed URL as JSON, client decides how to use it
+
+### HTTP pool sizing
+
+Configure the S3 HTTP client pool under `storage.pool` in YAML to match expected concurrency:
+
+```yaml
+storage:
+  mode: s3
+  pool:
+    max_idle_conns: 200
+    max_idle_conns_per_host: 100
+    max_conns_per_host: 250
+    idle_timeout: 90s
+```
+
+Without pool config, Go's default `MaxIdleConnsPerHost=2` limits throughput to ~500 req/s under load.

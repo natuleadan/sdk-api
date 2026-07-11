@@ -154,6 +154,28 @@ kv, _ := conn.EnsureKeyValue(events.DefaultKVConfig("sessions"))
 kv.Put("user:123", []byte(`{"name":"Alice"}`))
 ```
 
+Convenience methods (no need to import `nats.KeyValue`):
+
+```go
+val, err := conn.KVGet("sessions", "user:123")
+rev, err := conn.KVPut("sessions", "user:123", []byte(`{"name":"Bob"}`))
+err = conn.KVDelete("sessions", "user:123")
+```
+
+Core NATS request-reply subscription (no `nats.Msg` import):
+
+```go
+// Fire-and-forget handler
+conn.SubscribeRaw("orders.echo", func(data []byte) {
+    log.Printf("received: %s", string(data))
+})
+
+// Echo handler (responds with the same data)
+conn.SubscribeRawReply("orders.echo", func(data []byte) []byte {
+    return data
+})
+```
+
 Typed cache wrapper:
 
 ```go

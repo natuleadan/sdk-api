@@ -96,6 +96,44 @@ Override values:
 - `"-"` → don't register this endpoint
 - `"handlerName"` → use this handler from the Rest map
 
+### Keyset Pagination
+
+By default, CRUD list uses offset pagination (`LIMIT/OFFSET` + `SELECT COUNT(*)`). For large tables, keyset pagination is faster: `WHERE pk > $1 LIMIT N` (O(log N), no `COUNT(*)`).
+
+**YAML:**
+```yaml
+entry:
+  - type: crud
+    model: Product
+    path: /products
+    pagination: keyset       # "offset" (default) or "keyset"
+    page_size: 20            # default and min page size
+    max_page_size: 100       # max allowed page size
+    sortable: [id]           # allowed sort columns (empty = all)
+```
+
+**Request:**
+```
+GET /api/v1/products?cursor=42&size=20
+```
+
+**Response:**
+```json
+{
+  "data": [...],
+  "nextCursor": "62",
+  "pageSize": 20
+}
+```
+
+The client uses `nextCursor` from the response as the `cursor` parameter in the next request. No `total` field — keyset pagination does not know the total row count. This eliminates the `SELECT COUNT(*)` bottleneck on large tables.
+
+**Limitations:**
+- Sort column must be the primary key (unique, indexed). The `sort` query parameter is ignored in keyset mode.
+- No `total` in response — client cannot render "Page 3 of 50".
+- No random page access — only sequential next/prev.
+- Use offset mode (`pagination: offset`) when you need total counts or arbitrary page jumps.
+
 ---
 
 ## 3. REST (Single Endpoint)
@@ -330,14 +368,57 @@ svc.WithRest("onFileDownload", func(c fiber.Ctx) error {
 
 The `allowed_types` validation returns 415 if Content-Type doesn't match. `max_size` returns 413 if body exceeds limit. Supports wildcard: `image/*`.
 
-Storage backends can be auto-created from YAML config or manually instantiated:
+S3 with presigned URLs, HTTP pool, and cache (from YAML):
+
+```yaml
+entry:
+  - type: file
+    path: /files/upload
+    handler: onFileUpload
+    storage:
+      mode: s3
+      bucket: uploads
+      endpoint: http://minio:9000
+      access_key: "${S3_ACCESS_KEY}"
+      secret_key: "${S3_SECRET_KEY}"
+      presign: true
+      presign_ttl: 5m
+      pool:
+        max_idle_conns: 200
+      cache:
+        l1: ram
+        l1_size: 10000
+```
+
+Access storage backends in Go via `svc.Storage(path)`:
+
+```go
+store := svc.Storage("/files/upload")
+store.Upload(ctx, "key", reader, size, contentType)
+data, _ := store.Download(ctx, "key")
+```
+
+For presigned URLs, assert the `server.Presigner` interface:
+
+```go
+if p, ok := store.(server.Presigner); ok {
+    url, _ := p.PresignURL(ctx, "uploads/file.pdf", 5*time.Minute)
+}
+```
+
+Three download modes:
+- **Proxy** — server reads from S3 and streams to client (default, no presign needed)
+- **Presign redirect (302)** — server returns a signed S3 URL, client follows redirect
+- **Sign-only JSON** — server returns signed URL as JSON, client decides how to use it
+
+Storage backends can also be created manually:
 
 ```go
 s3store, _ := server.NewS3Storage(server.S3Config{
-    Endpoint:  "http://minio:9000",
-    Bucket:    "uploads",
-    AccessKey: "minioadmin",
-    SecretKey: "minioadmin",
+    Endpoint:  os.Getenv("S3_ENDPOINT"),
+    Bucket:    os.Getenv("S3_BUCKET"),
+    AccessKey: os.Getenv("S3_ACCESS_KEY"),
+    SecretKey: os.Getenv("S3_SECRET_KEY"),
 })
 local, _ := server.NewLocalStorage("/data/uploads")
 ```

@@ -34,10 +34,6 @@ event_streams:
       - name: orders
         max_age: 24h
         max_bytes: 1073741824
-    driver: nats
-    url: "${NATS_URL}"
-    streams:
-      - name: orders
 
   - name: analytics
     driver: kafka
@@ -367,6 +363,10 @@ Auto-generates 5 endpoints for a model.
 | `table` | Table name. Defaults to snake_case of model |
 | `event_stream` | Broker name for event publishing |
 | `overrides` | CRUD override controls |
+| `pagination` | Pagination mode: `"offset"` (default) or `"keyset"`. Offset uses `LIMIT/OFFSET` + `COUNT(*)`. Keyset uses `WHERE pk > $1 LIMIT N` — O(log N), no `COUNT(*)`, returns `nextCursor` |
+| `page_size` | Default page size and range minimum. Default `10` |
+| `max_page_size` | Maximum allowed page size. Range maximum. Default `100` |
+| `sortable` | Allowed sort columns. Empty = all columns allowed. E.g. `[id, name, price]` |
 
 ### `type: rest`
 Single endpoint with any HTTP method.
@@ -429,6 +429,33 @@ File upload/download with middleware validation.
   storage:
     mode: local
     path: /data/uploads
+
+S3 with presigned URLs, HTTP pool, and L1+L2 cache:
+
+```yaml
+- type: file
+  method: POST
+  path: /files/upload
+  handler: onFileUpload
+  storage:
+    mode: s3
+    bucket: uploads
+    endpoint: http://minio:9000
+    access_key: "${ACCESS_KEY}"
+    secret_key: "${SECRET_KEY}"
+    presign: true
+    presign_ttl: 5m
+    pool:
+      max_idle_conns: 200
+      max_idle_conns_per_host: 100
+      max_conns_per_host: 250
+      idle_timeout: 90s
+    cache:
+      l1: ram
+      l1_ttl: 5m
+      l1_size: 10000
+      l2: disk
+      l2_path: /data/cache
 ```
 
 | Field | Description |
@@ -437,7 +464,24 @@ File upload/download with middleware validation.
 | `max_size` | Max body size. Supports `KB`, `MB`, `GB` suffixes |
 | `max_files` | Max files per multipart request |
 | `magic_bytes` | Verify file content matches declared type (body > 512 bytes) |
-| `storage.mode` | `s3` or `local` |
+| `storage.mode` | Storage driver: `s3` or `local` |
+| `storage.bucket` | S3 bucket name |
+| `storage.endpoint` | S3 endpoint URL (e.g. `http://minio:9000` or `https://s3.amazonaws.com`) |
+| `storage.region` | S3 region. Default `us-east-1` |
+| `storage.access_key` | S3 access key |
+| `storage.secret_key` | S3 secret key |
+| `storage.path` | Local filesystem path (when `mode: local`) |
+| `storage.presign` | Enable presigned URL generation via `Presigner` interface. Default `false` |
+| `storage.presign_ttl` | Presigned URL TTL duration. Default `5m` |
+| `storage.pool.max_idle_conns` | Max idle HTTP connections for S3 client. Default `200` |
+| `storage.pool.max_idle_conns_per_host` | Max idle connections per S3 host. Default `100` |
+| `storage.pool.max_conns_per_host` | Max total connections per S3 host. Default `250` |
+| `storage.pool.idle_timeout` | Idle connection timeout. Default `90s` |
+| `storage.cache.l1` | L1 cache type: `ram` or `none`. L1 and L2 are independent |
+| `storage.cache.l1_ttl` | L1 cache TTL. Default `5m` |
+| `storage.cache.l1_size` | L1 cache max entries. Default `10000` |
+| `storage.cache.l2` | L2 cache type: `disk` or `none` |
+| `storage.cache.l2_path` | L2 disk cache directory (required when `l2: disk`) |
 
 ### `type: async`
 Async job with 202 Accepted + status polling.

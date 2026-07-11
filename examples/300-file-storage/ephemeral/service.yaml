@@ -1,0 +1,28 @@
+name: file-ephemeral
+port: 10121
+
+server:
+  host: "0.0.0.0"
+  prefork: false
+  api_prefix: /api/v1
+
+entry:
+  - type: rest
+    method: POST
+    path: /files/upload/:key
+    handler: onUpload
+
+  - type: rest
+    method: GET
+    path: /files/download/:key
+    handler: onDownload
+
+  - type: rest
+    method: GET
+    path: /files
+    handler: onList
+
+  - type: rest
+    method: DELETE
+    path: /files/:key
+    handler: onDelete

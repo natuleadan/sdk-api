@@ -1,0 +1,12 @@
+name: 300-file-storage-ephemeral
+services:
+  app:
+    build:
+      context: ../../../..
+      dockerfile: sdk-api/examples/300-file-storage/ephemeral/Dockerfile
+    ports:
+      - "10121:10121"
+    environment:
+      DOCKER_TEST: "1"
+      RPS_BENCH: "${RPS_BENCH}"
+      PORT: "10121"

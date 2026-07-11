@@ -1,0 +1,92 @@
+name: file-pg-nats
+port: 18088
+
+databases:
+  - name: pg-main
+    driver: postgres
+    url: "${DATABASE_URL}"
+    pool:
+      max_conns: 20
+
+event_streams:
+  - name: primary
+    driver: nats
+    url: "${NATS_URL}"
+    streams:
+      - name: media
+
+entry:
+  - type: crud
+    model: Product
+    db: pg-main
+    table: products
+    path: /products
+    event_publish:
+      - stream: media
+        subject: media.created
+        on: create
+      - stream: media
+        subject: media.deleted
+        on: delete
+
+  - type: file
+    method: POST
+    path: /files/upload
+    handler: onFileUpload
+    storage:
+      mode: s3
+      endpoint: "${S3_ENDPOINT}"
+      bucket: "${S3_BUCKET}"
+      region: us-east-1
+      access_key: "${S3_ACCESS_KEY}"
+      secret_key: "${S3_SECRET_KEY}"
+      presign: true
+      presign_ttl: 5m
+      pool:
+        max_idle_conns: 200
+        max_idle_conns_per_host: 100
+      cache:
+        l1: ram
+        l1_ttl: 5m
+        l1_size: 10000
+        l2: disk
+        l2_path: /data/cache
+
+  - type: rest
+    method: GET
+    path: /products/:id/view
+    handler: onGetProductWithMedia
+
+exit:
+  - name: onMediaUploaded
+    subscribe:
+      stream: media
+      subject: media.created
+    handler: onMediaUploaded
+    max_concurrent: 10
+
+  - name: onMediaDeleted
+    subscribe:
+      stream: media
+      subject: media.deleted
+    handler: onMediaDeleted
+    max_concurrent: 10
+
+server:
+  host: "0.0.0.0"
+  api_prefix: /api/v1
+  openapi:
+    enabled: true
+    version: "1.0.0"
+  middleware:
+    - path: "/api/v1/*"
+      apply:
+        - logger
+        - cors
+
+endpoints:
+  list:
+    page_size: 10
+    max_page_size: 100
+    sortable:
+      - id

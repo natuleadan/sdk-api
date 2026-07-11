@@ -1,0 +1,51 @@
+name: 300-file-storage-cached
+services:
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - minio-data:/data
+
+  createbucket:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      sh -c "
+      mc alias set myminio http://minio:9000 minioadmin minioadmin &&
+      mc mb myminio/dummy-bucket --ignore-existing &&
+      echo 'Bucket ready'
+      "
+
+  app:
+    build:
+      context: ../../../..
+      dockerfile: sdk-api/examples/300-file-storage/cached/Dockerfile
+    ports:
+      - "10124:10124"
+    depends_on:
+      createbucket:
+        condition: service_completed_successfully
+    environment:
+      DOCKER_TEST: "1"
+      RPS_BENCH: "${RPS_BENCH}"
+      S3_ENDPOINT: http://minio:9000
+      S3_BUCKET: dummy-bucket
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      PORT: "10124"
+    volumes:
+      - cache-data:/data/cache
+
+volumes:
+  minio-data:
+  cache-data:

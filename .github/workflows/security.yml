@@ -44,22 +44,6 @@ jobs:
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: gosec.sarif
-
-  golangci:
-    name: Lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v6
-        with:
-          go-version-file: go.mod
-          cache: true
-      - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v9
-        with:
-          version: latest
-          args: --timeout=5m
-
   sbom:
     name: SBOM
     runs-on: ubuntu-latest

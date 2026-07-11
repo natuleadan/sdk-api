@@ -51,6 +51,8 @@ examples/*/auth-none-monolith
 examples/*/auth-ory-monolith
 examples/*/auth-openfga-zitadel-monolith
 examples/*/auth-manual-monolith
+examples/300-file-storage/*/300-file-storage-*
+examples/200-url-shortener/kv-dragonfly/201-kv-only
 
 # IDE
 .idea/

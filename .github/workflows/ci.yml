@@ -40,8 +40,7 @@ jobs:
 
       - uses: actions/setup-go@v6
         with:
-          go-version: "1.26.x"
-          
+          go-version-file: go.mod
           cache: true
 
       - name: go vet
@@ -64,8 +63,7 @@ jobs:
 
       - uses: actions/setup-go@v6
         with:
-          go-version: "1.26.x"
-          
+          go-version-file: go.mod
           cache: true
 
       - name: Build
@@ -93,8 +91,7 @@ jobs:
 
       - uses: actions/setup-go@v6
         with:
-          go-version: "1.26.x"
-          
+          go-version-file: go.mod
           cache: true
 
       - name: Build all examples
@@ -150,8 +147,7 @@ jobs:
 
       - uses: actions/setup-go@v6
         with:
-          go-version: "1.26.x"
-          
+          go-version-file: go.mod
           cache: true
 
       - name: Start NATS with JetStream
@@ -184,8 +180,7 @@ jobs:
 
       - uses: actions/setup-go@v6
         with:
-          go-version: "1.26.x"
-          
+          go-version-file: go.mod
           cache: true
 
       - name: Determine version

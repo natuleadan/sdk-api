@@ -1,0 +1,101 @@
+name: url-shortener-nats
+port: 18086
+
+databases:
+  - name: pg-main
+    driver: postgres
+    url: "${DATABASE_URL}"
+    pool:
+      max_conns: 20
+      min_conns: 5
+
+event_streams:
+  - name: primary
+    driver: nats
+    url: "${NATS_URL}"
+    streams:
+      - name: links
+      - name: nats-pull
+
+entry:
+  - type: crud
+    model: Link
+    db: pg-main
+    table: link
+    path: /links
+    overrides:
+      get: getLinkById
+
+  - type: rest
+    method: GET
+    path: /expand/:shortCode
+    handler: expandByShortCode
+
+  - type: rest
+    method: POST
+    path: /nats/rpc
+    handler: natsRPC
+
+  - type: rest
+    method: GET
+    path: /nats/kv/:key
+    handler: kvGet
+
+  - type: rest
+    method: PUT
+    path: /nats/kv/:key
+    handler: kvSet
+
+  - type: rest
+    method: POST
+    path: /nats/pull
+    handler: pullPublish
+
+  - type: rest
+    method: GET
+    path: /nats/pull
+    handler: pullMessages
+
+  - type: rest
+    method: GET
+    path: /admin/events
+    handler: getEvents
+
+  - type: rest
+    method: DELETE
+    path: /admin/events
+    handler: clearEvents
+
+  - type: rest
+    method: POST
+    path: /admin/publish-bulk
+    handler: publishBulk
+
+exit:
+  - name: link-event-logger
+    subscribe:
+      stream: links
+      subject: links.>
+    handler: onLinkEvent
+    max_concurrent: 5
+    reply: false
+
+  - name: pull-demo
+    subscribe:
+      stream: nats-pull
+      subject: nats-pull.request
+    handler: onPullMsg
+    consumer_mode: pull
+    pull_batch: 10
+    reply: false
+
+server:
+  host: "0.0.0.0"
+  prefork: false
+  api_prefix: /api/v1
+  max_conns: 10000
+  timeout: 30s
+  middleware:
+    - path: "/api/v1/*"
+      apply:
+        - logger

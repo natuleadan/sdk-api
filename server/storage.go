@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,6 +29,13 @@ type Presigner interface {
 
 // ---- S3 ----
 
+type PoolConfig struct {
+	MaxIdleConns      int
+	MaxIdleConnsPerHost int
+	MaxConnsPerHost   int
+	IdleTimeout       time.Duration
+}
+
 type S3Config struct {
 	Endpoint        string
 	Region          string
@@ -35,6 +43,7 @@ type S3Config struct {
 	AccessKeyID     string
 	SecretAccessKey string
 	UseSSL          bool
+	Pool            *PoolConfig
 }
 
 type S3Storage struct {
@@ -50,10 +59,33 @@ func NewS3Storage(cfg S3Config) (*S3Storage, error) {
 		return nil, fmt.Errorf("bucket is required")
 	}
 
+	t := &http.Transport{
+		MaxIdleConns:        200,
+		MaxIdleConnsPerHost: 100,
+		MaxConnsPerHost:     250,
+		IdleConnTimeout:     90 * time.Second,
+		DisableCompression:  true,
+	}
+	if cfg.Pool != nil {
+		if cfg.Pool.MaxIdleConns > 0 {
+			t.MaxIdleConns = cfg.Pool.MaxIdleConns
+		}
+		if cfg.Pool.MaxIdleConnsPerHost > 0 {
+			t.MaxIdleConnsPerHost = cfg.Pool.MaxIdleConnsPerHost
+		}
+		if cfg.Pool.MaxConnsPerHost > 0 {
+			t.MaxConnsPerHost = cfg.Pool.MaxConnsPerHost
+		}
+		if cfg.Pool.IdleTimeout > 0 {
+			t.IdleConnTimeout = cfg.Pool.IdleTimeout
+		}
+	}
+
 	client, err := minio.New(cfg.Endpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(cfg.AccessKeyID, cfg.SecretAccessKey, ""),
-		Region: cfg.Region,
-		Secure: cfg.UseSSL,
+		Creds:     credentials.NewStaticV4(cfg.AccessKeyID, cfg.SecretAccessKey, ""),
+		Region:    cfg.Region,
+		Secure:    cfg.UseSSL,
+		Transport: t,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("minio: %w", err)

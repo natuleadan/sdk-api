@@ -1,10 +1,12 @@
 package runtime
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"maps"
 	"os"
@@ -1054,6 +1056,87 @@ func convertTLS(cfg *TLSConf) *server.TLSConfig {
 	return tlsCfg
 }
 
+// cachedStorage wraps a StorageBackend with an optional L1 RAM cache.
+// Writes go through to the backend. Reads check RAM first, then backend.
+type cachedStorage struct {
+	server.StorageBackend
+	l1       *collection.Cache
+	path     string // disk cache path (empty = no disk cache)
+	presigner server.Presigner
+}
+
+func newCachedStorage(backend server.StorageBackend, cfg *CacheConfig, ttl time.Duration) (*cachedStorage, error) {
+	cs := &cachedStorage{StorageBackend: backend}
+	if p, ok := backend.(server.Presigner); ok {
+		cs.presigner = p
+	}
+	if cfg.L1 == "ram" {
+		var err error
+		cs.l1, err = collection.NewCache(ttl, collection.WithLimit(cfg.L1Size))
+		if err != nil {
+			return nil, fmt.Errorf("l1 cache: %w", err)
+		}
+	}
+	if cfg.L2 == "disk" && cfg.L2Path != "" {
+		cs.path = cfg.L2Path
+		if err := os.MkdirAll(cs.path, 0750); err != nil {
+			return nil, fmt.Errorf("l2 cache dir: %w", err)
+		}
+	}
+	return cs, nil
+}
+
+func (c *cachedStorage) Download(ctx context.Context, key string) (io.ReadCloser, error) {
+	if c.l1 != nil {
+		if raw, ok := c.l1.Get(key); ok {
+			if data, ok := raw.([]byte); ok {
+				return io.NopCloser(bytes.NewReader(data)), nil
+			}
+		}
+	}
+	if c.path != "" {
+		safeKey := sanitizeKey(key)
+		if data, err := os.ReadFile(filepath.Join(c.path, safeKey)); err == nil { //nolint:gosec
+			if c.l1 != nil {
+				c.l1.Set(key, data)
+			}
+			return io.NopCloser(bytes.NewReader(data)), nil
+		}
+	}
+	r, err := c.StorageBackend.Download(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { if cerr := r.Close(); cerr != nil { logx.Errorf("cachedStorage close: %v", cerr) } }()
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return nil, err
+	}
+	// Store in caches asynchronously
+	go func() {
+		if c.l1 != nil {
+			c.l1.Set(key, data)
+		}
+		if c.path != "" {
+			if wErr := os.WriteFile(filepath.Join(c.path, sanitizeKey(key)), data, 0600); wErr != nil {
+				logx.Errorf("cachedStorage disk write: %v", wErr)
+			}
+		}
+	}()
+	return io.NopCloser(bytes.NewReader(data)), nil
+}
+
+func sanitizeKey(key string) string {
+	return strings.ReplaceAll(key, "..", "")
+}
+
+func (c *cachedStorage) PresignURL(ctx context.Context, key string, ttl time.Duration) (string, error) {
+	if c.presigner != nil {
+		return c.presigner.PresignURL(ctx, key, ttl)
+	}
+	return "", fmt.Errorf("underlying storage does not support presigned URLs")
+}
+
 func initStorageFromDef(s *StorageDef) (server.StorageBackend, error) {
 	switch s.Mode {
 	case "local":
@@ -1069,14 +1152,36 @@ func initStorageFromDef(s *StorageDef) (server.StorageBackend, error) {
 				endpoint = endpoint[7:]
 			}
 		}
-		return server.NewS3Storage(server.S3Config{
+		var pool *server.PoolConfig
+		if s.Pool != nil {
+			dur, _ := time.ParseDuration(s.Pool.IdleTimeout)
+			pool = &server.PoolConfig{
+				MaxIdleConns:        s.Pool.MaxIdleConns,
+				MaxIdleConnsPerHost: s.Pool.MaxIdlePerHost,
+				MaxConnsPerHost:     s.Pool.MaxConnsPerHost,
+				IdleTimeout:         dur,
+			}
+		}
+		s3store, s3err := server.NewS3Storage(server.S3Config{
 			Endpoint:        endpoint,
 			Region:          s.Region,
 			Bucket:          s.Bucket,
 			AccessKeyID:     s.AccessKey,
 			SecretAccessKey: s.SecretKey,
 			UseSSL:          useSSL,
+			Pool:            pool,
 		})
+		if s3err != nil {
+			return nil, s3err
+		}
+		if s.Cache != nil && s.Cache.L1 == "ram" {
+			ttl, _ := time.ParseDuration(s.Cache.L1TTL)
+			if ttl <= 0 {
+				ttl = 5 * time.Minute
+			}
+			return newCachedStorage(s3store, s.Cache, ttl)
+		}
+		return s3store, nil
 	default:
 		return nil, fmt.Errorf("unsupported storage mode %q", s.Mode)
 	}

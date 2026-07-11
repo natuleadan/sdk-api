@@ -386,16 +386,33 @@ type EventPublishTarget struct {
 	EventStream string `json:"event_stream" config:",optional"` // broker name; empty = all brokers
 }
 
+type PoolConfig struct {
+	MaxIdleConns      int    `json:"max_idle_conns" config:",default=200"`
+	MaxIdlePerHost    int    `json:"max_idle_conns_per_host" config:",default=100"`
+	MaxConnsPerHost   int    `json:"max_conns_per_host" config:",default=250"`
+	IdleTimeout       string `json:"idle_timeout" config:",default=90s"`
+}
+
+type CacheConfig struct {
+	L1     string `json:"l1" config:",default=ram"` // ram | none
+	L1TTL  string `json:"l1_ttl" config:",default=5m"`
+	L1Size int    `json:"l1_size" config:",default=10000"`
+	L2     string `json:"l2" config:",optional"`     // disk | none
+	L2Path string `json:"l2_path" config:",optional"`
+}
+
 type StorageDef struct {
-	Mode       string `json:"mode"` // s3, local
-	Bucket     string `json:"bucket" config:",optional"`
-	Path       string `json:"path" config:",optional"`
-	Region     string `json:"region" config:",optional"`
-	Endpoint   string `json:"endpoint" config:",optional"`
-	AccessKey  string `json:"access_key" config:",optional"`
-	SecretKey  string `json:"secret_key" config:",optional"`
-	Presign    bool   `json:"presign" config:",optional"`
-	PresignTTL string `json:"presign_ttl" config:",default=5m"`
+	Mode       string       `json:"mode"` // s3, local
+	Bucket     string       `json:"bucket" config:",optional"`
+	Path       string       `json:"path" config:",optional"`
+	Region     string       `json:"region" config:",optional"`
+	Endpoint   string       `json:"endpoint" config:",optional"`
+	AccessKey  string       `json:"access_key" config:",optional"`
+	SecretKey  string       `json:"secret_key" config:",optional"`
+	Presign    bool         `json:"presign" config:",optional"`
+	PresignTTL string       `json:"presign_ttl" config:",default=5m"`
+	Pool       *PoolConfig  `json:"pool" config:",optional"`
+	Cache      *CacheConfig `json:"cache" config:",optional"`
 }
 
 func (e *EntryDef) Validate() error {

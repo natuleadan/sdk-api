@@ -199,11 +199,11 @@ When `cors` is omitted, CORS defaults to same-origin only (secure default).
 | `Shedding()` | `shedding.go` | `server.load_shedding` (default `true`) | Adaptive load shedding (go-zero) |
 | `Breaker()` | `breaker.go` | `server.breaker` (default `true`) | Circuit breaker per route |
 | `CORS()` | `cors.go` | `server.cors` (block) | CORS headers |
-| `JWT()` | `jwt.go` | `entry[].auth: true` | JWT validation with algorithm pinning, claim validation (iss, aud, exp), secret rotation, AuthContext injection |
+| `JWT()` | `jwt.go` | `entry[].auth_modes` includes `jwt` | JWT validation with algorithm pinning, claim validation (iss, aud, exp), secret rotation, AuthContext injection |
 | `JWTWithZitadel()` | `jwt_zitadel.go` | `auth.driver: openfga-zitadel` | JWT validation via Zitadel JWKS (RS256) |
 | `OpenFGA()` | `openfga.go` | `entry[].roles` / `entry[].permissions` | OpenFGA ReBAC authorization (roles, permissions, relation checks) |
 | `Ory()` | `ory.go` | `auth.driver: ory` | Ory Keto authorization (roles, permissions) |
-| `APIKey()` | `apikey.go` | `entry[].api_key: true` | API key detection + OpenFGA validation (⚠️ pending) |
+| `APIKey()` | `apikey.go` | `entry[].auth_modes` includes `apikey` | API key detection + OpenFGA validation (replaces JWT) |
 | `Recover()` | Fiber built-in | Always-on | Panic recovery → 500 JSON |
 | `Prometheus()` | `prometheus.go` | Always-on | In-process metrics collector |
 | `Trace()` | `trace.go` | `telemetry.enabled: true` | OpenTelemetry tracing |
@@ -214,6 +214,7 @@ When `cors` is omitted, CORS defaults to same-origin only (secure default).
 | `HeaderSanitize()` | `header_sanitize.go` | Always-on | CRLF protection |
 | `ContentSecurity()` | `content_security.go` | `server.security.content_security.enabled` | RSA body signature verification |
 | `Cryption()` | `cryption.go` | `server.security.cryption.enabled` | AES-GCM body decryption |
+| `EncryptCookie()` | Fiber built-in | `server.security.encrypt_cookie.enabled` | AES-256-GCM cookie value encryption |
 
 ## Server-level Gates
 

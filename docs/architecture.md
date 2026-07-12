@@ -85,6 +85,6 @@ The order is critical. Global chain (applied to every request):
 17. **PrometheusRecorder** — in-process metrics (always on)
 18. **CORS** — `server.cors` (block)
 
-**Per-entry middlewares** (applied per-route, not global): `JWT`, `JWTWithZitadel`, `OpenFGA`, `Ory`, `APIKey`, `ValidateInput`, `RateLimit` (per-entry), `Timeout`.
+**Per-entry middlewares** (applied per-route, not global): `JWT`, `JWTWithZitadel`, `OpenFGA`, `Ory`, `APIKey` (activated via `auth_modes`), `ValidateInput`, `RateLimit` (per-entry), `Timeout`.
 
 **Per-route mode** (`server.middleware` defined): only `Recover` + `Health` + `HeaderSanitize` are global. All others must be listed in `apply:`.

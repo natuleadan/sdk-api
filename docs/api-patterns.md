@@ -291,7 +291,7 @@ entry:
   - type: websocket
     path: /ws/chat
     handler: onChat
-    auth: true
+    auth_modes: [jwt]
 ```
 
 **Go:**
@@ -320,7 +320,7 @@ entry:
   - type: sse
     path: /events/stream
     handler: onStream
-    auth: true
+    auth_modes: [jwt]
 ```
 
 **Go:**

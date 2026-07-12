@@ -266,6 +266,7 @@ func(c *runtime.RestCtx) error {
     c.StatusCode()           // int — response status code
     c.Path()                 // string — request path
     c.ResponseBody()         // string — response body as string
+    c.SetCookie(cookie)      // set *fiber.Cookie (Name, Value, Path, HTTPOnly, Secure, SameSite, MaxAge)
 }
 ```
 

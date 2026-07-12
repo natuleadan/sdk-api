@@ -90,7 +90,6 @@ server:
     driver: openfga-zitadel       # none | manual | openfga-zitadel | ory
     secret: "${JWT_SECRET}"       # Shared secret for HS256 (mode: none/manual)
     algorithm: HS256              # HS256 | HS384 | HS512 | RS256
-    token_lookup: "header:Authorization"  # header:<name> | cookie:<name> | query:<name>
     context_key: claims           # Key used in fiber.Ctx.Locals()
     issuer: "sdk-api"             # Validate iss claim
     audience: "api.example.com"   # Validate aud claim
@@ -108,7 +107,69 @@ server:
     cryption:
       enabled: false
       key: "${AES_KEY}"
+    encrypt_cookie:
+      enabled: false
+      key: "${COOKIE_ENCRYPT_KEY}"       # base64-encoded 32-byte key (AES-256-GCM)
+      except:
+        - csrf_token
 ```
+
+### Cookie Encryption
+
+The `encrypt_cookie` middleware encrypts cookie values using AES-256-GCM. Every `Set-Cookie` header is intercepted and the value is encrypted on the wire. Cookies are transparently decrypted when read via `c.Cookies()`. This prevents sensitive cookie data (like JWT tokens) from being readable in plaintext even if intercepted.
+
+```yaml
+server:
+  security:
+    encrypt_cookie:
+      enabled: true
+      key: "${COOKIE_ENCRYPT_KEY}"
+      except:                               # cookies that must remain readable by JS
+        - csrf_token
+```
+
+**Important:** The key must be base64-encoded. Generate one with:
+```bash
+openssl rand -base64 32
+```
+
+When `encrypt_cookie` is enabled and login sets a `token` cookie, the value is:
+- Encrypted on the wire (`Set-Cookie: token=<ciphertext>`)
+- Decrypted transparently by the middleware when JWT reads `c.Cookies("token")`
+- Never visible to JavaScript (when `HttpOnly` flag is set)
+
+```yaml
+# JWT cookie encryption + HttpOnly example
+server:
+  security:
+    encrypt_cookie:
+      enabled: true
+      key: "diPHoCg5vhBrTHCSJhlud1RRMRFpRo+4N/d32S+48t8="
+```
+
+On the login handler, the cookie is set with security flags:
+```go
+c.SetCookie(&fiber.Cookie{
+    Name:     "token",
+    Value:    signed,
+    Path:     "/",
+    HTTPOnly: true,
+    Secure:   true,
+    SameSite: "Strict",
+    MaxAge:   900,
+})
+```
+
+### JWT Token Lifetime
+
+JWT tokens expire after a configurable TTL. The default is **900 seconds (15 minutes)**:
+
+```yaml
+auth:
+  expiry: 900            # JWT TTL in seconds (default: 900 = 15min)
+```
+
+Shorter TTLs reduce the window for token theft. For long-lived sessions, use the refresh token flow.
 
 ### Per-entry auth
 
@@ -120,37 +181,38 @@ entry:
   - type: rest
     path: /health
     handler: healthCheck
-    auth: false
 
   # Authenticated endpoint — any valid JWT
   - type: rest
     path: /whoami
     handler: whoami
-    auth: true
+    auth_modes: [jwt]
 
   # Authenticated + role-gated
   - type: crud
     resource: products
-    auth: true
+    auth_modes: [jwt]
     roles: ["products:editor"]
     permissions: ["products:write"]
 ```
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `auth` | bool | `false` | Enable JWT authentication for this entry |
+| `auth_modes` | []string | `[]` | Authentication modes (`jwt`, `apikey`, or both) |
 | `roles` | []string | `[]` | Required roles (validated by driver) |
 | `permissions` | []string | `[]` | Required permissions (validated by driver) |
-| `api_key` | bool | `false` | Accept API key instead of JWT |
+| `jwt_from` | string | `"header:Authorization"` | JWT source: `"header:Authorization"`, `"cookie:token"`, `"query:token"` |
+| `api_key_prefix` | string | `""` | Optional prefix to validate (e.g. `"sk-"`, only when `auth_modes` includes `apikey`) |
 
 **Entry auth combinations:**
 
-| `auth` | `roles` / `permissions` | `api_key` | What the middleware does |
-|--------|------------------------|-----------|-------------------------|
-| `false` | — | — | No auth, public endpoint |
-| `true` | empty | `false` | Validates JWT signature + claims (identity only) |
-| `true` | `["editor"]` | `false` | Validates JWT + verifies roles/permissions via driver |
-| `true` | — | `true` | Detects API key, validates against OpenFGA or manual hook |
+| `auth_modes` | `roles` / `permissions` | What the middleware does |
+|--------------|------------------------|-------------------------|
+| (empty) | — | No auth, public endpoint |
+| `[jwt]` | empty | Validates JWT signature + claims (identity only) |
+| `[jwt]` | `["editor"]` | Validates JWT + verifies roles/permissions via driver |
+| `[apikey]` | — | API key validation via driver |
+| `[jwt, apikey]` | — | Both (router detects format) |
 
 ### AuthContext
 
@@ -211,7 +273,7 @@ entry:
   - type: rest
     path: /admin/stats
     handler: getStats
-    auth: true
+    auth_modes: [jwt]
     roles: ["admin"]
 ```
 
@@ -287,27 +349,28 @@ oryClient.KetoCheck(ctx, ory.KetoCheckRequest{
 
 ### API key authentication
 
-API keys are supported independently of user roles — they carry their own permissions:
+API keys are wired per-entry via YAML. When `auth_modes: [apikey]`, the middleware reads the API key from the `Authorization` header (replacing JWT). The API key is validated against OpenFGA if configured, otherwise only presence + prefix is checked.
 
 ```yaml
 entry:
   - type: webhook
     path: /webhooks/stripe
-    auth: true
-    api_key: true         # Accept API keys on this endpoint
+    auth_modes: [apikey]             # Accept API keys (replaces JWT)
+
+  - type: webhook
+    path: /webhooks/github
+    auth_modes: [apikey]
+    api_key_prefix: "gh_"            # Optional prefix validation
 ```
 
-```go
-import "github.com/natuleadan/sdk-api/server/middleware"
+The automatic wiring registers the middleware with:
+- `Object`: `{entry.type}:{entry.path}` (e.g. `webhook:/webhooks/stripe`)
+- `Relation`: `"can_access"`
+- `Client`: the configured OpenFGA client (if `auth.driver: openfga-zitadel`)
 
-app.Use(middleware.APIKey(middleware.APIKeyConfig{
-    Prefix:   "sk-",                  // Key prefix detection
-    Relation: "can_access",
-    Object:   "webhook:stripe",
-}))
-```
+When a FGA client is available, the API key is treated as a subject (`apikey:<key_id>`) and checked via OpenFGA Check. Without FGA, any valid key passes (presence-only validation).
 
-The API key is treated as a subject in OpenFGA (`apikey:<key_id>`) or delegated to the custom validator in manual mode.
+The `Authorization` header is read and the `Bearer ` prefix is automatically stripped. If the key has a configured prefix (`api_key_prefix`), it must match.
 
 ### Choosing an auth mode
 

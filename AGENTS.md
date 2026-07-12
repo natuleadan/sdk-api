@@ -14,7 +14,7 @@ General-purpose Go SDK for event-driven microservices and monoliths. YAML-driven
 |-------|----------|
 | Full documentation | `docs/` (18 files) |
 | YAML config schema (all entry types, security) | `docs/configuration.md` |
-| Security guide (headers, CSRF, rate limit, TLS, SSRF, validation) | `docs/security.md` |
+| Security guide (headers, CSRF, rate limit, TLS, SSRF, validation, cookie encryption) | `docs/security.md` |
 | HTTP server & middlewares | `docs/http-server.md` |
 | Runtime API | `docs/runtime.md` |
 | NATS + Kafka messaging | `docs/messaging.md` |
@@ -105,7 +105,7 @@ go test ./...                 # All tests (requires Docker: PG + NATS)
 - **Prefork + cache** — each process has its own memory. Use NATS KV (shared) or disable prefork.
 - **Cron** — 5-field expressions only (`min hour dom month dow`). No seconds support.
 - **OpenAPI** — requires `RegisterModel()` for schema generation. Without it, paths exist but schemas are empty.
-- **Auth: JWT middleware is wired per-entry** — Use `entry.auth: true` to enable, configure via `auth:` block. See `examples/auth-*` for 4 driver modes (none/manual/openfga-zitadel/ory).
+- **Auth: Middleware is wired per-entry** — Use `entry.auth_modes: [jwt]` or `[jwt, apikey]` to enable. Configure via `auth:` block. See `examples/400-auth/manual-pg` for driver manual.
 - **Pool access before Run** — `svc.Pool()` returns nil before `svc.Run()`. Use `WithCRUDFactory()` (preferred, no manual sync.Once) or `sync.Once` + lazy init for CRUD tables.
 - **WARNING: `go build` skips `*_test.go` files, `go test` includes them.** When `bench_test.go` uses `exec.Command("go", "build", ...)`, the test binary and the service binary are different. The test binary compiles both `main.go` and `bench_test.go`. The service binary (`go build`) compiles only `main.go`.
 - **SSRF is disabled by default** — enable via `server.ssrf.enabled: true` to activate `SafeHTTPClient()`.

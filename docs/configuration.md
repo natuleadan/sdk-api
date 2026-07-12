@@ -58,7 +58,7 @@ entry:
     method: GET
     path: /products/:id/transform
     handler: onTransformProduct
-    auth: true
+    auth_modes: [jwt]
     event_publish:
       - stream: orders
         subject: orders.transformed
@@ -208,7 +208,7 @@ server:
     driver: openfga-zitadel                # none | manual | openfga-zitadel | ory
     secret: "${JWT_SECRET}"               # HMAC shared secret
     algorithm: HS256                       # HS256 | HS384 | HS512 | RS256
-    token_lookup: "header:Authorization"   # header:<name> | cookie:<name> | query:<name>
+    expiry: 900                            # JWT TTL in seconds (default 900 = 15min)
     context_key: claims                    # fiber.Ctx.Locals key
     issuer: "sdk-api"                      # Validate iss claim
     audience: "api.example.com"            # Validate aud claim
@@ -226,6 +226,11 @@ server:
     cryption:
       enabled: false
       key: "${AES_KEY}"
+    encrypt_cookie:
+      enabled: false
+      key: "${COOKIE_ENCRYPT_KEY}"       # base64-encoded 32-byte key (AES-256-GCM)
+      except:                             # cookie names to skip encryption
+        - csrf_token
 
   # Global cookie settings
   cookies:
@@ -376,7 +381,7 @@ Single endpoint with any HTTP method.
   method: GET
   path: /products/:id/transform
   handler: onTransformProduct
-  auth: true
+  auth_modes: [jwt]
   event_publish:
     - stream: orders
       subject: orders.transformed
@@ -513,10 +518,11 @@ Queries and mutations are auto-generated from `CRUDProvider` registrations. Mode
 
 | Field | Applies to | Description |
 |-------|-----------|-------------|
-| `auth` | crud, rest, webhook, file | JWT authentication required |
+| `auth_modes` | crud, rest, webhook, file | Authentication modes (`jwt`, `apikey`, or both) |
 | `roles` | crud, rest, webhook | Required roles (validated by auth driver) |
 | `permissions` | crud, rest, webhook | Required permissions (validated by auth driver) |
-| `api_key` | webhook, rest | Accept API key for this entry |
+| `jwt_from` | crud, rest, webhook, file | JWT source: `"header:Authorization"`, `"cookie:token"`, `"query:token"` (default `header:Authorization`) |
+| `api_key_prefix` | crud, rest, webhook, file | API key prefix (e.g. `"sk-"`, only when `auth_modes` includes `apikey`) |
 | `csrf` | crud, rest, webhook, file | CSRF protection override (`true`/`false`) |
 | `rate_limit` | crud, rest, webhook | Per-entry rate limit |
 | `event_stream` | crud, rest, webhook, file | Event broker name for publishes |
@@ -527,12 +533,13 @@ Queries and mutations are auto-generated from `CRUDProvider` registrations. Mode
 
 **Entry auth combinations:**
 
-| `auth` | `roles` / `permissions` | `api_key` | What the middleware does |
-|--------|------------------------|-----------|-------------------------|
-| `false` | — | — | No auth, public endpoint |
-| `true` | empty | `false` | Validates JWT signature + claims (identity only) |
-| `true` | defined | `false` | Validates JWT + verifies roles/permissions via driver |
-| `true` | — | `true` | Detects API key, validates via driver |
+| `auth_modes` | `roles` / `permissions` | What the middleware does |
+|--------------|------------------------|-------------------------|
+| (empty) | — | No auth, public endpoint |
+| `[jwt]` | empty | Validates JWT signature + claims (identity only) |
+| `[jwt]` | defined | Validates JWT + verifies roles/permissions via driver |
+| `[apikey]` | — | API key validation via driver |
+| `[jwt, apikey]` | — | Both (router detects format) |
 
 ### event_publish targets
 

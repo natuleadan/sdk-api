@@ -50,7 +50,7 @@ entry:
     method: GET
     path: /products/:id/transform
     handler: onTransformProduct
-    auth: true
+    auth_modes: [jwt]
 
   - type: rest
     method: POST

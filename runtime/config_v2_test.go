@@ -146,8 +146,8 @@ func TestLoadConfig_FullYAML(t *testing.T) { //nolint:gocyclo
 	if e2.DB != "" {
 		t.Errorf("Entry[2].DB should be empty for transform")
 	}
-	if !e2.Auth {
-		t.Error("Entry[2].Auth should be true")
+	if !hasAuth(&e2, "jwt") {
+		t.Error("Entry[2].AuthModes should include jwt")
 	}
 
 	// REST: with NATS publish

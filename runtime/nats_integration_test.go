@@ -372,7 +372,7 @@ func TestIntegration_CRUD_NATSPublish(t *testing.T) {
 			},
 		},
 	}
-	err = RegisterEntries(app, cfg, handlers, "/api/v1", map[string]events.EventBroker{"default": conn}, nil, nil, nil, nil, nil, nil)
+	err = RegisterEntries(app, cfg, handlers, "/api/v1", map[string]events.EventBroker{"default": conn}, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("RegisterEntries: %v", err)
 	}

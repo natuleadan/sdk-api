@@ -110,7 +110,7 @@ func TestRegisterEntries_CRUD_AllMethods(t *testing.T) {
 			{Type: "crud", Model: "Product", DB: "pg", Table: "products", Resource: "products", Path: "/products"},
 		},
 	}
-	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil)
+	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("RegisterEntries: %v", err)
 	}
@@ -175,7 +175,7 @@ func TestRegisterEntries_CRUD_Overrides(t *testing.T) {
 				},
 			},
 		}
-		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil)
+		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("RegisterEntries: %v", err)
 		}
@@ -213,7 +213,7 @@ func TestRegisterEntries_CRUD_Overrides(t *testing.T) {
 				},
 			},
 		}
-		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil)
+		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("RegisterEntries: %v", err)
 		}
@@ -250,7 +250,7 @@ func TestRegisterEntries_REST(t *testing.T) {
 			{Type: "rest", Method: "POST", Path: "/custom", Handler: "onCustom"},
 		},
 	}
-	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil)
+	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("RegisterEntries: %v", err)
 	}
@@ -287,7 +287,7 @@ func TestRegisterEntries_Webhook(t *testing.T) {
 			{Type: "webhook", Method: "POST", Path: "/webhooks/test", Handler: "onWebhook"},
 		},
 	}
-	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil)
+	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("RegisterEntries: %v", err)
 	}
@@ -322,7 +322,7 @@ func TestRegisterEntries_Webhook_AllMethods(t *testing.T) {
 			{Type: "webhook", Method: "DELETE", Path: "/wh/delete", Handler: "whDelete"},
 		},
 	}
-	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil)
+	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("RegisterEntries: %v", err)
 	}
@@ -371,7 +371,7 @@ func TestRegisterEntries_WebSocket(t *testing.T) {
 			{Type: "websocket", Path: "/ws/chat", Handler: "onChat"},
 		},
 	}
-	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil)
+	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("RegisterEntries: %v", err)
 	}
@@ -394,7 +394,7 @@ func TestRegisterEntries_SSE(t *testing.T) {
 			{Type: "sse", Path: "/events/stream", Handler: "onStream"},
 		},
 	}
-	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil)
+	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("RegisterEntries: %v", err)
 	}
@@ -431,7 +431,7 @@ func TestRegisterEntries_File(t *testing.T) {
 				},
 			},
 		}
-		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil)
+		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("RegisterEntries: %v", err)
 		}
@@ -485,7 +485,7 @@ func TestRegisterEntries_File(t *testing.T) {
 				{Type: "file", Method: "GET", Path: "/files/:id/download", Handler: "onDownload"},
 			},
 		}
-		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil)
+		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("RegisterEntries: %v", err)
 		}
@@ -514,7 +514,7 @@ func TestRegisterEntries_File(t *testing.T) {
 				{Type: "file", Method: "DELETE", Path: "/files/:id", Handler: "onDelete"},
 			},
 		}
-		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil)
+		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("RegisterEntries: %v", err)
 		}
@@ -572,7 +572,7 @@ func TestRegisterEntries_MixedTypes(t *testing.T) {
 			{Type: "sse", Path: "/events/stream", Handler: "onStream"},
 		},
 	}
-	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil)
+	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("RegisterEntries: %v", err)
 	}
@@ -615,7 +615,7 @@ func TestRegisterEntries_Errors(t *testing.T) {
 				{Type: "crud", Model: "Missing", DB: "pg", Table: "t", Path: "/t"},
 			},
 		}
-		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil)
+		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, nil)
 		if err == nil {
 			t.Error("expected error for missing CRUD provider")
 		}
@@ -631,7 +631,7 @@ func TestRegisterEntries_Errors(t *testing.T) {
 				{Type: "rest", Method: "GET", Path: "/x", Handler: "notFound"},
 			},
 		}
-		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil)
+		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, nil)
 		if err == nil {
 			t.Error("expected error for missing REST handler")
 		}
@@ -645,7 +645,7 @@ func TestRegisterEntries_Errors(t *testing.T) {
 				{Type: "grpc", Path: "/x"},
 			},
 		}
-		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil)
+		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, nil)
 		if err == nil {
 			t.Error("expected error for unknown type")
 		}
@@ -663,7 +663,7 @@ func TestRegisterEntries_Errors(t *testing.T) {
 				},
 			},
 		}
-		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil)
+		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, nil)
 		if err == nil {
 			t.Error("expected error for missing override handler")
 		}
@@ -962,7 +962,7 @@ func TestRegisterEntries_Async(t *testing.T) {
 			{Type: "async", Path: "/jobs/reports", Handler: "processReport"},
 		},
 	}
-	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil)
+	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("RegisterEntries: %v", err)
 	}
@@ -1042,7 +1042,7 @@ func TestRegisterEntries_GraphQL(t *testing.T) {
 			{Type: "graphql", Path: "/graphql"},
 		},
 	}
-	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, models, nil, nil, nil, nil, nil)
+	err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, models, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("RegisterEntries: %v", err)
 	}
@@ -1145,7 +1145,7 @@ func TestSanitizeFilename_Truncates(t *testing.T) {
 }
 
 func TestValidateEntryAuth_NoRoles(t *testing.T) {
-	entry := &EntryDef{Auth: true}
+	entry := &EntryDef{AuthModes: []string{"jwt"}}
 	handlers := &EntryHandlers{Rest: map[string]func(fiber.Ctx) error{"test": nil}}
 	err := validateEntryAuth(entry, handlers)
 	if err != nil {
@@ -1154,7 +1154,7 @@ func TestValidateEntryAuth_NoRoles(t *testing.T) {
 }
 
 func TestValidateEntryAuth_MissingHandler(t *testing.T) {
-	entry := &EntryDef{Auth: true, Roles: []string{"admin"}, Handler: "nonexistent"}
+	entry := &EntryDef{AuthModes: []string{"jwt"}, Roles: []string{"admin"}, Handler: "nonexistent"}
 	handlers := &EntryHandlers{Rest: map[string]func(fiber.Ctx) error{}}
 	err := validateEntryAuth(entry, handlers)
 	if err == nil {
@@ -1163,7 +1163,7 @@ func TestValidateEntryAuth_MissingHandler(t *testing.T) {
 }
 
 func TestValidateEntryAuth_ValidHandler(t *testing.T) {
-	entry := &EntryDef{Auth: true, Roles: []string{"admin"}, Handler: "getHealth"}
+	entry := &EntryDef{AuthModes: []string{"jwt"}, Roles: []string{"admin"}, Handler: "getHealth"}
 	handlers := &EntryHandlers{Rest: map[string]func(fiber.Ctx) error{"getHealth": nil}}
 	err := validateEntryAuth(entry, handlers)
 	if err != nil {
@@ -1172,7 +1172,7 @@ func TestValidateEntryAuth_ValidHandler(t *testing.T) {
 }
 
 func TestValidateEntryAuth_CRUDResource(t *testing.T) {
-	entry := &EntryDef{Auth: true, Roles: []string{"editor"}, Resource: "products", Type: "crud"}
+	entry := &EntryDef{AuthModes: []string{"jwt"}, Roles: []string{"editor"}, Resource: "products", Type: "crud"}
 	handlers := &EntryHandlers{CRUD: map[string]CRUDProvider{"products": nil}}
 	err := validateEntryAuth(entry, handlers)
 	if err != nil {
@@ -1184,12 +1184,12 @@ func TestRegisterOneEntry_DriverNone(t *testing.T) {
 	app := fiber.New()
 	entry := &EntryDef{
 		Type: "rest", Path: "/test", Method: "GET", Handler: "testHandler",
-		Auth: true,
+		AuthModes: []string{"jwt"},
 	}
 	handlers := &EntryHandlers{Rest: map[string]func(fiber.Ctx) error{"testHandler": func(c fiber.Ctx) error { return c.SendString("ok") }}}
 	cfg := &ServiceConfig{Auth: &AuthConfig{Driver: "none"}}
 
-	err := registerOneEntry(app, entry, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, "none")
+	err := registerOneEntry(app, entry, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, nil, "none")
 	if err != nil {
 		t.Fatalf("registerOneEntry failed: %v", err)
 	}
@@ -1206,7 +1206,7 @@ func TestRegisterOneEntry_DriverManualWithValidator(t *testing.T) {
 	app := fiber.New()
 	entry := &EntryDef{
 		Type: "rest", Path: "/manual-test", Method: "GET", Handler: "manualHandler",
-		Auth: true, Roles: []string{"admin"},
+		AuthModes: []string{"jwt"}, Roles: []string{"admin"},
 	}
 	handlers := &EntryHandlers{Rest: map[string]func(fiber.Ctx) error{"manualHandler": func(c fiber.Ctx) error { return c.SendString("ok") }}}
 
@@ -1220,7 +1220,7 @@ func TestRegisterOneEntry_DriverManualWithValidator(t *testing.T) {
 	}
 	jwtCfg := &middleware.JWTConfig{Secret: "test", TokenLookup: "header:Authorization"}
 
-	err := registerOneEntry(app, entry, handlers, "", nil, nil, jwtCfg, validator, nil, nil, nil, "manual")
+	err := registerOneEntry(app, entry, handlers, "", nil, nil, jwtCfg, validator, nil, nil, nil, nil, "manual")
 	if err != nil {
 		t.Fatalf("registerOneEntry failed: %v", err)
 	}
@@ -1260,11 +1260,11 @@ func TestRegisterOneEntry_Timeout(t *testing.T) {
 		Type: "rest", Path: "/fast", Method: "GET", Handler: "fastHandler",
 	}
 
-	err := registerOneEntry(app, entry, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, "")
+	err := registerOneEntry(app, entry, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, nil, "")
 	if err != nil {
 		t.Fatalf("register entry: %v", err)
 	}
-	err = registerOneEntry(app, fastEntry, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, "")
+	err = registerOneEntry(app, fastEntry, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, nil, "")
 	if err != nil {
 		t.Fatalf("register fast entry: %v", err)
 	}
@@ -1293,7 +1293,7 @@ func TestRegisterOneEntry_Timeout(t *testing.T) {
 func TestRegisterOneEntry_RolesPermsInEntry(t *testing.T) {
 	entry := &EntryDef{
 		Type: "rest", Path: "/with-roles", Handler: "handler",
-		Auth: true, Roles: []string{"admin", "editor"}, Permissions: []string{"products:write"},
+		AuthModes: []string{"jwt"}, Roles: []string{"admin", "editor"}, Permissions: []string{"products:write"},
 	}
 
 	if len(entry.Roles) != 2 {

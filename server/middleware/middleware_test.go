@@ -269,6 +269,66 @@ func TestAuthContextExtraction(t *testing.T) {
 	}
 }
 
+func TestJWTCookieExtraction(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Use(JWT(JWTConfig{Secret: "secret123", TokenLookup: "cookie:token"}))
+	app.Get("/whoami", func(c fiber.Ctx) error {
+		claims := c.Locals("claims").(jwt.MapClaims)
+		return c.JSON(claims)
+	})
+
+	tok, _ := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"sub":   "user-789",
+		"roles": []any{"admin"},
+	}).SignedString([]byte("secret123"))
+	req := testRequest(context.Background(), "GET", "/whoami", nil)
+	req.AddCookie(&http.Cookie{Name: "token", Value: tok})
+	resp, _ := app.Test(req)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("JWT cookie extraction: expected 200, got %d", resp.StatusCode)
+	}
+
+	// Also verify without cookie — should fail
+	req2 := testRequest(context.Background(), "GET", "/whoami", nil)
+	resp2, _ := app.Test(req2)
+	if resp2.StatusCode != http.StatusUnauthorized {
+		t.Errorf("JWT no cookie: expected 401, got %d", resp2.StatusCode)
+	}
+}
+
+/*
+Demo: encryptcookie + JWT cookie extraction (uncomment to test):
+1. Uncomment the test below
+2. Add this import:
+     "github.com/gofiber/fiber/v3/middleware/encryptcookie"
+3. Run: go test -v -run TestEncryptCookieJWTRoundtrip ./server/middleware/
+
+The test verifies that encryptcookie transparently encrypts/decrypts
+cookies so JWT middleware (which reads c.Cookies("token")) works correctly.
+
+func TestEncryptCookieJWTRoundtrip(t *testing.T) {
+	logx.Disable()
+	key := encryptcookie.GenerateKey(32)
+	app := fiber.New()
+	app.Use(encryptcookie.New(encryptcookie.Config{Key: key}))
+	app.Get("/set", func(c fiber.Ctx) error {
+		c.Cookie(&fiber.Cookie{Name: "token", Value: "raw-jwt", Path: "/"})
+		return c.SendString("set")
+	})
+	app.Get("/get", func(c fiber.Ctx) error { return c.SendString(c.Cookies("token")) })
+	req1, _ := app.Test(testRequest(context.Background(), "GET", "/set", nil))
+	cookies := req1.Header.Values("Set-Cookie")
+	t.Logf("encrypted on wire: %s", cookies[0])
+	req2 := testRequest(context.Background(), "GET", "/get", nil)
+	req2.Header.Set("Cookie", cookies[0][:strings.IndexByte(cookies[0], ';')])
+	resp2, _ := app.Test(req2)
+	body, _ := io.ReadAll(resp2.Body)
+	if string(body) != "raw-jwt" { t.Fatalf("got %q", string(body)) }
+	t.Log("encryptcookie + JWT cookie: roundtrip OK")
+}
+*/
+
 func TestAuthContextFromFiberCtx(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()

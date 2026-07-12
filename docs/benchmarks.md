@@ -4,22 +4,18 @@ How to measure and maximize RPS with the sdk-api framework.
 
 ## Rules
 
-1. **All benchmarks run fully inside Docker.** Running the Go binary on the host while data services run in Docker adds 2-4x latency due to Docker Desktop port mapping.
+1. **All benchmarks run fully inside Docker.** Running the Go binary on the host while data services run in Docker adds 2-4x latency due to Docker Desktop port mapping. The `wrk` tool runs inside the same container as the service — never on the macOS host.
 2. **Use wrk, not Go testing.B** for high-concurrency benchmarks. Go goroutines have scheduling overhead at 1000+ concurrency.
-3. **Each folder is self-contained.** `docker compose up --build -d` builds, seeds, and runs. Follow logs and tear down:
-   ```bash
-   RPS_BENCH=1 docker compose up --build -d
-   docker compose logs app -f   # or bench -f for URL shortener variants
-   docker compose down -v
-   ```
+3. **Each folder uses `docker compose run`** via `run.sh` which accepts:
+   - `--rps`: run functional tests then RPS benchmarks (wrk inside container, 3s warmup + 5s measure)
+   - `TestName`: run a specific test (e.g., `./run.sh TestHealthz_OK`)
+   - `--test:Name`: same as `TestName` (e.g., `--test:TestHealthz_OK`)
 4. **PostgreSQL max_connections must match pool size.** Use `command: ["postgres", "-c", "max_connections=200"]` with PgDog managing the pool.
 5. **Results are maintained in each example's README.** Re-run the benchmark to verify. Update the README if the result changes.
-6. **Functional tests run by default.** The container entrypoint (`run.sh`) always runs the test binary for that variant (e.g., `-test.run=TestURL` for URL shortener, `-test.run=TestFile` for file storage). To also run the RPS benchmark:
-   ```bash
-   RPS_BENCH=1 docker compose up --build -d
-   ```
+6. **Functional tests run by default** (no flags needed). The container entrypoint (`run.sh`) runs the test binary for that variant.
 7. **Each example seeds hot keys** before the RPS benchmark (via curl POST). 200 for URL shortener, 50 for pg-nats, etc. This ensures caches are warm and every request hits the fast path.
 8. **Endpoints are measured sequentially** — 2–8 depending on the variant. Each endpoint gets 30s warmup + 30s measurement.
+9. **wrk runs INSIDE the container, not on macOS host.** Running wrk from macOS against a Docker container adds virtualisation overhead and produces invalid RPS numbers. Use `--rps` (not `--local --rps`) for official benchmarks.
 
 ## Maximizing RPS
 
@@ -61,15 +57,15 @@ Use cache-aside pattern: try L1, then L2, then DB. Populate caches on miss.
 
 Pre-seed 200 hot keys before the benchmark. This ensures the cache is warm and every request hits the fast path.
 
-### 6. Warmup
+### 6. Warmup + Measure
 
-Each endpoint runs 30s warmup before 30s measurement:
+Each endpoint: 3s warmup (discarded) + 5s measurement:
 ```
-wrk -t10 -c1000 -d30s ...    # warmup (populates caches)
-wrk -t10 -c1000 -d30s ...    # measurement
+wrk -t10 -c1000 -d3s ...    # warmup (discarded)
+wrk -t10 -c1000 -d5s ...    # measurement
 ```
 
-Report the second pass.
+The warmup stabilizes connections, caches, and Go runtime before measurement.
 
 ## Methodology
 
@@ -78,7 +74,7 @@ Report the second pass.
 3. Service starts, health check passes
 4. Functional tests verify correctness (`go test -c` → `tester -test.run=TestURL|TestFile|TestNATS|...`)
 5. Hot keys seeded via POST endpoints (curl) — 200 for URL shortener, 50–200 for file storage
-6. `wrk -t10 -c1000 -d30s` runs sequentially for each endpoint (2–8 per variant) — each with warmup + measure
+6. `wrk -t10 -c1000` runs sequentially for each endpoint: 3s warmup (discarded) + 5s measurement (2–8 endpoints per variant)
 7. Report: Requests/sec for each endpoint (pass 2)
 
 ## Environment
@@ -88,4 +84,4 @@ Report the second pass.
 | Hardware | bare-metal, Apple Silicon (10 cores @ 3GHz ARM) |
 | Docker | Docker Desktop (macOS) |
 | Go | 1.26.4 |
-| Benchmark tool | `wrk -t10 -c1000 -d30s` |
+| Benchmark tool | `wrk -t10 -c1000 -d5s` |

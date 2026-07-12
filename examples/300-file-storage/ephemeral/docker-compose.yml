@@ -5,8 +5,8 @@ services:
       context: ../../../..
       dockerfile: sdk-api/examples/300-file-storage/ephemeral/Dockerfile
     ports:
-      - "10121:10121"
+      - "23301:23301"
     environment:
       DOCKER_TEST: "1"
       RPS_BENCH: "${RPS_BENCH}"
-      PORT: "10121"
+      PORT: "23301"

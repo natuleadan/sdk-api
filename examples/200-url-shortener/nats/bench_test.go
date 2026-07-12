@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	baseURL     = "http://localhost:18086"
+	baseURL     = "http://localhost:23202"
 	apiLinks    = baseURL + "/api/v1/links"
 	apiExpand   = baseURL + "/api/v1/expand"
 	apiEvents   = baseURL + "/api/v1/admin/events"
@@ -72,8 +72,8 @@ func setup(tb testing.TB) {
 		tbLog(tb, "starting service...")
 		svcCmd = exec.Command("/tmp/url-svc-nats")
 		svcCmd.Env = append(os.Environ(),
-			"DATABASE_URL=postgres://dev:devpass@localhost:15436/postgres?sslmode=disable",
-			"NATS_URL=nats://localhost:4223",
+			"DATABASE_URL=postgres://dev:devpass@localhost:24202/postgres?sslmode=disable",
+			"NATS_URL=nats://localhost:25202",
 		)
 		svcCmd.Stderr = os.Stderr
 		if err := svcCmd.Start(); err != nil {

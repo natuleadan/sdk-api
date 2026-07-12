@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	baseURL     = "http://localhost:18086"
+	baseURL     = "http://localhost:23204"
 	apiLinks    = baseURL + "/api/v1/links"
 	apiExpand   = baseURL + "/api/v1/expand"
 	benchDur    = 15 * time.Second
@@ -68,7 +68,7 @@ func setup(tb testing.TB) {
 		tbLog(tb, "starting service...")
 		svcCmd = exec.Command("/tmp/url-svc")
 		svcCmd.Env = append(os.Environ(),
-			"DATABASE_URL=postgres://dev:devpass@localhost:15435/postgres?sslmode=disable",
+			"DATABASE_URL=postgres://dev:devpass@localhost:24204/postgres?sslmode=disable",
 		)
 		svcCmd.Stderr = os.Stderr
 		if err := svcCmd.Start(); err != nil {

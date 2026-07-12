@@ -1,5 +1,5 @@
 name: file-s3
-port: 10123
+port: 23305
 
 server:
   host: "0.0.0.0"

@@ -1,5 +1,5 @@
 name: url-shortener-nats
-port: 18086
+port: 23202
 
 databases:
   - name: pg-main

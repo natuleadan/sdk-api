@@ -1,5 +1,5 @@
 name: file-pg-nats
-port: 18088
+port: 23304
 
 databases:
   - name: pg-main

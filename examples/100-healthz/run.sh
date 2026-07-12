@@ -5,7 +5,7 @@ echo "=== starting service ==="
 /app/svc &
 SVC_PID=$!
 for i in $(seq 1 10); do
-	curl -s --max-time 2 http://localhost:18081/healthz >/dev/null 2>&1 && break
+	curl -s --max-time 2 http://localhost:23100/healthz >/dev/null 2>&1 && break
 	sleep 1
 done
 

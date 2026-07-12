@@ -1,5 +1,5 @@
 name: url-shortener
-port: 18086
+port: 23204
 
 databases:
   - name: pg-main

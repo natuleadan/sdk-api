@@ -57,7 +57,7 @@ services:
       context: ../../../..
       dockerfile: sdk-api/examples/300-file-storage/pg-nats/Dockerfile
     ports:
-      - "18088:18088"
+      - "23304:23304"
     depends_on:
       postgres:
         condition: service_healthy
@@ -76,7 +76,7 @@ services:
       S3_BUCKET: dummy-bucket
       S3_ACCESS_KEY: minioadmin
       S3_SECRET_KEY: minioadmin
-      PORT: "18088"
+      PORT: "23304"
 
 volumes:
   minio-data:

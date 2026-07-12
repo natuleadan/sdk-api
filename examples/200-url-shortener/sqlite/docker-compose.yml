@@ -5,7 +5,7 @@ services:
       context: ../../../..
       dockerfile: sdk-api/examples/200-url-shortener/sqlite/Dockerfile
     ports:
-      - "18089:18089"
+      - "23208:23208"
     environment:
       DOCKER_TEST: "1"
       RPS_BENCH: "${RPS_BENCH}"

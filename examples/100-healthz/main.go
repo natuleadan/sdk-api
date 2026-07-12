@@ -15,7 +15,7 @@ func main() {
 	cfg := dockerConfig
 	if len(cfg) == 0 || os.Getenv("DOCKER_TEST") != "1" {
 		config := `name: healthz
-port: 18081
+port: 23100
 
 server:
   host: "0.0.0.0"
@@ -33,7 +33,7 @@ server:
 `
 		if os.Getenv("MINIMAL") == "1" {
 			config = `name: healthz
-port: 18081
+port: 23100
 
 server:
   host: "0.0.0.0"

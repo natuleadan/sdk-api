@@ -7,7 +7,7 @@ echo "=== starting service ==="
 /app/svc &
 SVC_PID=$!
 for i in $(seq 1 20); do
-	curl -s --max-time 3 http://localhost:18088/health >/dev/null 2>&1 && break
+	curl -s --max-time 3 http://localhost:23304/health >/dev/null 2>&1 && break
 	sleep 1
 done
 
@@ -18,7 +18,7 @@ EXIT=$?
 if [ "$RPS_BENCH" = "1" ]; then
 	echo "=== seeding 50 products ==="
 	for i in $(seq 1 50); do
-		curl -s --max-time 5 -X POST http://localhost:18088/api/v1/products \
+		curl -s --max-time 5 -X POST http://localhost:23304/api/v1/products \
 			-H "Content-Type: application/json" \
 			-d "{\"name\":\"product-$i\",\"price\":$i.99}" >/dev/null
 	done
@@ -27,10 +27,10 @@ if [ "$RPS_BENCH" = "1" ]; then
 	bench_one() {
 		local label=$1 lua=$2
 		echo "--- $label warmup ---"
-		wrk -t10 -c1000 -d30s -s "/app/$lua" --latency "http://localhost:18088" 2>&1 | awk '/Requests\/sec/ {print "  warmup:", $2}'
+		wrk -t10 -c1000 -d30s -s "/app/$lua" --latency "http://localhost:23304" 2>&1 | awk '/Requests\/sec/ {print "  warmup:", $2}'
 		sleep 2
 		echo "--- $label measure ---"
-		wrk -t10 -c1000 -d30s -s "/app/$lua" --latency "http://localhost:18088" 2>&1 | awk '/Requests\/sec/ {print "  measure:", $2}'
+		wrk -t10 -c1000 -d30s -s "/app/$lua" --latency "http://localhost:23304" 2>&1 | awk '/Requests\/sec/ {print "  measure:", $2}'
 		sleep 1
 	}
 

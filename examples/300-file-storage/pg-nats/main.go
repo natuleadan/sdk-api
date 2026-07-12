@@ -86,7 +86,7 @@ func main() {
 
 	switch *mode {
 	case "entry":
-		log.Printf("starting file-pg-nats entry on :%d", 18088)
+		log.Printf("starting file-pg-nats entry on :%d", 23304)
 	case "exit":
 		log.Printf("starting file-pg-nats exit workers")
 	}

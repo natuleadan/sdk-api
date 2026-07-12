@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	baseURL     = "http://localhost:10123"
+	baseURL     = "http://localhost:23305"
 	apiUpload   = baseURL + "/api/v1/files/upload"
 	apiDownload = baseURL + "/api/v1/files/download"
 	benchDur    = 15 * time.Second
@@ -67,7 +67,7 @@ func setup(tb testing.TB) {
 		}
 
 		svcCmd = exec.Command("/tmp/file-s3-svc")
-		svcCmd.Env = append(os.Environ(), "PORT=10123")
+		svcCmd.Env = append(os.Environ(), "PORT=23305")
 		svcCmd.Stdout = os.Stdout
 		svcCmd.Stderr = os.Stderr
 		if err := svcCmd.Start(); err != nil {

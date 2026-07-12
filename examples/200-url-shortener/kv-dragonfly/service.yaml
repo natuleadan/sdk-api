@@ -1,5 +1,5 @@
 name: kv-only
-port: 18091
+port: 23203
 
 entry:
   - type: rest

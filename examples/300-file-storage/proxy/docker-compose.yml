@@ -31,7 +31,7 @@ services:
       context: ../../../..
       dockerfile: sdk-api/examples/300-file-storage/proxy/Dockerfile
     ports:
-      - "10122:10122"
+      - "23303:23303"
     depends_on:
       createbucket:
         condition: service_completed_successfully
@@ -42,7 +42,7 @@ services:
       S3_BUCKET: dummy-bucket
       S3_ACCESS_KEY: minioadmin
       S3_SECRET_KEY: minioadmin
-      PORT: "10122"
+      PORT: "23303"
 
 volumes:
   minio-data:

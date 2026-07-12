@@ -1,5 +1,5 @@
 name: file-proxy
-port: 10122
+port: 23303
 
 server:
   host: "0.0.0.0"

@@ -7,7 +7,7 @@ echo "=== starting service ==="
 /app/svc &
 SVC_PID=$!
 for i in $(seq 1 15); do
-	curl -s --max-time 3 http://localhost:18086/health >/dev/null 2>&1 && break
+	curl -s --max-time 3 http://localhost:23202/health >/dev/null 2>&1 && break
 	sleep 1
 done
 
@@ -19,7 +19,7 @@ if [ "$RPS_BENCH" = "1" ]; then
 	echo "=== seeding 200 PG hot keys ==="
 	for i in $(seq 1 200); do
 		code=$(printf "hot%05d" $i)
-		curl -s --max-time 5 -X POST http://localhost:18086/api/v1/links \
+		curl -s --max-time 5 -X POST http://localhost:23202/api/v1/links \
 			-H "Content-Type: application/json" \
 			-d "{\"targetUrl\":\"https://hot-$i.example.com\",\"shortCode\":\"$code\"}" >/dev/null
 	done
@@ -28,7 +28,7 @@ if [ "$RPS_BENCH" = "1" ]; then
 	echo "=== seeding 100 KV keys ==="
 	for i in $(seq 1 100); do
 		key=$(printf "kv%05d" $i)
-		curl -s --max-time 5 -X PUT "http://localhost:18086/api/v1/nats/kv/$key" \
+		curl -s --max-time 5 -X PUT "http://localhost:23202/api/v1/nats/kv/$key" \
 			-d "seed-value-$i" >/dev/null
 	done
 	echo "KV seed complete"
@@ -36,10 +36,10 @@ if [ "$RPS_BENCH" = "1" ]; then
 	bench_one() {
 		local label=$1 lua=$2
 		echo "--- $label warmup ---"
-		wrk -t10 -c1000 -d30s -s "/app/$lua" --latency "http://localhost:18086" 2>&1 | awk '/Requests\/sec/ {print "  warmup:", $2}'
+		wrk -t10 -c1000 -d30s -s "/app/$lua" --latency "http://localhost:23202" 2>&1 | awk '/Requests\/sec/ {print "  warmup:", $2}'
 		sleep 2
 		echo "--- $label measure ---"
-		wrk -t10 -c1000 -d30s -s "/app/$lua" --latency "http://localhost:18086" 2>&1 | awk '/Requests\/sec/ {print "  measure:", $2}'
+		wrk -t10 -c1000 -d30s -s "/app/$lua" --latency "http://localhost:23202" 2>&1 | awk '/Requests\/sec/ {print "  measure:", $2}'
 		sleep 1
 	}
 

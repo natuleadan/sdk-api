@@ -1,5 +1,5 @@
 name: url-shortener
-port: 18090
+port: 23206
 
 databases:
   - name: mongo-main

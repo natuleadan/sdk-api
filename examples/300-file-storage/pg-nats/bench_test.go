@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-const baseURL = "http://localhost:18088"
+const baseURL = "http://localhost:23304"
 
 var (
 	setupOnce sync.Once
@@ -49,7 +49,7 @@ func setup(tb testing.TB) {
 	}
 	setupOnce.Do(func() {
 		svcCmd = exec.Command("/tmp/file-pg-nats-svc")
-		svcCmd.Env = append(os.Environ(), "PORT=18088")
+		svcCmd.Env = append(os.Environ(), "PORT=23304")
 		svcCmd.Stdout = os.Stdout
 		svcCmd.Stderr = os.Stderr
 		if err := svcCmd.Start(); err != nil {

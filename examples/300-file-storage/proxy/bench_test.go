@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	baseURL     = "http://localhost:10122"
+	baseURL     = "http://localhost:23303"
 	apiUpload   = baseURL + "/api/v1/files/upload"
 	apiDownload = baseURL + "/api/v1/files/download"
 	benchDur    = 15 * time.Second
@@ -61,7 +61,7 @@ func setup(tb testing.TB) {
 
 	setupOnce.Do(func() {
 		svcCmd = exec.Command("/tmp/file-proxy-svc")
-		svcCmd.Env = append(os.Environ(), "PORT=10122")
+		svcCmd.Env = append(os.Environ(), "PORT=23303")
 		svcCmd.Stdout = os.Stdout
 		svcCmd.Stderr = os.Stderr
 		if err := svcCmd.Start(); err != nil {

@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	baseURL     = "http://localhost:10121"
+	baseURL     = "http://localhost:23301"
 	apiUpload   = baseURL + "/api/v1/files/upload"
 	apiDownload = baseURL + "/api/v1/files/download"
 	benchDur    = 15 * time.Second
@@ -61,7 +61,7 @@ func setup(tb testing.TB) {
 
 	setupOnce.Do(func() {
 		svcCmd = exec.Command("/tmp/file-ephemeral-svc")
-		svcCmd.Env = append(os.Environ(), "PORT=10121")
+		svcCmd.Env = append(os.Environ(), "PORT=23301")
 		svcCmd.Stdout = os.Stdout
 		svcCmd.Stderr = os.Stderr
 		if err := svcCmd.Start(); err != nil {

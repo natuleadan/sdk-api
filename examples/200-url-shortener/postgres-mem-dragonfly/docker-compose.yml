@@ -17,7 +17,7 @@ services:
       POSTGRES_PASSWORD: devpass
       POSTGRES_DB: postgres
     ports:
-      - "15436:5432"
+      - "24205:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U dev"]
       interval: 2s
@@ -33,7 +33,7 @@ services:
       context: ../../../..
       dockerfile: sdk-api/examples/200-url-shortener/postgres-mem-dragonfly/Dockerfile
     ports:
-      - "18087:18087"
+      - "23205:23205"
     depends_on:
       postgres:
         condition: service_healthy

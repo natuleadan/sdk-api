@@ -31,7 +31,7 @@ services:
       context: ../../../..
       dockerfile: sdk-api/examples/300-file-storage/cached/Dockerfile
     ports:
-      - "10124:10124"
+      - "23302:23302"
     depends_on:
       createbucket:
         condition: service_completed_successfully
@@ -42,7 +42,7 @@ services:
       S3_BUCKET: dummy-bucket
       S3_ACCESS_KEY: minioadmin
       S3_SECRET_KEY: minioadmin
-      PORT: "10124"
+      PORT: "23302"
     volumes:
       - cache-data:/data/cache
 

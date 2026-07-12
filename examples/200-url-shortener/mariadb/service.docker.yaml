@@ -1,5 +1,5 @@
 name: url-shortener
-port: 18088
+port: 23207
 
 databases:
   - name: maria-main

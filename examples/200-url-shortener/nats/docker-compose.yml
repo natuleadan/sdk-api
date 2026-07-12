@@ -17,7 +17,7 @@ services:
       POSTGRES_PASSWORD: devpass
       POSTGRES_DB: postgres
     ports:
-      - "15436:5432"
+      - "24202:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U dev"]
       interval: 2s
@@ -28,7 +28,7 @@ services:
     image: nats:latest
     command: ["-js"]
     ports:
-      - "4223:4222"
+      - "25202:4222"
     healthcheck:
       test: ["CMD-SHELL", "wget -nv --spider http://localhost:8222/varz 2>/dev/null || exit 0"]
       interval: 3s
@@ -40,7 +40,7 @@ services:
       context: ../../../..
       dockerfile: sdk-api/examples/200-url-shortener/nats/Dockerfile
     ports:
-      - "18086:18086"
+      - "23202:23202"
     depends_on:
       postgres:
         condition: service_healthy

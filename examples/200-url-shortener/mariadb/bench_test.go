@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	baseURL     = "http://localhost:18088"
+	baseURL     = "http://localhost:23207"
 	apiLinks    = baseURL + "/api/v1/links"
 	apiExpand   = baseURL + "/api/v1/expand"
 	benchDur    = 15 * time.Second
@@ -68,7 +68,7 @@ func setup(tb testing.TB) {
 		tbLog(tb, "starting service...")
 		svcCmd = exec.Command("/tmp/url-svc")
 		svcCmd.Env = append(os.Environ(),
-			"DATABASE_URL=dev:devpass@tcp(localhost:13306)/shorturl?charset=utf8mb4&parseTime=true",
+			"DATABASE_URL=dev:devpass@tcp(localhost:24207)/shorturl?charset=utf8mb4&parseTime=true",
 		)
 		svcCmd.Stderr = os.Stderr
 		if err := svcCmd.Start(); err != nil {

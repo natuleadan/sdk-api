@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	baseURL     = "http://localhost:18090"
+	baseURL     = "http://localhost:23206"
 	apiLinks    = baseURL + "/api/v1/links"
 	apiExpand   = baseURL + "/api/v1/expand"
 	benchDur    = 15 * time.Second
@@ -68,7 +68,7 @@ func setup(tb testing.TB) {
 		tbLog(tb, "starting service...")
 		svcCmd = exec.Command("/tmp/url-svc")
 		svcCmd.Env = append(os.Environ(),
-			"MONGO_URI=mongodb://localhost:27017",
+			"MONGO_URI=mongodb://localhost:24206",
 		)
 		svcCmd.Stderr = os.Stderr
 		if err := svcCmd.Start(); err != nil {

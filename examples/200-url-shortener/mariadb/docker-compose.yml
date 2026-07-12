@@ -9,7 +9,7 @@ services:
       MYSQL_USER: dev
       MYSQL_PASSWORD: devpass
     ports:
-      - "13306:3306"
+      - "24207:3306"
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 3s
@@ -21,7 +21,7 @@ services:
       context: ../../../..
       dockerfile: sdk-api/examples/200-url-shortener/mariadb/Dockerfile
     ports:
-      - "18088:18088"
+      - "23207:23207"
     depends_on:
       mariadb:
         condition: service_healthy

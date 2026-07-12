@@ -1,5 +1,5 @@
 name: healthz
-port: 18081
+port: 23100
 
 server:
   host: "0.0.0.0"

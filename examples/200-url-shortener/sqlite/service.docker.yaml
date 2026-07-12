@@ -1,5 +1,5 @@
 name: url-shortener
-port: 18089
+port: 23208
 
 databases:
   - name: turso-main

@@ -15,5 +15,5 @@ COPY sdk-api/examples/300-file-storage/s3/*.lua /app/
 COPY sdk-api/examples/300-file-storage/s3/run.sh /app/run.sh
 COPY sdk-api/examples/300-file-storage/s3/run-test-logic.sh /app/run-test-logic.sh
 RUN chmod +x /app/run.sh /app/run-test-logic.sh /app/svc /app/tester
-EXPOSE 10123
-CMD ["/app/run.sh"]
+EXPOSE 23305
+ENTRYPOINT ["/app/run.sh"]

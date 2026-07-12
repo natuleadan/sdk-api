@@ -15,5 +15,5 @@ COPY sdk-api/examples/300-file-storage/pg-nats/*.lua /app/
 COPY sdk-api/examples/300-file-storage/pg-nats/run.sh /app/run.sh
 COPY sdk-api/examples/300-file-storage/pg-nats/run-test-logic.sh /app/run-test-logic.sh
 RUN chmod +x /app/run.sh /app/run-test-logic.sh /app/svc /app/tester
-EXPOSE 18088
-CMD ["/app/run.sh"]
+EXPOSE 23304
+ENTRYPOINT ["/app/run.sh"]

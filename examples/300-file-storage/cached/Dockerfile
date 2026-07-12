@@ -15,5 +15,5 @@ COPY sdk-api/examples/300-file-storage/cached/*.lua /app/
 COPY sdk-api/examples/300-file-storage/cached/run.sh /app/run.sh
 COPY sdk-api/examples/300-file-storage/cached/run-test-logic.sh /app/run-test-logic.sh
 RUN chmod +x /app/run.sh /app/run-test-logic.sh /app/svc /app/tester
-EXPOSE 10124
-CMD ["/app/run.sh"]
+EXPOSE 23302
+ENTRYPOINT ["/app/run.sh"]

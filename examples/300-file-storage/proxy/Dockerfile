@@ -15,5 +15,5 @@ COPY sdk-api/examples/300-file-storage/proxy/*.lua /app/
 COPY sdk-api/examples/300-file-storage/proxy/run.sh /app/run.sh
 COPY sdk-api/examples/300-file-storage/proxy/run-test-logic.sh /app/run-test-logic.sh
 RUN chmod +x /app/run.sh /app/run-test-logic.sh /app/svc /app/tester
-EXPOSE 10122
-CMD ["/app/run.sh"]
+EXPOSE 23303
+ENTRYPOINT ["/app/run.sh"]

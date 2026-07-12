@@ -52,7 +52,7 @@ services:
       echo 'Bucket ready'
       "
 
-  app:
+  bench:
     build:
       context: ../../../..
       dockerfile: sdk-api/examples/300-file-storage/pg-nats/Dockerfile
@@ -69,7 +69,6 @@ services:
         condition: service_completed_successfully
     environment:
       DOCKER_TEST: "1"
-      RPS_BENCH: "${RPS_BENCH}"
       DATABASE_URL: postgres://dev:devpass@pgdog:6432/postgres?sslmode=disable
       NATS_URL: nats://nats:4222
       S3_ENDPOINT: http://minio:9000

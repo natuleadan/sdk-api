@@ -2,12 +2,12 @@
 set -e
 
 usage() {
-	echo "Usage: ./run-all.sh <example> [test-pattern] [--rps]"
+	echo "Usage: ./run.sh <example> [test-pattern] [--rps]"
 	echo ""
 	echo "Examples:"
-	echo "  ./run-all.sh 100                  # functional tests (Docker)"
-	echo "  ./run-all.sh 100 --rps            # functional + RPS (Docker, wrk inside)"
-	echo "  ./run-all.sh 100 TestHealthz_OK  # single test"
+	echo "  ./run.sh 100                  # functional tests (Docker)"
+	echo "  ./run.sh 100 --rps            # functional + RPS (Docker, wrk inside)"
+	echo "  ./run.sh 100 TestHealthz_OK  # single test"
 	echo ""
 	echo "Available examples:"
 	echo "  100               - 100-healthz"

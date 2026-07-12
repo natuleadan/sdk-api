@@ -2,7 +2,6 @@ package threading
 
 import (
 	"errors"
-	"math"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -14,7 +13,7 @@ const factor = 10
 var (
 	ErrRunnerClosed = errors.New("runner closed")
 
-	bufSize = uint64(runtime.NumCPU() * factor)
+	bufSize = runtime.NumCPU() * factor
 )
 
 // StableRunner is a runner that guarantees messages are taken out with the pushed order.
@@ -33,21 +32,12 @@ type StableRunner[I, O any] struct {
 
 // NewStableRunner returns a new StableRunner with given message processor fn.
 func NewStableRunner[I, O any](fn func(I) O) *StableRunner[I, O] {
-	n := min(bufSize, uint64(^uint(0)>>1))
-	if n > uint64(math.MaxInt) {
-		n = uint64(math.MaxInt)
-	}
-	ringSize := int(n)
 	ring := make([]*struct {
 		value chan O
 		lock  sync.Mutex
-	}, ringSize)
+	}, bufSize)
 	for i := range bufSize {
-		ii := i
-		if ii > uint64(ringSize) {
-			ii = 0
-		}
-		ring[int(ii)] = &struct {
+		ring[i] = &struct {
 			value chan O
 			lock  sync.Mutex
 		}{
@@ -69,11 +59,12 @@ func (r *StableRunner[I, O]) Get() (O, error) {
 	defer atomic.AddUint64(&r.consumedIndex, 1)
 
 	index := atomic.LoadUint64(&r.consumedIndex)
-	idx := index % bufSize
-	if idx > bufSize {
+	// #nosec G115 — bufSize is runtime.NumCPU()*factor (≤ 1600), safe for int
+	idx := int(index % uint64(bufSize))
+	if idx >= bufSize {
 		idx = 0
 	}
-	offset := int(idx)
+	offset := idx
 	holder := r.ring[offset]
 
 	select {
@@ -97,11 +88,12 @@ func (r *StableRunner[I, O]) Push(v I) error {
 		return ErrRunnerClosed
 	default:
 		index := atomic.AddUint64(&r.writtenIndex, 1)
-		idx := (index - 1) % bufSize
-		if idx > bufSize {
+		// #nosec G115 — bufSize is runtime.NumCPU()*factor (≤ 1600), safe for int
+		idx := int((index - 1) % uint64(bufSize))
+		if idx >= bufSize {
 			idx = 0
 		}
-		offset := int(idx)
+		offset := idx
 		holder := r.ring[offset]
 		holder.lock.Lock()
 		r.runner.Schedule(func() {

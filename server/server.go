@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/encryptcookie"
 	"github.com/gofiber/fiber/v3/middleware/healthcheck"
 	"github.com/gofiber/fiber/v3/middleware/recover"
 	"github.com/natuleadan/sdk-api/infra/logx"
@@ -56,6 +57,7 @@ type TelemetryConfig struct {
 type SecurityConfig struct {
 	ContentSecurity *ContentSecurityConf
 	Cryption        *CryptionConf
+	EncryptCookie   *EncryptCookieConf
 }
 
 type CORSConfig struct {
@@ -75,6 +77,12 @@ type ContentSecurityConf struct {
 type CryptionConf struct {
 	Enabled bool
 	Key     string
+}
+
+type EncryptCookieConf struct {
+	Enabled bool
+	Key     string
+	Except  []string
 }
 
 func DefaultConfig() Config {
@@ -167,6 +175,12 @@ func setupSecurityMiddlewares(app *fiber.App, cfg Config, security SecurityConfi
 	}
 	if security.Cryption != nil && security.Cryption.Enabled {
 		app.Use(middleware.Cryption([]byte(security.Cryption.Key)))
+	}
+	if security.EncryptCookie != nil && security.EncryptCookie.Enabled {
+		app.Use(encryptcookie.New(encryptcookie.Config{
+			Key:    security.EncryptCookie.Key,
+			Except: security.EncryptCookie.Except,
+		}))
 	}
 }
 

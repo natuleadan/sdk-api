@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/natuleadan/sdk-api/infra/breaker"
@@ -20,6 +21,8 @@ const (
 	ClusterType = "cluster"
 	// NodeType means redis node.
 	NodeType = "node"
+	// SentinelType means redis sentinel (HA failover).
+	SentinelType = "sentinel"
 	// Nil is an alias of redis.Nil.
 	Nil = red.Nil
 
@@ -51,12 +54,16 @@ type (
 		Score float64
 	}
 
-	// Redis defines a redis node/cluster. It is thread-safe.
+	// Redis defines a redis node/cluster/sentinel. It is thread-safe.
 	Redis struct {
 		Addr          string
 		Type          string
 		User          string
 		Pass          string
+		DB            int
+		MasterName    string
+		SentinelUser  string
+		SentinelPass  string
 		tls           bool
 		tlsSkipVerify bool
 		brk           breaker.Breaker
@@ -126,8 +133,19 @@ func NewRedis(conf RedisConf, opts ...Option) (*Redis, error) {
 		return nil, err
 	}
 
+	conf = resolveRedisURL(conf)
+
 	if conf.Type == ClusterType {
 		opts = append([]Option{Cluster()}, opts...)
+	}
+	if conf.Type == SentinelType {
+		opts = append([]Option{Sentinel(conf.MasterName)}, opts...)
+		if conf.SentinelUsername != "" {
+			opts = append([]Option{WithSentinelUser(conf.SentinelUsername)}, opts...)
+		}
+		if conf.SentinelPassword != "" {
+			opts = append([]Option{WithSentinelPass(conf.SentinelPassword)}, opts...)
+		}
 	}
 	if len(conf.User) > 0 {
 		opts = append([]Option{WithUser(conf.User)}, opts...)
@@ -137,6 +155,9 @@ func NewRedis(conf RedisConf, opts ...Option) (*Redis, error) {
 	}
 	if conf.Tls {
 		opts = append([]Option{WithTLS()}, opts...)
+	}
+	if conf.Database != 0 {
+		opts = append([]Option{WithDB(conf.Database)}, opts...)
 	}
 
 	rds := newRedis(conf.Host, opts...)
@@ -2704,6 +2725,35 @@ func SetSlowThreshold(threshold time.Duration) {
 	slowThreshold.Set(threshold)
 }
 
+// Sentinel customizes the given Redis with sentinel master name.
+func Sentinel(masterName string) Option {
+	return func(r *Redis) {
+		r.Type = SentinelType
+		r.MasterName = masterName
+	}
+}
+
+// WithSentinelUser customizes the given Redis with sentinel username.
+func WithSentinelUser(user string) Option {
+	return func(r *Redis) {
+		r.SentinelUser = user
+	}
+}
+
+// WithSentinelPass customizes the given Redis with sentinel password.
+func WithSentinelPass(pass string) Option {
+	return func(r *Redis) {
+		r.SentinelPass = pass
+	}
+}
+
+// WithDB customizes the given Redis with given database.
+func WithDB(db int) Option {
+	return func(r *Redis) {
+		r.DB = db
+	}
+}
+
 // WithHook customizes the given Redis with given durationHook.
 func WithHook(hook Hook) Option {
 	return func(r *Redis) {
@@ -2739,6 +2789,29 @@ func WithUser(user string) Option {
 	}
 }
 
+func resolveRedisURL(conf RedisConf) RedisConf {
+	if strings.HasPrefix(conf.Host, "redis://") || strings.HasPrefix(conf.Host, "rediss://") {
+		u, err := red.ParseURL(conf.Host)
+		if err != nil {
+			return conf
+		}
+		conf.Host = u.Addr
+		if u.Username != "" {
+			conf.User = u.Username
+		}
+		if u.Password != "" {
+			conf.Pass = u.Password
+		}
+		if u.DB != 0 {
+			conf.Database = u.DB
+		}
+		if u.TLSConfig != nil && !conf.Tls {
+			conf.Tls = true
+		}
+	}
+	return conf
+}
+
 func acceptable(err error) bool {
 	return err == nil || errorx.In(err, red.Nil, context.Canceled)
 }
@@ -2749,6 +2822,8 @@ func getRedis(r *Redis) (RedisNode, error) {
 		return getCluster(r)
 	case NodeType:
 		return getClient(r)
+	case SentinelType:
+		return getSentinel(r)
 	default:
 		return nil, fmt.Errorf("redis type '%s' is not supported", r.Type)
 	}

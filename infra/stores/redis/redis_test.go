@@ -130,6 +130,24 @@ func TestNewRedis(t *testing.T) {
 			ok:       true,
 			redisErr: true,
 		},
+		{
+			name: "with database",
+			RedisConf: RedisConf{
+				Host:     r1.Addr(),
+				Type:     NodeType,
+				Pass:     "",
+				Database: 1,
+			},
+			ok: true,
+		},
+		{
+			name: "redis URL",
+			RedisConf: RedisConf{
+				Host: "redis://user:pass@" + r1.Addr() + "/1",
+				Type: NodeType,
+			},
+			ok: true,
+		},
 	}
 
 	for _, test := range tests {

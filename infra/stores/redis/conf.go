@@ -14,26 +14,28 @@ var (
 	ErrEmptyKey = errors.New("empty redis key")
 )
 
-type (
-	// A RedisConf is a redis config.
-	RedisConf struct {
-		Host          string
-		Type          string `config:",default=node,options=node|cluster"`
-		User          string `config:",optional"`
-		Pass          string `config:",optional"`
-		Tls           bool   `config:",optional"`
-		TlsSkipVerify bool   `config:",optional"`
-		NonBlock      bool   `config:",default=true"`
-		// PingTimeout is the timeout for ping redis.
-		PingTimeout time.Duration `config:",default=1s"`
-	}
+// A RedisConf is a redis config.
+type RedisConf struct {
+	Host              string
+	Type              string `config:",default=node,options=node|cluster|sentinel"`
+	User              string `config:",optional"`
+	Pass              string `config:",optional"`
+	Tls               bool   `config:",optional"`
+	TlsSkipVerify     bool   `config:",optional"`
+	NonBlock          bool   `config:",default=true"`
+	Database          int    `config:",default=0"`
+	MasterName        string `config:",optional"`
+	SentinelUsername  string `config:",optional"`
+	SentinelPassword  string `config:",optional"`
+	// PingTimeout is the timeout for ping redis.
+	PingTimeout time.Duration `config:",default=1s"`
+}
 
-	// A RedisKeyConf is a redis config with key.
-	RedisKeyConf struct {
-		RedisConf
-		Key string
-	}
-)
+// A RedisKeyConf is a redis config with key.
+type RedisKeyConf struct {
+	RedisConf
+	Key string
+}
 
 // NewRedis returns a Redis.
 //

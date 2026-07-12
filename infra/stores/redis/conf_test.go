@@ -50,6 +50,15 @@ func TestRedisConf(t *testing.T) {
 			},
 			ok: true,
 		},
+		{
+			name: "sentinel",
+			RedisConf: RedisConf{
+				Host:       "host1:26379,host2:26379",
+				Type:       SentinelType,
+				MasterName: "mymaster",
+			},
+			ok: true,
+		},
 	}
 
 	for _, test := range tests {

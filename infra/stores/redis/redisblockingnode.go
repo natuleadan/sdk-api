@@ -53,7 +53,7 @@ func CreateBlockingNode(r *Redis) (ClosableNode, error) {
 			Addr:         r.Addr,
 			Username:     r.User,
 			Password:     r.Pass,
-			DB:           defaultDatabase,
+			DB:           r.DB,
 			MaxRetries:   maxRetries,
 			PoolSize:     1,
 			MinIdleConns: 1,

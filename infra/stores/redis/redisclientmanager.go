@@ -10,11 +10,10 @@ import (
 	"github.com/natuleadan/sdk-api/infra/syncx"
 )
 
-const (
-	defaultDatabase = 0
-	maxRetries      = 3
-	idleConns       = 8
-)
+	const (
+		maxRetries = 3
+		idleConns  = 8
+	)
 
 var (
 	clientManager = syncx.NewResourceManager()
@@ -36,7 +35,7 @@ func getClient(r *Redis) (*red.Client, error) {
 			Addr:         r.Addr,
 			Username:     r.User,
 			Password:     r.Pass,
-			DB:           defaultDatabase,
+			DB:           r.DB,
 			MaxRetries:   maxRetries,
 			MinIdleConns: idleConns,
 			TLSConfig:    tlsConfig,

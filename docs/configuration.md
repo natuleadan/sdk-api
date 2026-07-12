@@ -598,6 +598,47 @@ cron:
 | `load_shedding` | `true` | Enable adaptive load shedding |
 | `breaker` | `true` | Enable circuit breaker per route |
 
+### Redis
+
+Connections are managed by `infra/stores/redis`. Config struct `RedisConf`:
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `host` | string | required | Redis address or comma-separated cluster/sentinel addrs. Also accepts `redis://`/`rediss://` URLs |
+| `type` | string | `node` | `node`, `cluster`, or `sentinel` |
+| `user` | string | — | Redis ACL username |
+| `pass` | string | — | Redis password |
+| `tls` | bool | `false` | Enable TLS |
+| `tls_skip_verify` | bool | `false` | Skip TLS cert verification |
+| `database` | int | `0` | Redis database index (node/sentinel only) |
+| `master_name` | string | — | Sentinel master name (required when `type: sentinel`) |
+| `sentinel_username` | string | — | Sentinel ACL username |
+| `sentinel_password` | string | — | Sentinel password |
+
+```yaml
+# Node
+redis:
+  host: localhost:6379
+  type: node
+  database: 1
+
+# Cluster
+redis:
+  host: host1:6379,host2:6379
+  type: cluster
+
+# Sentinel
+redis:
+  host: sentinel1:26379,sentinel2:26379
+  type: sentinel
+  master_name: mymaster
+  database: 0
+
+# URL (auto-parses redis:// or rediss://)
+redis:
+  host: redis://user:pass@upstash-host:6379/0
+```
+
 ### CORS
 
 ```yaml

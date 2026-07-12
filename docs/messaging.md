@@ -160,6 +160,8 @@ Convenience methods (no need to import `nats.KeyValue`):
 val, err := conn.KVGet("sessions", "user:123")
 rev, err := conn.KVPut("sessions", "user:123", []byte(`{"name":"Bob"}`))
 err = conn.KVDelete("sessions", "user:123")
+keys, err := conn.KVKeys("sessions")          // list all keys in bucket
+err = conn.KVReset("sessions")                // delete all keys in bucket
 ```
 
 Core NATS request-reply subscription (no `nats.Msg` import):

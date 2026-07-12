@@ -134,6 +134,26 @@ The client uses `nextCursor` from the response as the `cursor` parameter in the 
 - No random page access — only sequential next/prev.
 - Use offset mode (`pagination: offset`) when you need total counts or arbitrary page jumps.
 
+### Redis List Pattern (Set Index)
+
+When using Redis/Dragonfly as the primary store (not just cache), avoid `SCAN` for listing. Use a **Set Index** instead:
+
+```go
+// On create
+r.SADD("link:ids", id)
+
+// On delete
+r.SREM("link:ids", id)
+
+// List with pagination (SSCAN)
+r.SSCAN("link:ids", cursor, "COUNT", size)
+
+// Total count
+r.SCARD("link:ids")
+```
+
+This separates key enumeration (O(m) over the set) from data fetching (O(1) per GET). See `examples/200-url-shortener/kv-dragonfly/` for a full implementation.
+
 ---
 
 ## 3. REST (Single Endpoint)

@@ -76,9 +76,10 @@
 
 | Package | Path | Purpose |
 |---------|------|---------|
-| stores/redis | `infra/stores/redis` | Full Redis client (cluster, node, locks) |
+| stores/redis | `infra/stores/redis` | Full Redis client (cluster, node, sentinel, locks, metrics) |
 | stores/kv | `infra/stores/kv` | KV store over Redis with consistent hash |
 | stores/cache | `infra/stores/cache` | Cache abstraction (Redis cluster/node) |
+| stores/etcd | `infra/stores/etcd` | etcd KV store (Get/Put/Delete/Keys) |
 | stores/mon | `infra/stores/mon` | MongoDB model with CRUD |
 | stores/monc | `infra/stores/monc` | Cached MongoDB (Mongo + Redis) |
 | stores/builder | `infra/stores/builder` | SQL query builder |

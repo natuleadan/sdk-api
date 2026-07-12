@@ -57,6 +57,8 @@ runtime.ErrNotFound                        // error — record not found sentine
 
 // Redis config (re-exported from infra/stores/redis)
 runtime.RedisConfig{Host: "localhost:6379", Type: runtime.NodeType}
+runtime.RedisConfig{Host: "sentinel1:26379", Type: runtime.SentinelType, MasterName: "mymaster"}
+runtime.RedisConfig{Host: "localhost:6379", Type: runtime.NodeType, Database: 1}
 
 // Start everything
 svc.Run()

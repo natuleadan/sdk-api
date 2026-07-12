@@ -33,6 +33,10 @@ type Config struct {
 	APIPrefix       string
 	Routes          []RouteConfig
 
+	Logger       bool
+	LoadShedding bool
+	Breaker      bool
+
 	// Security
 	SecurityHeaders *middleware.SecurityHeadersConfig
 	CSRF            *middleware.CSRFConfig
@@ -87,6 +91,9 @@ func DefaultConfig() Config {
 		ShutdownTimeout: 10 * time.Second,
 		RecoverStack:    true,
 		APIPrefix:       "/api/v1",
+		Logger:          true,
+		LoadShedding:    true,
+		Breaker:         true,
 	}
 }
 
@@ -181,9 +188,15 @@ func setupPerRouteMiddlewares(app *fiber.App, cfg Config, corsCfg *CORSConfig) {
 }
 
 func setupGlobalStandardMiddlewares(app *fiber.App, cfg Config, corsCfg *CORSConfig) {
-	app.Use(middleware.Logger())
-	app.Use(middleware.Shedding())
-	app.Use(middleware.Breaker())
+	if cfg.Logger {
+		app.Use(middleware.Logger())
+	}
+	if cfg.LoadShedding {
+		app.Use(middleware.Shedding())
+	}
+	if cfg.Breaker {
+		app.Use(middleware.Breaker())
+	}
 	app.Use(middleware.MaxConns(cfg.MaxConns))
 	app.Use(middleware.MaxBytes(cfg.MaxBytes))
 	app.Use(middleware.Gunzip())

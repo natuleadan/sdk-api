@@ -719,6 +719,9 @@ func (s *Service) initServer() {
 		RateLimit:       convertRateLimit(sc.RateLimit),
 		TLS:             convertTLS(sc.TLS),
 		SSRF:            convertSSRF(sc.SSRF),
+		Logger:          sc.Logger,
+		LoadShedding:    sc.LoadShedding,
+		Breaker:         sc.Breaker,
 	}
 
 	s.srv = server.New(srvCfg, server.TelemetryConfig{}, securityConfig(sc), corsCfg)

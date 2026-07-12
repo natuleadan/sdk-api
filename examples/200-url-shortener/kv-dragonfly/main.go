@@ -82,27 +82,60 @@ func main() {
 		if err := r.SetexCtx(c.Context(), "link:sc:"+code, string(b), 0); err != nil {
 			return c.Status(500).JSON(map[string]any{"error": err.Error()})
 		}
+		if _, err := r.DoCtx(c.Context(), "SADD", "link:ids", id); err != nil {
+			return c.Status(500).JSON(map[string]any{"error": err.Error()})
+		}
 		return c.Status(201).JSON(data)
 	})
 
 	svc.WithRest("listLinks", func(c *runtime.RestCtx) error {
 		r := getRedis()
-		var keys []string
-		cursor := uint64(0)
+		page, _ := strconv.Atoi(c.Query("page", "1"))
+		size, _ := strconv.Atoi(c.Query("size", "20"))
+		if page < 1 {
+			page = 1
+		}
+		if size < 1 || size > 100 {
+			size = 20
+		}
+
+		// Get total count from set cardinality
+		totalCmd, err := r.DoCtx(c.Context(), "SCARD", "link:ids")
+		if err != nil {
+			return c.Status(500).JSON(map[string]any{"error": err.Error()})
+		}
+		total, _ := totalCmd.(int64)
+
+		// SSCAN to get paginated IDs from the set
+		skip := (page - 1) * size
+		scanned := 0
+		cur := uint64(0)
+		var ids []string
 		for {
-			batch, next, err := r.ScanCtx(c.Context(), cursor, "link:id:*", 100)
+			res, err := r.DoCtx(c.Context(), "SSCAN", "link:ids", cur, "COUNT", size)
 			if err != nil {
 				return c.Status(500).JSON(map[string]any{"error": err.Error()})
 			}
-			keys = append(keys, batch...)
-			if next == 0 {
+			arr := res.([]any)
+			cur, _ = strconv.ParseUint(string(arr[0].([]byte)), 10, 64)
+			elements := arr[1].([]any)
+			for _, elem := range elements {
+				if scanned >= skip+size {
+					break
+				}
+				if scanned >= skip {
+					ids = append(ids, string(elem.([]byte)))
+				}
+				scanned++
+			}
+			if cur == 0 || scanned >= skip+size {
 				break
 			}
-			cursor = next
 		}
+
 		var results []linkData
-		for _, key := range keys {
-			val, err := r.GetCtx(c.Context(), key)
+		for _, id := range ids {
+			val, err := r.GetCtx(c.Context(), "link:id:"+id)
 			if err == nil {
 				var d linkData
 				if json.Unmarshal([]byte(val), &d) == nil {
@@ -113,7 +146,12 @@ func main() {
 		if results == nil {
 			results = []linkData{}
 		}
-		return c.JSON(results)
+		return c.JSON(map[string]any{
+			"data":  results,
+			"total": total,
+			"page":  page,
+			"size":  size,
+		})
 	})
 
 	svc.WithRest("getLink", func(c *runtime.RestCtx) error {
@@ -171,6 +209,7 @@ func main() {
 		json.Unmarshal([]byte(val), &existing)
 		r.DelCtx(c.Context(), "link:id:"+id)
 		r.DelCtx(c.Context(), "link:sc:"+existing.ShortCode)
+		r.DoCtx(c.Context(), "SREM", "link:ids", id)
 		return c.SendStatus(204)
 	})
 

@@ -62,6 +62,7 @@ type ServerConf struct {
 	MaxBytes        int                  `json:"max_bytes" config:",default=4194304"`
 	MetricsPath     string               `json:"metrics_path" config:",default=/metrics"`
 	HealthPath      string               `json:"health_path" config:",default=/health"`
+	ShutdownTimeout string               `json:"shutdown_timeout" config:",default=10s"`
 	RecoverStack    bool                 `json:"recover_stack" config:",default=true"`
 	APIPrefix       string               `json:"api_prefix" config:",default=/api/v1"`
 	CORS            *CORSConf            `json:"cors" config:",optional"`
@@ -372,6 +373,7 @@ type EntryDef struct {
 	ValidationModel string `json:"validate" config:",optional"` // validation model name
 
 	// Timeout per-entry (e.g. "30s")
+	Timeout string `json:"timeout" config:",optional"`
 
 	// Pagination (CRUD only)
 	PageSize    int      `json:"page_size" config:",optional"`     // default 10, also min

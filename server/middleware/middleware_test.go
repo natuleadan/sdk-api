@@ -608,6 +608,39 @@ func TestRecovery(t *testing.T) {
 	}
 }
 
+func TestTimeout(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Use(Timeout(50 * time.Millisecond))
+	app.Get("/slow", func(c fiber.Ctx) error {
+		time.Sleep(200 * time.Millisecond)
+		return c.SendString("too late")
+	})
+	app.Get("/fast", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	// Fast request should succeed
+	req := testRequest(context.Background(), "GET", "/fast", nil)
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("fast: expected 200, got %d", resp.StatusCode)
+	}
+
+	// Slow request should timeout
+	req = testRequest(context.Background(), "GET", "/slow", nil)
+	resp, err = app.Test(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusRequestTimeout {
+		t.Errorf("slow: expected 408, got %d", resp.StatusCode)
+	}
+}
+
 func TestMaxConns(t *testing.T) {
 	logx.Disable()
 	app := fiber.New()
@@ -726,21 +759,6 @@ func TestBreakerClientError(t *testing.T) {
 	// Client errors should be accepted by breaker (not trip it)
 	if resp.StatusCode != 400 {
 		t.Errorf("expected 400, got %d", resp.StatusCode)
-	}
-}
-
-func TestTimeout(t *testing.T) {
-	logx.Disable()
-	app := fiber.New()
-	app.Use(Timeout(100 * time.Millisecond))
-	app.Get("/fast", func(c fiber.Ctx) error {
-		return c.SendString("ok")
-	})
-
-	req := testRequest(context.Background(), "GET", "/fast", nil)
-	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
 	}
 }
 

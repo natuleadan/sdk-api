@@ -3,10 +3,12 @@ package runtime
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/natuleadan/sdk-api/db"
 	"github.com/natuleadan/sdk-api/events"
+	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/natuleadan/sdk-api/server"
 	"github.com/natuleadan/sdk-api/server/auth/openfga"
 	"github.com/natuleadan/sdk-api/server/auth/ory"
@@ -82,7 +84,11 @@ func validateEntryAuth(entry *EntryDef, handlers *EntryHandlers) error {
 }
 
 func registerOneEntry(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, models map[string]*db.TableInfo, jwtCfg *middleware.JWTConfig, authValidator func(context.Context, *middleware.AuthContext, []string, []string) error, fgaClient openfga.Checker, oryClient *ory.Client, zitadelClient *zitadel.Client, driver string) error {
-	// Register auth middleware BEFORE route handler (Fiber requires app.Use before app.Get)
+	// Register middleware BEFORE route handler (Fiber requires app.Use before app.Get)
+	registerValidationMiddleware(app, entry, prefix)
+	registerEntryRateLimit(app, entry, prefix)
+	registerEntryTimeout(app, entry, prefix)
+
 	switch driver {
 	case "openfga-zitadel":
 		if zitadelClient != nil {
@@ -122,12 +128,7 @@ func registerOneEntry(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, 
 	default:
 		return fmt.Errorf("unknown entry type %q", entry.Type)
 	}
-	if err != nil {
-		return err
-	}
-	registerValidationMiddleware(app, entry, prefix)
-	registerEntryRateLimit(app, entry, prefix)
-	return nil
+	return err
 }
 
 func registerOpenFGA(app *fiber.App, entry *EntryDef, prefix string, fgaClient openfga.Checker, roles, permissions []string) {
@@ -209,6 +210,18 @@ func registerEntryRateLimit(app *fiber.App, entry *EntryDef, prefix string) {
 		},
 	}
 	app.Use(prefix+entry.Path, middleware.RateLimit(rlCfg))
+}
+
+func registerEntryTimeout(app *fiber.App, entry *EntryDef, prefix string) {
+	if entry.Timeout == "" {
+		return
+	}
+	d, err := time.ParseDuration(entry.Timeout)
+	if err != nil {
+		logx.Errorf("entry %s %s: invalid timeout %q, ignoring", entry.Type, entry.Path, entry.Timeout)
+		return
+	}
+	app.Use(prefix+entry.Path, middleware.Timeout(d))
 }
 
 // fiber:context-methods migrated

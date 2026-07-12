@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gofiber/contrib/v3/websocket"
 	"github.com/gofiber/fiber/v3"
@@ -1234,6 +1235,58 @@ func TestRegisterOneEntry_DriverManualWithValidator(t *testing.T) {
 	}
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
+func TestRegisterOneEntry_Timeout(t *testing.T) {
+	app := fiber.New()
+	entry := &EntryDef{
+		Type:    "rest",
+		Path:    "/slow",
+		Method:  "GET",
+		Handler: "slowHandler",
+		Timeout: "50ms",
+	}
+	handlers := &EntryHandlers{
+		Rest: map[string]func(fiber.Ctx) error{
+			"slowHandler": func(c fiber.Ctx) error {
+				time.Sleep(200 * time.Millisecond)
+				return c.SendString("too late")
+			},
+			"fastHandler": func(c fiber.Ctx) error { return c.SendString("ok") },
+		},
+	}
+	fastEntry := &EntryDef{
+		Type: "rest", Path: "/fast", Method: "GET", Handler: "fastHandler",
+	}
+
+	err := registerOneEntry(app, entry, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, "")
+	if err != nil {
+		t.Fatalf("register entry: %v", err)
+	}
+	err = registerOneEntry(app, fastEntry, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, "")
+	if err != nil {
+		t.Fatalf("register fast entry: %v", err)
+	}
+
+	// Slow request should timeout
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/slow", nil)
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusRequestTimeout {
+		t.Errorf("slow: expected 408, got %d", resp.StatusCode)
+	}
+
+	// Fast request should succeed
+	req = httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/fast", nil)
+	resp, err = app.Test(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("fast: expected 200, got %d", resp.StatusCode)
 	}
 }
 

@@ -46,6 +46,12 @@ func testStream(t *testing.T, conn *Conn, base string) string {
 	return name
 }
 
+func testKVConfig(name string) KVConfig {
+	cfg := DefaultKVConfig(name)
+	cfg.Storage = FileStorage
+	return cfg
+}
+
 type testEvent struct {
 	ID      int    `json:"id"`
 	Payload string `json:"payload"`
@@ -284,7 +290,7 @@ func TestKV(t *testing.T) {
 	conn := testConn(t)
 	name := testStreamName("kv")
 
-	kv, err := conn.EnsureKeyValue(DefaultKVConfig(name))
+	kv, err := conn.EnsureKeyValue(testKVConfig(name))
 	if err != nil {
 		t.Fatalf("EnsureKeyValue: %v", err)
 	}
@@ -319,7 +325,7 @@ func TestCacheTyped(t *testing.T) {
 	conn := testConn(t)
 	name := testStreamName("cache")
 
-	kv, err := conn.EnsureKeyValue(DefaultKVConfig(name))
+	kv, err := conn.EnsureKeyValue(testKVConfig(name))
 	if err != nil {
 		t.Fatalf("EnsureKeyValue: %v", err)
 	}
@@ -555,6 +561,63 @@ func TestConnKVDeleteNonExistent(t *testing.T) {
 	}
 }
 
+func TestConnKVKeys(t *testing.T) {
+	conn := testConn(t)
+	name := testStreamName("kvkeys")
+
+	_, err := conn.KVPut(name, "k1", []byte("v1"))
+	if err != nil {
+		t.Skipf("KVPut: %v (server may not support KV)", err)
+	}
+	conn.KVPut(name, "k2", []byte("v2"))
+	conn.KVPut(name, "k3", []byte("v3"))
+
+	keys, err := conn.KVKeys(name)
+	if err != nil {
+		t.Fatalf("KVKeys: %v", err)
+	}
+	if len(keys) != 3 {
+		t.Errorf("expected 3 keys, got %d: %v", len(keys), keys)
+	}
+}
+
+func TestConnKVKeysEmpty(t *testing.T) {
+	conn := testConn(t)
+	name := testStreamName("kvkeysempty")
+
+	keys, err := conn.KVKeys(name)
+	if err != nil {
+		t.Skipf("KVKeys: %v (server may not support KV)", err)
+	}
+	if len(keys) != 0 {
+		t.Errorf("expected 0 keys, got %d", len(keys))
+	}
+}
+
+func TestConnKVReset(t *testing.T) {
+	conn := testConn(t)
+	name := testStreamName("kvreset")
+
+	_, err := conn.KVPut(name, "a", []byte("1"))
+	if err != nil {
+		t.Skipf("KVPut: %v (server may not support KV)", err)
+	}
+	conn.KVPut(name, "b", []byte("2"))
+	conn.KVPut(name, "c", []byte("3"))
+
+	if err := conn.KVReset(name); err != nil {
+		t.Fatalf("KVReset: %v", err)
+	}
+
+	keys, err := conn.KVKeys(name)
+	if err != nil {
+		t.Fatalf("KVKeys after reset: %v", err)
+	}
+	if len(keys) != 0 {
+		t.Errorf("expected 0 keys after reset, got %d: %v", len(keys), keys)
+	}
+}
+
 func TestConnectInvalidURL(t *testing.T) {
 	ctx := context.Background()
 	_, err := Connect(ctx, ConnOptions{URL: "nats://invalid.local:14222", Timeout: time.Second})
@@ -681,7 +744,7 @@ func TestCacheGetNilValue(t *testing.T) {
 	conn := testConn(t)
 	name := testStreamName("cachenil")
 
-	kv, err := conn.EnsureKeyValue(DefaultKVConfig(name))
+	kv, err := conn.EnsureKeyValue(testKVConfig(name))
 	if err != nil {
 		t.Skipf("EnsureKeyValue: %v", err)
 	}
@@ -702,7 +765,7 @@ func TestCacheGetOrSetFnReturnsNil(t *testing.T) {
 	conn := testConn(t)
 	name := testStreamName("cachenilfn")
 
-	kv, err := conn.EnsureKeyValue(DefaultKVConfig(name))
+	kv, err := conn.EnsureKeyValue(testKVConfig(name))
 	if err != nil {
 		t.Skipf("EnsureKeyValue: %v", err)
 	}
@@ -739,12 +802,12 @@ func TestEnsureKeyValueIdempotent(t *testing.T) {
 	conn := testConn(t)
 	name := testStreamName("kvido")
 
-	kv1, err := conn.EnsureKeyValue(DefaultKVConfig(name))
+	kv1, err := conn.EnsureKeyValue(testKVConfig(name))
 	if err != nil {
 		t.Skipf("EnsureKeyValue: %v (server may not support KV)", err)
 	}
 
-	kv2, err := conn.EnsureKeyValue(DefaultKVConfig(name))
+	kv2, err := conn.EnsureKeyValue(testKVConfig(name))
 	if err != nil {
 		t.Fatalf("EnsureKeyValue (second): %v", err)
 	}
@@ -758,7 +821,7 @@ func TestCacheGetOrSet(t *testing.T) {
 	conn := testConn(t)
 	name := testStreamName("getset")
 
-	kv, err := conn.EnsureKeyValue(DefaultKVConfig(name))
+	kv, err := conn.EnsureKeyValue(testKVConfig(name))
 	if err != nil {
 		t.Fatalf("EnsureKeyValue: %v", err)
 	}

@@ -2,6 +2,7 @@ package events
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -221,6 +222,41 @@ func (c *Conn) KVDelete(bucket, key string) error {
 		return err
 	}
 	return kv.Delete(key)
+}
+
+func (c *Conn) KVKeys(bucket string) ([]string, error) {
+	kv, err := c.EnsureKeyValue(DefaultKVConfig(bucket))
+	if err != nil {
+		return nil, fmt.Errorf("events: kv keys: %w", err)
+	}
+	keys, err := kv.Keys()
+	if err != nil {
+		if errors.Is(err, nats.ErrNoKeysFound) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("events: kv keys: %w", err)
+	}
+	return keys, nil
+}
+
+func (c *Conn) KVReset(bucket string) error {
+	kv, err := c.EnsureKeyValue(DefaultKVConfig(bucket))
+	if err != nil {
+		return err
+	}
+	keys, err := kv.Keys()
+	if err != nil {
+		if errors.Is(err, nats.ErrNoKeysFound) {
+			return nil
+		}
+		return fmt.Errorf("events: kv reset: %w", err)
+	}
+	for _, k := range keys {
+		if err := kv.Delete(k); err != nil {
+			logx.Errorf("events: kv reset delete %s: %v", k, err)
+		}
+	}
+	return nil
 }
 
 func (c *Conn) SubscribeRaw(subject string, handler func(msg []byte)) error {

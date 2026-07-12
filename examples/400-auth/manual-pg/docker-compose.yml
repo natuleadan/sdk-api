@@ -1,0 +1,29 @@
+name: auth-roles-bench
+services:
+  postgres:
+    image: postgres:18-alpine
+    command: ["postgres", "-c", "max_connections=200"]
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: auth_roles
+    ports:
+      - "25436:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+  bench:
+    build:
+      context: ../../../..
+      dockerfile: sdk-api/examples/400-auth/manual-pg/Dockerfile
+    ports:
+      - "23400:23400"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DOCKER_TEST: "1"
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/auth_roles?sslmode=disable

@@ -1,0 +1,145 @@
+name: auth-roles
+port: 23400
+
+server:
+  host: "0.0.0.0"
+  prefork: true
+  timeout: 30s
+  body_limit: 4194304
+  max_conns: 10000
+  health_path: /healthz
+  api_prefix: /api/v1
+  shutdown_timeout: 10s
+  middleware:
+    - path: "/*"
+      apply: [logger]
+  security:
+    encrypt_cookie:
+      enabled: true
+      key: "diPHoCg5vhBrTHCSJhlud1RRMRFpRo+4N/d32S+48t8="
+      except:
+        - "csrf_token"
+
+databases:
+  - name: primary
+    url: "postgres://postgres:postgres@postgres:5432/auth_roles?sslmode=disable"
+    pool:
+      max_conns: 50
+      min_conns: 2
+      reserved_conns: 5
+
+auth:
+  enabled: true
+  driver: manual
+  secret: "dev-secret-hs256-change-in-prod"
+  algorithm: HS256
+
+entry:
+  - type: rest
+    method: POST
+    path: /login
+    handler: loginHandler
+
+  - type: rest
+    method: POST
+    path: /signup
+    handler: signupHandler
+
+  - type: rest
+    method: GET
+    path: /profile
+    handler: profileHandler
+    auth_modes: [jwt]
+
+  - type: rest
+    method: GET
+    path: /products
+    handler: listProducts
+    auth_modes: [jwt, apikey]
+    api_key_prefix: "sk-"
+
+  - type: rest
+    method: POST
+    path: /products
+    handler: createProduct
+    auth_modes: [jwt, apikey]
+    api_key_prefix: "sk-"
+
+  - type: rest
+    method: GET
+    path: /products/:id
+    handler: getProduct
+    auth_modes: [jwt, apikey]
+    api_key_prefix: "sk-"
+
+  - type: rest
+    method: PATCH
+    path: /products/:id
+    handler: updateProduct
+    auth_modes: [jwt, apikey]
+    api_key_prefix: "sk-"
+
+  - type: rest
+    method: DELETE
+    path: /products/:id
+    handler: deleteProduct
+    auth_modes: [jwt, apikey]
+    api_key_prefix: "sk-"
+
+  - type: rest
+    method: DELETE
+    path: /admin/products/:id/hard
+    handler: hardDeleteProduct
+    auth_modes: [jwt]
+    roles: ["admin"]
+
+  - type: rest
+    method: PATCH
+    path: /admin/products/:id/visibility
+    handler: setVisibility
+    auth_modes: [jwt]
+    roles: ["admin"]
+
+  - type: rest
+    method: GET
+    path: /admin/products/:id/audit
+    handler: getAuditLog
+    auth_modes: [jwt]
+    roles: ["admin"]
+
+  - type: rest
+    method: GET
+    path: /admin/users
+    handler: listUsers
+    auth_modes: [jwt]
+    roles: ["admin"]
+
+  - type: rest
+    method: DELETE
+    path: /admin/users/:id
+    handler: deleteUser
+    auth_modes: [jwt]
+    roles: ["admin"]
+
+  - type: rest
+    method: PATCH
+    path: /admin/users/:id/role
+    handler: setUserRole
+    auth_modes: [jwt]
+    roles: ["admin"]
+
+  - type: rest
+    method: POST
+    path: /auth/refresh
+    handler: refreshHandler
+    auth_modes: [jwt]
+
+  - type: rest
+    method: POST
+    path: /rate-limited
+    handler: rateLimitedHandler
+    auth_modes: [jwt, apikey]
+    api_key_prefix: "sk-"
+    rate_limit:
+      requests_per_second: 1
+      burst: 2

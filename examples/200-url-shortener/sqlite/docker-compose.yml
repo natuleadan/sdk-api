@@ -8,5 +8,4 @@ services:
       - "23208:23208"
     environment:
       DOCKER_TEST: "1"
-      RPS_BENCH: "${RPS_BENCH}"
       DATABASE_URL: "/app/data/shorturl.db?_busy_timeout=30000"

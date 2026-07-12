@@ -15,19 +15,20 @@ URL shortener with PostgreSQL and PgDog pooler. No cache — every request hits 
 ## Quick Start
 
 ```bash
-docker compose up --abort-on-container-exit
+docker compose run --rm bench               # functional tests
+docker compose run --rm bench --rps         # functional + RPS
 ```
 
-## Benchmark (wrk -t10 -c1000 -d30s)
+## Benchmark (wrk -t10 -c1000 inside Docker)
 
-| Endpoint | RPS | ±5% | ±10% |
-|----------|:---:|:---:|:----:|
-| Expand (GET /expand/:shortCode) | 44,463 | 42,240–46,686 | 40,017–48,909 |
-| List (GET /links) | 23,071 | 21,917–24,225 | 20,764–25,378 |
-| GetByID (GET /links/:id) | 44,010 | 41,810–46,211 | 39,609–48,411 |
-| Create (POST /links) | 16,460 | 15,637–17,283 | 14,814–18,106 |
-| Update (PUT /links/:id) | 95,710 | 90,925–100,496 | 86,139–105,281 |
-| Delete (DELETE /links/:id) | 42,121 | 40,015–44,227 | 37,909–46,333 |
+| Endpoint | RPS | Notes |
+|----------|:---:|-------|
+| Expand (GET /expand/:shortCode) | 38,753 | PostgreSQL via PgDog |
+| List (GET /links) | 20,901 | Pagination with COUNT(*) |
+| GetByID (GET /links/:id) | 41,838 | Direct PG read by PK |
+| Create (POST /links) | 17,058 | PG INSERT with PgDog |
+| Update (PUT /links/:id) | 196,073 | PG UPDATE via PgDog |
+| Delete (DELETE /links/:id) | 36,657 | PG DELETE via PgDog |
 
 ## Architecture
 
@@ -38,6 +39,6 @@ docker compose up --abort-on-container-exit
 | `hooks.go` | `BeforeCreate` auto-generates short codes |
 | `main.go` | Bootstrap via `runtime.MustRegister` |
 | `service.docker.yaml` | Docker config (prefork, pool, PgDog) |
-| `bench_test.go` | Functional tests + Go benchmark |
-| `run.sh` | Entrypoint: functional tests always, RPS benchmark only with `RPS_BENCH=1` (6 endpoints) |
+| `bench_test.go` | Functional tests + expand benchmark |
+| `run.sh` | Entrypoint: `--rps` for benchmarks, `--test:Name` for specific tests |
 | `docker-compose.yml` | PostgreSQL 18 + PgDog |

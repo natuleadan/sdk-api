@@ -16,5 +16,5 @@ COPY sdk-api/examples/200-url-shortener/postgres-mem-dragonfly/run.sh /app/run.s
 COPY sdk-api/examples/200-url-shortener/postgres-mem-dragonfly/run-test-logic.sh /app/run-test-logic.sh
 COPY sdk-api/examples/200-url-shortener/postgres-mem-dragonfly/service.docker.yaml /app/service.docker.yaml
 RUN chmod +x /app/run.sh /app/svc /app/tester
-EXPOSE 18087
-CMD ["/app/run.sh"]
+EXPOSE 23205
+ENTRYPOINT ["/app/run.sh"]

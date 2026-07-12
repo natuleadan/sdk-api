@@ -16,5 +16,5 @@ COPY sdk-api/examples/200-url-shortener/postgres/run.sh /app/run.sh
 COPY sdk-api/examples/200-url-shortener/postgres/run-test-logic.sh /app/run-test-logic.sh
 COPY sdk-api/examples/200-url-shortener/postgres/service.docker.yaml /app/service.docker.yaml
 RUN chmod +x /app/run.sh /app/svc /app/tester
-EXPOSE 18085
-CMD ["/app/run.sh"]
+EXPOSE 23201
+ENTRYPOINT ["/app/run.sh"]

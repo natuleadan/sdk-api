@@ -16,22 +16,22 @@ URL shortener with PostgreSQL, NATS JetStream events, and NATS KV cache-aside. C
 ## Quick Start
 
 ```bash
-docker compose up --abort-on-container-exit
+docker compose run --rm bench               # functional tests
+docker compose run --rm bench --rps         # functional + RPS
 ```
 
-## Benchmark (wrk -t10 -c1000 -d30s)
+## Benchmark (wrk -t10 -c1000 inside Docker)
 
 | Endpoint | RPS | Notes |
 |----------|:---:|-------|
-| List (GET /links) | 14,696 | PG scan + pagination |
-| GetByID (GET /links/:id) | 87,168 | Cache-aside (NATS KV) |
-| Expand (GET /expand/:shortCode) | 98,316 | Cache-aside (NATS KV) |
-| Create (POST /links) | 15,611 | PG insert + cache invalidation + event publish |
-| Update (PATCH /links/:id) | 11,298 | PG update + cache invalidation + event publish |
-| Delete (DELETE /links/:id) | 23,421 | PG delete + cache invalidation + event publish |
-| RPC (POST /nats/rpc) | 107,964 | Core NATS request-reply |
-| KV Get (GET /nats/kv/:key) | 104,231 | NATS KV standalone read |
-| KV Set (PUT /nats/kv/:key) | 87,476 | NATS KV standalone write |
+| List (GET /links) | 24,315 | PG scan + pagination |
+| Expand (GET /expand/:shortCode) | 104,823 | Cache-aside (NATS KV) |
+| Create (POST /links) | 18,059 | PG insert + cache invalidation + event publish |
+| Update (PATCH /links/:id) | 15,335 | PG update + cache invalidation + event publish |
+| Delete (DELETE /links/:id) | 35,068 | PG delete + cache invalidation + event publish |
+| RPC (POST /nats/rpc) | 109,792 | Core NATS request-reply |
+| KV Get (GET /nats/kv/:key) | 107,630 | NATS KV standalone read |
+| KV Set (PUT /nats/kv/:key) | 105,615 | NATS KV standalone write |
 
 ## Architecture
 
@@ -42,5 +42,5 @@ docker compose up --abort-on-container-exit
 | `main.go` | CRUD override (cache-aside) + event entries + exit workers |
 | `service.docker.yaml` | Docker config (prefork off, pool 500, PgDog) |
 | `bench_test.go` | 16 functional tests including cache invalidation + worker bulk (358k/s) |
-| `run.sh` | Entrypoint: functional tests always, RPS benchmark only with `RPS_BENCH=1` (9 endpoints) |
+| `run.sh` | Entrypoint: `--rps` for benchmarks, `--test:Name` for specific tests |
 | `docker-compose.yml` | PostgreSQL 18 + PgDog + NATS JetStream |

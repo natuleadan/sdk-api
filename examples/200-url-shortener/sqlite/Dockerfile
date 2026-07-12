@@ -20,5 +20,5 @@ COPY sdk-api/examples/200-url-shortener/sqlite/run.sh /app/run.sh
 COPY sdk-api/examples/200-url-shortener/sqlite/run-test-logic.sh /app/run-test-logic.sh
 COPY sdk-api/examples/200-url-shortener/sqlite/service.docker.yaml /app/service.docker.yaml
 RUN chmod +x /app/run.sh /app/svc /app/tester
-EXPOSE 18089
-CMD ["/app/run.sh"]
+EXPOSE 23208
+ENTRYPOINT ["/app/run.sh"]

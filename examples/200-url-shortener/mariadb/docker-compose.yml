@@ -27,5 +27,4 @@ services:
         condition: service_healthy
     environment:
       DOCKER_TEST: "1"
-      RPS_BENCH: "${RPS_BENCH}"
       DATABASE_URL: "dev:devpass@tcp(mariadb:3306)/shorturl?charset=utf8mb4&parseTime=true"

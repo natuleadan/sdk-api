@@ -15,5 +15,4 @@ services:
         condition: service_started
     environment:
       DOCKER_TEST: "1"
-      RPS_BENCH: "${RPS_BENCH}"
       DRAGONFLY_ADDR: dragonfly:6379

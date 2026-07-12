@@ -1,4 +1,4 @@
-name: url-shortener-bench
+name: url-shortener-pgmem-dfly-bench
 services:
   pgdog:
     image: ghcr.io/pgdogdev/pgdog:main
@@ -43,6 +43,5 @@ services:
         condition: service_started
     environment:
       DOCKER_TEST: "1"
-      RPS_BENCH: "${RPS_BENCH}"
       DRAGONFLY_ADDR: dragonfly:6379
       DATABASE_URL: postgres://dev:devpass@pgdog:6432/postgres?sslmode=disable

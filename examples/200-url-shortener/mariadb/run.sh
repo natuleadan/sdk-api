@@ -1,6 +1,17 @@
 #!/bin/sh
 set -e
 
+RPS=false
+PATTERN="TestURL"
+for arg in "$@"; do
+	case "$arg" in
+		--rps) RPS=true ;;
+		--test:*) PATTERN="${arg#--test:}" ;;
+		-*) ;;
+		*) PATTERN="$arg" ;;
+	esac
+done
+
 export CONFIG_PATH=service.docker.yaml
 
 echo "=== starting service ==="
@@ -11,28 +22,26 @@ for i in $(seq 1 15); do
 	sleep 1
 done
 
-echo "=== functional tests ==="
-/app/tester -test.v -test.run=TestURL -test.count=1
+echo "=== tests: $PATTERN ==="
+/app/tester -test.v -test.run="$PATTERN" -test.count=1
 EXIT=$?
 
-if [ "$RPS_BENCH" = "1" ]; then
+if [ "$RPS" = "true" ]; then
 	echo "=== seeding 200 hot keys ==="
 	for i in $(seq 1 200); do
 		code=$(printf "hot%05d" $i)
 		curl -s --max-time 5 -X POST http://localhost:23207/api/v1/links \
 			-H "Content-Type: application/json" \
-			-d "{\"targetUrl\":\"https://hot-$i.example.com\",\"shortCode\":\"$code\"}" >/dev/null
+			-d "{\\"targetUrl\\":\\"https://hot-$i.example.com\\",\\"shortCode\\":\\"$code\\"}" >/dev/null
 	done
 	echo "Seeding complete"
 
 	bench_one() {
 		local label=$1 lua=$2
 		echo "--- $label warmup ---"
-		wrk -t10 -c1000 -d30s -s "/app/$lua" --latency "http://localhost:23207" 2>&1 | awk '/Requests\/sec/ {print "  warmup:", $2}'
-		sleep 2
+		wrk -t10 -c1000 -d3s -s "/app/$lua" --latency "http://localhost:23207" 2>&1 > /dev/null
 		echo "--- $label measure ---"
-		wrk -t10 -c1000 -d30s -s "/app/$lua" --latency "http://localhost:23207" 2>&1 | awk '/Requests\/sec/ {print "  measure:", $2}'
-		sleep 1
+		wrk -t10 -c1000 -d5s -s "/app/$lua" --latency "http://localhost:23207" 2>&1 | awk '/Requests\/sec/ {print "  measure:", $2}'
 	}
 
 	bench_one expand   expand.lua

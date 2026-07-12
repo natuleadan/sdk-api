@@ -16,5 +16,5 @@ COPY sdk-api/examples/200-url-shortener/mongo/run.sh /app/run.sh
 COPY sdk-api/examples/200-url-shortener/mongo/run-test-logic.sh /app/run-test-logic.sh
 COPY sdk-api/examples/200-url-shortener/mongo/service.docker.yaml /app/service.docker.yaml
 RUN chmod +x /app/run.sh /app/svc /app/tester
-EXPOSE 18090
-CMD ["/app/run.sh"]
+EXPOSE 23206
+ENTRYPOINT ["/app/run.sh"]

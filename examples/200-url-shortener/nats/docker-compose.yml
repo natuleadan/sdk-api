@@ -50,7 +50,6 @@ services:
         condition: service_started
     environment:
       DOCKER_TEST: "1"
-      RPS_BENCH: "${RPS_BENCH}"
       CONFIG_PATH: /app/service.docker.yaml
       DATABASE_URL: postgres://dev:devpass@pgdog:6432/postgres?sslmode=disable
       NATS_URL: nats://nats:4222

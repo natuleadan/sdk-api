@@ -1,38 +1,31 @@
-# 200-url-shortener-kv
+# 200-url-shortener-kv-dragonfly
 
-URL shortener using Dragonfly as a primary key-value store (no SQL database, no MongoDB). No CRUD driver — all 6 handlers are manual REST via `svc.WithRest` + `*RestCtx`. The YAML has no `databases:` block. Minimal middleware (`apply: []`). Prefork on. No Fiber import in user code.
+URL shortener with Dragonfly/Redis in-memory.
 
-**Stack:** Dragonfly KV + SDK `RestCtx` (no Fiber import in user code).
+## Quick Start
 
-## Configuration
+```bash
+docker compose run --rm bench               # functional tests
+docker compose run --rm bench --rps         # functional + RPS
+```
 
-| Variable | Value | Description |
-|----------|-------|-------------|
-| `DRAGONFLY_ADDR` | `dragonfly:6379` | Dragonfly connection |
+## Benchmark (wrk -t10 -c1000 inside Docker)
 
-## Endpoints
-
-Same CRUD set as all other examples: `POST/GET/GET/PUT/DELETE /links` + `GET /expand/:shortCode`.
-
-## Benchmark (wrk -t10 -c1000 -d30s)
-
-| Endpoint | RPS | ±5% | ±10% |
-|----------|:---:|:---:|:----:|
-| Expand (GET /expand/:shortCode) | 126,788 | 120,449–133,127 | 114,109–139,467 |
-| List (GET /links) | 1,264 | 1,201–1,327 | 1,138–1,390 |
-| GetByID (GET /links/:id) | 124,986 | 118,737–131,235 | 112,487–137,485 |
-| Create (POST /links) | 62,756 | 59,618–65,894 | 56,480–69,032 |
-| Update (PUT /links/:id) | 63,535 | 60,358–66,712 | 57,182–69,889 |
-| Delete (DELETE /links/:id) | 68,006 | 64,606–71,406 | 61,205–74,807 |
+| Endpoint | RPS | Notes |
+|----------|:---:|-------|
+| Expand (GET /expand/:shortCode) | 118,331 | Dragonfly/Redis in-memory |
+| List (GET /links) | 15,656 | Pagination with COUNT(*) |
+| GetByID (GET /links/:id) | 114,503 | Direct read by PK |
+| Create (POST /links) | 51,703 | Insert via Dragonfly |
+| Update (PUT /links/:id) | 64,884 | Update via Dragonfly |
+| Delete (DELETE /links/:id) | 55,797 | Delete via Dragonfly |
 
 ## Architecture
 
 | File | Purpose |
 |------|---------|
-| `main.go` | 6 REST handlers (create/list/get/update/delete/expand) via `svc.WithRest` + `*RestCtx` — no Fiber import |
-| `service.docker.yaml` | 6 `type: rest` entries, `apply: []` middleware, no `databases:` |
-| `bench_test.go` | Functional tests + BenchmarkExpand |
-| `run.sh` | Entrypoint: functional tests always, RPS benchmark only with `RPS_BENCH=1` (6 endpoints) |
+| `main.go` | 6 REST handlers (create/list/get/update/delete/expand) via `svc.WithRest` |
+| `service.docker.yaml` | 6 `type: rest` entries, `apply: []` middleware, no databases |
+| `run.sh` | Entrypoint: `--rps` for benchmarks, `--test:Name` for specific tests |
+| `bench_test.go` | Functional tests + expand benchmark |
 | `docker-compose.yml` | Dragonfly + bench container |
-
-KV data model: `link:next_id` (counter), `link:id:<id>` (JSON), `link:sc:<shortCode>` (JSON) — reverse lookup for expand.

@@ -16,5 +16,5 @@ COPY sdk-api/examples/200-url-shortener/kv-dragonfly/run.sh /app/run.sh
 COPY sdk-api/examples/200-url-shortener/kv-dragonfly/run-test-logic.sh /app/run-test-logic.sh
 COPY sdk-api/examples/200-url-shortener/kv-dragonfly/service.docker.yaml /app/service.docker.yaml
 RUN chmod +x /app/run.sh /app/svc /app/tester
-EXPOSE 18091
-CMD ["/app/run.sh"]
+EXPOSE 23203
+ENTRYPOINT ["/app/run.sh"]

@@ -1,43 +1,34 @@
-# 200-url-shortener-pg-dragonfly
+# 200-url-shortener-postgres-dragonfly
 
-URL shortener with PostgreSQL and Dragonfly cache (L2). Cache-aside via `runtime.CachedCRUD`. Prefork on. Uses SDK `type: crud` — no Fiber import in user code.
-
-**Stack:** Fiber + pgx + Dragonfly + PgDog pooler.
-
-## Configuration
-
-| Variable | Value | Description |
-|----------|-------|-------------|
-| `DATABASE_URL` | `postgres://dev:devpass@pgdog:6432/postgres` | PostgreSQL via PgDog |
-| `DRAGONFLY_ADDR` | `dragonfly:6379` | Dragonfly in `cluster_mode=emulated` |
-| L2 TTL | 5 min | Dragonfly cache expiry |
+URL shortener with PostgreSQL + Dragonfly cache.
 
 ## Quick Start
 
 ```bash
-docker compose up --abort-on-container-exit
+docker compose run --rm bench               # functional tests
+docker compose run --rm bench --rps         # functional + RPS
 ```
 
-## Benchmark (wrk -t10 -c1000 -d30s)
+## Benchmark (wrk -t10 -c1000 inside Docker)
 
-| Endpoint | RPS | ±5% | ±10% |
-|----------|:---:|:---:|:----:|
-| Expand (GET /expand/:shortCode) | 75,163 | 71,405–78,921 | 67,647–82,679 |
-| List (GET /links) | 24,291 | 23,076–25,506 | 21,862–26,720 |
-| GetByID (GET /links/:id) | 46,350 | 44,033–48,668 | 41,715–50,985 |
-| Create (POST /links) | 19,207 | 18,247–20,167 | 17,286–21,128 |
-| Update (PUT /links/:id) | 107,461 | 102,088–112,834 | 96,715–118,207 |
-| Delete (DELETE /links/:id) | 45,243 | 42,981–47,505 | 40,719–49,767 |
+| Endpoint | RPS | Notes |
+|----------|:---:|-------|
+| Expand (GET /expand/:shortCode) | 93,423 | PostgreSQL + Dragonfly cache |
+| List (GET /links) | 25,305 | Pagination with COUNT(*) |
+| GetByID (GET /links/:id) | 48,434 | Direct read by PK |
+| Create (POST /links) | 19,363 | Insert via PostgreSQL |
+| Update (PUT /links/:id) | 233,535 | Update via PostgreSQL |
+| Delete (DELETE /links/:id) | 41,975 | Delete via PostgreSQL |
 
 ## Architecture
 
 | File | Purpose |
 |------|---------|
-| `models/link.go` | Link model (primary key: `id`) |
-| `models/link_expand.go` | LinkExpand model (primary key: `short_code`) |
-| `hooks.go` | `BeforeCreate` auto-generates short codes |
-| `main.go` | `MustRegister` + `CachedCRUD` with Dragonfly |
-| `service.docker.yaml` | Docker config (prefork, pool) |
-| `bench_test.go` | Functional tests + BenchmarkExpand |
-| `run.sh` | Entrypoint: functional tests always, RPS benchmark only with `RPS_BENCH=1` (6 endpoints) |
-| `docker-compose.yml` | PostgreSQL 18 + Dragonfly + PgDog |
+| `main.go` |  |
+| `hooks.go` | BeforeCreate auto-generates short codes |
+| `models/link.go` | Link model (PK: id) |
+| `models/link_expand.go` | LinkExpand model (PK: short_code) |
+| `service.docker.yaml` | Docker config |
+| `run.sh` | Entrypoint: --rps for benchmarks, --test:Name for specific tests |
+| `bench_test.go` | Functional tests + expand benchmark |
+| `docker-compose.yml` | Services definition |

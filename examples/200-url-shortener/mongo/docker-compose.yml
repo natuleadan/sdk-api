@@ -21,5 +21,4 @@ services:
         condition: service_healthy
     environment:
       DOCKER_TEST: "1"
-      RPS_BENCH: "${RPS_BENCH}"
       MONGO_URI: "mongodb://mongo:27017"

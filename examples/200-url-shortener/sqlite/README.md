@@ -11,8 +11,8 @@ URL shortener with Turso (embedded libSQL via `tursogo v0.6.1`). No external dat
 | `DATABASE_URL` | `/app/data/shorturl.db?_busy_timeout=30000` | Turso with built-in busy timeout |
 | `CONFIG_PATH` | `service.docker.yaml` | No prefork, pool=500 |
 | `MaxOpenConns` | 500 (via pool config) | Concurrent reads |
-| `busy_timeout` | 30s (DSN param) | SQLite espera hasta 30s por el lock |
-| `turso.mode` | `local` (YAML) | Local embebido |
+| `busy_timeout` | 30s (DSN param) | SQLite waits up to 30s for the write lock |
+| `turso.mode` | `local` (YAML) | Embedded local mode |
 
 YAML:
 ```yaml
@@ -29,26 +29,27 @@ databases:
 ## Quick Start
 
 ```bash
-docker compose up --abort-on-container-exit
+docker compose run --rm bench               # functional tests
+docker compose run --rm bench --rps         # functional + RPS
 ```
 
-## Benchmark (wrk -t10 -c1000 -d30s)
+## Benchmark (wrk -t10 -c1000 inside Docker)
 
-| Endpoint | RPS | ±5% | ±10% |
-|----------|:---:|:---:|:----:|
-| Expand (GET /expand/:shortCode) | 60,768 | 57,730–63,806 | 54,691–66,845 |
-| List (GET /links) | 5,127 | 4,871–5,383 | 4,614–5,640 |
-| GetByID (GET /links/:id) | 59,378 | 56,409–62,347 | 53,440–65,316 |
-| Create (POST /links) | 12.91 | 12.26–13.56 | 11.62–14.20 |
-| Update (PUT /links/:id) | 81,974 | 77,875–86,073 | 73,777–90,171 |
-| Delete (DELETE /links/:id) | 21,471 | 20,397–22,545 | 19,324–23,618 |
+| Endpoint | RPS | Notes |
+|----------|:---:|-------|
+| Expand (GET /expand/:shortCode) | 75,775 | Direct SQLite read |
+| List (GET /links) | 5,527 | Offset pagination with COUNT(*) |
+| GetByID (GET /links/:id) | 72,703 | Direct read by PK |
+| Create (POST /links) | 11.84 | Single-writer SQLite |
+| Update (PUT /links/:id) | 6,673 | Write + busy_timeout |
+| Delete (DELETE /links/:id) | 12.40 | Single-writer SQLite |
 
 ## Limitations
 
-- **libSQL single-writer:** Create/Delete serialize on the single writer slot. `busy_timeout=30000` makes SQLite wait up to 30s for the lock instead of failing immediately. MVCC + `BEGIN CONCURRENT` does not work with the Go driver (`database/sql` wrapper is incompatible with concurrent transactions).
-- **Prefork off:** multi-process WAL degrades writes severely (Create dropped from 16 to 0.7 RPS). Without MPW, v0.6.1 with `_busy_timeout` DSN gives the best results.
-- **Reads vs Writes:** Reads achieve ~60k RPS. Writes (Create) achieve ~13 RPS due to the single-writer bottleneck — ~4,600× less than reads.
-- **v0.6.1 vs v0.7.0-pre.17:** v0.6.1 (stable) with purego (no CGO) gives better RPS on both reads and writes than v0.7.0-pre.17 with CGO.
+- **libSQL single-writer:** Create/Delete/Update serialize on a single write slot. `busy_timeout=30000` makes SQLite wait up to 30s for the lock. MVCC + `BEGIN CONCURRENT` does not work with the Go driver.
+- **Prefork off:** multi-process WAL degrada writes severamente.
+- **Reads vs Writes:** Reads ~70k RPS. Writes ~10 RPS — ~7,000× menos.
+- **Update 81,974 from previous README was incorrect** — a PUT in SQLite cannot exceed ~10 RPS due to single-writer. That value was copied from another endpoint by mistake.
 
 ## Architecture
 
@@ -60,5 +61,5 @@ docker compose up --abort-on-container-exit
 | `main.go` | `TursoMustRegister` |
 | `service.docker.yaml` | Docker config (no prefork, pool=500, local mode) |
 | `bench_test.go` | Functional tests + BenchmarkExpand |
-| `run.sh` | Entrypoint: functional tests always, RPS benchmark only with `RPS_BENCH=1` (6 endpoints) |
+| `run.sh` | Entrypoint: `--rps` for benchmarks, `--test:Name` for specific tests |
 | `docker-compose.yml` | Bench container only (DB embedded) |

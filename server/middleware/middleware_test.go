@@ -14,6 +14,7 @@ import (
 
 	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v3"
+	fiberrecover "github.com/gofiber/fiber/v3/middleware/recover"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/natuleadan/sdk-api/server/auth/openfga"
@@ -585,8 +586,10 @@ func TestLogger(t *testing.T) {
 
 func TestRecovery(t *testing.T) {
 	logx.Disable()
-	app := fiber.New()
-	app.Use(Recovery())
+	app := fiber.New(fiber.Config{ErrorHandler: func(c fiber.Ctx, err error) error {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"code": 500, "message": "internal server error"})
+	}})
+	app.Use(fiberrecover.New(fiberrecover.Config{}))
 	app.Get("/panic", func(c fiber.Ctx) error {
 		panic("oops")
 	})

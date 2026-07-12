@@ -57,8 +57,9 @@ type Service struct {
 	jwtCfg        *middleware.JWTConfig
 	fgaClient     openfga.Checker
 	zitadelClient *zitadel.Client
-	oryClient     *ory.Client
-	authValidator func(context.Context, *middleware.AuthContext, []string, []string) error
+	oryClient      *ory.Client
+	authValidator  func(context.Context, *middleware.AuthContext, []string, []string) error
+	apiKeyValidator func(ctx context.Context, key string) (*middleware.AuthContext, error)
 
 	stop context.CancelFunc
 }
@@ -463,6 +464,14 @@ func (s *Service) WithAuthValidator(fn func(context.Context, *middleware.AuthCon
 	return s
 }
 
+// WithAPIKeyValidator registers an API key resolver for "manual" auth mode.
+// The resolver receives the raw API key and returns an AuthContext with the key's identity and roles.
+// Return nil to reject the key. Required when api_key: true + driver: manual.
+func (s *Service) WithAPIKeyValidator(fn func(ctx context.Context, key string) (*middleware.AuthContext, error)) *Service {
+	s.apiKeyValidator = fn
+	return s
+}
+
 // RegisterValidation registers a validation model by name for input validation.
 // Usage: svc.RegisterValidation("CreateProduct", CreateProductInput{}).
 func (s *Service) RegisterValidation(name string, model any) *Service {
@@ -570,6 +579,10 @@ func (s *Service) RunWithContext(ctx context.Context) error {
 	}
 	CheckVercelWarnings(s.config)
 
+	if err := s.validateAuthConfig(); err != nil {
+		return fmt.Errorf("auth validation: %w", err)
+	}
+
 	if err := s.initDatabases(ctx); err != nil {
 		return err
 	}
@@ -595,6 +608,55 @@ func (s *Service) RunWithContext(ctx context.Context) error {
 	logx.Infof("%s starting on :%d", s.config.Name, s.config.Port)
 	proc.AddShutdownListener(func() { s.shutdown() })
 	return s.srv.Start()
+}
+
+func (s *Service) validateAuthConfig() error {
+	if s.config.Auth == nil || !s.config.Auth.Enabled {
+		return s.validateAuthDisabled()
+	}
+	return s.validateAuthEnabled()
+}
+
+func (s *Service) validateAuthDisabled() error {
+	for _, entry := range s.config.Entry {
+		if len(entry.AuthModes) > 0 {
+			return fmt.Errorf("entry %s %s: auth requires auth.enabled: true", entry.Type, entry.Path)
+		}
+	}
+	return nil
+}
+
+func (s *Service) validateAuthEnabled() error {
+	driver := s.config.Auth.Driver
+	for _, entry := range s.config.Entry {
+		if err := s.validateEntryAuthConfig(&entry, driver); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Service) validateEntryAuthConfig(entry *EntryDef, driver string) error {
+	hasAPIKey := hasAuth(entry, "apikey")
+	hasJWT := hasAuth(entry, "jwt")
+
+	if hasAPIKey {
+		if driver == "none" || driver == "" {
+			return fmt.Errorf("entry %s %s: apikey mode requires auth.driver (manual, openfga-zitadel, or ory)", entry.Type, entry.Path)
+		}
+		if driver == "manual" && s.apiKeyValidator == nil {
+			return fmt.Errorf("entry %s %s: apikey mode requires WithAPIKeyValidator() for driver=manual", entry.Type, entry.Path)
+		}
+	}
+	if hasJWT {
+		if driver == "none" || driver == "" {
+			return fmt.Errorf("entry %s %s: jwt mode requires driver != none", entry.Type, entry.Path)
+		}
+		if driver == "manual" && s.authValidator == nil && !hasAPIKey {
+			return fmt.Errorf("entry %s %s: jwt mode requires WithAuthValidator() for driver=manual", entry.Type, entry.Path)
+		}
+	}
+	return nil
 }
 
 func (s *Service) initDatabases(ctx context.Context) error {
@@ -645,7 +707,7 @@ func (s *Service) registerEntryRoutes() error {
 			}
 		}
 	}
-	return RegisterEntries(s.srv.App(), s.config, s.handlers, s.config.Server.APIPrefix, s.natsConns, s.models, s.jwtCfg, s.authValidator, s.fgaClient, s.oryClient, s.zitadelClient)
+	return RegisterEntries(s.srv.App(), s.config, s.handlers, s.config.Server.APIPrefix, s.natsConns, s.models, s.jwtCfg, s.authValidator, s.apiKeyValidator, s.fgaClient, s.oryClient, s.zitadelClient)
 }
 
 func (s *Service) serveStaticFiles() {
@@ -862,6 +924,13 @@ func securityConfig(sc ServerConf) server.SecurityConfig {
 				Key:     sc.Security.Cryption.Key,
 			}
 		}
+		if sc.Security.EncryptCookie != nil && sc.Security.EncryptCookie.Enabled {
+			cfg.EncryptCookie = &server.EncryptCookieConf{
+				Enabled: sc.Security.EncryptCookie.Enabled,
+				Key:     sc.Security.EncryptCookie.Key,
+				Except:  sc.Security.EncryptCookie.Except,
+			}
+		}
 	}
 	return cfg
 }
@@ -874,7 +943,6 @@ func buildJWTCfg(auth *AuthConfig) *middleware.JWTConfig {
 		Secret:      auth.Secret,
 		PrevSecret:  auth.PrevSecret,
 		Algorithm:   auth.Algorithm,
-		TokenLookup: auth.TokenLookup,
 		Issuer:      auth.Issuer,
 		Audience:    auth.Audience,
 	}

@@ -9,7 +9,7 @@ import (
 	"github.com/natuleadan/sdk-api/infra/logx"
 )
 
-func registerGraphQL(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, models map[string]*db.TableInfo) error {
+func registerGraphQL(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, models map[string]*db.TableInfo, mws []fiber.Handler) error {
 	path := prefix + entry.Path
 
 	schema, err := buildGraphQLSchema(handlers, models)
@@ -17,7 +17,7 @@ func registerGraphQL(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, p
 		return err
 	}
 
-	app.Post(path, func(c fiber.Ctx) error {
+	registerWithMws(app, "POST", path, mws, func(c fiber.Ctx) error {
 		var req struct {
 			Query     string         `json:"query"`
 			Variables map[string]any `json:"variables,omitempty"`
@@ -40,6 +40,5 @@ func registerGraphQL(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, p
 		}
 		return c.Status(http.StatusOK).JSON(result)
 	})
-
 	return nil
 }

@@ -12,29 +12,28 @@ import (
 	sm "github.com/natuleadan/sdk-api/server/middleware"
 )
 
-func registerWebSocket(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string) error {
+func registerWebSocket(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, mws []fiber.Handler) error {
 	h, ok := handlers.WS[entry.Handler]
 	if !ok {
 		return fmt.Errorf("websocket handler %q not found", entry.Handler)
 	}
 	path := prefix + entry.Path
-	handler := h
-	app.Get(path, sm.WebSocket(func(c *websocket.Conn) {
-		if err := handler(context.Background(), c); err != nil {
+	wsHandler := sm.WebSocket(func(c *websocket.Conn) {
+		if err := h(context.Background(), c); err != nil {
 			logx.Errorf("websocket handler error: %v", err)
 		}
-	}))
+	})
+	registerWithMws(app, "GET", path, mws, wsHandler)
 	return nil
 }
 
-func registerSSE(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string) error {
+func registerSSE(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, mws []fiber.Handler) error {
 	h, ok := handlers.SSE[entry.Handler]
 	if !ok {
 		return fmt.Errorf("sse handler %q not found", entry.Handler)
 	}
 	path := prefix + entry.Path
-	handler := h
-	app.Get(path, func(c fiber.Ctx) error {
+	registerWithMws(app, "GET", path, mws, func(c fiber.Ctx) error {
 		c.Set("Content-Type", "text/event-stream")
 		c.Set("Cache-Control", "no-cache")
 		c.Set("Connection", "keep-alive")
@@ -51,7 +50,7 @@ func registerSSE(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefi
 					logx.Errorf("sse flush error: %v", err)
 				}
 			}
-			if err := handler(ctx, send); err != nil {
+			if err := h(ctx, send); err != nil {
 				logx.Errorf("sse handler error: %v", err)
 			}
 		})
@@ -59,5 +58,3 @@ func registerSSE(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefi
 	})
 	return nil
 }
-
-// fiber:context-methods migrated

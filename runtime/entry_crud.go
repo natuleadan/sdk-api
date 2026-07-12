@@ -10,7 +10,7 @@ import (
 	"github.com/natuleadan/sdk-api/events"
 )
 
-func registerCRUD(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker) error {
+func registerCRUD(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, mws []fiber.Handler) error {
 	provider, ok := handlers.CRUD[entry.Model]
 	if !ok {
 		return fmt.Errorf("crud model %q: no provider registered", entry.Model)
@@ -26,26 +26,25 @@ func registerCRUD(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, pref
 	pubTargets := getPublishTargets(entry)
 	hasPublish := len(pubTargets) > 0 && len(brokers) > 0
 
-	if err := registerCRUDList(app, base, ov, handlers, provider, entry); err != nil {
+	if err := registerCRUDList(app, base, ov, handlers, provider, entry, mws); err != nil {
 		return err
 	}
-	if err := registerCRUDGet(app, base, ov, handlers, provider); err != nil {
+	if err := registerCRUDGet(app, base, ov, handlers, provider, mws); err != nil {
 		return err
 	}
-	if err := registerCRUDCreate(app, base, ov, handlers, provider, ctx, pubTargets, entry, brokers, hasPublish); err != nil {
+	if err := registerCRUDCreate(app, base, ov, handlers, provider, ctx, pubTargets, entry, brokers, hasPublish, mws); err != nil {
 		return err
 	}
-	if err := registerCRUDUpdate(app, base, ov, handlers, provider, ctx, pubTargets, entry, brokers, hasPublish); err != nil {
+	if err := registerCRUDUpdate(app, base, ov, handlers, provider, ctx, pubTargets, entry, brokers, hasPublish, mws); err != nil {
 		return err
 	}
-	if err := registerCRUDDelete(app, base, ov, handlers, provider, ctx, pubTargets, entry, brokers, hasPublish); err != nil {
+	if err := registerCRUDDelete(app, base, ov, handlers, provider, ctx, pubTargets, entry, brokers, hasPublish, mws); err != nil {
 		return err
 	}
-
 	return nil
 }
 
-func registerCRUDList(app *fiber.App, base string, ov *CRUDOverrides, handlers *EntryHandlers, provider CRUDProvider, entry *EntryDef) error {
+func registerCRUDList(app *fiber.App, base string, ov *CRUDOverrides, handlers *EntryHandlers, provider CRUDProvider, entry *EntryDef, mws []fiber.Handler) error {
 	if isDisabled(ov, ov.List) {
 		return nil
 	}
@@ -54,7 +53,7 @@ func registerCRUDList(app *fiber.App, base string, ov *CRUDOverrides, handlers *
 		if h == nil {
 			return fmt.Errorf("crud list override: handler %q not found", ov.List)
 		}
-		app.Get(base, h)
+		registerWithMws(app, "GET", base, mws, h)
 	} else {
 		pageSize := entry.PageSize
 		if pageSize < 1 {
@@ -73,7 +72,7 @@ func registerCRUDList(app *fiber.App, base string, ov *CRUDOverrides, handlers *
 		}
 		sortable := entry.Sortable
 
-		app.Get(base, func(c fiber.Ctx) error {
+		registerWithMws(app, "GET", base, mws, func(c fiber.Ctx) error {
 			params, err := parseListParams(c, pageSize, maxPageSize, sortable, pagination)
 			if err != nil {
 				return err
@@ -84,7 +83,7 @@ func registerCRUDList(app *fiber.App, base string, ov *CRUDOverrides, handlers *
 	return nil
 }
 
-func registerCRUDGet(app *fiber.App, base string, ov *CRUDOverrides, handlers *EntryHandlers, provider CRUDProvider) error {
+func registerCRUDGet(app *fiber.App, base string, ov *CRUDOverrides, handlers *EntryHandlers, provider CRUDProvider, mws []fiber.Handler) error {
 	if isDisabled(ov, ov.Get) {
 		return nil
 	}
@@ -94,16 +93,16 @@ func registerCRUDGet(app *fiber.App, base string, ov *CRUDOverrides, handlers *E
 		if h == nil {
 			return fmt.Errorf("crud get override: handler %q not found", ov.Get)
 		}
-		app.Get(base+idParam, h)
+		registerWithMws(app, "GET", base+idParam, mws, h)
 	} else {
-		app.Get(base+idParam, func(c fiber.Ctx) error {
+		registerWithMws(app, "GET", base+idParam, mws, func(c fiber.Ctx) error {
 			return provider.Get(c, c.Params("id"))
 		})
 	}
 	return nil
 }
 
-func registerCRUDCreate(app *fiber.App, base string, ov *CRUDOverrides, handlers *EntryHandlers, provider CRUDProvider, ctx context.Context, pubTargets []EventPublishTarget, entry *EntryDef, brokers map[string]events.EventBroker, hasPublish bool) error {
+func registerCRUDCreate(app *fiber.App, base string, ov *CRUDOverrides, handlers *EntryHandlers, provider CRUDProvider, ctx context.Context, pubTargets []EventPublishTarget, entry *EntryDef, brokers map[string]events.EventBroker, hasPublish bool, mws []fiber.Handler) error {
 	if isDisabled(ov, ov.Create) {
 		return nil
 	}
@@ -120,11 +119,11 @@ func registerCRUDCreate(app *fiber.App, base string, ov *CRUDOverrides, handlers
 	if hasPublish {
 		handler = wrapEventPublish(ctx, handler, pubTargets, entry.EventStream, brokers)
 	}
-	app.Post(base, handler)
+	registerWithMws(app, "POST", base, mws, handler)
 	return nil
 }
 
-func registerCRUDUpdate(app *fiber.App, base string, ov *CRUDOverrides, handlers *EntryHandlers, provider CRUDProvider, ctx context.Context, pubTargets []EventPublishTarget, entry *EntryDef, brokers map[string]events.EventBroker, hasPublish bool) error {
+func registerCRUDUpdate(app *fiber.App, base string, ov *CRUDOverrides, handlers *EntryHandlers, provider CRUDProvider, ctx context.Context, pubTargets []EventPublishTarget, entry *EntryDef, brokers map[string]events.EventBroker, hasPublish bool, mws []fiber.Handler) error {
 	if isDisabled(ov, ov.Update) {
 		return nil
 	}
@@ -142,11 +141,11 @@ func registerCRUDUpdate(app *fiber.App, base string, ov *CRUDOverrides, handlers
 	if hasPublish {
 		handler = wrapEventPublish(ctx, handler, pubTargets, entry.EventStream, brokers)
 	}
-	app.Patch(base+idParam, handler)
+	registerWithMws(app, "PATCH", base+idParam, mws, handler)
 	return nil
 }
 
-func registerCRUDDelete(app *fiber.App, base string, ov *CRUDOverrides, handlers *EntryHandlers, provider CRUDProvider, ctx context.Context, pubTargets []EventPublishTarget, entry *EntryDef, brokers map[string]events.EventBroker, hasPublish bool) error {
+func registerCRUDDelete(app *fiber.App, base string, ov *CRUDOverrides, handlers *EntryHandlers, provider CRUDProvider, ctx context.Context, pubTargets []EventPublishTarget, entry *EntryDef, brokers map[string]events.EventBroker, hasPublish bool, mws []fiber.Handler) error {
 	if isDisabled(ov, ov.Delete) {
 		return nil
 	}
@@ -164,7 +163,7 @@ func registerCRUDDelete(app *fiber.App, base string, ov *CRUDOverrides, handlers
 	if hasPublish {
 		handler = wrapEventPublish(ctx, handler, pubTargets, entry.EventStream, brokers)
 	}
-	app.Delete(base+idParam, handler)
+	registerWithMws(app, "DELETE", base+idParam, mws, handler)
 	return nil
 }
 

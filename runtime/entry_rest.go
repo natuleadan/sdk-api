@@ -9,7 +9,7 @@ import (
 	"github.com/natuleadan/sdk-api/infra/logx"
 )
 
-func registerREST(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker) error {
+func registerREST(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, mws []fiber.Handler) error {
 	h := resolveHandler(handlers.Rest, entry.Handler)
 	if h == nil {
 		return fmt.Errorf("rest handler %q not found", entry.Handler)
@@ -19,20 +19,7 @@ func registerREST(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, pref
 		h = wrapEventPublish(context.Background(), h, targets, entry.EventStream, brokers)
 	}
 	path := prefix + entry.Path
-	switch entry.Method {
-	case "GET":
-		app.Get(path, h)
-	case "POST":
-		app.Post(path, h)
-	case "PUT":
-		app.Put(path, h)
-	case "PATCH":
-		app.Patch(path, h)
-	case "DELETE":
-		app.Delete(path, h)
-	default:
-		return fmt.Errorf("unsupported HTTP method %q", entry.Method)
-	}
+	registerWithMws(app, entry.Method, path, mws, h)
 	return nil
 }
 

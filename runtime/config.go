@@ -5,8 +5,9 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"os/exec"
+	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -34,21 +35,20 @@ type ServiceConfig struct {
 }
 
 type AuthConfig struct {
-	Enabled     bool   `json:"enabled" config:",optional"`
-	Driver      string `json:"driver" config:",default=none"` // none | manual | openfga-zitadel | ory
-	Secret      string `json:"secret" config:",optional"`
-	PrevSecret  string `json:"prev_secret" config:",optional"`
-	Algorithm   string `json:"algorithm" config:",default=HS256"`
-	TokenLookup string `json:"token_lookup" config:",default=header:Authorization"`
-	ContextKey  string `json:"context_key" config:",default=claims"`
-	Issuer      string `json:"issuer" config:",optional"`
-	Audience    string `json:"audience" config:",optional"`
-	Expiry      int    `json:"expiry" config:",default=3600"`
-	ZitadelURL  string `json:"zitadel_url" config:",optional"`
-	OpenFGAURL  string `json:"openfga_url" config:",optional"`
+	Enabled      bool   `json:"enabled" config:",optional"`
+	Driver       string `json:"driver" config:",default=none"` // none | manual | openfga-zitadel | ory
+	Secret       string `json:"secret" config:",optional"`
+	PrevSecret   string `json:"prev_secret" config:",optional"`
+	Algorithm    string `json:"algorithm" config:",default=HS256"`
+	ContextKey   string `json:"context_key" config:",default=claims"`
+	Issuer       string `json:"issuer" config:",optional"`
+	Audience     string `json:"audience" config:",optional"`
+	Expiry       int    `json:"expiry" config:",default=900"` // JWT TTL in seconds (default 15 min)
+	ZitadelURL   string `json:"zitadel_url" config:",optional"`
+	OpenFGAURL   string `json:"openfga_url" config:",optional"`
 	OpenFGAStore string `json:"openfga_store" config:",optional"`
-	KratosURL   string `json:"kratos_url" config:",optional"`
-	KetoURL     string `json:"keto_url" config:",optional"`
+	KratosURL    string `json:"kratos_url" config:",optional"`
+	KetoURL      string `json:"keto_url" config:",optional"`
 }
 
 // ---- Server ----
@@ -85,6 +85,7 @@ type ServerConf struct {
 type SecurityDef struct {
 	ContentSecurity *ContentSecurityDef `json:"content_security" config:",optional"`
 	Cryption        *CryptionDef        `json:"cryption" config:",optional"`
+	EncryptCookie   *EncryptCookieDef   `json:"encrypt_cookie" config:",optional"`
 }
 
 type ContentSecurityDef struct {
@@ -96,6 +97,12 @@ type ContentSecurityDef struct {
 type CryptionDef struct {
 	Enabled bool   `json:"enabled" config:",optional"`
 	Key     string `json:"key"`
+}
+
+type EncryptCookieDef struct {
+	Enabled bool     `json:"enabled" config:",optional"`
+	Key     string   `json:"key"`                       // required when enabled
+	Except  []string `json:"except" config:",optional"` // cookie names to skip
 }
 
 type CookieConf struct {
@@ -202,12 +209,12 @@ type OpenAPIConf struct {
 // ---- Database ----
 
 type DBConfig struct {
-	Name     string      `json:"name"`
-	Driver   string      `json:"driver" config:",default=postgres"`
-	URL      string      `json:"url"`
-	Database string      `json:"database" config:",optional"`
-	Pool     *PoolConf   `json:"pool" config:",optional"`
-	Turso    *TursoConf  `json:"turso" config:",optional"`
+	Name     string     `json:"name"`
+	Driver   string     `json:"driver" config:",default=postgres"`
+	URL      string     `json:"url"`
+	Database string     `json:"database" config:",optional"`
+	Pool     *PoolConf  `json:"pool" config:",optional"`
+	Turso    *TursoConf `json:"turso" config:",optional"`
 }
 
 type TursoConf struct {
@@ -336,14 +343,15 @@ type StreamDef struct {
 // ---- Entry Endpoints ----
 
 type EntryDef struct {
-	Type    string `json:"type"` // crud, rest, webhook, websocket, sse, file
-	Method  string `json:"method" config:",optional"`
-	Path    string `json:"path" config:",optional"`
-	Handler string `json:"handler" config:",optional"`
-	Auth    bool   `json:"auth" config:",optional"`
-	Roles   []string `json:"roles" config:",optional"`
+	Type        string   `json:"type"` // crud, rest, webhook, websocket, sse, file
+	Method      string   `json:"method" config:",optional"`
+	Path        string   `json:"path" config:",optional"`
+	Handler     string   `json:"handler" config:",optional"`
+	AuthModes   []string `json:"auth_modes" config:",optional"` // ["jwt"], ["apikey"], ["jwt","apikey"]
+	JWTFrom     string   `json:"jwt_from" config:",optional"`   // per-entry: "header:Authorization", "cookie:token", "query:token"
+	Roles       []string `json:"roles" config:",optional"`
 	Permissions []string `json:"permissions" config:",optional"`
-	DB      string `json:"db" config:",optional"` // references database name
+	DB          string   `json:"db" config:",optional"` // references database name
 
 	// CRUD
 	Model     string         `json:"model" config:",optional"`
@@ -375,6 +383,9 @@ type EntryDef struct {
 	// Timeout per-entry (e.g. "30s")
 	Timeout string `json:"timeout" config:",optional"`
 
+	// API Key prefix (only applies when auth_modes includes "apikey")
+	APIPrefix string `json:"api_key_prefix" config:",optional"`
+
 	// Pagination (CRUD only)
 	PageSize    int      `json:"page_size" config:",optional"`     // default 10, also min
 	MaxPageSize int      `json:"max_page_size" config:",optional"` // default 100, also max
@@ -398,18 +409,23 @@ type EventPublishTarget struct {
 	EventStream string `json:"event_stream" config:",optional"` // broker name; empty = all brokers
 }
 
+// hasAuth returns true if the entry's auth_modes includes the given mode.
+func hasAuth(entry *EntryDef, mode string) bool {
+	return slices.Contains(entry.AuthModes, mode)
+}
+
 type PoolConfig struct {
-	MaxIdleConns      int    `json:"max_idle_conns" config:",default=200"`
-	MaxIdlePerHost    int    `json:"max_idle_conns_per_host" config:",default=100"`
-	MaxConnsPerHost   int    `json:"max_conns_per_host" config:",default=250"`
-	IdleTimeout       string `json:"idle_timeout" config:",default=90s"`
+	MaxIdleConns    int    `json:"max_idle_conns" config:",default=200"`
+	MaxIdlePerHost  int    `json:"max_idle_conns_per_host" config:",default=100"`
+	MaxConnsPerHost int    `json:"max_conns_per_host" config:",default=250"`
+	IdleTimeout     string `json:"idle_timeout" config:",default=90s"`
 }
 
 type CacheConfig struct {
 	L1     string `json:"l1" config:",default=ram"` // ram | none
 	L1TTL  string `json:"l1_ttl" config:",default=5m"`
 	L1Size int    `json:"l1_size" config:",default=10000"`
-	L2     string `json:"l2" config:",optional"`     // disk | none
+	L2     string `json:"l2" config:",optional"` // disk | none
 	L2Path string `json:"l2_path" config:",optional"`
 }
 

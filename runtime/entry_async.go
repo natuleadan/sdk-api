@@ -6,7 +6,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
-func registerAsync(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string) error {
+func registerAsync(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, mws []fiber.Handler) error {
 	path := prefix + entry.Path
 	store := newMemoryJobStore()
 
@@ -21,8 +21,8 @@ func registerAsync(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, pre
 
 	mgr := NewAsyncJobManager(store, processor)
 
-	app.Post(path, mgr.HandleSubmit())
-	app.Get(path+"/:job_id", mgr.HandleStatus())
+	registerWithMws(app, "POST", path, mws, mgr.HandleSubmit())
+	registerWithMws(app, "GET", path+"/:job_id", mws, mgr.HandleStatus())
 
 	return nil
 }

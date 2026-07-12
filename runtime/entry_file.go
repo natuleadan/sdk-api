@@ -12,7 +12,7 @@ import (
 	"github.com/natuleadan/sdk-api/infra/logx"
 )
 
-func registerFile(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker) error {
+func registerFile(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, mws []fiber.Handler) error {
 	h := resolveHandler(handlers.Rest, entry.Handler)
 	if h == nil {
 		return fmt.Errorf("file handler %q not found", entry.Handler)
@@ -34,20 +34,7 @@ func registerFile(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, pref
 		h = wrapEventPublish(context.Background(), h, targets, entry.EventStream, brokers)
 	}
 
-	switch entry.Method {
-	case "GET":
-		app.Get(path, h)
-	case "POST":
-		app.Post(path, h)
-	case "PUT":
-		app.Put(path, h)
-	case "PATCH":
-		app.Patch(path, h)
-	case "DELETE":
-		app.Delete(path, h)
-	default:
-		return fmt.Errorf("unsupported HTTP method %q for file endpoint", entry.Method)
-	}
+	registerWithMws(app, entry.Method, path, mws, h)
 	return nil
 }
 
@@ -93,7 +80,6 @@ func isContentTypeAllowed(contentType string, allowed []string) bool {
 }
 
 func matchContentType(contentType, allowed string) bool {
-	// exact match or wildcard match
 	if contentType == allowed {
 		return true
 	}
@@ -131,11 +117,6 @@ func parseMaxSize(s string) int {
 	return n * multiplier
 }
 
-// SanitizeFilename removes dangerous characters from filenames.
-// - Removes path separators (/, \)
-// - Removes null bytes
-// - Limits length to 255 chars
-// - Only allows [a-zA-Z0-9._-]
 func SanitizeFilename(name string) string {
 	if name == "" {
 		return "untitled"

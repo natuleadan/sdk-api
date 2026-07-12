@@ -79,6 +79,10 @@ func (c *RestCtx) ResponseBody() string {
 	return string(c.fc.Response().Body())
 }
 
+func (c *RestCtx) SetCookie(cookie *fiber.Cookie) {
+	c.fc.Cookie(cookie)
+}
+
 func (c *RestCtx) Redirect(url string, statusCode ...int) error {
 	code := fiber.StatusFound
 	if len(statusCode) > 0 {

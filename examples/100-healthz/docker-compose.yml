@@ -4,6 +4,7 @@ services:
     build:
       context: ../../..
       dockerfile: sdk-api/examples/100-healthz/Dockerfile
+    ports:
+      - "23100:23100"
     environment:
       DOCKER_TEST: "1"
-      RPS_BENCH: "${RPS_BENCH}"

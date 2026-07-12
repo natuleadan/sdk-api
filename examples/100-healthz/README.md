@@ -7,32 +7,39 @@ Simple HTTP health-check endpoint with zero dependencies. Measures raw Fiber vs 
 ## Quick Start
 
 ```bash
-# Single entry point — builds, tests, benches, exits
-docker compose up --abort-on-container-exit
+# From root runner
+cd examples && ./run.sh 100            # functional tests
+cd examples && ./run.sh 100 --rps      # functional + RPS (wrk inside Docker)
+
+# Or directly
+cd examples/100-healthz
+docker compose run --rm bench               # functional tests
+docker compose run --rm bench --rps         # functional + RPS
 ```
 
-## Benchmark (wrk -t10 -c1000 -d15s)
+## Benchmark (wrk -t10 -c1000 inside Docker)
 
-| Mode | RPS | ±5% | ±10% |
-|------|:---:|:---:|:----:|
-| Raw Fiber | 739,256 | 702,293–776,219 | 665,330–813,182 |
-| SDK middleware | 715,244 | 679,482–751,006 | 643,720–786,768 |
+| Endpoint | RPS | Notes |
+|----------|:---:|-------|
+| Healthz (GET /healthz) | 575,247 | Fiber healthcheck, minimal middleware |
+
+wrk runs inside the same container as the service. No macOS host networking overhead.
 
 ## Architecture
 
 ```
-docker compose up → build image → bench container starts
+docker compose run bench → build image → container starts
   ↓
-run-test-logic.sh (Docker CMD via run.sh):
+run.sh:
   1. /app/svc & → wait /healthz
-  2. /app/tester -test.run=TestHealthz_OK   ← functional test (200 OK)
+  2. /app/tester -test.run=TestHealthz_OK
+  3. [--rps] wrk -t10 -c1000 -d3s warmup (discarded) + -d5s measure
   ↓
-container exit 0 → compose stops
+container exit → compose cleans
 ```
 
 | File | Purpose |
 |------|---------|
-| `bench_test.go` | `TestHealthz_OK` + Go benchmarks (compiled into /app/tester) |
-| `run.sh` | Entrypoint: functional tests only (`RPS_BENCH=1` has no effect — no wrk in healthz) |
-| `Dockerfile` | Multi-stage: builds svc + tester binaries |
+| `run.sh` | Entrypoint: `--rps` for benchmarks, `--test:Name` for specific tests |
+| `Dockerfile` | Multi-stage: builds svc + tester, installs wrk |
 | `docker-compose.yml` | Single bench container, no DB dependencies |

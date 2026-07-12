@@ -15,5 +15,5 @@ COPY sdk-api/examples/100-healthz/healthz.lua /app/healthz.lua
 COPY sdk-api/examples/100-healthz/run.sh /app/run.sh
 COPY sdk-api/examples/100-healthz/run-test-logic.sh /app/run-test-logic.sh
 RUN chmod +x /app/run.sh /app/svc /app/tester
-EXPOSE 18081
-CMD ["/app/run.sh"]
+EXPOSE 23100
+ENTRYPOINT ["/app/run.sh"]

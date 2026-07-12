@@ -30,7 +30,7 @@ When the bottleneck is the database, prefork does not improve throughput — all
 
 ### 2. Middleware
 
-The standard middleware stack (logger, shedding, breaker, maxconns, maxbytes, gunzip, prometheus) has minimal overhead on simple endpoints. For maximum throughput:
+The standard middleware stack (logger, shedding, breaker, maxconns, maxbytes, gunzip, prometheus, cors) has minimal overhead on simple endpoints. For maximum throughput:
 
 ```yaml
 server:
@@ -39,7 +39,7 @@ server:
       apply: []
 ```
 
-This disables the 8 standard middlewares per-route. Four middlewares are always active (recover, header sanitize, health endpoint, metrics endpoint) with negligible overhead.
+This disables the 8 standard middlewares (logger, shedding, breaker, maxconns, maxbytes, gunzip, prometheus, cors) per-route. Four middlewares are always active (recover, header sanitize, health endpoint, metrics endpoint) with negligible overhead.
 
 ### 3. Connection Pool
 

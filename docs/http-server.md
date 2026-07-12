@@ -191,45 +191,66 @@ server:
 
 When `cors` is omitted, CORS defaults to same-origin only (secure default).
 
-## Built-in Middlewares (14)
+## Built-in Middlewares
 
-| Name | File | Description |
-|------|------|-------------|
-| `Recovery()` | `recover.go` | Panic recovery → 500 JSON |
-| `Logger()` | `logger.go` | Request logging (method, path, status, duration) |
-| `Shedding()` | `shedding.go` | Adaptive load shedding (go-zero) |
-| `Breaker()` | `breaker.go` | Circuit breaker per route |
-| `CORS()` | `cors.go` | CORS headers |
-| `JWT()` | `jwt.go` | JWT validation with algorithm pinning, claim validation (iss, aud, exp), secret rotation, AuthContext injection |
-| `JWTWithZitadel()` | `jwt_zitadel.go` | JWT validation via Zitadel JWKS (RS256) |
-| `OpenFGA()` | `openfga.go` | OpenFGA ReBAC authorization (roles, permissions, relation checks) |
-| `Ory()` | `ory.go` | Ory Keto authorization (roles, permissions) |
-| `APIKey()` | `apikey.go` | API key detection + OpenFGA validation |
-| `Prometheus()` | `prometheus.go` | In-process metrics collector |
-| `Trace()` | `trace.go` | OpenTelemetry tracing |
-| `Timeout()` | `timeout.go` | Per-request deadline |
-| `MaxConns()` | `maxconns.go` | Concurrency limiter (semaphore) |
-| `MaxBytes()` | `maxbytes.go` | Body size limiter |
-| `Gunzip()` | `gunzip.go` | Auto-decompress gzip |
-| `ContentSecurity()` | `content_security.go` | RSA body signature verification |
-| `Cryption()` | `cryption.go` | AES-GCM body decryption |
+| Name | File | YAML gate | Description |
+|------|------|-----------|-------------|
+| `Logger()` | `logger.go` | `server.logger` (default `true`) | Request logging (method, path, status, duration) |
+| `Shedding()` | `shedding.go` | `server.load_shedding` (default `true`) | Adaptive load shedding (go-zero) |
+| `Breaker()` | `breaker.go` | `server.breaker` (default `true`) | Circuit breaker per route |
+| `CORS()` | `cors.go` | `server.cors` (block) | CORS headers |
+| `JWT()` | `jwt.go` | `entry[].auth: true` | JWT validation with algorithm pinning, claim validation (iss, aud, exp), secret rotation, AuthContext injection |
+| `JWTWithZitadel()` | `jwt_zitadel.go` | `auth.driver: openfga-zitadel` | JWT validation via Zitadel JWKS (RS256) |
+| `OpenFGA()` | `openfga.go` | `entry[].roles` / `entry[].permissions` | OpenFGA ReBAC authorization (roles, permissions, relation checks) |
+| `Ory()` | `ory.go` | `auth.driver: ory` | Ory Keto authorization (roles, permissions) |
+| `APIKey()` | `apikey.go` | `entry[].api_key: true` | API key detection + OpenFGA validation (⚠️ pending) |
+| `Recover()` | Fiber built-in | Always-on | Panic recovery → 500 JSON |
+| `Prometheus()` | `prometheus.go` | Always-on | In-process metrics collector |
+| `Trace()` | `trace.go` | `telemetry.enabled: true` | OpenTelemetry tracing |
+| `Timeout()` | `timeout.go` | `entry[].timeout` (per-entry) | Per-request deadline |
+| `MaxConns()` | `maxconns.go` | Always-on | Concurrency limiter (semaphore) |
+| `MaxBytes()` | `maxbytes.go` | Always-on | Body size limiter |
+| `Gunzip()` | `gunzip.go` | Always-on | Auto-decompress gzip |
+| `HeaderSanitize()` | `header_sanitize.go` | Always-on | CRLF protection |
+| `ContentSecurity()` | `content_security.go` | `server.security.content_security.enabled` | RSA body signature verification |
+| `Cryption()` | `cryption.go` | `server.security.cryption.enabled` | AES-GCM body decryption |
+
+## Server-level Gates
+
+```yaml
+server:
+  logger: false         # disable request logging (default true)
+  load_shedding: false  # disable adaptive load shedding (default true)
+  breaker: false        # disable circuit breaker (default true)
+```
+
+## Per-entry Timeout
+
+```yaml
+entry:
+  - type: rest
+    method: GET
+    path: /slow
+    handler: onSlow
+    timeout: 30s        # per-request deadline
+```
 
 ## Per-route Middleware
 
-When `server.middleware` is specified, only `Recovery` + `Health` + `HeaderSanitize` are global. All others apply per-path:
+When `server.middleware` is specified, only `Recover` + `Health` + `HeaderSanitize` are global. All others apply per-path:
 
 ```yaml
 server:
   middleware:
     - path: "/healthz"
-      apply: []                       # Fast path: recover+health only
+      apply: []                       # Fast path (health+headers only)
     - path: "/api/v1/*"
       apply: [logger, breaker, cors]
     - path: "/api/admin/*"
-      apply: [logger, breaker, cors, jwt, maxconns]
+      apply: [logger, breaker, cors, maxconns]
 ```
 
-Without `middleware:`, all 14 middlewares apply globally (backwards compatible).
+Without `middleware:`, all standard middlewares apply globally (backwards compatible).
 
 ## CRLF Header Protection
 

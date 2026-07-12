@@ -522,6 +522,7 @@ Queries and mutations are auto-generated from `CRUDProvider` registrations. Mode
 | `event_stream` | crud, rest, webhook, file | Event broker name for publishes |
 | `event_publish` | crud, rest, webhook, file | Publish targets (replaces `nats_publish`) |
 | `nats_publish` | crud, rest, webhook, file | Deprecated alias for `event_publish` |
+| `timeout` | crud, rest, webhook, file | Per-entry request deadline (e.g. `30s`) |
 | `validate` | crud, rest, webhook | Validation model name |
 
 **Entry auth combinations:**
@@ -593,6 +594,9 @@ cron:
 | `timeout` | `30s` | Read/write/idle timeout |
 | `api_prefix` | `/api/v1` | Prefix prepended to all entry paths |
 | `recover_stack` | `true` | Show stack traces on panic |
+| `logger` | `true` | Enable request logging middleware |
+| `load_shedding` | `true` | Enable adaptive load shedding |
+| `breaker` | `true` | Enable circuit breaker per route |
 
 ### CORS
 
@@ -746,10 +750,6 @@ Available middleware names for `apply:`:
 | `gunzip` | Auto-decompress gzip bodies |
 | `prometheus` | In-process metrics collector |
 | `cors` | CORS headers |
-| `trace` | OpenTelemetry tracing |
-| `jwt` | JWT auth |
-| `content_security` | RSA body signature verification |
-| `cryption` | AES-GCM body decryption |
 
 ### OpenAPI
 

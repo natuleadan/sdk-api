@@ -12,11 +12,11 @@
   <br>
   <a href="https://pkg.go.dev/github.com/natuleadan/sdk-api"><img src="https://img.shields.io/badge/Go-Reference-00ADD8?style=for-the-badge&logo=go"></a>
   <a href="https://golang.org"><img src="https://img.shields.io/github/go-mod/go-version/natuleadan/sdk-api?style=for-the-badge&logo=go"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=for-the-badge"></a>
   <a href="https://conventionalcommits.org"><img src="https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg?style=for-the-badge"></a>
 </p>
 
-A production-ready Go SDK for building event-driven microservices and monoliths. **Fork of [go-zero](https://github.com/zeromicro/go-zero)** with **Fiber** (fasthttp), **pgx** (PostgreSQL), **NATS JetStream** + **Kafka** (messaging), per-route middleware, security, and YAML-driven configuration.
+An experimental Go SDK for building any api based or api event-driven platform for both microservices and monoliths types, currently in development. Powered by **Fiber** (fasthttp), **PostgreSQL**, **NATS JetStream** + **Kafka** (messaging), per-route middleware, security, and YAML-driven configuration.
 
 ---
 
@@ -355,4 +355,6 @@ examples/300-file-storage/   # File storage patterns: ephemeral, proxy, s3, cach
 
 ## 10. License
 
-MIT — see [LICENSE](LICENSE). Forked from [go-zero](https://github.com/zeromicro/go-zero) (MIT).
+Apache 2.0 — see [LICENSE](LICENSE). Forked from [go-zero](https://github.com/zeromicro/go-zero) (MIT).
+
+This software is provided "as is", without warranty of any kind. Use at your own risk.

@@ -13,7 +13,7 @@ databases:
     driver: mysql
     url: "mysql://localhost:3306/test"
 
-event_streams:
+stream:
   - name: primary
     url: "nats://localhost:4222"
     driver: nats
@@ -57,7 +57,7 @@ entry:
     path: /orders
     handler: onCreateOrder
     db: pg-main
-    nats_publish:
+    event_publish:
       - stream: orders
         subject: orders.created
 
@@ -65,7 +65,7 @@ entry:
     method: POST
     path: /webhooks/sendgrid
     handler: onInboundEmail
-    nats_publish:
+    event_publish:
       - stream: email
         subject: email.received
 

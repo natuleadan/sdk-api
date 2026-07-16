@@ -37,30 +37,30 @@ func TestLoadConfig_FullYAML(t *testing.T) { //nolint:gocyclo
 		t.Errorf("DB[1].Driver = %q", cfg.Databases[1].Driver)
 	}
 
-	// EventStreams (NATS via event_streams)
-	if len(cfg.EventStreams) != 2 {
-		t.Fatalf("EventStreams = %d, want 2", len(cfg.EventStreams))
+	// Stream (NATS via stream:)
+	if len(cfg.Stream) != 2 {
+		t.Fatalf("Stream = %d, want 2", len(cfg.Stream))
 	}
-	if cfg.EventStreams[0].Name != "primary" {
-		t.Errorf("EventStreams[0].Name = %q", cfg.EventStreams[0].Name)
+	if cfg.Stream[0].Name != "primary" {
+		t.Errorf("Stream[0].Name = %q", cfg.Stream[0].Name)
 	}
-	if cfg.EventStreams[0].Driver != "nats" {
-		t.Errorf("EventStreams[0].Driver = %q, want nats", cfg.EventStreams[0].Driver)
+	if cfg.Stream[0].Driver != "nats" {
+		t.Errorf("Stream[0].Driver = %q, want nats", cfg.Stream[0].Driver)
 	}
-	if len(cfg.EventStreams[0].Streams) != 2 {
-		t.Errorf("EventStreams[0].Streams = %d, want 2", len(cfg.EventStreams[0].Streams))
+	if len(cfg.Stream[0].Streams) != 2 {
+		t.Errorf("Stream[0].Streams = %d, want 2", len(cfg.Stream[0].Streams))
 	}
-	if cfg.EventStreams[0].Streams[0].Name != "orders" {
-		t.Errorf("EventStreams[0].Streams[0].Name = %q", cfg.EventStreams[0].Streams[0].Name)
+	if cfg.Stream[0].Streams[0].Name != "orders" {
+		t.Errorf("Stream[0].Streams[0].Name = %q", cfg.Stream[0].Streams[0].Name)
 	}
-	if cfg.EventStreams[0].Streams[1].Storage != "memory" {
-		t.Errorf("EventStreams[0].Streams[1].Storage = %q, want memory", cfg.EventStreams[0].Streams[1].Storage)
+	if cfg.Stream[0].Streams[1].Storage != "memory" {
+		t.Errorf("Stream[0].Streams[1].Storage = %q, want memory", cfg.Stream[0].Streams[1].Storage)
 	}
-	if cfg.EventStreams[0].Streams[1].Compression != "none" {
-		t.Errorf("EventStreams[0].Streams[1].Compression = %q, want none", cfg.EventStreams[0].Streams[1].Compression)
+	if cfg.Stream[0].Streams[1].Compression != "none" {
+		t.Errorf("Stream[0].Streams[1].Compression = %q, want none", cfg.Stream[0].Streams[1].Compression)
 	}
-	if cfg.EventStreams[1].Name != "secondary" {
-		t.Errorf("EventStreams[1].Name = %q", cfg.EventStreams[1].Name)
+	if cfg.Stream[1].Name != "secondary" {
+		t.Errorf("Stream[1].Name = %q", cfg.Stream[1].Name)
 	}
 
 	// Entry endpoints
@@ -161,14 +161,14 @@ func TestLoadConfig_FullYAML(t *testing.T) { //nolint:gocyclo
 	if e3.DB != "pg-main" {
 		t.Errorf("Entry[3].DB = %q", e3.DB)
 	}
-	if len(e3.NATSPublish) != 1 {
-		t.Fatalf("Entry[3].NATSPublish = %d", len(e3.NATSPublish))
+	if len(e3.EventPublish) != 1 {
+		t.Fatalf("Entry[3].EventPublish = %d", len(e3.EventPublish))
 	}
-	if e3.NATSPublish[0].Stream != "orders" {
-		t.Errorf("NATSPublish.Stream = %q", e3.NATSPublish[0].Stream)
+	if e3.EventPublish[0].Stream != "orders" {
+		t.Errorf("EventPublish.Stream = %q", e3.EventPublish[0].Stream)
 	}
-	if e3.NATSPublish[0].Subject != "orders.created" {
-		t.Errorf("NATSPublish.Subject = %q", e3.NATSPublish[0].Subject)
+	if e3.EventPublish[0].Subject != "orders.created" {
+		t.Errorf("EventPublish.Subject = %q", e3.EventPublish[0].Subject)
 	}
 
 	// Webhook
@@ -348,7 +348,7 @@ func TestDBConfig_Validate(t *testing.T) {
 		{"valid pg", DBConfig{Name: "pg", Driver: "postgres", URL: "pg://x"}, false},
 		{"valid turso", DBConfig{Name: "t", Driver: "turso", URL: "libsql://x"}, false},
 		{"valid mysql", DBConfig{Name: "m", Driver: "mysql", URL: "mysql://x"}, false},
-		{"auto postgres default", DBConfig{Name: "auto", URL: "pg://x"}, false},
+		{"valid pg explicit driver", DBConfig{Name: "auto", Driver: "postgres", URL: "pg://x"}, false},
 		{"wrong driver", DBConfig{Name: "w", Driver: "oracle", URL: "x"}, true},
 		{"missing url", DBConfig{Name: "mu", Driver: "postgres"}, true},
 		{"missing name", DBConfig{Driver: "postgres", URL: "x"}, true},

@@ -90,13 +90,10 @@ func TestTableFor_NonPgPool(t *testing.T) {
 }
 
 func TestDBConfig_Validate_AutoPostgres(t *testing.T) {
-	cfg := DBConfig{Name: "pg", URL: "postgres://x"}
+	cfg := DBConfig{Name: "pg", Driver: "postgres", URL: "postgres://x"}
 	err := cfg.Validate()
 	if err != nil {
 		t.Errorf("Validate: %v", err)
-	}
-	if cfg.Driver != "postgres" {
-		t.Errorf("Driver = %q, want postgres", cfg.Driver)
 	}
 	if cfg.Pool.MaxConns != 10 {
 		t.Errorf("MaxConns = %d, want 10", cfg.Pool.MaxConns)

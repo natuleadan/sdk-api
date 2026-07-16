@@ -1189,7 +1189,7 @@ func TestRegisterOneEntry_DriverNone(t *testing.T) {
 	handlers := &EntryHandlers{Rest: map[string]func(fiber.Ctx) error{"testHandler": func(c fiber.Ctx) error { return c.SendString("ok") }}}
 	cfg := &ServiceConfig{Auth: &AuthConfig{Driver: "none"}}
 
-	err := registerOneEntry(app, entry, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, nil, "none")
+	err := registerOneEntry(app, entry, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, nil, "none", nil, nil, "", 0)
 	if err != nil {
 		t.Fatalf("registerOneEntry failed: %v", err)
 	}
@@ -1220,7 +1220,7 @@ func TestRegisterOneEntry_DriverManualWithValidator(t *testing.T) {
 	}
 	jwtCfg := &middleware.JWTConfig{Secret: "test", TokenLookup: "header:Authorization"}
 
-	err := registerOneEntry(app, entry, handlers, "", nil, nil, jwtCfg, validator, nil, nil, nil, nil, "manual")
+	err := registerOneEntry(app, entry, handlers, "", nil, nil, jwtCfg, validator, nil, nil, nil, nil, "manual", nil, nil, "", 0)
 	if err != nil {
 		t.Fatalf("registerOneEntry failed: %v", err)
 	}
@@ -1260,11 +1260,11 @@ func TestRegisterOneEntry_Timeout(t *testing.T) {
 		Type: "rest", Path: "/fast", Method: "GET", Handler: "fastHandler",
 	}
 
-	err := registerOneEntry(app, entry, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, nil, "")
+	err := registerOneEntry(app, entry, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, nil, "", nil, nil, "", 0)
 	if err != nil {
 		t.Fatalf("register entry: %v", err)
 	}
-	err = registerOneEntry(app, fastEntry, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, nil, "")
+	err = registerOneEntry(app, fastEntry, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, nil, "", nil, nil, "", 0)
 	if err != nil {
 		t.Fatalf("register fast entry: %v", err)
 	}
@@ -1301,5 +1301,99 @@ func TestRegisterOneEntry_RolesPermsInEntry(t *testing.T) {
 	}
 	if len(entry.Permissions) != 1 {
 		t.Errorf("expected 1 permission, got %d", len(entry.Permissions))
+	}
+}
+
+func TestBuildPostAuthRL_AllNil_ReturnsNil(t *testing.T) {
+	mw := buildPostAuthRL(nil, nil, &EntryDef{}, "", 0)
+	if mw != nil {
+		t.Error("expected nil when all configs are nil")
+	}
+}
+
+func TestBuildPostAuthRL_ServerPerUser_Memory(t *testing.T) {
+	mw := buildPostAuthRL(
+		&middleware.RateLimitEntry{RequestsPerSecond: 10, Burst: 20},
+		nil,
+		&EntryDef{}, "", 0,
+	)
+	if mw == nil {
+		t.Fatal("expected non-nil middleware")
+	}
+}
+
+func TestBuildPostAuthRL_EntryPerKey_Memory(t *testing.T) {
+	mw := buildPostAuthRL(nil, nil, &EntryDef{
+		RateLimitPerKey: &RateLimitDef{RequestsPerSecond: 5, Burst: 10},
+	}, "", 0)
+	if mw == nil {
+		t.Fatal("expected non-nil middleware")
+	}
+}
+
+func TestBuildPostAuthRL_EntryPerUser_Memory(t *testing.T) {
+	mw := buildPostAuthRL(nil, nil, &EntryDef{
+		RateLimitPerUser: &RateLimitDef{RequestsPerSecond: 3, Burst: 6},
+	}, "", 0)
+	if mw == nil {
+		t.Fatal("expected non-nil middleware")
+	}
+}
+
+func TestBuildPostAuthRL_ServerAndEntryCombined(t *testing.T) {
+	mw := buildPostAuthRL(
+		&middleware.RateLimitEntry{RequestsPerSecond: 10, Burst: 20},
+		&middleware.RateLimitEntry{RequestsPerSecond: 100, Burst: 200},
+		&EntryDef{
+			RateLimitPerUser: &RateLimitDef{RequestsPerSecond: 5, Burst: 10},
+			RateLimitPerKey:  &RateLimitDef{RequestsPerSecond: 50, Burst: 100},
+		}, "", 0,
+	)
+	if mw == nil {
+		t.Fatal("expected non-nil middleware for combined config")
+	}
+}
+
+func TestConvertRateLimit_Disabled(t *testing.T) {
+	cfg := convertRateLimit(&RateLimitConf{Enabled: false})
+	if cfg != nil {
+		t.Error("expected nil when disabled")
+	}
+}
+
+func TestConvertRateLimit_GlobalOnly(t *testing.T) {
+	cfg := convertRateLimit(&RateLimitConf{
+		Enabled: true,
+		Global:  &RateLimitDef{RequestsPerSecond: 100, Burst: 200},
+	})
+	if cfg == nil {
+		t.Fatal("expected non-nil config")
+	}
+	if cfg.Global == nil || cfg.Global.RequestsPerSecond != 100 || cfg.Global.Burst != 200 {
+		t.Error("global config not propagated")
+	}
+	if cfg.PerIP != nil {
+		t.Error("expected nil PerIP")
+	}
+}
+
+func TestConvertRateLimit_AllFields(t *testing.T) {
+	cfg := convertRateLimit(&RateLimitConf{
+		Enabled: true,
+		Algorithm: "token_bucket",
+		Global:   &RateLimitDef{RequestsPerSecond: 1000, Burst: 2000},
+		PerIP:    &RateLimitDef{RequestsPerSecond: 100, Burst: 200},
+	})
+	if cfg == nil {
+		t.Fatal("expected non-nil config")
+	}
+	if cfg.Global == nil || cfg.Global.RequestsPerSecond != 1000 {
+		t.Error("global not propagated")
+	}
+	if cfg.PerIP == nil || cfg.PerIP.RequestsPerSecond != 100 {
+		t.Error("PerIP not propagated")
+	}
+	if cfg.Algorithm != "token_bucket" {
+		t.Error("Algorithm not propagated")
 	}
 }

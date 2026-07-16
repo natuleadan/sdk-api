@@ -218,7 +218,7 @@ server:
 	}
 	// Consumer verification requires subscribing before publish,
 	// so we just verify the webhook responded OK and no error in NATS publish.
-	t.Log("webhook nats_publish test passed")
+	t.Log("webhook event_publish test passed")
 }
 
 func TestIntegration_Service_CronNATS(t *testing.T) {
@@ -368,7 +368,7 @@ func TestIntegration_CRUD_NATSPublish(t *testing.T) {
 				Resource:    "products",
 				DB:          "test",
 				Path:        "/products",
-				NATSPublish: []NATSPublishTarget{{Stream: streamName, Subject: streamName}},
+				EventPublish: []EventPublishTarget{{Stream: streamName, Subject: streamName}},
 			},
 		},
 	}

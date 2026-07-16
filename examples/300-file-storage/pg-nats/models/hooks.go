@@ -41,7 +41,8 @@ func TransformToPublic(p *Product, presigner server.Presigner) (*ProductPublic, 
 		Price: p.Price,
 	}
 	if p.MediaKey != "" && presigner != nil {
-		url, err := presigner.PresignURL(context.Background(), fmt.Sprintf("uploads/%s", p.MediaKey), 5*time.Minute)
+		ttl := presignTTL(presigner)
+		url, err := presigner.PresignURL(context.Background(), fmt.Sprintf("uploads/%s", p.MediaKey), ttl)
 		if err != nil {
 			log.Printf("presign %s: %v", p.MediaKey, err)
 			return pub, nil
@@ -49,4 +50,11 @@ func TransformToPublic(p *Product, presigner server.Presigner) (*ProductPublic, 
 		pub.MediaURL = url
 	}
 	return pub, nil
+}
+
+func presignTTL(p any) time.Duration {
+	if pt, ok := p.(interface{ PresignTTL() time.Duration }); ok {
+		return pt.PresignTTL()
+	}
+	return 5 * time.Minute
 }

@@ -44,11 +44,13 @@ type S3Config struct {
 	SecretAccessKey string
 	UseSSL          bool
 	Pool            *PoolConfig
+	PresignTTL      time.Duration
 }
 
 type S3Storage struct {
-	client *minio.Client
-	bucket string
+	client     *minio.Client
+	bucket     string
+	presignTTL time.Duration
 }
 
 func NewS3Storage(cfg S3Config) (*S3Storage, error) {
@@ -100,7 +102,11 @@ func NewS3Storage(cfg S3Config) (*S3Storage, error) {
 		return nil, fmt.Errorf("bucket %q does not exist", cfg.Bucket)
 	}
 
-	return &S3Storage{client: client, bucket: cfg.Bucket}, nil
+	ttl := cfg.PresignTTL
+	if ttl <= 0 {
+		ttl = 5 * time.Minute
+	}
+	return &S3Storage{client: client, bucket: cfg.Bucket, presignTTL: ttl}, nil
 }
 
 func (s *S3Storage) Upload(ctx context.Context, key string, reader io.Reader, size int64, contentType string) error {
@@ -123,6 +129,10 @@ func (s *S3Storage) Download(ctx context.Context, key string) (io.ReadCloser, er
 
 func (s *S3Storage) Delete(ctx context.Context, key string) error {
 	return s.client.RemoveObject(ctx, s.bucket, key, minio.RemoveObjectOptions{})
+}
+
+func (s *S3Storage) PresignTTL() time.Duration {
+	return s.presignTTL
 }
 
 func (s *S3Storage) PresignURL(ctx context.Context, key string, ttl time.Duration) (string, error) {

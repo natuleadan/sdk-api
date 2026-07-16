@@ -57,7 +57,8 @@ func main() {
 		}
 		resp := models.UploadResponse{Key: key, Size: len(body)}
 		if p, ok := store.(server.Presigner); ok {
-			if url, err := p.PresignURL(c.Context(), objKey, 5*time.Minute); err == nil {
+			ttl := presignTTL(store)
+			if url, err := p.PresignURL(c.Context(), objKey, ttl); err == nil {
 				resp.PresignURL = url
 			}
 		}
@@ -94,4 +95,11 @@ func main() {
 	if err := svc.Run(); err != nil {
 		log.Fatalf("run: %v", err)
 	}
+}
+
+func presignTTL(store any) time.Duration {
+	if p, ok := store.(interface{ PresignTTL() time.Duration }); ok {
+		return p.PresignTTL()
+	}
+	return 5 * time.Minute
 }

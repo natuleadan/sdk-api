@@ -74,7 +74,8 @@ func main() {
 		if !ok {
 			return c.Status(500).JSON(map[string]any{"error": "storage does not support presigned URLs"})
 		}
-		url, err := presigner.PresignURL(c.Context(), fmt.Sprintf("uploads/%s", key), 5*time.Minute)
+		ttl := presignTTL(store)
+		url, err := presigner.PresignURL(c.Context(), fmt.Sprintf("uploads/%s", key), ttl)
 		if err != nil {
 			return c.Status(500).JSON(map[string]any{"error": err.Error()})
 		}
@@ -91,18 +92,26 @@ func main() {
 		if !ok {
 			return c.Status(500).JSON(map[string]any{"error": "presigner not available"})
 		}
-		url, err := presigner.PresignURL(c.Context(), fmt.Sprintf("uploads/%s", key), 5*time.Minute)
+		ttl := presignTTL(backend)
+		url, err := presigner.PresignURL(c.Context(), fmt.Sprintf("uploads/%s", key), ttl)
 		if err != nil {
 			return c.Status(500).JSON(map[string]any{"error": err.Error()})
 		}
 		return c.JSON(map[string]any{
 			"url":     url,
 			"key":     key,
-			"expires": "5m0s",
+			"expires": ttl.String(),
 		})
 	})
 
 	if err := svc.Run(); err != nil {
 		log.Fatalf("run: %v", err)
 	}
+}
+
+func presignTTL(store any) time.Duration {
+	if p, ok := store.(interface{ PresignTTL() time.Duration }); ok {
+		return p.PresignTTL()
+	}
+	return 5 * time.Minute
 }

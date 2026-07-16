@@ -4,18 +4,31 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/natuleadan/sdk-api/db"
 	"github.com/natuleadan/sdk-api/events"
 	"github.com/natuleadan/sdk-api/infra/logx"
+	"github.com/natuleadan/sdk-api/infra/stores/redis"
 	"github.com/natuleadan/sdk-api/server"
 	"github.com/natuleadan/sdk-api/server/auth/openfga"
 	"github.com/natuleadan/sdk-api/server/auth/ory"
 	"github.com/natuleadan/sdk-api/server/auth/zitadel"
 	"github.com/natuleadan/sdk-api/server/middleware"
 )
+
+var rlMaxFunc atomic.Value
+
+func SetRateLimitMaxFunc(fn func(c fiber.Ctx) int) {
+	rlMaxFunc.Store(fn)
+}
+
+func getRateLimitMaxFunc() func(c fiber.Ctx) int {
+	fn, _ := rlMaxFunc.Load().(func(c fiber.Ctx) int)
+	return fn
+}
 
 type CRUDProvider interface {
 	List(ctx fiber.Ctx, params ListParams) error
@@ -44,18 +57,48 @@ type EntryHandlers struct {
 	Transform map[string]any
 }
 
-func RegisterEntries(app *fiber.App, cfg *ServiceConfig, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, models map[string]*db.TableInfo, jwtCfg *middleware.JWTConfig, authValidator func(context.Context, *middleware.AuthContext, []string, []string) error, apiKeyValidator func(ctx context.Context, key string) (*middleware.AuthContext, error), fgaClient openfga.Checker, oryClient *ory.Client, zitadelClient *zitadel.Client) error {
+func RegisterEntries(app *fiber.App, cfg *ServiceConfig, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, models map[string]*db.TableInfo, jwtCfg *middleware.JWTConfig, authValidator func(context.Context, *middleware.AuthContext, []string, []string) error, apiKeyValidator func(ctx context.Context, key string) (*middleware.AuthContext, error), fgaClient openfga.Checker, oryClient *ory.Client, zitadelClient *zitadel.Client, rlRdb ...*redis.Redis) error {
 	driver := ""
 	if cfg.Auth != nil {
 		driver = cfg.Auth.Driver
 	}
+
+	var serverPerUser, serverPerKey *middleware.RateLimitEntry
+	var rlAlgorithm string
+	var rlTTL time.Duration
+	if cfg.Server.RateLimit != nil {
+		rlAlgorithm = cfg.Server.RateLimit.Algorithm
+		if cfg.Server.RateLimit.TTL != "" {
+			rlTTL, _ = time.ParseDuration(cfg.Server.RateLimit.TTL)
+		}
+		if cfg.Server.RateLimit.PerUser != nil {
+			serverPerUser = &middleware.RateLimitEntry{
+				RequestsPerSecond: cfg.Server.RateLimit.PerUser.RequestsPerSecond,
+				Burst:             cfg.Server.RateLimit.PerUser.Burst,
+				TTL:               parseDurationDef(cfg.Server.RateLimit.PerUser.TTL),
+			}
+		}
+		if cfg.Server.RateLimit.PerKey != nil {
+			serverPerKey = &middleware.RateLimitEntry{
+				RequestsPerSecond: cfg.Server.RateLimit.PerKey.RequestsPerSecond,
+				Burst:             cfg.Server.RateLimit.PerKey.Burst,
+				TTL:               parseDurationDef(cfg.Server.RateLimit.PerKey.TTL),
+			}
+		}
+	}
+
+	var rlRedis *redis.Redis
+	if len(rlRdb) > 0 && rlRdb[0] != nil {
+		rlRedis = rlRdb[0]
+	}
+
 	for i, entry := range cfg.Entry {
 		if len(entry.AuthModes) > 0 {
 			if err := validateEntryAuth(&entry, handlers); err != nil {
 				return fmt.Errorf("entry[%d] %s:%s: %w", i, entry.Type, entry.Path, err)
 			}
 		}
-		if err := registerOneEntry(app, &entry, handlers, prefix, brokers, models, jwtCfg, authValidator, apiKeyValidator, fgaClient, oryClient, zitadelClient, driver); err != nil {
+		if err := registerOneEntry(app, &entry, handlers, prefix, brokers, models, jwtCfg, authValidator, apiKeyValidator, fgaClient, oryClient, zitadelClient, driver, serverPerUser, serverPerKey, rlAlgorithm, rlTTL, rlRedis); err != nil {
 			return fmt.Errorf("entry[%d] %s %s: %w", i, entry.Type, entry.Path, err)
 		}
 	}
@@ -84,7 +127,7 @@ func validateEntryAuth(entry *EntryDef, handlers *EntryHandlers) error {
 	return nil
 }
 
-func registerAuthMiddleware(entry *EntryDef, driver string, jwtCfg *middleware.JWTConfig, authValidator func(context.Context, *middleware.AuthContext, []string, []string) error, apiKeyValidator func(ctx context.Context, key string) (*middleware.AuthContext, error), fgaClient openfga.Checker, oryClient *ory.Client, zitadelClient *zitadel.Client) []fiber.Handler {
+func registerAuthMiddleware(entry *EntryDef, driver string, jwtCfg *middleware.JWTConfig, authValidator func(context.Context, *middleware.AuthContext, []string, []string) error, apiKeyValidator func(ctx context.Context, key string) (*middleware.AuthContext, error), fgaClient openfga.Checker, oryClient *ory.Client, zitadelClient *zitadel.Client, serverPerUser, serverPerKey *middleware.RateLimitEntry, rlAlgorithm string, rlTTL time.Duration, rlRdb ...*redis.Redis) []fiber.Handler {
 	var mws []fiber.Handler
 	hasAPIKey := hasAuth(entry, "apikey")
 	hasJWT := hasAuth(entry, "jwt") && driver != "none" && driver != ""
@@ -98,10 +141,20 @@ func registerAuthMiddleware(entry *EntryDef, driver string, jwtCfg *middleware.J
 		mws = append(mws, apiKeyRoleMiddleware(entry, authValidator)...)
 	}
 
-	if !hasJWT {
-		return mws
+	if hasJWT {
+		mws = appendJWTMiddleware(mws, entry, driver, jwtCfg, authValidator, fgaClient, oryClient, zitadelClient)
 	}
 
+	if hasAPIKey || hasJWT {
+		if mw := buildPostAuthRL(serverPerUser, serverPerKey, entry, rlAlgorithm, rlTTL, rlRdb...); mw != nil {
+			mws = append(mws, mw)
+		}
+	}
+
+	return mws
+}
+
+func appendJWTMiddleware(mws []fiber.Handler, entry *EntryDef, driver string, jwtCfg *middleware.JWTConfig, authValidator func(context.Context, *middleware.AuthContext, []string, []string) error, fgaClient openfga.Checker, oryClient *ory.Client, zitadelClient *zitadel.Client) []fiber.Handler {
 	switch driver {
 	case "openfga-zitadel":
 		if zitadelClient != nil {
@@ -124,6 +177,49 @@ func registerAuthMiddleware(entry *EntryDef, driver string, jwtCfg *middleware.J
 		mws = append(mws, jwtMiddleware(entry, jwtCfg))
 	}
 	return mws
+}
+
+func buildPostAuthRL(serverPerUser, serverPerKey *middleware.RateLimitEntry, entry *EntryDef, rlAlgorithm string, rlTTL time.Duration, rlRdb ...*redis.Redis) fiber.Handler {
+	cfg := middleware.RateLimitPostConfig{
+		ServerPerUser: serverPerUser,
+		ServerPerKey:  serverPerKey,
+		MaxFunc:       getRateLimitMaxFunc(),
+		Algorithm:     rlAlgorithm,
+		TTL:           rlTTL,
+	}
+	if len(rlRdb) > 0 {
+		cfg.RedisConn = rlRdb[0]
+	}
+	if entry.RateLimitPerUser != nil {
+		cfg.EntryPerUser = &middleware.RateLimitEntry{
+			RequestsPerSecond: entry.RateLimitPerUser.RequestsPerSecond,
+			Burst:             entry.RateLimitPerUser.Burst,
+			TTL:               parseDurationDef(entry.RateLimitPerUser.TTL),
+		}
+	}
+	if entry.RateLimitPerKey != nil {
+		cfg.EntryPerKey = &middleware.RateLimitEntry{
+			RequestsPerSecond: entry.RateLimitPerKey.RequestsPerSecond,
+			Burst:             entry.RateLimitPerKey.Burst,
+			TTL:               parseDurationDef(entry.RateLimitPerKey.TTL),
+		}
+	}
+	if len(entry.PerRoleLimits) > 0 {
+		cfg.PerRoleLimits = make(map[string]*middleware.RateLimitEntry, len(entry.PerRoleLimits))
+		for role, def := range entry.PerRoleLimits {
+			if def != nil {
+				cfg.PerRoleLimits[role] = &middleware.RateLimitEntry{
+					RequestsPerSecond: def.RequestsPerSecond,
+					Burst:             def.Burst,
+					TTL:               parseDurationDef(def.TTL),
+				}
+			}
+		}
+	}
+	if cfg.ServerPerUser == nil && cfg.ServerPerKey == nil && cfg.EntryPerUser == nil && cfg.EntryPerKey == nil && len(cfg.PerRoleLimits) == 0 {
+		return nil
+	}
+	return middleware.RateLimitPost(cfg)
 }
 
 func jwtReadsHeader(entry *EntryDef, jwtCfg *middleware.JWTConfig) bool {
@@ -153,12 +249,12 @@ func authRouter(entry *EntryDef) fiber.Handler {
 	}
 }
 
-func registerOneEntry(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, models map[string]*db.TableInfo, jwtCfg *middleware.JWTConfig, authValidator func(context.Context, *middleware.AuthContext, []string, []string) error, apiKeyValidator func(ctx context.Context, key string) (*middleware.AuthContext, error), fgaClient openfga.Checker, oryClient *ory.Client, zitadelClient *zitadel.Client, driver string) error {
+func registerOneEntry(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, models map[string]*db.TableInfo, jwtCfg *middleware.JWTConfig, authValidator func(context.Context, *middleware.AuthContext, []string, []string) error, apiKeyValidator func(ctx context.Context, key string) (*middleware.AuthContext, error), fgaClient openfga.Checker, oryClient *ory.Client, zitadelClient *zitadel.Client, driver string, serverPerUser, serverPerKey *middleware.RateLimitEntry, rlAlgorithm string, rlTTL time.Duration, rlRdb ...*redis.Redis) error {
 	registerValidationMiddleware(app, entry, prefix)
-	registerEntryRateLimit(app, entry, prefix)
+	registerEntryRateLimit(app, entry, prefix, rlAlgorithm, rlTTL, rlRdb...)
 	registerEntryTimeout(app, entry, prefix)
 
-	mws := registerAuthMiddleware(entry, driver, jwtCfg, authValidator, apiKeyValidator, fgaClient, oryClient, zitadelClient)
+	mws := registerAuthMiddleware(entry, driver, jwtCfg, authValidator, apiKeyValidator, fgaClient, oryClient, zitadelClient, serverPerUser, serverPerKey, rlAlgorithm, rlTTL, rlRdb...)
 
 	var err error
 	switch entry.Type {
@@ -370,15 +466,22 @@ func registerValidationMiddleware(app *fiber.App, entry *EntryDef, prefix string
 	app.Use(prefix+entry.Path, middleware.ValidateInput(entry.ValidationModel))
 }
 
-func registerEntryRateLimit(app *fiber.App, entry *EntryDef, prefix string) {
+func registerEntryRateLimit(app *fiber.App, entry *EntryDef, prefix, algorithm string, ttl time.Duration, kvRdb ...*redis.Redis) {
 	if entry.RateLimit == nil || entry.RateLimit.RequestsPerSecond <= 0 {
 		return
 	}
 	rlCfg := middleware.RateLimitConfig{
+		Algorithm: algorithm,
+		TTL:       ttl,
+		MaxFunc:   getRateLimitMaxFunc(),
 		Global: &middleware.RateLimitEntry{
 			RequestsPerSecond: entry.RateLimit.RequestsPerSecond,
 			Burst:             entry.RateLimit.Burst,
+			TTL:               parseDurationDef(entry.RateLimit.TTL),
 		},
+	}
+	if len(kvRdb) > 0 {
+		rlCfg.RedisConn = kvRdb[0]
 	}
 	app.Use(prefix+entry.Path, middleware.RateLimit(rlCfg))
 }

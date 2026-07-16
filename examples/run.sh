@@ -44,6 +44,7 @@ case "$1" in
 	300/proxy) DIR="300-file-storage/proxy" ;;
 	300/pg-nats) DIR="300-file-storage/pg-nats" ;;
 	300/s3) DIR="300-file-storage/s3" ;;
+	400) DIR="400-auth/manual-pg" ;;
 	*) echo "Unknown: $1"; usage ;;
 esac
 shift

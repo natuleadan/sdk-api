@@ -8,24 +8,19 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/natuleadan/sdk-api/infra/stores/redis"
 	"github.com/natuleadan/sdk-api/runtime"
+	"github.com/natuleadan/sdk-api/infra/stores/redis"
 )
 
 const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
 var rdb *redis.Redis
 
-func getRedis() *redis.Redis {
+func getRedis(svc *runtime.Service) *redis.Redis {
 	if rdb != nil {
 		return rdb
 	}
-	addr := os.Getenv("DRAGONFLY_ADDR")
-	if addr == "" {
-		addr = "localhost:6379"
-	}
-	rdb = redis.MustNewRedis(redis.RedisConf{Host: addr, Type: redis.NodeType})
-	log.Println("dragonfly ready")
+	rdb = svc.KV("kv-main")
 	return rdb
 }
 
@@ -59,12 +54,14 @@ func main() {
 		log.Fatalf("init: %v", err)
 	}
 
+	redis := getRedis(svc)
+
 	svc.WithRest("createLink", func(c *runtime.RestCtx) error {
 		var body linkBody
 		if err := json.Unmarshal(c.Body(), &body); err != nil {
 			return c.Status(400).JSON(map[string]any{"error": "invalid body"})
 		}
-		r := getRedis()
+		r := redis
 		code := body.ShortCode
 		if code == "" {
 			code = generateShortCode(8)
@@ -89,7 +86,7 @@ func main() {
 	})
 
 	svc.WithRest("listLinks", func(c *runtime.RestCtx) error {
-		r := getRedis()
+		r := redis
 		page, _ := strconv.Atoi(c.Query("page", "1"))
 		size, _ := strconv.Atoi(c.Query("size", "20"))
 		if page < 1 {
@@ -156,7 +153,7 @@ func main() {
 
 	svc.WithRest("getLink", func(c *runtime.RestCtx) error {
 		id := c.Params("id")
-		r := getRedis()
+		r := redis
 		val, err := r.GetCtx(c.Context(), "link:id:"+id)
 		if err != nil {
 			return c.Status(404).JSON(map[string]any{"error": "not found"})
@@ -172,7 +169,7 @@ func main() {
 		if err := json.Unmarshal(c.Body(), &body); err != nil {
 			return c.Status(400).JSON(map[string]any{"error": "invalid body"})
 		}
-		r := getRedis()
+		r := redis
 		val, err := r.GetCtx(c.Context(), "link:id:"+id)
 		if err != nil {
 			return c.Status(404).JSON(map[string]any{"error": "not found"})
@@ -200,7 +197,7 @@ func main() {
 
 	svc.WithRest("deleteLink", func(c *runtime.RestCtx) error {
 		id := c.Params("id")
-		r := getRedis()
+		r := redis
 		val, err := r.GetCtx(c.Context(), "link:id:"+id)
 		if err != nil {
 			return c.Status(404).JSON(map[string]any{"error": "not found"})
@@ -215,7 +212,7 @@ func main() {
 
 	svc.WithRest("expandLink", func(c *runtime.RestCtx) error {
 		code := c.Params("shortCode")
-		r := getRedis()
+		r := redis
 		val, err := r.GetCtx(c.Context(), "link:sc:"+code)
 		if err != nil {
 			return c.Status(404).JSON(map[string]any{"error": "not found"})

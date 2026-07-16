@@ -19,9 +19,20 @@ server:
       key: "diPHoCg5vhBrTHCSJhlud1RRMRFpRo+4N/d32S+48t8="
       except:
         - "csrf_token"
+  rate_limit:
+    enabled: true
+    kv: cache-main
+    algorithm: token_bucket
+    ttl: 5m
+
+kv:
+  - name: cache-main
+    driver: redis
+    url: "${REDIS_URL}"
 
 databases:
   - name: primary
+    driver: postgres
     url: "postgres://postgres:postgres@postgres:5432/auth_roles?sslmode=disable"
     pool:
       max_conns: 50
@@ -141,5 +152,47 @@ entry:
     auth_modes: [jwt, apikey]
     api_key_prefix: "sk-"
     rate_limit:
-      requests_per_second: 1
-      burst: 2
+      requests_per_second: 10
+      burst: 20
+    rate_limit_per_user:
+      requests_per_second: 5
+      burst: 10
+    rate_limit_per_key:
+      requests_per_second: 10
+      burst: 20
+
+  - type: rest
+    method: POST
+    path: /per-user-limited
+    handler: perUserLimited
+    auth_modes: [jwt]
+    rate_limit_per_user:
+      requests_per_second: 2
+      burst: 4
+
+  - type: rest
+    method: POST
+    path: /per-role-limited
+    handler: perRoleLimited
+    auth_modes: [jwt]
+    roles: ["admin", "editor", "viewer"]
+    rate_limit_per_role:
+      admin:
+        requests_per_second: 5
+        burst: 10
+      editor:
+        requests_per_second: 3
+        burst: 6
+      viewer:
+        requests_per_second: 1
+        burst: 2
+
+  - type: rest
+    method: POST
+    path: /per-key-limited
+    handler: perKeyLimited
+    auth_modes: [apikey]
+    api_key_prefix: "sk-"
+    rate_limit_per_key:
+      requests_per_second: 3
+      burst: 6

@@ -2,8 +2,8 @@ name: url-shortener
 port: 23207
 
 databases:
-  - name: pg-main
-    driver: postgres
+  - name: maria-main
+    driver: mysql
     url: "${DATABASE_URL}"
     pool:
       max_conns: 20
@@ -12,13 +12,13 @@ databases:
 entry:
   - type: crud
     model: Link
-    db: pg-main
+    db: maria-main
     table: link
     path: /links
 
   - type: crud
     model: LinkExpand
-    db: pg-main
+    db: maria-main
     table: link
     path: /expand
     overrides:

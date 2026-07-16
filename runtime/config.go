@@ -27,7 +27,8 @@ type ServiceConfig struct {
 	Deploy       *DeployConfig         `json:"deploy" config:",optional"`
 	Server       ServerConf            `json:"server" config:",optional"`
 	Databases    []DBConfig            `json:"databases" config:",optional"`
-	EventStreams []EventStreamConnConf `json:"event_streams" config:",optional"`
+	KV           []KVConfig            `json:"kv" config:",optional"`
+	Stream       []StreamConfig        `json:"stream" config:",optional"`
 	Entry        []EntryDef            `json:"entry" config:",optional"`
 	Exit         []ExitWorker          `json:"exit" config:",optional"`
 	Cron         []CronJob             `json:"cron" config:",optional"`
@@ -35,20 +36,42 @@ type ServiceConfig struct {
 }
 
 type AuthConfig struct {
-	Enabled      bool   `json:"enabled" config:",optional"`
-	Driver       string `json:"driver" config:",default=none"` // none | manual | openfga-zitadel | ory
-	Secret       string `json:"secret" config:",optional"`
-	PrevSecret   string `json:"prev_secret" config:",optional"`
-	Algorithm    string `json:"algorithm" config:",default=HS256"`
-	ContextKey   string `json:"context_key" config:",default=claims"`
-	Issuer       string `json:"issuer" config:",optional"`
-	Audience     string `json:"audience" config:",optional"`
-	Expiry       int    `json:"expiry" config:",default=900"` // JWT TTL in seconds (default 15 min)
-	ZitadelURL   string `json:"zitadel_url" config:",optional"`
-	OpenFGAURL   string `json:"openfga_url" config:",optional"`
-	OpenFGAStore string `json:"openfga_store" config:",optional"`
-	KratosURL    string `json:"kratos_url" config:",optional"`
-	KetoURL      string `json:"keto_url" config:",optional"`
+	Enabled      bool              `json:"enabled" config:",optional"`
+	Driver       string            `json:"driver" config:",default=none"` // none | manual | openfga-zitadel | ory
+	Secret       string            `json:"secret" config:",optional"`
+	PrevSecret   string            `json:"prev_secret" config:",optional"`
+	Algorithm    string            `json:"algorithm" config:",default=HS256"`
+	ContextKey   string            `json:"context_key" config:",default=claims"`
+	Issuer       string            `json:"issuer" config:",optional"`
+	Audience     string            `json:"audience" config:",optional"`
+	Expiry       int               `json:"expiry" config:",default=900"` // JWT TTL in seconds (default 15 min)
+	ZitadelURL   string            `json:"zitadel_url" config:",optional"`
+	OpenFGAURL   string            `json:"openfga_url" config:",optional"`
+	OpenFGAStore string            `json:"openfga_store" config:",optional"`
+	KratosURL    string            `json:"kratos_url" config:",optional"`
+	KetoURL      string            `json:"keto_url" config:",optional"`
+	Refresh      *RefreshConfig    `json:"refresh" config:",optional"`
+	Cookie       *AuthCookieConfig `json:"cookie" config:",optional"`
+}
+
+type RefreshConfig struct {
+	Enabled          bool   `json:"enabled" config:",default=false"`
+	TTL              int    `json:"ttl" config:",default=604800"`       // 7 days in seconds
+	Endpoint         string `json:"endpoint" config:",default=/auth/refresh"`
+	Secret           string `json:"secret" config:",optional"`          // separate from auth.secret
+	ZitadelTokenURL  string `json:"zitadel_token_url" config:",optional"`
+	ZitadelClientID  string `json:"zitadel_client_id" config:",optional"`
+	KratosRefreshURL string `json:"kratos_refresh_url" config:",optional"`
+}
+
+type AuthCookieConfig struct {
+	AccessTokenName  string `json:"access_token_name" config:",default=token"`
+	RefreshTokenName string `json:"refresh_token_name" config:",default=refresh_token"`
+	Domain           string `json:"domain" config:",optional"`
+	Path             string `json:"path" config:",default=/"`
+	HTTPOnly         bool   `json:"http_only" config:",default=true"`
+	Secure           bool   `json:"secure" config:",default=true"`
+	SameSite         string `json:"same_site" config:",default=Strict"`
 }
 
 // ---- Server ----
@@ -68,7 +91,6 @@ type ServerConf struct {
 	CORS            *CORSConf            `json:"cors" config:",optional"`
 	Middleware      []RouteMW            `json:"middleware" config:",optional"`
 	Static          []StaticDef          `json:"static" config:",optional"`
-	MaxConnLimit    int                  `json:"max_conn_limit" config:",default=1000"`
 	OpenAPI         *OpenAPIConf         `json:"openapi" config:",optional"`
 	SecurityHeaders *SecurityHeadersConf `json:"security_headers" config:",optional"`
 	CSRF            *CSRFConf            `json:"csrf" config:",optional"`
@@ -110,18 +132,42 @@ type CookieConf struct {
 	Secure   bool   `json:"secure" config:",optional"`
 }
 
+type KVConfig struct {
+	Name   string `json:"name"`
+	Driver string `json:"driver" config:",default=redis"`
+	URL    string `json:"url"`
+}
+
+type StreamConfig struct {
+	Name            string   `json:"name"`
+	Driver          string   `json:"driver" config:",default=nats"`
+	URL             string   `json:"url" config:",optional"`
+	Brokers         []string `json:"brokers" config:",optional"`
+	ConsumerGroup   string   `json:"consumer_group" config:",optional"`
+	MaxReconnects   int      `json:"max_reconnects" config:",optional"`
+	ReconnectWait   string   `json:"reconnect_wait" config:",optional"`
+	Timeout         string   `json:"timeout" config:",optional"`
+	RetryOnFail     bool     `json:"retry_on_fail" config:",optional"`
+	Streams         []StreamDef `json:"streams" config:",optional"`
+}
+
 type RateLimitConf struct {
-	Enabled  bool          `json:"enabled" config:",optional"`
-	Driver   string        `json:"driver" config:",default=memory"`
-	RedisURL string        `json:"redis_url" config:",optional"`
-	Global   *RateLimitDef `json:"global" config:",optional"`
-	PerIP    *RateLimitDef `json:"per_ip" config:",optional"`
-	PerUser  *RateLimitDef `json:"per_user" config:",optional"`
+	Enabled              bool              `json:"enabled" config:",optional"`
+	KV                   string            `json:"kv" config:",optional"`  // references kv[].name
+	Algorithm            string            `json:"algorithm" config:",default=sliding_window"`
+	TTL                  string            `json:"ttl" config:",optional"`
+	Global               *RateLimitDef     `json:"global" config:",optional"`
+	PerIP                *RateLimitDef     `json:"per_ip" config:",optional"`
+	PerUser              *RateLimitDef     `json:"per_user" config:",optional"`
+	PerKey               *RateLimitDef     `json:"per_key" config:",optional"`
+	SkipFailedRequests   bool              `json:"skip_failed_requests" config:",optional"`
+	SkipSuccessfulRequests bool            `json:"skip_successful_requests" config:",optional"`
 }
 
 type RateLimitDef struct {
-	RequestsPerSecond int `json:"requests_per_second"`
-	Burst             int `json:"burst"`
+	RequestsPerSecond int    `json:"requests_per_second"`
+	Burst             int    `json:"burst"`
+	TTL               string `json:"ttl" config:",optional"`
 }
 
 type SSRFConf struct {
@@ -156,18 +202,35 @@ type AutocertTLS struct {
 }
 
 type SecurityHeadersConf struct {
-	FrameOptions      string `json:"frame_options" config:",optional"`
-	ReferrerPolicy    string `json:"referrer_policy" config:",optional"`
-	PermissionsPolicy string `json:"permissions_policy" config:",optional"`
-	HSTS              bool   `json:"hsts" config:",optional"`
-	HSTSMaxAge        int    `json:"hsts_max_age" config:",optional"`
-	HSTSIncludeSubs   bool   `json:"hsts_include_subdomains" config:",optional"`
-	CSP               string `json:"csp" config:",optional"`
-	COOP              string `json:"coop" config:",optional"`
-	COEP              string `json:"coep" config:",optional"`
-	CORP              string `json:"corp" config:",optional"`
-	CacheControl      string `json:"cache_control" config:",optional"`
-	CSPReportPath     string `json:"csp_report_path" config:",optional"` // auto-register POST endpoint for CSP reports (e.g. "/csp-violation")
+	FrameOptions      string    `json:"frame_options" config:",optional"`
+	ReferrerPolicy    string    `json:"referrer_policy" config:",optional"`
+	PermissionsPolicy string    `json:"permissions_policy" config:",optional"`
+	HSTS              bool      `json:"hsts" config:",optional"`
+	HSTSMaxAge        int       `json:"hsts_max_age" config:",optional"`
+	HSTSIncludeSubs   bool      `json:"hsts_include_subdomains" config:",optional"`
+	CSP               string    `json:"csp" config:",optional"`
+	CSPConfig         *CSPConf  `json:"csp_config" config:",optional"` // programmatic CSP builder
+	COOP              string    `json:"coop" config:",optional"`
+	COEP              string    `json:"coep" config:",optional"`
+	CORP              string    `json:"corp" config:",optional"`
+	CacheControl      string    `json:"cache_control" config:",optional"`
+	CSPReportPath     string    `json:"csp_report_path" config:",optional"`
+}
+
+type CSPConf struct {
+	Level              string   `json:"level" config:",default=basic"`
+	DefaultSrc         []string `json:"default_src" config:",optional"`
+	ScriptSrc          []string `json:"script_src" config:",optional"`
+	StyleSrc           []string `json:"style_src" config:",optional"`
+	ImgSrc             []string `json:"img_src" config:",optional"`
+	ConnectSrc         []string `json:"connect_src" config:",optional"`
+	FontSrc            []string `json:"font_src" config:",optional"`
+	FrameSrc           []string `json:"frame_src" config:",optional"`
+	FrameAncestors     []string `json:"frame_ancestors" config:",optional"`
+	ObjectSrc          []string `json:"object_src" config:",optional"`
+	BaseURI            []string `json:"base_uri" config:",optional"`
+	FormAction         []string `json:"form_action" config:",optional"`
+	UpgradeInsecureReq bool     `json:"upgrade_insecure_requests" config:",optional"`
 }
 
 type CSRFConf struct {
@@ -249,7 +312,7 @@ func (d *DBConfig) Validate() error {
 		return fmt.Errorf("url is required")
 	}
 	if d.Driver == "" {
-		d.Driver = "postgres"
+		return fmt.Errorf("driver is required (postgres, mysql, turso, or mongo)")
 	}
 	switch d.Driver {
 	case "postgres", "pg":
@@ -362,9 +425,8 @@ type EntryDef struct {
 	// Event stream selection
 	EventStream string `json:"event_stream" config:",optional"`
 
-	// Publish after entry — event_publish is the new name, nats_publish is legacy
+	// Event publish targets
 	EventPublish []EventPublishTarget `json:"event_publish" config:",optional"`
-	NATSPublish  []EventPublishTarget `json:"nats_publish" config:",optional"`
 
 	// File
 	AllowedTypes []string    `json:"allowed_types" config:",optional"`
@@ -374,8 +436,12 @@ type EntryDef struct {
 	Storage      *StorageDef `json:"storage" config:",optional"`
 
 	// Security per-entry overrides
-	CSRF      *bool         `json:"csrf" config:",optional"`       // false = skip CSRF for this entry
-	RateLimit *RateLimitDef `json:"rate_limit" config:",optional"` // per-entry rate limit
+	CSRF             *bool             `json:"csrf" config:",optional"`       // false = skip CSRF for this entry
+	RateLimit        *RateLimitDef     `json:"rate_limit" config:",optional"` // per-entry rate limit (pre-auth)
+	RateLimitPerUser *RateLimitDef     `json:"rate_limit_per_user" config:",optional"` // per-entry per-user rate limit (post-auth)
+	RateLimitPerKey  *RateLimitDef     `json:"rate_limit_per_key" config:",optional"`  // per-entry per-key rate limit (post-auth)
+	PerRoleLimits    map[string]*RateLimitDef `json:"rate_limit_per_role" config:",optional"` // per-role rate limits
+	Cache            string            `json:"cache" config:",optional"`       // references kv[].name for CRUD cache
 
 	// Validation
 	ValidationModel string `json:"validate" config:",optional"` // validation model name
@@ -400,8 +466,6 @@ type CRUDOverrides struct {
 	Update string `json:"update" config:",optional"`
 	Delete string `json:"delete" config:",optional"`
 }
-
-type NATSPublishTarget = EventPublishTarget
 
 type EventPublishTarget struct {
 	Stream      string `json:"stream"`
@@ -757,7 +821,7 @@ func ParseConfig(content []byte) (*ServiceConfig, error) {
 	if err := validateConfigDatabases(&cfg); err != nil {
 		return nil, err
 	}
-	if err := validateConfigEventStreams(&cfg); err != nil {
+	if err := validateConfigStream(&cfg); err != nil {
 		return nil, err
 	}
 	if err := validateConfigEntries(&cfg); err != nil {
@@ -767,6 +831,12 @@ func ParseConfig(content []byte) (*ServiceConfig, error) {
 		return nil, err
 	}
 	if err := validateConfigCron(&cfg); err != nil {
+		return nil, err
+	}
+	if err := validateConfigKV(&cfg); err != nil {
+		return nil, err
+	}
+	if err := validateConfigRateLimit(&cfg); err != nil {
 		return nil, err
 	}
 	checkPlaintextSecrets(&cfg)
@@ -795,16 +865,20 @@ func validateConfigDatabases(cfg *ServiceConfig) error {
 	return nil
 }
 
-func validateConfigEventStreams(cfg *ServiceConfig) error {
+func validateConfigStream(cfg *ServiceConfig) error {
 	seen := make(map[string]bool)
-	for i := range cfg.EventStreams {
-		if err := cfg.EventStreams[i].Validate(); err != nil {
-			return fmt.Errorf("event_streams[%d] (%s): %w", i, cfg.EventStreams[i].Name, err)
+	for i := range cfg.Stream {
+		st := &cfg.Stream[i]
+		if st.Name == "" {
+			return fmt.Errorf("stream[%d]: name is required", i)
 		}
-		if seen[cfg.EventStreams[i].Name] {
-			return fmt.Errorf("event_streams[%d]: duplicate name %q", i, cfg.EventStreams[i].Name)
+		if seen[st.Name] {
+			return fmt.Errorf("stream[%d]: duplicate name %q", i, st.Name)
 		}
-		seen[cfg.EventStreams[i].Name] = true
+		seen[st.Name] = true
+		if st.Driver != "nats" && st.Driver != "kafka" {
+			return fmt.Errorf("stream[%d] (%s): driver must be nats or kafka", i, st.Name)
+		}
 	}
 	return nil
 }
@@ -946,6 +1020,53 @@ func shouldInsertUnderscore(s string, i int, c byte) bool {
 		next = s[i+1]
 	}
 	return (prev >= 'a' && prev <= 'z') || (prev >= 'A' && prev <= 'Z' && next >= 'a' && next <= 'z')
+}
+
+func validateConfigKV(cfg *ServiceConfig) error {
+	seen := make(map[string]bool)
+	for i := range cfg.KV {
+		kv := &cfg.KV[i]
+		if kv.Name == "" {
+			return fmt.Errorf("kv[%d]: name is required", i)
+		}
+		if seen[kv.Name] {
+			return fmt.Errorf("kv[%d]: duplicate name %q", i, kv.Name)
+		}
+		seen[kv.Name] = true
+		if kv.URL == "" {
+			return fmt.Errorf("kv[%d] (%s): url is required", i, kv.Name)
+		}
+	}
+	return nil
+}
+
+func validateConfigRateLimit(cfg *ServiceConfig) error {
+	if cfg.Server.RateLimit == nil || !cfg.Server.RateLimit.Enabled {
+		return nil
+	}
+	if cfg.Server.RateLimit.KV != "" {
+		found := false
+		for _, kv := range cfg.KV {
+			if kv.Name == cfg.Server.RateLimit.KV {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("server.rate_limit.kv %q not found in kv[] section", cfg.Server.RateLimit.KV)
+		}
+	}
+	// Also check entries referencing kv
+	seenKV := make(map[string]bool)
+	for _, kv := range cfg.KV {
+		seenKV[kv.Name] = true
+	}
+	for i, entry := range cfg.Entry {
+		if entry.Cache != "" && !seenKV[entry.Cache] && len(cfg.KV) > 0 {
+			return fmt.Errorf("entry[%d] (%s): cache %q not found in kv[] section", i, entry.Path, entry.Cache)
+		}
+	}
+	return nil
 }
 
 func plural(s string) string {

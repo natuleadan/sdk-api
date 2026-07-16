@@ -16,9 +16,16 @@ import (
 
 func initDatabases(ctx context.Context, databases []DBConfig) (map[string]any, error) {
 	pools := make(map[string]any, len(databases))
+	poolByKey := make(map[string]any)
 	for i, dbCfg := range databases {
 		if err := dbCfg.Validate(); err != nil {
 			return nil, fmt.Errorf("databases[%d] (%s): %w", i, dbCfg.Name, err)
+		}
+		dedupKey := dbCfg.Driver + ":" + dbCfg.URL
+		if existing, ok := poolByKey[dedupKey]; ok {
+			pools[dbCfg.Name] = existing
+			logx.Infof("db %s: reuses pool for %s", dbCfg.Name, dedupKey)
+			continue
 		}
 		var pool any
 		var err error
@@ -37,6 +44,7 @@ func initDatabases(ctx context.Context, databases []DBConfig) (map[string]any, e
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", dbCfg.Name, err)
 		}
+		poolByKey[dedupKey] = pool
 		pools[dbCfg.Name] = pool
 		logx.Infof("db connected: %s (%s)", dbCfg.Name, dbCfg.Driver)
 	}

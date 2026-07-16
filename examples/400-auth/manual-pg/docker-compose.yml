@@ -15,6 +15,10 @@ services:
       timeout: 2s
       retries: 10
 
+  dragonfly:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly
+    command: ["--cluster_mode=emulated"]
+
   bench:
     build:
       context: ../../../..
@@ -24,6 +28,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      dragonfly:
+        condition: service_started
     environment:
       DOCKER_TEST: "1"
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/auth_roles?sslmode=disable
+      REDIS_URL: dragonfly:6379

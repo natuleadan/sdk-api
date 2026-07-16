@@ -9,7 +9,7 @@ databases:
       max_conns: 500
       min_conns: 10
 
-event_streams:
+stream:
   - name: primary
     driver: nats
     url: "${NATS_URL:-nats://nats:4222}"

@@ -14,12 +14,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gofiber/fiber/v3"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/natuleadan/sdk-api/runtime"
+	"github.com/natuleadan/sdk-api/runtime/auth"
 	"github.com/natuleadan/sdk-api/server/middleware"
-	"golang.org/x/crypto/bcrypt"
 )
 
 func main() {
@@ -68,32 +66,29 @@ func main() {
 	svc.WithRest("deleteUser", func(c *runtime.RestCtx) error { return handleDeleteUser(c, pool) })
 	svc.WithRest("setUserRole", func(c *runtime.RestCtx) error { return handleSetUserRole(c, pool) })
 	svc.WithRest("rateLimitedHandler", func(c *runtime.RestCtx) error {
-		return c.JSON(fiber.Map{"status": "ok"})
+		return c.JSON(runtime.Map{"status": "ok"})
+	})
+	svc.WithRest("perUserLimited", func(c *runtime.RestCtx) error {
+		return c.JSON(runtime.Map{"status": "ok"})
+	})
+	svc.WithRest("perKeyLimited", func(c *runtime.RestCtx) error {
+		return c.JSON(runtime.Map{"status": "ok"})
+	})
+	svc.WithRest("perRoleLimited", func(c *runtime.RestCtx) error {
+		return c.JSON(runtime.Map{"status": "ok"})
 	})
 	svc.WithRest("refreshHandler", func(c *runtime.RestCtx) error {
 		auth := getAuth(c)
 		if auth == nil {
-			return c.Status(401).JSON(fiber.Map{"code": 401, "message": "unauthorized"})
+			return c.Status(401).JSON(runtime.Map{"code": 401, "message": "unauthorized"})
 		}
-		token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-			"sub":   auth.UserID,
-			"roles": auth.Roles,
-			"exp":   time.Now().Add(15 * time.Minute).Unix(),
-		})
-		signed, err := token.SignedString([]byte("dev-secret-hs256-change-in-prod"))
+		claims := middleware.DefaultClaims(auth.UserID, auth.OrgID, auth.Roles, auth.Permissions, 900)
+		signed, err := middleware.SignToken("dev-secret-hs256-change-in-prod", "HS256", claims)
 		if err != nil {
-			return c.Status(500).JSON(fiber.Map{"code": 500, "message": "token generation failed"})
+			return c.Status(500).JSON(runtime.Map{"code": 500, "message": "token generation failed"})
 		}
-		c.SetCookie(&fiber.Cookie{
-			Name:     "token",
-			Value:    signed,
-			Path:     "/",
-			HTTPOnly: true,
-			Secure:   true,
-			SameSite: "Strict",
-			MaxAge:   900,
-		})
-		return c.JSON(fiber.Map{"access_token": signed, "token_type": "Bearer", "expires_in": 900})
+		c.SetCookie(runtime.NewCookie("token", signed, 900))
+		return c.JSON(runtime.Map{"access_token": signed, "token_type": "Bearer", "expires_in": 900})
 	})
 
 	log.Fatal(svc.Run())
@@ -121,9 +116,20 @@ server:
       key: "diPHoCg5vhBrTHCSJhlud1RRMRFpRo+4N/d32S+48t8="
       except:
         - "csrf_token"
+  rate_limit:
+    enabled: true
+    kv: cache-main
+    algorithm: token_bucket
+    ttl: 5m
+
+kv:
+  - name: cache-main
+    driver: redis
+    url: "${REDIS_URL}"
 
 databases:
   - name: primary
+    driver: postgres
     url: "postgres://postgres:postgres@postgres:5432/auth_roles?sslmode=disable"
     pool:
       max_conns: 50
@@ -243,8 +249,50 @@ entry:
     auth_modes: [jwt, apikey]
     api_key_prefix: "sk-"
     rate_limit:
-      requests_per_second: 1
-      burst: 2
+      requests_per_second: 10
+      burst: 20
+    rate_limit_per_user:
+      requests_per_second: 5
+      burst: 10
+    rate_limit_per_key:
+      requests_per_second: 10
+      burst: 20
+
+  - type: rest
+    method: POST
+    path: /per-user-limited
+    handler: perUserLimited
+    auth_modes: [jwt]
+    rate_limit_per_user:
+      requests_per_second: 2
+      burst: 4
+
+  - type: rest
+    method: POST
+    path: /per-role-limited
+    handler: perRoleLimited
+    auth_modes: [jwt]
+    roles: ["admin", "editor", "viewer"]
+    rate_limit_per_role:
+      admin:
+        requests_per_second: 5
+        burst: 10
+      editor:
+        requests_per_second: 3
+        burst: 6
+      viewer:
+        requests_per_second: 1
+        burst: 2
+
+  - type: rest
+    method: POST
+    path: /per-key-limited
+    handler: perKeyLimited
+    auth_modes: [apikey]
+    api_key_prefix: "sk-"
+    rate_limit_per_key:
+      requests_per_second: 3
+      burst: 6
 `
 	if os.Getenv("DOCKER_TEST") != "1" {
 		return []byte(cfg)
@@ -316,10 +364,6 @@ CREATE TABLE IF NOT EXISTS audit_log (
 }
 
 func mustSeedData(pool *pgxpool.Pool) {
-	pass := func(raw string) string {
-		b, _ := bcrypt.GenerateFromPassword([]byte(raw), bcrypt.MinCost)
-		return string(b)
-	}
 	hashKey := func(raw string) string {
 		h := sha256.Sum256([]byte(raw))
 		return hex.EncodeToString(h[:])
@@ -331,9 +375,10 @@ func mustSeedData(pool *pgxpool.Pool) {
 		{"user-admin", "admin", "pass123", "admin"},
 	}
 	for _, u := range users {
+		hash, _ := auth.HashPassword(u.password)
 		_, _ = pool.Exec(context.Background(),
 			`INSERT INTO users (id, username, password_hash, role) VALUES ($1,$2,$3,$4) ON CONFLICT (id) DO NOTHING`,
-			u.id, u.username, pass(u.password), u.role)
+			u.id, u.username, hash, u.role)
 	}
 
 	keys := []struct{ id, label, key, role string }{
@@ -408,37 +453,25 @@ func handleLogin(c *runtime.RestCtx, pool *pgxpool.Pool) error {
 		Password string `json:"password"`
 	}
 	if err := c.Bind(&body); err != nil {
-		return c.Status(400).JSON(fiber.Map{"code": 400, "message": "invalid body"})
+		return c.Status(400).JSON(runtime.Map{"code": 400, "message": "invalid body"})
 	}
 	var userID, passwordHash, role string
 	err := pool.QueryRow(c.Context(),
 		`SELECT id, password_hash, role FROM users WHERE username = $1`, body.Username).
 		Scan(&userID, &passwordHash, &role)
 	if err != nil {
-		return c.Status(401).JSON(fiber.Map{"code": 401, "message": "invalid credentials"})
+		return c.Status(401).JSON(runtime.Map{"code": 401, "message": "invalid credentials"})
 	}
-	if bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(body.Password)) != nil {
-		return c.Status(401).JSON(fiber.Map{"code": 401, "message": "invalid credentials"})
+	if !auth.VerifyPassword(passwordHash, body.Password) {
+		return c.Status(401).JSON(runtime.Map{"code": 401, "message": "invalid credentials"})
 	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub":   userID,
-		"roles": []string{role},
-		"exp":   time.Now().Add(15 * time.Minute).Unix(),
-	})
-	signed, err := token.SignedString([]byte("dev-secret-hs256-change-in-prod"))
+	claims := middleware.DefaultClaims(userID, "", []string{role}, nil, 900)
+	signed, err := middleware.SignToken("dev-secret-hs256-change-in-prod", "HS256", claims)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"code": 500, "message": "token generation failed"})
+		return c.Status(500).JSON(runtime.Map{"code": 500, "message": "token generation failed"})
 	}
-	c.SetCookie(&fiber.Cookie{
-		Name:     "token",
-		Value:    signed,
-		Path:     "/",
-		HTTPOnly: true,
-		Secure:   true,
-		SameSite: "Strict",
-		MaxAge:   900,
-	})
-	return c.JSON(fiber.Map{"token": signed, "role": role})
+	c.SetCookie(runtime.NewCookie("token", signed, 900))
+	return c.JSON(runtime.Map{"token": signed, "role": role})
 }
 
 func handleSignup(c *runtime.RestCtx, pool *pgxpool.Pool) error {
@@ -448,49 +481,49 @@ func handleSignup(c *runtime.RestCtx, pool *pgxpool.Pool) error {
 		Role     string `json:"role"`
 	}
 	if err := c.Bind(&body); err != nil {
-		return c.Status(400).JSON(fiber.Map{"code": 400, "message": "invalid body"})
+		return c.Status(400).JSON(runtime.Map{"code": 400, "message": "invalid body"})
 	}
 	if body.Username == "" || body.Password == "" {
-		return c.Status(400).JSON(fiber.Map{"code": 400, "message": "username and password required"})
+		return c.Status(400).JSON(runtime.Map{"code": 400, "message": "username and password required"})
 	}
 	if body.Role == "" {
 		body.Role = "viewer"
 	}
 	allowedRoles := []string{"viewer", "editor", "admin"}
 	if !slices.Contains(allowedRoles, body.Role) {
-		return c.Status(400).JSON(fiber.Map{"code": 400, "message": "invalid role (use viewer, editor, or admin)"})
+		return c.Status(400).JSON(runtime.Map{"code": 400, "message": "invalid role (use viewer, editor, or admin)"})
 	}
 	userID := "user-" + body.Username
-	passwordHash, err := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.MinCost)
+	hash, err := auth.HashPassword(body.Password)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"code": 500, "message": "internal error"})
+		return c.Status(500).JSON(runtime.Map{"code": 500, "message": "internal error"})
 	}
 	_, err = pool.Exec(c.Context(),
 		`INSERT INTO users (id, username, password_hash, role) VALUES ($1,$2,$3,$4) ON CONFLICT (username) DO NOTHING`,
-		userID, body.Username, string(passwordHash), body.Role)
+		userID, body.Username, hash, body.Role)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"code": 500, "message": err.Error()})
+		return c.Status(500).JSON(runtime.Map{"code": 500, "message": err.Error()})
 	}
-	return c.Status(201).JSON(fiber.Map{"status": "created", "username": body.Username, "role": body.Role})
+	return c.Status(201).JSON(runtime.Map{"status": "created", "username": body.Username, "role": body.Role})
 }
 
 func handleProfile(c *runtime.RestCtx, pool *pgxpool.Pool) error {
 	auth := getAuth(c)
 	if auth == nil {
-		return c.Status(401).JSON(fiber.Map{"code": 401, "message": "unauthorized"})
+		return c.Status(401).JSON(runtime.Map{"code": 401, "message": "unauthorized"})
 	}
 	var username, role string
 	err := pool.QueryRow(c.Context(), `SELECT username, role FROM users WHERE id = $1`, auth.UserID).Scan(&username, &role)
 	if err != nil {
-		return c.Status(404).JSON(fiber.Map{"code": 404, "message": "user not found"})
+		return c.Status(404).JSON(runtime.Map{"code": 404, "message": "user not found"})
 	}
-	return c.JSON(fiber.Map{"username": username, "role": role, "user_id": auth.UserID})
+	return c.JSON(runtime.Map{"username": username, "role": role, "user_id": auth.UserID})
 }
 
 func handleListUsers(c *runtime.RestCtx, pool *pgxpool.Pool) error {
 	rows, err := pool.Query(c.Context(), `SELECT id, username, role FROM users ORDER BY username`)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"code": 500, "message": err.Error()})
+		return c.Status(500).JSON(runtime.Map{"code": 500, "message": err.Error()})
 	}
 	defer rows.Close()
 	type user struct {
@@ -509,49 +542,49 @@ func handleListUsers(c *runtime.RestCtx, pool *pgxpool.Pool) error {
 	if users == nil {
 		users = []user{}
 	}
-	return c.JSON(fiber.Map{"data": users})
+	return c.JSON(runtime.Map{"data": users})
 }
 
 func handleDeleteUser(c *runtime.RestCtx, pool *pgxpool.Pool) error {
 	auth := getAuth(c)
 	if auth == nil {
-		return c.Status(401).JSON(fiber.Map{"code": 401, "message": "unauthorized"})
+		return c.Status(401).JSON(runtime.Map{"code": 401, "message": "unauthorized"})
 	}
 	id := c.Params("id")
 	if id == auth.UserID {
-		return c.Status(403).JSON(fiber.Map{"code": 403, "message": "cannot delete yourself"})
+		return c.Status(403).JSON(runtime.Map{"code": 403, "message": "cannot delete yourself"})
 	}
 	_, err := pool.Exec(c.Context(), `DELETE FROM users WHERE id = $1`, id)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"code": 500, "message": err.Error()})
+		return c.Status(500).JSON(runtime.Map{"code": 500, "message": err.Error()})
 	}
-	return c.JSON(fiber.Map{"status": "deleted"})
+	return c.JSON(runtime.Map{"status": "deleted"})
 }
 
 func handleSetUserRole(c *runtime.RestCtx, pool *pgxpool.Pool) error {
 	auth := getAuth(c)
 	if auth == nil {
-		return c.Status(401).JSON(fiber.Map{"code": 401, "message": "unauthorized"})
+		return c.Status(401).JSON(runtime.Map{"code": 401, "message": "unauthorized"})
 	}
 	id := c.Params("id")
 	if id == auth.UserID {
-		return c.Status(403).JSON(fiber.Map{"code": 403, "message": "cannot change your own role"})
+		return c.Status(403).JSON(runtime.Map{"code": 403, "message": "cannot change your own role"})
 	}
 	var body struct {
 		Role string `json:"role"`
 	}
 	if err := c.Bind(&body); err != nil {
-		return c.Status(400).JSON(fiber.Map{"code": 400, "message": "invalid body"})
+		return c.Status(400).JSON(runtime.Map{"code": 400, "message": "invalid body"})
 	}
 	allowedRoles := []string{"viewer", "editor", "admin"}
 	if !slices.Contains(allowedRoles, body.Role) {
-		return c.Status(400).JSON(fiber.Map{"code": 400, "message": "invalid role (use viewer, editor, admin)"})
+		return c.Status(400).JSON(runtime.Map{"code": 400, "message": "invalid role (use viewer, editor, admin)"})
 	}
 	_, err := pool.Exec(c.Context(), `UPDATE users SET role = $1 WHERE id = $2`, body.Role, id)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"code": 500, "message": err.Error()})
+		return c.Status(500).JSON(runtime.Map{"code": 500, "message": err.Error()})
 	}
-	return c.JSON(fiber.Map{"status": "role_updated"})
+	return c.JSON(runtime.Map{"status": "role_updated"})
 }
 
 func getAuth(c *runtime.RestCtx) *middleware.AuthContext {
@@ -595,17 +628,17 @@ func (s *productStore) list(c *runtime.RestCtx) error {
 		`SELECT id, name, description, price, visibility, created_by, deleted_at, updated_at
 		 FROM products ORDER BY updated_at DESC`)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"code": 500, "message": err.Error()})
+		return c.Status(500).JSON(runtime.Map{"code": 500, "message": err.Error()})
 	}
 	defer rows.Close()
 	type product struct {
-		ID          string `json:"id"`
-		Name        string `json:"name"`
-		Description string `json:"description"`
-		Price       string `json:"price"`
-		Visibility  string `json:"visibility"`
-		CreatedBy   string `json:"created_by"`
-		UpdatedAt   string `json:"updated_at"`
+		ID          string  `json:"id"`
+		Name        string  `json:"name"`
+		Description string  `json:"description"`
+		Price       string  `json:"price"`
+		Visibility  string  `json:"visibility"`
+		CreatedBy   string  `json:"created_by"`
+		UpdatedAt   string  `json:"updated_at"`
 	}
 	var products []product
 	for rows.Next() {
@@ -626,7 +659,7 @@ func (s *productStore) list(c *runtime.RestCtx) error {
 	if products == nil {
 		products = []product{}
 	}
-	return c.JSON(fiber.Map{"data": products})
+	return c.JSON(runtime.Map{"data": products})
 }
 
 func (s *productStore) get(c *runtime.RestCtx) error {
@@ -641,12 +674,12 @@ func (s *productStore) get(c *runtime.RestCtx) error {
 		 FROM products WHERE id = $1 AND deleted_at IS NULL`, id).
 		Scan(&idOut, &name, &description, &price, &visibility, &createdBy, &deletedAt, &updatedAt)
 	if err != nil {
-		return c.Status(404).JSON(fiber.Map{"code": 404, "message": err.Error()})
+		return c.Status(404).JSON(runtime.Map{"code": 404, "message": err.Error()})
 	}
 	if visibility == "confidential" && !s.hasRole(auth, "admin") {
 		description = "[restricted]"
 	}
-	return c.JSON(fiber.Map{
+	return c.JSON(runtime.Map{
 		"id":          idOut,
 		"name":        name,
 		"description": description,
@@ -660,7 +693,7 @@ func (s *productStore) get(c *runtime.RestCtx) error {
 func (s *productStore) create(c *runtime.RestCtx) error {
 	auth := s.auth(c)
 	if !s.hasRole(auth, "editor") {
-		return c.Status(403).JSON(fiber.Map{"code": 403, "message": "forbidden"})
+		return c.Status(403).JSON(runtime.Map{"code": 403, "message": "forbidden"})
 	}
 	var body struct {
 		Name        string  `json:"name"`
@@ -668,26 +701,26 @@ func (s *productStore) create(c *runtime.RestCtx) error {
 		Price       float64 `json:"price"`
 	}
 	if err := c.Bind(&body); err != nil {
-		return c.Status(400).JSON(fiber.Map{"code": 400, "message": "invalid body"})
+		return c.Status(400).JSON(runtime.Map{"code": 400, "message": "invalid body"})
 	}
 	if body.Name == "" {
-		return c.Status(400).JSON(fiber.Map{"code": 400, "message": "name required"})
+		return c.Status(400).JSON(runtime.Map{"code": 400, "message": "name required"})
 	}
 	var id string
 	err := s.pool.QueryRow(c.Context(),
 		`INSERT INTO products (name, description, price, created_by) VALUES ($1,$2,$3,$4) RETURNING id`,
 		body.Name, body.Description, body.Price, auth.UserID).Scan(&id)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"code": 500, "message": err.Error()})
+		return c.Status(500).JSON(runtime.Map{"code": 500, "message": err.Error()})
 	}
-	s.logAudit(c, id, "create", auth.UserID, nil, fiber.Map{"name": body.Name, "price": body.Price})
-	return c.Status(201).JSON(fiber.Map{"id": id})
+	s.logAudit(c, id, "create", auth.UserID, nil, runtime.Map{"name": body.Name, "price": body.Price})
+	return c.Status(201).JSON(runtime.Map{"id": id})
 }
 
 func (s *productStore) update(c *runtime.RestCtx) error {
 	auth := s.auth(c)
 	if !s.hasRole(auth, "editor") {
-		return c.Status(403).JSON(fiber.Map{"code": 403, "message": "forbidden"})
+		return c.Status(403).JSON(runtime.Map{"code": 403, "message": "forbidden"})
 	}
 	id := c.Params("id")
 	var body struct {
@@ -696,7 +729,7 @@ func (s *productStore) update(c *runtime.RestCtx) error {
 		Price       *float64 `json:"price"`
 	}
 	if err := c.Bind(&body); err != nil {
-		return c.Status(400).JSON(fiber.Map{"code": 400, "message": "invalid body"})
+		return c.Status(400).JSON(runtime.Map{"code": 400, "message": "invalid body"})
 	}
 	fields := []string{}
 	args := []any{}
@@ -717,87 +750,87 @@ func (s *productStore) update(c *runtime.RestCtx) error {
 		argIdx++
 	}
 	if len(fields) == 0 {
-		return c.Status(400).JSON(fiber.Map{"code": 400, "message": "no fields to update"})
+		return c.Status(400).JSON(runtime.Map{"code": 400, "message": "no fields to update"})
 	}
 	fields = append(fields, "updated_at = now()")
 	args = append(args, id)
 	q := fmt.Sprintf(`UPDATE products SET %s WHERE id = $%d AND deleted_at IS NULL`, strings.Join(fields, ", "), argIdx)
 	_, err := s.pool.Exec(c.Context(), q, args...)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"code": 500, "message": err.Error()})
+		return c.Status(500).JSON(runtime.Map{"code": 500, "message": err.Error()})
 	}
 	s.logAudit(c, id, "update", auth.UserID, nil, nil)
-	return c.JSON(fiber.Map{"status": "updated"})
+	return c.JSON(runtime.Map{"status": "updated"})
 }
 
 func (s *productStore) delete(c *runtime.RestCtx) error {
 	auth := s.auth(c)
 	if !s.hasRole(auth, "editor") {
-		return c.Status(403).JSON(fiber.Map{"code": 403, "message": "forbidden"})
+		return c.Status(403).JSON(runtime.Map{"code": 403, "message": "forbidden"})
 	}
 	id := c.Params("id")
 	_, err := s.pool.Exec(c.Context(),
 		`UPDATE products SET deleted_at = now(), updated_at = now() WHERE id = $1 AND deleted_at IS NULL`, id)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"code": 500, "message": err.Error()})
+		return c.Status(500).JSON(runtime.Map{"code": 500, "message": err.Error()})
 	}
 	s.logAudit(c, id, "soft_delete", auth.UserID, nil, nil)
-	return c.JSON(fiber.Map{"status": "deleted"})
+	return c.JSON(runtime.Map{"status": "deleted"})
 }
 
 func (s *productStore) hardDelete(c *runtime.RestCtx) error {
 	auth := s.auth(c)
 	if !s.hasRole(auth, "admin") {
-		return c.Status(403).JSON(fiber.Map{"code": 403, "message": "forbidden"})
+		return c.Status(403).JSON(runtime.Map{"code": 403, "message": "forbidden"})
 	}
 	id := c.Params("id")
 	_, err := s.pool.Exec(c.Context(), `DELETE FROM products WHERE id = $1`, id)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"code": 500, "message": err.Error()})
+		return c.Status(500).JSON(runtime.Map{"code": 500, "message": err.Error()})
 	}
 	s.logAudit(c, id, "hard_delete", auth.UserID, nil, nil)
-	return c.JSON(fiber.Map{"status": "hard_deleted"})
+	return c.JSON(runtime.Map{"status": "hard_deleted"})
 }
 
 func (s *productStore) setVisibility(c *runtime.RestCtx) error {
 	auth := s.auth(c)
 	if !s.hasRole(auth, "admin") {
-		return c.Status(403).JSON(fiber.Map{"code": 403, "message": "forbidden"})
+		return c.Status(403).JSON(runtime.Map{"code": 403, "message": "forbidden"})
 	}
 	id := c.Params("id")
 	var body struct {
 		Visibility string `json:"visibility"`
 	}
 	if err := c.Bind(&body); err != nil {
-		return c.Status(400).JSON(fiber.Map{"code": 400, "message": "invalid body"})
+		return c.Status(400).JSON(runtime.Map{"code": 400, "message": "invalid body"})
 	}
 	allowed := []string{"public", "internal", "confidential"}
 	if !slices.Contains(allowed, body.Visibility) {
-		return c.Status(400).JSON(fiber.Map{"code": 400, "message": "visibility must be public, internal, or confidential"})
+		return c.Status(400).JSON(runtime.Map{"code": 400, "message": "visibility must be public, internal, or confidential"})
 	}
 	var oldVis string
 	_ = s.pool.QueryRow(c.Context(), `SELECT visibility FROM products WHERE id = $1`, id).Scan(&oldVis)
 	_, err := s.pool.Exec(c.Context(),
 		`UPDATE products SET visibility = $1, updated_at = now() WHERE id = $2`, body.Visibility, id)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"code": 500, "message": err.Error()})
+		return c.Status(500).JSON(runtime.Map{"code": 500, "message": err.Error()})
 	}
 	s.logAudit(c, id, "set_visibility", auth.UserID,
-		fiber.Map{"visibility": oldVis}, fiber.Map{"visibility": body.Visibility})
-	return c.JSON(fiber.Map{"status": "visibility_updated"})
+		runtime.Map{"visibility": oldVis}, runtime.Map{"visibility": body.Visibility})
+	return c.JSON(runtime.Map{"status": "visibility_updated"})
 }
 
 func (s *productStore) getAuditLog(c *runtime.RestCtx) error {
 	auth := s.auth(c)
 	if !s.hasRole(auth, "admin") {
-		return c.Status(403).JSON(fiber.Map{"code": 403, "message": "forbidden"})
+		return c.Status(403).JSON(runtime.Map{"code": 403, "message": "forbidden"})
 	}
 	id := c.Params("id")
 	rows, err := s.pool.Query(c.Context(),
 		`SELECT id, product_id, action, changed_by, old_value, new_value, created_at
 		 FROM audit_log WHERE product_id = $1 ORDER BY created_at DESC`, id)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"code": 500, "message": err.Error()})
+		return c.Status(500).JSON(runtime.Map{"code": 500, "message": err.Error()})
 	}
 	defer rows.Close()
 	type entry struct {
@@ -835,7 +868,7 @@ func (s *productStore) getAuditLog(c *runtime.RestCtx) error {
 	if entries == nil {
 		entries = []entry{}
 	}
-	return c.JSON(fiber.Map{"data": entries})
+	return c.JSON(runtime.Map{"data": entries})
 }
 
 func (s *productStore) logAudit(c *runtime.RestCtx, productID, action, changedBy string, oldVal, newVal any) {

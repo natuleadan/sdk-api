@@ -22,12 +22,8 @@ func main() {
 
 	runtime.MustRegister(svc, "Link", "pg-main", "link", &LinkHooks{})
 
-	addr := os.Getenv("DRAGONFLY_ADDR")
-	if addr == "" {
-		addr = "localhost:6379"
-	}
 	runtime.CachedCRUD[models.LinkExpand](svc, "LinkExpand", "pg-main", "link",
-		runtime.RedisConfig{Host: addr, Type: runtime.NodeType},
+		"cache-main",
 		"sc:", 5*time.Minute, 30*time.Second,
 	)
 

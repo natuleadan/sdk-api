@@ -1,5 +1,11 @@
 name: kv-only
 port: 23203
+
+kv:
+  - name: kv-main
+    driver: redis
+    url: "${DRAGONFLY_ADDR}"
+
 entry:
   - type: rest
     method: POST

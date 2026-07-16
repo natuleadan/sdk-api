@@ -24,10 +24,7 @@ func registerREST(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, pref
 }
 
 func getPublishTargets(entry *EntryDef) []EventPublishTarget {
-	if len(entry.EventPublish) > 0 {
-		return entry.EventPublish
-	}
-	return entry.NATSPublish
+	return entry.EventPublish
 }
 
 func wrapEventPublish(ctx context.Context, handler func(fiber.Ctx) error, targets []EventPublishTarget, entryEventStream string, brokers map[string]events.EventBroker) func(fiber.Ctx) error {

@@ -43,6 +43,8 @@ type Service struct {
 	config        *ServiceConfig
 	srv           *server.Server
 	pools         map[string]any
+	kvConns       map[string]*redis.Redis
+	streamConns   map[string]events.EventBroker
 	natsConns     map[string]events.EventBroker
 	handlers      *EntryHandlers
 	hooks         map[string]any // model → EntryHooks[T]
@@ -60,6 +62,7 @@ type Service struct {
 	oryClient      *ory.Client
 	authValidator  func(context.Context, *middleware.AuthContext, []string, []string) error
 	apiKeyValidator func(ctx context.Context, key string) (*middleware.AuthContext, error)
+	rlMaxFunc      func(c fiber.Ctx) int
 
 	stop context.CancelFunc
 }
@@ -162,7 +165,7 @@ func MySQLMustRegister[T any](svc *Service, name, poolName, tableName string, ho
 // The redisConf points to Dragonfly or Redis (NodeType or ClusterType).
 // If l1TTL > 0, an in-process L1 cache (collection.Cache) is added in front of L2 for sub-μs reads.
 func CachedCRUD[T any](svc *Service, name, poolName, tableName string,
-	redisConf redis.RedisConf, keyPrefix string, l2TTL time.Duration, l1TTL time.Duration) {
+	kvName string, keyPrefix string, l2TTL time.Duration, l1TTL time.Duration) {
 
 	var l1 *collection.Cache
 	if l1TTL > 0 {
@@ -173,15 +176,21 @@ func CachedCRUD[T any](svc *Service, name, poolName, tableName string,
 		}
 	}
 
-	cc := cache.NewNode(
-		redis.MustNewRedis(redisConf),
-		syncx.NewSingleFlight(),
-		&cache.Stat{},
-		db.ErrNotFound,
-		cache.WithExpiry(l2TTL),
-	)
-
 	svc.WithCRUDFactory(name, func() CRUDProvider {
+		var cc cache.Cache
+		if kvName != "" {
+			redisClient := svc.KV(kvName)
+			if redisClient == nil {
+				log.Fatalf("runtime: kv %q not found for cache %s", kvName, name)
+			}
+			cc = cache.NewNode(
+				redisClient,
+				syncx.NewSingleFlight(),
+				&cache.Stat{},
+				db.ErrNotFound,
+				cache.WithExpiry(l2TTL),
+			)
+		}
 		pool, ok := svc.pools[poolName].(*pgxpool.Pool)
 		if !ok {
 			log.Fatalf("runtime: pool %q not found or not a pgxpool", poolName)
@@ -256,7 +265,7 @@ func (c *cachedCRUD[T]) Delete(fc fiber.Ctx, id string) error {
 // MySQLCachedCRUD registers a CRUD provider with L1+L2 cache using MySQL as DB backend.
 // Identical to CachedCRUD but uses *sql.DB and db.NewMySQLTable internally.
 func MySQLCachedCRUD[T any](svc *Service, name, poolName, tableName string,
-	redisConf redis.RedisConf, keyPrefix string, l2TTL time.Duration, l1TTL time.Duration) {
+	kvName string, keyPrefix string, l2TTL time.Duration, l1TTL time.Duration) {
 
 	var l1 *collection.Cache
 	if l1TTL > 0 {
@@ -267,15 +276,21 @@ func MySQLCachedCRUD[T any](svc *Service, name, poolName, tableName string,
 		}
 	}
 
-	cc := cache.NewNode(
-		redis.MustNewRedis(redisConf),
-		syncx.NewSingleFlight(),
-		&cache.Stat{},
-		db.ErrNotFound,
-		cache.WithExpiry(l2TTL),
-	)
-
 	svc.WithCRUDFactory(name, func() CRUDProvider {
+		var cc cache.Cache
+		if kvName != "" {
+			redisClient := svc.KV(kvName)
+			if redisClient == nil {
+				log.Fatalf("runtime: kv %q not found for cache %s", kvName, name)
+			}
+			cc = cache.NewNode(
+				redisClient,
+				syncx.NewSingleFlight(),
+				&cache.Stat{},
+				db.ErrNotFound,
+				cache.WithExpiry(l2TTL),
+			)
+		}
 		sqlPool, ok := svc.pools[poolName].(*sql.DB)
 		if !ok {
 			log.Fatalf("runtime: pool %q not found or not a *sql.DB", poolName)
@@ -472,6 +487,16 @@ func (s *Service) WithAPIKeyValidator(fn func(ctx context.Context, key string) (
 	return s
 }
 
+// WithRateLimitMaxFunc registers a dynamic rate limit resolver.
+// The function receives the Fiber context and returns the max requests per window.
+// Overrides YAML-defined static limits when it returns > 0.
+// Useful for per-tenant, per-user, or per-request dynamic rate limits.
+func (s *Service) WithRateLimitMaxFunc(fn func(c fiber.Ctx) int) *Service {
+	SetRateLimitMaxFunc(fn)
+	s.rlMaxFunc = fn
+	return s
+}
+
 // RegisterValidation registers a validation model by name for input validation.
 // Usage: svc.RegisterValidation("CreateProduct", CreateProductInput{}).
 func (s *Service) RegisterValidation(name string, model any) *Service {
@@ -515,6 +540,32 @@ func (s *Service) PoolPG(name string) any {
 // PoolPGTyped returns a *pgxpool.Pool by name, or nil if not found.
 func (s *Service) PoolPGTyped(name string) *pgxpool.Pool {
 	return PoolPG(s.pools, name)
+}
+
+// KV returns a KV store (Redis/Dragonfly) connection by name, or nil.
+func (s *Service) KV(name string) *redis.Redis {
+	if s.kvConns == nil {
+		s.kvConns = make(map[string]*redis.Redis)
+	}
+	if r, ok := s.kvConns[name]; ok && r != nil {
+		return r
+	}
+	for _, cfg := range s.config.KV {
+		if cfg.Name == name {
+			r := redis.MustNewRedis(redis.RedisConf{Host: cfg.URL, Type: "node"})
+			s.kvConns[name] = r
+			return r
+		}
+	}
+	return nil
+}
+
+// Stream returns an event broker connection by name, or nil.
+func (s *Service) Stream(name string) events.EventBroker {
+	if s.streamConns == nil {
+		return nil
+	}
+	return s.streamConns[name]
 }
 
 // Table returns a *db.Table[T] by model name (registered via MustRegister).
@@ -586,7 +637,8 @@ func (s *Service) RunWithContext(ctx context.Context) error {
 	if err := s.initDatabases(ctx); err != nil {
 		return err
 	}
-	if err := s.initEventStreams(ctx); err != nil {
+	s.initKvConns()
+	if err := s.initStreamConns(ctx); err != nil {
 		return err
 	}
 	s.initSSRF()
@@ -671,12 +723,20 @@ func (s *Service) initDatabases(ctx context.Context) error {
 	return nil
 }
 
-func (s *Service) initEventStreams(ctx context.Context) error {
-	if len(s.config.EventStreams) > 0 {
-		brokers, err := initEventStreams(ctx, s.config.EventStreams)
-		if err != nil {
-			return fmt.Errorf("event_streams: %w", err)
-		}
+func (s *Service) initKvConns() {}
+
+func (s *Service) initStreamConns(ctx context.Context) error {
+	if len(s.config.Stream) == 0 {
+		return nil
+	}
+	brokers, err := initStreams(ctx, s.config.Stream)
+	if err != nil {
+		return fmt.Errorf("stream: %w", err)
+	}
+	s.streamConns = brokers
+	if s.natsConns == nil {
+		s.natsConns = brokers
+	} else {
 		maps.Copy(s.natsConns, brokers)
 	}
 	return nil
@@ -707,7 +767,11 @@ func (s *Service) registerEntryRoutes() error {
 			}
 		}
 	}
-	return RegisterEntries(s.srv.App(), s.config, s.handlers, s.config.Server.APIPrefix, s.natsConns, s.models, s.jwtCfg, s.authValidator, s.apiKeyValidator, s.fgaClient, s.oryClient, s.zitadelClient)
+	var rlRedis *redis.Redis
+	if s.config.Server.RateLimit != nil && s.config.Server.RateLimit.KV != "" && s.kvConns != nil {
+		rlRedis = s.kvConns[s.config.Server.RateLimit.KV]
+	}
+	return RegisterEntries(s.srv.App(), s.config, s.handlers, s.config.Server.APIPrefix, s.natsConns, s.models, s.jwtCfg, s.authValidator, s.apiKeyValidator, s.fgaClient, s.oryClient, s.zitadelClient, rlRedis)
 }
 
 func (s *Service) serveStaticFiles() {
@@ -840,12 +904,9 @@ func parseServerDuration(s string, fallback time.Duration) time.Duration {
 	return fallback
 }
 
-func initEventStreams(ctx context.Context, configs []EventStreamConnConf) (map[string]events.EventBroker, error) {
+func initStreams(ctx context.Context, configs []StreamConfig) (map[string]events.EventBroker, error) {
 	brokers := make(map[string]events.EventBroker, len(configs))
 	for i, cfg := range configs {
-		if err := cfg.Validate(); err != nil {
-			return nil, fmt.Errorf("event_streams[%d] (%s): %w", i, cfg.Name, err)
-		}
 		var broker events.EventBroker
 		switch cfg.Driver {
 		case "nats":
@@ -858,7 +919,7 @@ func initEventStreams(ctx context.Context, configs []EventStreamConnConf) (map[s
 				RetryOnFail:   cfg.RetryOnFail,
 			})
 			if connErr != nil {
-				return nil, fmt.Errorf("%s: %w", cfg.Name, connErr)
+				return nil, fmt.Errorf("stream[%d] (%s): %w", i, cfg.Name, connErr)
 			}
 			for _, sd := range cfg.Streams {
 				sc := events.DefaultStreamConfig(sd.Name)
@@ -873,7 +934,7 @@ func initEventStreams(ctx context.Context, configs []EventStreamConnConf) (map[s
 				sc.Storage = parseNATSStorage(sd.Storage)
 				sc.Compression = parseNATSCompression(sd.Compression)
 				if err := conn.EnsureStream(sc); err != nil {
-					return nil, fmt.Errorf("%s: stream %s: %w", cfg.Name, sd.Name, err)
+					return nil, fmt.Errorf("stream[%d] (%s): stream %s: %w", i, cfg.Name, sd.Name, err)
 				}
 			}
 			broker = conn
@@ -885,7 +946,7 @@ func initEventStreams(ctx context.Context, configs []EventStreamConnConf) (map[s
 			broker = events.NewKafkaBroker(cfg.Name, cfg.Brokers, consumerGroup)
 		}
 		brokers[cfg.Name] = broker
-		logx.Infof("event stream ready: %s driver=%s", cfg.Name, cfg.Driver)
+		logx.Infof("stream ready: %s driver=%s", cfg.Name, cfg.Driver)
 	}
 	return brokers, nil
 }
@@ -977,6 +1038,100 @@ func initAuthClients(s *Service, auth *AuthConfig) {
 			logx.Infof("auth: Ory client initialized (kratos=%s, keto=%s)", auth.KratosURL, auth.KetoURL)
 		}
 	}
+
+	registerAuthRefresh(s, auth)
+}
+
+func registerAuthRefresh(s *Service, auth *AuthConfig) {
+	if auth.Refresh == nil || !auth.Refresh.Enabled {
+		return
+	}
+
+	refreshSecret := auth.Refresh.Secret
+	if refreshSecret == "" {
+		refreshSecret = auth.Secret
+	}
+	if refreshSecret == "" {
+		logx.Errorf("auth: refresh enabled but no secret configured, skipping auto-registration")
+		return
+	}
+
+	// Build cookie config from auth.cookie or global defaults
+	cookieCfg := auth.Cookie
+	if cookieCfg == nil {
+		cookieCfg = &AuthCookieConfig{
+			AccessTokenName:  "token",
+			RefreshTokenName: "refresh_token",
+			Path:             "/",
+			HTTPOnly:         true,
+			Secure:           true,
+			SameSite:         "Strict",
+		}
+	}
+
+	// Check for route collision
+	path := auth.Refresh.Endpoint
+	if path == "" {
+		path = "/auth/refresh"
+	}
+	for _, entry := range s.config.Entry {
+		if entry.Path == path {
+			logx.Infof("auth: refresh endpoint %q already defined in entries, skipping auto-wire", path)
+			return
+		}
+	}
+
+	ttl := auth.Refresh.TTL
+	if ttl <= 0 {
+		ttl = 604800 // 7 days
+	}
+
+	app := s.srv.App()
+	app.Post(path, func(c fiber.Ctx) error {
+		authCtx := middleware.GetAuth(c)
+		if authCtx == nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"code":    401,
+				"message": "authentication required",
+			})
+		}
+
+		now := time.Now()
+		claims := map[string]any{
+			"sub":         authCtx.UserID,
+			"org_id":      authCtx.OrgID,
+			"roles":       authCtx.Roles,
+			"permissions": authCtx.Permissions,
+			"iat":         now.Unix(),
+			"exp":         now.Add(time.Duration(ttl) * time.Second).Unix(),
+		}
+
+		signed, err := middleware.SignToken(refreshSecret, auth.Algorithm, claims)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"code":    500,
+				"message": "token signing failed",
+			})
+		}
+
+		c.Cookie(&fiber.Cookie{
+			Name:     cookieCfg.AccessTokenName,
+			Value:    signed,
+			Path:     cookieCfg.Path,
+			Domain:   cookieCfg.Domain,
+			MaxAge:   ttl,
+			HTTPOnly: cookieCfg.HTTPOnly,
+			Secure:   cookieCfg.Secure,
+			SameSite: cookieCfg.SameSite,
+		})
+
+		return c.JSON(fiber.Map{
+			"access_token": signed,
+			"token_type":   "Bearer",
+			"expires_in":   ttl,
+		})
+	})
+	logx.Infof("auth: refresh endpoint auto-registered at POST %s", path)
 }
 
 func seedOpenFGAPermissions(s *Service, client *openfga.Client) {
@@ -1042,6 +1197,24 @@ func convertSecurityHeaders(cfg *SecurityHeadersConf) *middleware.SecurityHeader
 	if cfg == nil {
 		return nil
 	}
+	csp := cfg.CSP
+	if cfg.CSPConfig != nil {
+		csp = middleware.BuildCSP(middleware.CSPConfig{
+			Level:              middleware.CSPLevel(cfg.CSPConfig.Level),
+			DefaultSrc:         cfg.CSPConfig.DefaultSrc,
+			ScriptSrc:          cfg.CSPConfig.ScriptSrc,
+			StyleSrc:           cfg.CSPConfig.StyleSrc,
+			ImgSrc:             cfg.CSPConfig.ImgSrc,
+			ConnectSrc:         cfg.CSPConfig.ConnectSrc,
+			FontSrc:            cfg.CSPConfig.FontSrc,
+			FrameSrc:           cfg.CSPConfig.FrameSrc,
+			FrameAncestors:     cfg.CSPConfig.FrameAncestors,
+			ObjectSrc:          cfg.CSPConfig.ObjectSrc,
+			BaseURI:            cfg.CSPConfig.BaseURI,
+			FormAction:         cfg.CSPConfig.FormAction,
+			UpgradeInsecureReq: cfg.CSPConfig.UpgradeInsecureReq,
+		})
+	}
 	return &middleware.SecurityHeadersConfig{
 		FrameOptions:      cfg.FrameOptions,
 		ReferrerPolicy:    cfg.ReferrerPolicy,
@@ -1049,7 +1222,7 @@ func convertSecurityHeaders(cfg *SecurityHeadersConf) *middleware.SecurityHeader
 		HSTS:              cfg.HSTS,
 		HSTSMaxAge:        cfg.HSTSMaxAge,
 		HSTSIncludeSubs:   cfg.HSTSIncludeSubs,
-		CSP:               cfg.CSP,
+		CSP:               csp,
 		COOP:              cfg.COOP,
 		COEP:              cfg.COEP,
 		CORP:              cfg.CORP,
@@ -1084,33 +1257,41 @@ func convertRateLimit(cfg *RateLimitConf) *middleware.RateLimitConfig {
 	if cfg == nil || !cfg.Enabled {
 		return nil
 	}
-	var global, perIP, perUser *middleware.RateLimitEntry
+	var global, perIP *middleware.RateLimitEntry
 	if cfg.Global != nil {
 		global = &middleware.RateLimitEntry{
 			RequestsPerSecond: cfg.Global.RequestsPerSecond,
 			Burst:             cfg.Global.Burst,
+			TTL:               parseDurationDef(cfg.Global.TTL),
 		}
 	}
 	if cfg.PerIP != nil {
 		perIP = &middleware.RateLimitEntry{
 			RequestsPerSecond: cfg.PerIP.RequestsPerSecond,
 			Burst:             cfg.PerIP.Burst,
-		}
-	}
-	if cfg.PerUser != nil {
-		perUser = &middleware.RateLimitEntry{
-			RequestsPerSecond: cfg.PerUser.RequestsPerSecond,
-			Burst:             cfg.PerUser.Burst,
+			TTL:               parseDurationDef(cfg.PerIP.TTL),
 		}
 	}
 	return &middleware.RateLimitConfig{
-		Enabled:  cfg.Enabled,
-		Driver:   cfg.Driver,
-		RedisURL: cfg.RedisURL,
-		Global:   global,
-		PerIP:    perIP,
-		PerUser:  perUser,
+		Enabled:              cfg.Enabled,
+		Algorithm:            cfg.Algorithm,
+		TTL:                  parseDurationDef(cfg.TTL),
+		SkipFailedRequests:   cfg.SkipFailedRequests,
+		SkipSuccessfulRequests: cfg.SkipSuccessfulRequests,
+		Global:               global,
+		PerIP:                perIP,
 	}
+}
+
+func parseDurationDef(s string) time.Duration {
+	if s == "" {
+		return 0
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		return 0
+	}
+	return d
 }
 
 func convertSSRF(cfg *SSRFConf) *middleware.SSRFConfig {
@@ -1235,6 +1416,13 @@ func sanitizeKey(key string) string {
 	return strings.ReplaceAll(key, "..", "")
 }
 
+func (c *cachedStorage) PresignTTL() time.Duration {
+	if p, ok := c.presigner.(interface{ PresignTTL() time.Duration }); ok {
+		return p.PresignTTL()
+	}
+	return 5 * time.Minute
+}
+
 func (c *cachedStorage) PresignURL(ctx context.Context, key string, ttl time.Duration) (string, error) {
 	if c.presigner != nil {
 		return c.presigner.PresignURL(ctx, key, ttl)
@@ -1275,6 +1463,7 @@ func initStorageFromDef(s *StorageDef) (server.StorageBackend, error) {
 			SecretAccessKey: s.SecretKey,
 			UseSSL:          useSSL,
 			Pool:            pool,
+			PresignTTL:      parseDurationDef(s.PresignTTL),
 		})
 		if s3err != nil {
 			return nil, s3err

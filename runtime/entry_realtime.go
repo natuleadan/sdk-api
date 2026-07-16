@@ -33,10 +33,10 @@ func registerSSE(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefi
 		return fmt.Errorf("sse handler %q not found", entry.Handler)
 	}
 	path := prefix + entry.Path
-	registerWithMws(app, "GET", path, mws, func(c fiber.Ctx) error {
-		c.Set("Content-Type", "text/event-stream")
-		c.Set("Cache-Control", "no-cache")
-		c.Set("Connection", "keep-alive")
+	sseMws := make([]fiber.Handler, len(mws), len(mws)+1)
+	copy(sseMws, mws)
+	sseMws = append(sseMws, sm.SSE())
+	registerWithMws(app, "GET", path, sseMws, func(c fiber.Ctx) error {
 		ctx := c.Context()
 		c.RequestCtx().SetBodyStreamWriter(func(w *bufio.Writer) {
 			send := func(data string) {

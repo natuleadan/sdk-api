@@ -61,3 +61,4 @@ examples/200-url-shortener/kv-dragonfly/201-kv-only
 *.swo
 .DS_Store
 /examples/_deprecated
+examples/400-auth/*/auth-*

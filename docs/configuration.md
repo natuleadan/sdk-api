@@ -25,8 +25,14 @@ databases:
       health_check_period: 1m
       reserved_conns: 10
 
-# ---- Event Streams (NATS + Kafka) ----
-event_streams:
+# ---- Key-Value stores (Redis / Dragonfly) ----
+kv:
+  - name: cache-main
+    driver: redis
+    url: "${REDIS_URL}"
+
+# ---- Stream connections (NATS + Kafka) ----
+stream:
   - name: default
     driver: nats
     url: "${NATS_URL}"
@@ -177,13 +183,20 @@ server:
   # Rate limiting
   rate_limit:
     enabled: true
-    driver: memory                 # memory | redis
+    kv: cache-main                # references kv[].name (optional)
+    algorithm: sliding_window     # sliding_window | token_bucket
     global:
       requests_per_second: 1000
       burst: 2000
     per_ip:
       requests_per_second: 200
       burst: 300
+    per_user:
+      requests_per_second: 50
+      burst: 100
+    per_key:
+      requests_per_second: 200
+      burst: 500
 
   # TLS
   tls:
@@ -262,7 +275,8 @@ server:
 | `name` | string | — | Service name (required) |
 | `port` | int | `8080` | HTTP port. Overridden by `$PORT` env var |
 | `databases` | array | `[]` | Database connections |
-| `event_streams` | array | `[]` | Event stream connections (NATS or Kafka) |
+| `kv` | array | `[]` | Key-value store connections (Redis / Dragonfly) |
+| `stream` | array | `[]` | Stream connections (NATS or Kafka) |
 | `entry` | array | `[]` | HTTP endpoint definitions |
 | `exit` | array | `[]` | Worker definitions |
 | `cron` | array | `[]` | Scheduled job definitions |
@@ -305,10 +319,27 @@ databases:
 | `turso.mode` | `local` (apply PRAGMA busy_timeout) or `remote` (skip PRAGMAs for Turso Cloud) |
 | `turso.busy_timeout` | Busy timeout in ms (default: 30000). Only used when `mode: local` |
 
-## Event Streams
+## KV Stores (Redis / Dragonfly)
 
 ```yaml
-event_streams:
+kv:
+  - name: cache-main
+    driver: redis
+    url: "${REDIS_URL}"
+```
+
+| Field | Description |
+|-------|-------------|
+| `name` | Reference name. Used by `server.rate_limit.kv`, `entry[].cache` |
+| `driver` | `redis` (default) |
+| `url` | Redis/Dragonfly connection URL |
+
+KV connections are created lazily and shared by all references to the same name. Multiple names pointing to the same URL reuse a single connection. Compatible with Dragonfly, Redis, and any Redis-protocol server.
+
+## Stream Connections (NATS + Kafka)
+
+```yaml
+stream:
   - name: default
     driver: nats
     url: "${NATS_URL}"
@@ -524,10 +555,13 @@ Queries and mutations are auto-generated from `CRUDProvider` registrations. Mode
 | `jwt_from` | crud, rest, webhook, file | JWT source: `"header:Authorization"`, `"cookie:token"`, `"query:token"` (default `header:Authorization`) |
 | `api_key_prefix` | crud, rest, webhook, file | API key prefix (e.g. `"sk-"`, only when `auth_modes` includes `apikey`) |
 | `csrf` | crud, rest, webhook, file | CSRF protection override (`true`/`false`) |
-| `rate_limit` | crud, rest, webhook | Per-entry rate limit |
-| `event_stream` | crud, rest, webhook, file | Event broker name for publishes |
-| `event_publish` | crud, rest, webhook, file | Publish targets (replaces `nats_publish`) |
-| `nats_publish` | crud, rest, webhook, file | Deprecated alias for `event_publish` |
+| `rate_limit` | crud, rest, webhook | Per-entry pre-auth rate limit |
+| `rate_limit_per_user` | crud, rest, webhook | Post-auth per-user rate limit |
+| `rate_limit_per_key` | crud, rest, webhook | Post-auth per-key rate limit |
+| `rate_limit_per_role` | crud, rest, webhook | Post-auth per-role rate limit (maps role → limit) |
+| `cache` | crud | KV store name for CRUD cache layer (references `kv[]`) |
+| `event_stream` | crud, rest, webhook, file | Stream broker name for publishes |
+| `event_publish` | crud, rest, webhook, file | Publish targets for event streams |
 | `timeout` | crud, rest, webhook, file | Per-entry request deadline (e.g. `30s`) |
 | `validate` | crud, rest, webhook | Validation model name |
 
@@ -551,7 +585,7 @@ event_publish:
 ```
 
 When `event_stream` is specified per-target, the message is published only to that broker.
-When omitted, the message is published to all available brokers (backward compatible).
+When omitted, the message is published to all available brokers.
 
 ## Exit (workers)
 
@@ -605,31 +639,24 @@ cron:
 | `load_shedding` | `true` | Enable adaptive load shedding |
 | `breaker` | `true` | Enable circuit breaker per route |
 
-### Redis
+### KV Store connections
 
-Connections are managed by `infra/stores/redis`. Config struct `RedisConf`:
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `host` | string | required | Redis address or comma-separated cluster/sentinel addrs. Also accepts `redis://`/`rediss://` URLs |
-| `type` | string | `node` | `node`, `cluster`, or `sentinel` |
-| `user` | string | — | Redis ACL username |
-| `pass` | string | — | Redis password |
-| `tls` | bool | `false` | Enable TLS |
-| `tls_skip_verify` | bool | `false` | Skip TLS cert verification |
-| `database` | int | `0` | Redis database index (node/sentinel only) |
-| `master_name` | string | — | Sentinel master name (required when `type: sentinel`) |
-| `sentinel_username` | string | — | Sentinel ACL username |
-| `sentinel_password` | string | — | Sentinel password |
+Declarative Redis/Dragonfly connections are defined in the top-level `kv:` section:
 
 ```yaml
-# Node
-redis:
-  host: localhost:6379
-  type: node
-  database: 1
+kv:
+  - name: cache-main
+    driver: redis
+    url: "${REDIS_URL}"
+```
 
-# Cluster
+The `kv:` section supports any Redis-protocol server including Dragonfly and Valkey. Multiple `kv` names with the same URL share a single connection. KV stores auto-deduplicate by URL to avoid unnecessary connections.
+
+For programmatic access, use `svc.KV(name)` which returns a `*redis.Redis` client. The connection is created lazily on first use, making it safe for prefork child processes.
+
+```go
+rdb := svc.KV("cache-main")
+```
 redis:
   host: host1:6379,host2:6379
   type: cluster
@@ -710,8 +737,8 @@ Per-entry override: `entry[].csrf: false`.
 server:
   rate_limit:
     enabled: true
-    driver: memory                    # memory | redis
-    redis_url: "${REDIS_URL}"         # Required for driver: redis
+    kv: cache-main                    # references kv[].name (optional, for shared counters)
+    algorithm: sliding_window         # sliding_window | token_bucket
     global:
       requests_per_second: 1000
       burst: 2000
@@ -719,13 +746,24 @@ server:
       requests_per_second: 200
       burst: 300
     per_user:
-      requests_per_second: 100       # Requires JWT with "sub" claim
-      burst: 150
+      requests_per_second: 50        # post-auth, per authenticated user
+      burst: 100
+    per_key:
+      requests_per_second: 200       # post-auth, per API key
+      burst: 500
+    skip_failed_requests: false       # don't count 4xx/5xx responses
+    skip_successful_requests: false   # don't count 2xx/3xx responses
 ```
+
+Two algorithms are available: `sliding_window` (default) and `token_bucket`. Sliding window provides smooth rate enforcement without the boundary reset of fixed windows. Token bucket supports bursts up to the configured `burst` value.
+
+When `kv:` is set to a named KV store, rate limit counters are shared across all processes (prefork children, multiple instances). Without `kv:`, each process has independent counters (in-memory).
+
+Post-auth limits (`per_user`, `per_key`) are enforced after JWT or API key validation. They require the `entry` to declare `auth_modes: [jwt]` or `auth_modes: [apikey]`.
 
 Rate-limited requests receive `429 Too Many Requests` with `Retry-After` and `X-RateLimit-*` headers.
 
-Per-entry override: `entry[].rate_limit`.
+Per-entry overrides: `entry[].rate_limit` (pre-auth), `entry[].rate_limit_per_user` (post-auth per-user), `entry[].rate_limit_per_key` (post-auth per-key), `entry[].rate_limit_per_role` (post-auth per-role).
 
 ### TLS
 

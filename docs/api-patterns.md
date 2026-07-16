@@ -17,7 +17,10 @@ entry:
     db: pg-main
     table: products
     path: /products
+    cache: cache-main       # optional: enable Redis/Dragonfly caching
 ```
+
+The `cache` field references a name from the `kv:` YAML section. Each CRUD entry can have its own cache backend.
 
 **Go:**
 
@@ -154,6 +157,18 @@ r.SCARD("link:ids")
 
 This separates key enumeration (O(m) over the set) from data fetching (O(1) per GET). See `examples/200-url-shortener/kv-dragonfly/` for a full implementation.
 
+### Accessing KV from Go
+
+Access any configured KV store via `svc.KV(name string)`, which returns a Redis-compatible client from the `kv:` YAML section:
+
+```go
+r := svc.KV("cache-main")
+r.Set(ctx, "key", "value", 0)
+val, _ := r.Get(ctx, "key").Result()
+```
+
+Each `kv:` entry in the YAML config is available by name. The returned client uses the same underlying connection pool defined in the YAML.
+
 ---
 
 ## 3. REST (Single Endpoint)
@@ -248,7 +263,7 @@ svc.WithRest("onCreateOrder", func(c *runtime.RestCtx) error {
 })
 ```
 
-The `wrapNATSPublish` wrapper publishes only when the handler returns no error and the status is < 400.
+The `wrapEventPublish` wrapper publishes only when the handler returns no error and the status is < 400.
 
 ---
 
@@ -416,6 +431,13 @@ Access storage backends in Go via `svc.Storage(path)`:
 store := svc.Storage("/files/upload")
 store.Upload(ctx, "key", reader, size, contentType)
 data, _ := store.Download(ctx, "key")
+```
+
+When using a YAML-configured S3 storage, `presign_ttl` is auto-wired into the `S3Storage` backend. Read it at runtime via `PresignTTL()`:
+
+```go
+store := svc.Storage("/files/upload").(*server.S3Storage)
+ttl := store.PresignTTL() // returns the duration from YAML
 ```
 
 For presigned URLs, assert the `server.Presigner` interface:

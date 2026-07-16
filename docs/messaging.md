@@ -7,7 +7,7 @@ sdk-api supports two event stream brokers: **NATS JetStream** (default) and **Ka
 ### Event streams config
 
 ```yaml
-event_streams:
+stream:
   - name: default
     driver: nats
     url: "${NATS_URL}"
@@ -24,7 +24,7 @@ event_streams:
       - name: page-views
 ```
 
-Only `event_streams:` config section is supported. The legacy `nats:` key has been removed. Migrate to `event_streams:` with `driver: nats`.
+The `stream:` section replaces `event_streams:`. Use `stream:` with `driver: nats` or `driver: kafka`.
 
 ### Stream Default Subjects (NATS)
 
@@ -58,7 +58,7 @@ entry:
         subject: page.view
 ```
 
-The `nats_publish:` field is a deprecated alias for `event_publish:`.
+The `event_publish:` field defines publish targets for event streams.
 
 ## Exit Workers (Event → Handler)
 

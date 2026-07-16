@@ -199,7 +199,7 @@ curl http://localhost:8080/health
 ## What's next
 
 - **Multiple databases** — Add `databases:` entries for MySQL/Turso/MongoDB
-- **Event-driven workers** — Add `event_streams:` + `exit:` for NATS/Kafka consumers
+- **Event-driven workers** — Add `stream:` + `exit:` for NATS/Kafka consumers
 - **Custom endpoints** — Add `type: rest` or `type: webhook` entries
 - **WebSocket/SSE** — Add `type: websocket` or `type: sse` entries
 - **File upload** — Add `type: file` entries with S3 storage, pool config, cache, and presigned URLs. See `examples/300-file-storage/` for 5 complete variants

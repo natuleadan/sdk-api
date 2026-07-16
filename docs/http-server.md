@@ -113,7 +113,7 @@ Configured via `server.rate_limit`:
 server:
   rate_limit:
     enabled: true
-    driver: memory            # memory | redis (requires redis_url)
+    kv: cache-main            # references kv[].name
     global:
       requests_per_second: 1000
       burst: 2000
@@ -126,8 +126,7 @@ server:
 ```
 
 - Uses token bucket algorithm
-- `memory` driver: in-process, goroutine-safe
-- `redis` driver: shared counters via `infra/limit/TokenLimiter` (Redis required)
+- `kv` references a named KV store from `kv[]` config
 - Returns `429 Too Many Requests` + `Retry-After` header
 - Returns `X-RateLimit-Limit` and `X-RateLimit-Remaining` headers
 - Per-entry override: `entry[].rate_limit`
@@ -215,6 +214,7 @@ When `cors` is omitted, CORS defaults to same-origin only (secure default).
 | `ContentSecurity()` | `content_security.go` | `server.security.content_security.enabled` | RSA body signature verification |
 | `Cryption()` | `cryption.go` | `server.security.cryption.enabled` | AES-GCM body decryption |
 | `EncryptCookie()` | Fiber built-in | `server.security.encrypt_cookie.enabled` | AES-256-GCM cookie value encryption |
+| `SSE()` | `server/middleware/sse.go` | — | Sets SSE headers (Content-Type, Cache-Control, Connection) |
 
 ## Server-level Gates
 
@@ -251,7 +251,7 @@ server:
       apply: [logger, breaker, cors, maxconns]
 ```
 
-Without `middleware:`, all standard middlewares apply globally (backwards compatible).
+Without `middleware:`, all standard middlewares apply globally.
 
 ## CRLF Header Protection
 

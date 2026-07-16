@@ -44,6 +44,7 @@ svc.PoolPG("pg-main")            // *pgxpool.Pool — typed access
 svc.PoolPGTyped("pg-main")       // *pgxpool.Pool — returns nil if not a pgx pool
 svc.NATS("primary")              // events.EventBroker — event broker
 svc.SafeHTTPClient()             // *middleware.SafeHTTPClient — SSRF-protected HTTP client
+svc.KV("cache-main")             // *redis.Redis — KV store by name (from kv: YAML section)
 svc.App()                        // *fiber.App — raw Fiber access
 svc.Storage("/files/upload")     // server.StorageBackend — storage by entry path
 svc.Table("Product")             // any — *db.Table[T] registered via MustRegister
@@ -270,6 +271,22 @@ func(c *runtime.RestCtx) error {
 }
 ```
 
+### runtime.Map
+
+`type Map = map[string]any` — shorthand for JSON response maps. Replaces `fiber.Map{}`.
+
+```go
+return c.JSON(runtime.Map{"status": "ok", "data": items})
+```
+
+### runtime.NewCookie
+
+`func NewCookie(name, value string, maxAge int) *Cookie` — builds a cookie with secure defaults (HttpOnly, Secure, SameSite Strict, path /).
+
+```go
+c.SetCookie(runtime.NewCookie("token", signed, 900))
+```
+
 ## CRUD Provider
 
 ```go
@@ -288,6 +305,22 @@ Four implementations:
 - `NewTursoCRUDProvider[T](table, hooks)` — Turso
 - `NewMongoCRUDProvider(model, lookupField)` — MongoDB
 
+### CachedCRUD
+
+`CachedCRUD[T any](svc *Service, name, poolName, tableName string, kvName string, keyPrefix string, l2TTL, l1TTL time.Duration)` — PostgreSQL CRUD with a two-level cache (L1 RAM, L2 Redis). The `kvName` references a name from the `kv:` YAML section.
+
+```go
+crud := runtime.CachedCRUD[Product](svc, "cachedProducts", "pg-main", "products", "cache-main", "product:", 5*time.Minute, 30*time.Second)
+```
+
+### MySQLCachedCRUD
+
+`MySQLCachedCRUD[T any](svc *Service, name, poolName, tableName string, kvName string, keyPrefix string, l2TTL, l1TTL time.Duration)` — MySQL CRUD with the same two-level cache pattern.
+
+```go
+crud := runtime.MySQLCachedCRUD[Order](svc, "cachedOrders", "mysql-main", "orders", "cache-main", "order:", 5*time.Minute, 30*time.Second)
+```
+
 ## Pool helpers
 
 ```go
@@ -299,6 +332,14 @@ runtime.TableFor[T](pools, poolName, tableName)  // *db.Table[T]
 // On the Service:
 svc.Pool("pg-main")
 svc.PoolPG("pg-main")
+```
+
+### svc.KV
+
+`func (s *Service) KV(name string) *redis.Redis` — returns a KV store connection by name (defined in the `kv:` YAML section). Creates the connection lazily on first use.
+
+```go
+rdb := svc.KV("cache-main")
 ```
 
 ## Database-backed pooling formula

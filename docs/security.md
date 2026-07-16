@@ -58,6 +58,20 @@ customCSP := middleware.BuildCSP(middleware.CSPConfig{
 nonce := middleware.GenerateNonce()
 ```
 
+**YAML config:**
+
+```yaml
+server:
+  security_headers:
+    csp_config:
+      level: strict
+      default_src: ["'self'"]
+      script_src: ["'self'", "'strict-dynamic'"]
+      upgrade_insecure_requests: true
+```
+
+The `csp_config` section uses the `BuildCSP()` function to generate the policy. When both `csp` (raw string) and `csp_config` are set, `csp_config` takes precedence.
+
 ## Authentication & Authorization
 
 sdk-api provides four authentication modes and three strategies for role/permission validation. The JWT middleware validates tokens per-entry, supports algorithm pinning and claim validation, and extracts an `AuthContext` available in handlers and hooks.
@@ -170,6 +184,8 @@ auth:
 ```
 
 Shorter TTLs reduce the window for token theft. For long-lived sessions, use the refresh token flow.
+
+| `prev_secret` | string | — | Previous JWT secret for key rotation. When set, tokens signed with either secret are accepted. |
 
 ### Per-entry auth
 
@@ -397,7 +413,27 @@ Do you have an external identity provider?
 
 ### Token refresh
 
-The SDK provides a configurable token refresh handler that delegates to the identity provider:
+The SDK provides a configurable token refresh handler that delegates to the identity provider.
+
+**YAML-driven auto-wire (recommended):**
+
+```yaml
+auth:
+  refresh:
+    enabled: true
+    ttl: 604800
+    endpoint: /auth/refresh
+  cookie:
+    access_token_name: token
+    path: /
+    http_only: true
+    secure: true
+    same_site: Strict
+```
+
+When `auth.refresh.enabled: true`, the runtime auto-registers `POST /auth/refresh`, sets the cookie according to `auth.cookie.*`, and returns `{"access_token", "token_type", "expires_in"}`.
+
+**Manual handler (alternative):**
 
 ```go
 import "github.com/natuleadan/sdk-api/server/middleware"
@@ -410,10 +446,15 @@ app.Post("/auth/refresh", middleware.TokenRefreshHandler(middleware.TokenRefresh
 }))
 ```
 
-| Backend | Latency | Shared across pods | TTL support |
-|---------|---------|-------------------|-------------|
-| `nats` | <1ms | ✅ (NATS KV) | Bucket-level |
-| `redis` | <1ms | ✅ | Per-key (via SETEX) |
+### Cryptography helpers
+
+`middleware.SignToken(secret, algorithm string, claims map[string]any) (string, error)` — creates and signs a JWT
+
+`middleware.DefaultClaims(sub, orgID string, roles, permissions []string, ttlSeconds int) map[string]any` — builds standard JWT claims
+
+`auth.HashPassword(password string) (string, error)` — bcrypt hash a password
+
+`auth.VerifyPassword(hash, password string) bool` — verify password against bcrypt hash
 
 ## CSRF
 
@@ -445,8 +486,7 @@ Per-entry exclusion: `entry[].csrf: false`.
 server:
   rate_limit:
     enabled: true
-    driver: memory            # memory | redis
-    redis_url: "${REDIS_URL}"
+    kv: cache-main   # references kv[].name
     global:
       requests_per_second: 1000
       burst: 2000

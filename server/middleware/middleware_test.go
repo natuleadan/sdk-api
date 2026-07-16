@@ -20,6 +20,7 @@ import (
 	"github.com/natuleadan/sdk-api/server/auth/openfga"
 	"github.com/natuleadan/sdk-api/server/auth/ory"
 	"github.com/natuleadan/sdk-api/server/auth/zitadel"
+	"golang.org/x/time/rate"
 )
 
 func testRequest(ctx context.Context, method, path string, body io.Reader) *http.Request {
@@ -1642,6 +1643,525 @@ func TestSSRF_AllowAll(t *testing.T) {
 	checker := client.checker
 	if err := checker.validate("10.0.0.5"); err != nil {
 		t.Errorf("expected no error with allowAll, got %v", err)
+	}
+}
+
+// --- Rate Limit Post-Auth Tests ---
+
+func authInjector(auth *AuthContext) fiber.Handler {
+	return func(c fiber.Ctx) error {
+		injectAuth(c, auth)
+		return c.Next()
+	}
+}
+
+func TestRateLimitPost_EntryPerUser_IndependentBuckets(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Post("/test",
+		authInjector(&AuthContext{UserID: "user-a"}),
+		RateLimitPost(RateLimitPostConfig{
+			EntryPerUser: &RateLimitEntry{RequestsPerSecond: 2, Burst: 4},
+		}),
+		func(c fiber.Ctx) error { return c.SendString("ok") },
+	)
+
+	var blocked bool
+	for range 6 {
+		req := testRequest(context.Background(), "POST", "/test", nil)
+		resp, _ := app.Test(req)
+		if resp.StatusCode == 429 {
+			blocked = true
+			break
+		}
+	}
+	if !blocked {
+		t.Error("expected user A to be rate-limited after burst of 4")
+	}
+
+	// User B — should be a separate app with new store (independent bucket)
+	app2 := fiber.New()
+	app2.Post("/test",
+		authInjector(&AuthContext{UserID: "user-b"}),
+		RateLimitPost(RateLimitPostConfig{
+			EntryPerUser: &RateLimitEntry{RequestsPerSecond: 2, Burst: 4},
+		}),
+		func(c fiber.Ctx) error { return c.SendString("ok") },
+	)
+	req := testRequest(context.Background(), "POST", "/test", nil)
+	resp, _ := app2.Test(req)
+	if resp.StatusCode != 200 {
+		t.Errorf("user B should have independent bucket, got %d", resp.StatusCode)
+	}
+}
+
+func TestRateLimitPost_EntryPerKey_IndependentBuckets(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Post("/test",
+		authInjector(&AuthContext{UserID: "key-a"}), // RawToken empty = API key
+		RateLimitPost(RateLimitPostConfig{
+			EntryPerKey: &RateLimitEntry{RequestsPerSecond: 2, Burst: 4},
+		}),
+		func(c fiber.Ctx) error { return c.SendString("ok") },
+	)
+
+	var blocked bool
+	for range 6 {
+		req := testRequest(context.Background(), "POST", "/test", nil)
+		resp, _ := app.Test(req)
+		if resp.StatusCode == 429 {
+			blocked = true
+			break
+		}
+	}
+	if !blocked {
+		t.Error("expected key A to be rate-limited after burst of 4")
+	}
+
+	// Key B — independent store
+	app2 := fiber.New()
+	app2.Post("/test",
+		authInjector(&AuthContext{UserID: "key-b"}),
+		RateLimitPost(RateLimitPostConfig{
+			EntryPerKey: &RateLimitEntry{RequestsPerSecond: 2, Burst: 4},
+		}),
+		func(c fiber.Ctx) error { return c.SendString("ok") },
+	)
+	req := testRequest(context.Background(), "POST", "/test", nil)
+	resp, _ := app2.Test(req)
+	if resp.StatusCode != 200 {
+		t.Errorf("key B should have independent bucket, got %d", resp.StatusCode)
+	}
+}
+
+func TestRateLimitPost_ServerPerUser_NoAuthSkipped(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Post("/test",
+		RateLimitPost(RateLimitPostConfig{
+			ServerPerUser: &RateLimitEntry{RequestsPerSecond: 1, Burst: 1},
+		}),
+		func(c fiber.Ctx) error { return c.SendString("ok") },
+	)
+
+	// Without auth context — rate limit is skipped (user ID empty)
+	for i := range 5 {
+		req := testRequest(context.Background(), "POST", "/test", nil)
+		resp, _ := app.Test(req)
+		if resp.StatusCode != 200 {
+			t.Errorf("req %d: expected 200 (no auth = skip), got %d", i, resp.StatusCode)
+		}
+	}
+}
+
+func TestRateLimitPost_EntryPerUser_AllowsWithinBurst(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Post("/test",
+		authInjector(&AuthContext{UserID: "user-a"}),
+		RateLimitPost(RateLimitPostConfig{
+			EntryPerUser: &RateLimitEntry{RequestsPerSecond: 10, Burst: 10},
+		}),
+		func(c fiber.Ctx) error { return c.SendString("ok") },
+	)
+
+	for i := range 10 {
+		req := testRequest(context.Background(), "POST", "/test", nil)
+		resp, _ := app.Test(req)
+		if resp.StatusCode != 200 {
+			t.Errorf("req %d: expected 200 within burst, got %d", i, resp.StatusCode)
+		}
+	}
+}
+
+// --- extractKeyID Tests ---
+
+func TestExtractKeyID_JWT(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Get("/test",
+		func(c fiber.Ctx) error {
+			injectAuth(c, &AuthContext{UserID: "user-admin", RawToken: "eyJ.xxx.yyy"})
+			if id := extractKeyID(c); id != "" {
+				t.Errorf("expected empty for JWT, got %q", id)
+			}
+			return c.SendString("ok")
+		},
+	)
+	req := testRequest(context.Background(), "GET", "/test", nil)
+	resp, _ := app.Test(req)
+	if resp.StatusCode != 200 {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
+func TestExtractKeyID_APIKey(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Get("/test",
+		func(c fiber.Ctx) error {
+			injectAuth(c, &AuthContext{UserID: "key-admin"})
+			if id := extractKeyID(c); id != "key-admin" {
+				t.Errorf("expected key-admin, got %q", id)
+			}
+			return c.SendString("ok")
+		},
+	)
+	req := testRequest(context.Background(), "GET", "/test", nil)
+	resp, _ := app.Test(req)
+	if resp.StatusCode != 200 {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
+func TestExtractKeyID_NoAuth(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Get("/test",
+		func(c fiber.Ctx) error {
+			if id := extractKeyID(c); id != "" {
+				t.Errorf("expected empty, got %q", id)
+			}
+			return c.SendString("ok")
+		},
+	)
+	req := testRequest(context.Background(), "GET", "/test", nil)
+	resp, _ := app.Test(req)
+	if resp.StatusCode != 200 {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
+// --- Sliding Window Algorithm Tests ---
+
+func TestSlidingWindow_BasicAllow(t *testing.T) {
+	l := newSlidingWindowLimiter(10, 1) // 10 rps, 1s window
+	for i := range 10 {
+		if !l.Allow() {
+			t.Errorf("request %d: expected allowed within limit", i)
+		}
+	}
+	// 11th should be denied
+	if l.Allow() {
+		t.Error("expected denied when over limit")
+	}
+}
+
+func TestSlidingWindow_Remaining(t *testing.T) {
+	l := newSlidingWindowLimiter(5, 1) // 5 rps
+	if n := l.Remaining(); n != 5 {
+		t.Errorf("expected 5 remaining initially, got %d", n)
+	}
+	l.Allow()
+	if n := l.Remaining(); n < 4 {
+		t.Errorf("expected ~4 remaining after 1, got %d", n)
+	}
+}
+
+func TestSlidingWindow_AllowAfterWindowExpires(t *testing.T) {
+	l := newSlidingWindowLimiter(1, 1) // 1 per 1s window
+	if !l.Allow() {
+		t.Fatal("expected first request allowed")
+	}
+	if l.Allow() {
+		t.Fatal("expected second request denied within same window")
+	}
+	// Can't easily test time-based expiration in unit test — this verifies the
+	// limiter rejects excess requests within the window.
+}
+
+func TestSlidingWindow_BurstSmallerThanMax(t *testing.T) {
+	l := newSlidingWindowLimiter(100, 10) // 100 rps, 10s window (burst = expiration)
+	for i := range 100 {
+		if !l.Allow() {
+			t.Errorf("request %d: expected allowed within 100 burst", i)
+			break
+		}
+	}
+}
+
+// --- RateLimit With Algorithm Tests ---
+
+func TestRateLimit_AlgorithmSlidingWindow(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Use(RateLimit(RateLimitConfig{
+		Global:    &RateLimitEntry{RequestsPerSecond: 2, Burst: 1},
+		Algorithm: AlgorithmSlidingWindow,
+	}))
+	app.Get("/test", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	// First two requests should pass
+	for i := range 2 {
+		req := testRequest(context.Background(), "GET", "/test", nil)
+		resp, _ := app.Test(req)
+		if resp.StatusCode != 200 {
+			t.Errorf("request %d: expected 200, got %d", i, resp.StatusCode)
+		}
+	}
+
+	// Third should be denied (2 max per window)
+	req := testRequest(context.Background(), "GET", "/test", nil)
+	resp, _ := app.Test(req)
+	if resp.StatusCode != 429 {
+		t.Errorf("expected 429 over limit, got %d", resp.StatusCode)
+	}
+}
+
+func TestRateLimit_AlgorithmTokenBucket(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Use(RateLimit(RateLimitConfig{
+		Global:    &RateLimitEntry{RequestsPerSecond: 2, Burst: 2},
+		Algorithm: AlgorithmTokenBucket,
+	}))
+	app.Get("/test", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	// First two requests should pass (burst=2)
+	for i := range 2 {
+		req := testRequest(context.Background(), "GET", "/test", nil)
+		resp, _ := app.Test(req)
+		if resp.StatusCode != 200 {
+			t.Errorf("request %d: expected 200, got %d", i, resp.StatusCode)
+		}
+	}
+
+	// Third should be denied (no tokens left)
+	req := testRequest(context.Background(), "GET", "/test", nil)
+	resp, _ := app.Test(req)
+	if resp.StatusCode != 429 {
+		t.Errorf("expected 429 over limit, got %d", resp.StatusCode)
+	}
+}
+
+// --- Per-Role Rate Limit Tests ---
+
+func TestRateLimitPost_PerRoleLimits_AdminBlocked(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Post("/test",
+		authInjector(&AuthContext{UserID: "user-admin", Roles: []string{"admin"}}),
+		RateLimitPost(RateLimitPostConfig{
+			PerRoleLimits: map[string]*RateLimitEntry{
+				"admin":  {RequestsPerSecond: 1, Burst: 1},
+				"viewer": {RequestsPerSecond: 10, Burst: 10},
+			},
+		}),
+		func(c fiber.Ctx) error { return c.SendString("ok") },
+	)
+
+	var blocked bool
+	for range 3 {
+		req := testRequest(context.Background(), "POST", "/test", nil)
+		resp, _ := app.Test(req)
+		if resp.StatusCode == 429 {
+			blocked = true
+			break
+		}
+	}
+	if !blocked {
+		t.Error("expected admin to be rate-limited by per-role limit (1 rps)")
+	}
+}
+
+func TestRateLimitPost_PerRoleLimits_ViewerNotBlockedByAdminLimit(t *testing.T) {
+	// Different role = different bucket
+	app := fiber.New()
+	app.Post("/test",
+		authInjector(&AuthContext{UserID: "user-viewer", Roles: []string{"viewer"}}),
+		RateLimitPost(RateLimitPostConfig{
+			PerRoleLimits: map[string]*RateLimitEntry{
+				"admin":  {RequestsPerSecond: 1, Burst: 1},
+				"viewer": {RequestsPerSecond: 10, Burst: 10},
+			},
+		}),
+		func(c fiber.Ctx) error { return c.SendString("ok") },
+	)
+
+	// Viewer has 10 rps — all 3 should pass
+	for i := range 3 {
+		req := testRequest(context.Background(), "POST", "/test", nil)
+		resp, _ := app.Test(req)
+		if resp.StatusCode != 200 {
+			t.Errorf("viewer req %d: expected 200, got %d", i, resp.StatusCode)
+		}
+	}
+}
+
+func TestRateLimitPost_PerRoleLimits_NoMatchingRole(t *testing.T) {
+	// Role not in PerRoleLimits = no per-role limit applied
+	app := fiber.New()
+	app.Post("/test",
+		authInjector(&AuthContext{UserID: "user-super", Roles: []string{"super"}}),
+		RateLimitPost(RateLimitPostConfig{
+			PerRoleLimits: map[string]*RateLimitEntry{
+				"admin": {RequestsPerSecond: 1, Burst: 1},
+			},
+		}),
+		func(c fiber.Ctx) error { return c.SendString("ok") },
+	)
+
+	for i := range 10 {
+		req := testRequest(context.Background(), "POST", "/test", nil)
+		resp, _ := app.Test(req)
+		if resp.StatusCode != 200 {
+			t.Errorf("unmatched role req %d: expected 200, got %d", i, resp.StatusCode)
+		}
+	}
+}
+
+func TestRateLimitPost_PerRoleLimits_MultipleRoles(t *testing.T) {
+	// User has multiple roles — the FIRST matching role limit applies
+	app := fiber.New()
+	app.Post("/test",
+		authInjector(&AuthContext{UserID: "user-multi", Roles: []string{"viewer", "editor"}}),
+		RateLimitPost(RateLimitPostConfig{
+			PerRoleLimits: map[string]*RateLimitEntry{
+				"viewer": {RequestsPerSecond: 1, Burst: 1},
+				"editor": {RequestsPerSecond: 5, Burst: 5},
+			},
+		}),
+		func(c fiber.Ctx) error { return c.SendString("ok") },
+	)
+
+	// First role "viewer" matches → 1 rps limit
+	var blocked bool
+	for range 3 {
+		req := testRequest(context.Background(), "POST", "/test", nil)
+		resp, _ := app.Test(req)
+		if resp.StatusCode == 429 {
+			blocked = true
+			break
+		}
+	}
+	if !blocked {
+		t.Error("expected first matching role limit to apply")
+	}
+}
+
+func TestRateLimitPost_PerRoleLimits_NoAuth(t *testing.T) {
+	// No auth context = no per-role limit (skips gracefully)
+	app := fiber.New()
+	app.Post("/test",
+		RateLimitPost(RateLimitPostConfig{
+			PerRoleLimits: map[string]*RateLimitEntry{
+				"admin": {RequestsPerSecond: 1, Burst: 1},
+			},
+		}),
+		func(c fiber.Ctx) error { return c.SendString("ok") },
+	)
+
+	for i := range 10 {
+		req := testRequest(context.Background(), "POST", "/test", nil)
+		resp, _ := app.Test(req)
+		if resp.StatusCode != 200 {
+			t.Errorf("no-auth req %d: expected 200, got %d", i, resp.StatusCode)
+		}
+	}
+}
+
+// --- Cancel/Rollback Tests ---
+
+func TestXrateLimiter_Cancel(t *testing.T) {
+	l := &xrateLimiter{Limiter: rate.NewLimiter(rate.Limit(1), 1)}
+	if !l.Allow() {
+		t.Fatal("expected first allow")
+	}
+	if l.Allow() {
+		t.Fatal("expected second deny (burst=1)")
+	}
+	l.Cancel()
+	if !l.Allow() {
+		t.Fatal("expected allow after cancel (refunded token)")
+	}
+}
+
+func TestSlidingWindowLimiter_Cancel(t *testing.T) {
+	l := newSlidingWindowLimiter(1, 1)
+	if !l.Allow() {
+		t.Fatal("expected first allow")
+	}
+	l.Cancel()
+	if !l.Allow() {
+		t.Fatal("expected allow after cancel")
+	}
+}
+
+// --- SkipFailedRequests Tests ---
+
+func TestRateLimit_SkipFailedRequests(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Use(RateLimit(RateLimitConfig{
+		Global:             &RateLimitEntry{RequestsPerSecond: 1, Burst: 1},
+		SkipFailedRequests: true,
+		Algorithm:          AlgorithmSlidingWindow,
+	}))
+	// Handler that returns 500 (failed request)
+	app.Get("/fail", func(c fiber.Ctx) error {
+		return c.Status(500).SendString("fail")
+	})
+	// Handler that returns 200
+	app.Get("/ok", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	// Failed requests should not consume tokens
+	for i := range 10 {
+		req := testRequest(context.Background(), "GET", "/fail", nil)
+		resp, _ := app.Test(req)
+		if resp.StatusCode != 500 {
+			t.Errorf("fail req %d: expected 500, got %d", i, resp.StatusCode)
+		}
+	}
+
+	// Successful requests should still work (tokens were not consumed by failures)
+	req := testRequest(context.Background(), "GET", "/ok", nil)
+	resp, _ := app.Test(req)
+	if resp.StatusCode != 200 {
+		t.Errorf("ok after fails: expected 200, got %d", resp.StatusCode)
+	}
+}
+
+// --- MaxFunc Tests (post-auth path) ---
+
+func TestRateLimitPost_MaxFunc(t *testing.T) {
+	logx.Disable()
+	callCount := 0
+	app := fiber.New()
+	app.Post("/test",
+		authInjector(&AuthContext{UserID: "user-a"}),
+		RateLimitPost(RateLimitPostConfig{
+			EntryPerUser: &RateLimitEntry{RequestsPerSecond: 100, Burst: 100},
+			MaxFunc: func(c fiber.Ctx) int {
+				callCount++
+				return 1
+			},
+		}),
+		func(c fiber.Ctx) error { return c.SendString("ok") },
+	)
+
+	// First passes
+	req := testRequest(context.Background(), "POST", "/test", nil)
+	resp, _ := app.Test(req)
+	if resp.StatusCode != 200 {
+		t.Errorf("first: expected 200, got %d", resp.StatusCode)
+	}
+
+	// Second should be blocked (MaxFunc overrode to 1 rps)
+	req = testRequest(context.Background(), "POST", "/test", nil)
+	resp, _ = app.Test(req)
+	if resp.StatusCode != 429 {
+		t.Errorf("second: expected 429, got %d", resp.StatusCode)
+	}
+
+	if callCount == 0 {
+		t.Error("MaxFunc was never called")
 	}
 }
 

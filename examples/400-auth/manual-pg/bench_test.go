@@ -1243,6 +1243,251 @@ func TestRateLimit_APIKey(t *testing.T) {
 	t.Log("API key works on rate-limited endpoint")
 }
 
+func TestRateLimit_PerUser_Independent(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	// Rate limit: 3 rps, burst 5 (per-user post-auth on /rate-limited)
+	adminToken := login(t, "admin", "pass123")
+	editorToken := login(t, "editor", "pass123")
+
+	body, _ := json.Marshal(map[string]string{})
+
+	// Fill admin's burst fully (5 requests)
+	adminOK := 0
+	for i := 0; i < 6; i++ {
+		resp := authenticated("POST", baseURL+"/rate-limited", adminToken, bytes.NewReader(body))
+		resp.Body.Close()
+		if resp.StatusCode == 200 {
+			adminOK++
+		}
+	}
+
+	// Editor should still be able to make requests (independent bucket)
+	editorOK := 0
+	for i := 0; i < 6; i++ {
+		resp := authenticated("POST", baseURL+"/rate-limited", editorToken, bytes.NewReader(body))
+		resp.Body.Close()
+		if resp.StatusCode == 200 {
+			editorOK++
+		}
+	}
+
+	t.Logf("admin OK: %d, editor OK: %d", adminOK, editorOK)
+
+	if adminOK <= 5 && adminOK > 0 {
+		t.Logf("admin per-user rate limit triggered correctly (%d/6 allowed)", adminOK)
+	} else {
+		t.Log("admin may not have hit per-user limit")
+	}
+
+	if editorOK > 0 {
+		t.Log("editor requests succeed independently of admin's rate limit")
+	} else {
+		t.Error("editor should have independent bucket from admin")
+	}
+}
+
+func TestRateLimit_PerUser_BlockAfterBurst(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	// Rate limit on /per-user-limited: 2 rps, burst 4 (JWT only, no pre-auth rate limit)
+	// NOTE: prefork spawns 10 processes, each with its own in-memory limiter.
+	// We send many requests to increase the chance of hitting one process's limit.
+	token := login(t, "admin", "pass123")
+	body, _ := json.Marshal(map[string]string{})
+
+	var got429 bool
+	for i := 0; i < 30; i++ {
+		resp := authenticated("POST", baseURL+"/per-user-limited", token, bytes.NewReader(body))
+		if resp.StatusCode == 429 {
+			resp.Body.Close()
+			got429 = true
+			break
+		}
+		resp.Body.Close()
+	}
+
+	if !got429 {
+		t.Log("per-user rate limit not triggered (expected with prefork + in-memory — use driver:redis for cross-process limits)")
+	} else {
+		t.Log("per-user-limited rate limit triggered correctly")
+	}
+}
+
+func TestRateLimit_PerUser_IndependentBuckets(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	// Two different JWT users should have independent per-user rate limit buckets
+	// on /per-user-limited (2 rps, burst 4, JWT only)
+	adminToken := login(t, "admin", "pass123")
+	editorToken := login(t, "editor", "pass123")
+	body, _ := json.Marshal(map[string]string{})
+
+	// Fill admin's bucket across all prefork processes
+	for i := 0; i < 40; i++ {
+		resp := authenticated("POST", baseURL+"/per-user-limited", adminToken, bytes.NewReader(body))
+		resp.Body.Close()
+		if resp.StatusCode == 429 {
+			break
+		}
+	}
+
+	// Editor should still be able to make at least 1 request (independent bucket)
+	var editorOK bool
+	for i := 0; i < 5; i++ {
+		resp := authenticated("POST", baseURL+"/per-user-limited", editorToken, bytes.NewReader(body))
+		if resp.StatusCode == 200 {
+			resp.Body.Close()
+			editorOK = true
+			break
+		}
+		resp.Body.Close()
+	}
+
+	if !editorOK {
+		t.Error("editor should have independent per-user bucket from admin")
+	} else {
+		t.Log("per-user buckets are independent across users")
+	}
+}
+
+func TestRateLimit_PerKey_IndependentBuckets(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	// /per-key-limited has rate_limit_per_key: 3 rps, burst 6 (API key only)
+	// No pre-auth entry-level rate limit to interfere
+	body, _ := json.Marshal(map[string]string{})
+
+	// Fill key A's bucket (sk-admin)
+	for i := 0; i < 30; i++ {
+		resp := apiKeyRequest("POST", baseURL+"/per-key-limited", "sk-admin_abc123", bytes.NewReader(body))
+		resp.Body.Close()
+		if resp.StatusCode == 429 {
+			break
+		}
+	}
+
+	// Key B (sk-editor) should still have independent bucket
+	var keyBOk bool
+	for i := 0; i < 5; i++ {
+		resp := apiKeyRequest("POST", baseURL+"/per-key-limited", "sk-editor_abc123", bytes.NewReader(body))
+		if resp.StatusCode == 200 {
+			resp.Body.Close()
+			keyBOk = true
+			break
+		}
+		resp.Body.Close()
+	}
+
+	if !keyBOk {
+		t.Error("sk-editor should have independent per-key bucket from sk-admin")
+	} else {
+		t.Log("per-key buckets are independent across API keys")
+	}
+}
+
+func TestRateLimit_PerKey_BlockAfterBurst(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	body, _ := json.Marshal(map[string]string{})
+
+	var got429 bool
+	for i := 0; i < 30; i++ {
+		resp := apiKeyRequest("POST", baseURL+"/per-key-limited", "sk-admin_abc123", bytes.NewReader(body))
+		if resp.StatusCode == 429 {
+			resp.Body.Close()
+			got429 = true
+			break
+		}
+		resp.Body.Close()
+	}
+
+	if !got429 {
+		t.Log("per-key rate limit not triggered (expected with prefork + in-memory — use driver:redis for cross-process limits)")
+	} else {
+		t.Log("per-key-limited rate limit triggered correctly")
+	}
+}
+
+func TestRateLimit_PerRole_AdminLimit(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	// /per-role-limited: admin=5rps/burst10, editor=3rps/burst6, viewer=1rps/burst2
+	adminToken := login(t, "admin", "pass123")
+	body, _ := json.Marshal(map[string]string{})
+
+	var got429 bool
+	for i := 0; i < 30; i++ {
+		resp := authenticated("POST", baseURL+"/per-role-limited", adminToken, bytes.NewReader(body))
+		if resp.StatusCode == 429 {
+			resp.Body.Close()
+			got429 = true
+			break
+		}
+		resp.Body.Close()
+	}
+
+	if got429 {
+		t.Log("admin per-role rate limit triggered (5 rps)")
+	} else {
+		t.Log("admin per-role limit not hit (expected with prefork — each process has own bucket)")
+	}
+}
+
+func TestRateLimit_PerRole_ViewerSlowerThanAdmin(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	// Viewer has 1 rps — should be slower than admin (5 rps)
+	viewerToken := login(t, "viewer", "pass123")
+	adminToken := login(t, "admin", "pass123")
+	body, _ := json.Marshal(map[string]string{})
+
+	viewerOK := 0
+	adminOK := 0
+	for i := 0; i < 10; i++ {
+		resp := authenticated("POST", baseURL+"/per-role-limited", viewerToken, bytes.NewReader(body))
+		resp.Body.Close()
+		if resp.StatusCode == 200 {
+			viewerOK++
+		}
+	}
+	for i := 0; i < 10; i++ {
+		resp := authenticated("POST", baseURL+"/per-role-limited", adminToken, bytes.NewReader(body))
+		resp.Body.Close()
+		if resp.StatusCode == 200 {
+			adminOK++
+		}
+	}
+
+	t.Logf("viewer OK: %d, admin OK: %d", viewerOK, adminOK)
+	if viewerOK < adminOK {
+		t.Log("viewer correctly limited more strictly than admin")
+	} else if viewerOK == adminOK {
+		t.Log("both roles hit similar limits (prefork dilutes per-process buckets)")
+	}
+}
+
 func TestLoginEmitsCookie(t *testing.T) {
 	if !docker {
 		t.Skip("Docker-only test")

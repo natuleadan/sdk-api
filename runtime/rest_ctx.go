@@ -6,6 +6,33 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
+// Map is a shorthand for map[string]any used in JSON responses.
+type Map = map[string]any
+
+// Cookie configures an HTTP cookie set by the SDK.
+type Cookie struct {
+	Name     string
+	Value    string
+	Path     string
+	Domain   string
+	MaxAge   int
+	HTTPOnly bool
+	Secure   bool
+	SameSite string
+}
+
+func NewCookie(name, value string, maxAge int) *Cookie {
+	return &Cookie{
+		Name:     name,
+		Value:    value,
+		Path:     "/",
+		MaxAge:   maxAge,
+		HTTPOnly: true,
+		Secure:   true,
+		SameSite: "Strict",
+	}
+}
+
 type RestCtx struct {
 	fc fiber.Ctx
 }
@@ -79,8 +106,20 @@ func (c *RestCtx) ResponseBody() string {
 	return string(c.fc.Response().Body())
 }
 
-func (c *RestCtx) SetCookie(cookie *fiber.Cookie) {
-	c.fc.Cookie(cookie)
+func (c *RestCtx) SetCookie(cookie *Cookie) {
+	if cookie == nil {
+		return
+	}
+	c.fc.Cookie(&fiber.Cookie{
+		Name:     cookie.Name,
+		Value:    cookie.Value,
+		Path:     cookie.Path,
+		Domain:   cookie.Domain,
+		MaxAge:   cookie.MaxAge,
+		HTTPOnly: cookie.HTTPOnly,
+		Secure:   cookie.Secure,
+		SameSite: cookie.SameSite,
+	})
 }
 
 func (c *RestCtx) Redirect(url string, statusCode ...int) error {

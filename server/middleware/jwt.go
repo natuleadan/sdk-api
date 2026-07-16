@@ -159,3 +159,43 @@ func extractToken(c fiber.Ctx, lookup string) (token, raw string) {
 	}
 	return value, value
 }
+
+// SignToken creates and signs a JWT using the given secret and algorithm.
+// Supported algorithms: HS256, HS384, HS512.
+func SignToken(secret string, algorithm string, claims map[string]any) (string, error) {
+	var method jwt.SigningMethod
+	switch algorithm {
+	case "HS384":
+		method = jwt.SigningMethodHS384
+	case "HS512":
+		method = jwt.SigningMethodHS512
+	default:
+		method = jwt.SigningMethodHS256
+	}
+	tok := jwt.NewWithClaims(method, jwt.MapClaims(claims))
+	signed, err := tok.SignedString([]byte(secret))
+	if err != nil {
+		return "", err
+	}
+	return signed, nil
+}
+
+// DefaultClaims builds standard JWT claims for a user session.
+func DefaultClaims(sub, orgID string, roles, permissions []string, ttlSeconds int) map[string]any {
+	now := time.Now().Unix()
+	claims := map[string]any{
+		"sub": sub,
+		"iat": now,
+		"exp": now + int64(ttlSeconds),
+	}
+	if orgID != "" {
+		claims["org_id"] = orgID
+	}
+	if len(roles) > 0 {
+		claims["roles"] = roles
+	}
+	if len(permissions) > 0 {
+		claims["permissions"] = permissions
+	}
+	return claims
+}

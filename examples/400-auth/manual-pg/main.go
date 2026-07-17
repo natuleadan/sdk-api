@@ -16,8 +16,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gofiber/fiber/v3"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/natuleadan/sdk-api/db"
 	"github.com/natuleadan/sdk-api/runtime"
 	"github.com/natuleadan/sdk-api/runtime/auth"
 	"github.com/natuleadan/sdk-api/server/middleware"
@@ -25,6 +24,13 @@ import (
 
 //go:embed service.yaml
 var serviceYAML []byte
+
+type TenantProduct struct {
+	ID       string  `db:"id,primary"`
+	Name     string  `db:"name"`
+	Price    float64 `db:"price"`
+	TenantID string  `db:"tenant_id"`
+}
 
 var (
 	jwtSecret  = envOrDefault("JWT_SECRET", "dev-secret-hs256-change-in-prod")
@@ -58,36 +64,136 @@ func main() {
 	if poolURL == "" {
 		poolURL = "postgres://postgres:postgres@postgres:5432/auth_roles?sslmode=disable"
 	}
-	pool, err := initPool(context.Background(), poolURL)
+
+	ctx := context.Background()
+
+	// init pool with retry + schema + seed
+	// p is inferred as *pgxpool.Pool from db.NewPool — no pgxpool import needed
+	var pool any
+	hashKey := func(raw string) string {
+		h := sha256.Sum256([]byte(raw))
+		return hex.EncodeToString(h[:])
+	}
+	for i := 0; i < 20; i++ {
+		p, e := db.NewPool(ctx, db.PoolConfig{URL: poolURL})
+		if e != nil {
+			err = e
+			goto next
+		}
+		if pe := p.Ping(ctx); pe != nil {
+			p.Close()
+			err = pe
+			goto next
+		}
+		if _, se := p.Exec(ctx, `
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'viewer', created_at TIMESTAMPTZ DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS api_keys (
+    id TEXT PRIMARY KEY, key_hash TEXT UNIQUE NOT NULL, label TEXT,
+    role TEXT NOT NULL, enabled BOOLEAN DEFAULT true, created_at TIMESTAMPTZ DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS products (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text, name TEXT NOT NULL,
+    description TEXT DEFAULT '', price DECIMAL(10,2) DEFAULT 0,
+    visibility TEXT DEFAULT 'public', created_by TEXT,
+    deleted_at TIMESTAMPTZ, updated_at TIMESTAMPTZ DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS tenant_products (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text, name TEXT NOT NULL,
+    price DECIMAL(10,2) DEFAULT 0, tenant_id TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS audit_log (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text, product_id TEXT,
+    action TEXT NOT NULL, changed_by TEXT NOT NULL,
+    old_value JSONB, new_value JSONB, created_at TIMESTAMPTZ DEFAULT now()
+);`); se != nil {
+			p.Close()
+			err = se
+			goto next
+		}
+		// seed users
+		for _, u := range []struct{ id, name, pass, role string }{
+			{"user-viewer", "viewer", seedPass, "viewer"},
+			{"user-editor", "editor", seedPass, "editor"},
+			{"user-admin", "admin", seedPass, "admin"},
+		} {
+			h, _ := auth.HashPassword(u.pass)
+			_, _ = p.Exec(ctx,
+				`INSERT INTO users (id, username, password_hash, role) VALUES ($1,$2,$3,$4) ON CONFLICT (id) DO NOTHING`,
+				u.id, u.name, h, u.role)
+		}
+		// seed api keys
+		for _, k := range []struct{ id, label, key, role string }{
+			{"key-viewer", "viewer-key", "sk-viewer_abc123", "viewer"},
+			{"key-editor", "editor-key", "sk-editor_abc123", "editor"},
+			{"key-admin", "admin-key", "sk-admin_abc123", "admin"},
+		} {
+			_, _ = p.Exec(ctx,
+				`INSERT INTO api_keys (id, label, key_hash, role) VALUES ($1,$2,$3,$4) ON CONFLICT (id) DO NOTHING`,
+				k.id, k.label, hashKey(k.key), k.role)
+		}
+		// seed tenant products
+		for _, tp := range []TenantProduct{
+			{"tp-alfa-1", "Alfa One", 10.0, "org-alfa"},
+			{"tp-alfa-2", "Alfa Two", 20.0, "org-alfa"},
+			{"tp-beta-1", "Beta One", 30.0, "org-beta"},
+		} {
+			_, _ = p.Exec(ctx,
+				`INSERT INTO tenant_products (id, name, price, tenant_id) VALUES ($1,$2,$3,$4) ON CONFLICT (id) DO NOTHING`,
+				tp.ID, tp.Name, tp.Price, tp.TenantID)
+		}
+		pool = p
+		err = nil
+		break
+	next:
+		select {
+		case <-ctx.Done():
+			log.Fatalf("pool: %v", ctx.Err())
+		case <-time.After(time.Second):
+		}
+	}
 	if err != nil {
 		log.Fatalf("pool: %v", err)
 	}
-
-	mustInitSchema(pool)
-	mustSeedData(pool)
+	if pool == nil {
+		log.Fatalf("pool: timeout after retries")
+	}
 
 	svc.WithAuthValidator(func(ctx context.Context, auth *middleware.AuthContext, roles, permissions []string) error {
 		return validateJWT(ctx, auth, roles, permissions)
 	})
 
 	svc.WithAPIKeyValidator(func(ctx context.Context, key string) (*middleware.AuthContext, error) {
-		return resolveAPIKey(ctx, pool, key)
+		h := sha256.Sum256([]byte(key))
+		keyHash := hex.EncodeToString(h[:])
+		pgPool := svc.PoolPGTyped("default")
+		var id, role string
+		var enabled bool
+		if err := pgPool.QueryRow(ctx,
+			`SELECT id, role, enabled FROM api_keys WHERE key_hash = $1`, keyHash).
+			Scan(&id, &role, &enabled); err != nil {
+			return nil, errors.New("invalid API key")
+		}
+		if !enabled {
+			return nil, errors.New("API key disabled")
+		}
+		return &middleware.AuthContext{UserID: id, Roles: []string{role}}, nil
 	})
 
-	svc.WithRateLimitMaxFunc(func(c fiber.Ctx) int {
+	svc.WithRateLimitMaxFunc(func(c *runtime.RestCtx) int {
 		if c.Get("X-Debug") == "true" {
 			return 5
 		}
 		return 0
 	})
 
-	store := newProductStore(pool)
+	store := newProductStore()
 
-	svc.WithRest("loginHandler", func(c *runtime.RestCtx) error {
-		return handleLogin(c, pool)
-	})
-	svc.WithRest("signupHandler", func(c *runtime.RestCtx) error { return handleSignup(c, pool) })
-	svc.WithRest("profileHandler", func(c *runtime.RestCtx) error { return handleProfile(c, pool) })
+	svc.WithRest("loginHandler", func(c *runtime.RestCtx) error { return handleLogin(c) })
+	svc.WithRest("signupHandler", func(c *runtime.RestCtx) error { return handleSignup(c) })
+	svc.WithRest("profileHandler", func(c *runtime.RestCtx) error { return handleProfile(c) })
 	svc.WithRest("listProducts", func(c *runtime.RestCtx) error { return store.list(c) })
 	svc.WithRest("createProduct", func(c *runtime.RestCtx) error { return store.create(c) })
 	svc.WithRest("getProduct", func(c *runtime.RestCtx) error { return store.get(c) })
@@ -96,9 +202,9 @@ func main() {
 	svc.WithRest("hardDeleteProduct", func(c *runtime.RestCtx) error { return store.hardDelete(c) })
 	svc.WithRest("setVisibility", func(c *runtime.RestCtx) error { return store.setVisibility(c) })
 	svc.WithRest("getAuditLog", func(c *runtime.RestCtx) error { return store.getAuditLog(c) })
-	svc.WithRest("listUsers", func(c *runtime.RestCtx) error { return handleListUsers(c, pool) })
-	svc.WithRest("deleteUser", func(c *runtime.RestCtx) error { return handleDeleteUser(c, pool) })
-	svc.WithRest("setUserRole", func(c *runtime.RestCtx) error { return handleSetUserRole(c, pool) })
+	svc.WithRest("listUsers", func(c *runtime.RestCtx) error { return handleListUsers(c) })
+	svc.WithRest("deleteUser", func(c *runtime.RestCtx) error { return handleDeleteUser(c) })
+	svc.WithRest("setUserRole", func(c *runtime.RestCtx) error { return handleSetUserRole(c) })
 	svc.WithRest("rateLimitedHandler", func(c *runtime.RestCtx) error { return c.JSON(runtime.Map{"status": "ok"}) })
 	svc.WithRest("perUserLimited", func(c *runtime.RestCtx) error { return c.JSON(runtime.Map{"status": "ok"}) })
 	svc.WithRest("perKeyLimited", func(c *runtime.RestCtx) error { return c.JSON(runtime.Map{"status": "ok"}) })
@@ -106,100 +212,16 @@ func main() {
 	svc.WithRest("viewerDataHandler", func(c *runtime.RestCtx) error { return c.JSON(runtime.Map{"data": "viewer-only"}) })
 	svc.WithRest("maxFuncLimited", func(c *runtime.RestCtx) error { return c.JSON(runtime.Map{"status": "ok"}) })
 
+	svc.WithCRUDFactory("TenantProduct", func() runtime.CRUDProvider {
+		pgPool := svc.PoolPGTyped("default")
+		table, tErr := db.NewTable[TenantProduct](pgPool, "tenant_products")
+		if tErr != nil {
+			log.Fatalf("tenant table: %v", tErr)
+		}
+		return runtime.NewCRUDProvider(table, nil)
+	})
+
 	log.Fatal(svc.Run())
-}
-
-func initPool(ctx context.Context, url string) (*pgxpool.Pool, error) {
-	var pool *pgxpool.Pool
-	var err error
-	for i := 0; i < 20; i++ {
-		pool, err = pgxpool.New(ctx, url)
-		if err == nil {
-			if pingErr := pool.Ping(ctx); pingErr == nil {
-				return pool, nil
-			}
-			pool.Close()
-		}
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-time.After(time.Second):
-		}
-	}
-	return nil, fmt.Errorf("pool: %w (after retries)", err)
-}
-
-func mustInitSchema(pool *pgxpool.Pool) {
-	schema := `
-CREATE TABLE IF NOT EXISTS users (
-    id TEXT PRIMARY KEY,
-    username TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'viewer',
-    created_at TIMESTAMPTZ DEFAULT now()
-);
-CREATE TABLE IF NOT EXISTS api_keys (
-    id TEXT PRIMARY KEY,
-    key_hash TEXT UNIQUE NOT NULL,
-    label TEXT,
-    role TEXT NOT NULL,
-    enabled BOOLEAN DEFAULT true,
-    created_at TIMESTAMPTZ DEFAULT now()
-);
-CREATE TABLE IF NOT EXISTS products (
-    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-    name TEXT NOT NULL,
-    description TEXT DEFAULT '',
-    price DECIMAL(10,2) DEFAULT 0,
-    visibility TEXT DEFAULT 'public',
-    created_by TEXT,
-    deleted_at TIMESTAMPTZ,
-    updated_at TIMESTAMPTZ DEFAULT now()
-);
-CREATE TABLE IF NOT EXISTS audit_log (
-    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-    product_id TEXT,
-    action TEXT NOT NULL,
-    changed_by TEXT NOT NULL,
-    old_value JSONB,
-    new_value JSONB,
-    created_at TIMESTAMPTZ DEFAULT now()
-);
-`
-	_, err := pool.Exec(context.Background(), schema)
-	if err != nil {
-		log.Fatalf("init schema: %v", err)
-	}
-}
-
-func mustSeedData(pool *pgxpool.Pool) {
-	hashKey := func(raw string) string {
-		h := sha256.Sum256([]byte(raw))
-		return hex.EncodeToString(h[:])
-	}
-
-	users := []struct{ id, username, password, role string }{
-		{"user-viewer", "viewer", seedPass, "viewer"},
-		{"user-editor", "editor", seedPass, "editor"},
-		{"user-admin", "admin", seedPass, "admin"},
-	}
-	for _, u := range users {
-		hash, _ := auth.HashPassword(u.password)
-		_, _ = pool.Exec(context.Background(),
-			`INSERT INTO users (id, username, password_hash, role) VALUES ($1,$2,$3,$4) ON CONFLICT (id) DO NOTHING`,
-			u.id, u.username, hash, u.role)
-	}
-
-	keys := []struct{ id, label, key, role string }{
-		{"key-viewer", "viewer-key", "sk-viewer_abc123", "viewer"},
-		{"key-editor", "editor-key", "sk-editor_abc123", "editor"},
-		{"key-admin", "admin-key", "sk-admin_abc123", "admin"},
-	}
-	for _, k := range keys {
-		_, _ = pool.Exec(context.Background(),
-			`INSERT INTO api_keys (id, label, key_hash, role) VALUES ($1,$2,$3,$4) ON CONFLICT (id) DO NOTHING`,
-			k.id, k.label, hashKey(k.key), k.role)
-	}
 }
 
 func validateJWT(_ context.Context, auth *middleware.AuthContext, requiredRoles, requiredPermissions []string) error {
@@ -240,26 +262,6 @@ func validateJWT(_ context.Context, auth *middleware.AuthContext, requiredRoles,
 	return nil
 }
 
-func resolveAPIKey(ctx context.Context, pool *pgxpool.Pool, key string) (*middleware.AuthContext, error) {
-	h := sha256.Sum256([]byte(key))
-	keyHash := hex.EncodeToString(h[:])
-	var id, role string
-	var enabled bool
-	err := pool.QueryRow(ctx,
-		`SELECT id, role, enabled FROM api_keys WHERE key_hash = $1`, keyHash).
-		Scan(&id, &role, &enabled)
-	if err != nil {
-		return nil, errors.New("invalid API key")
-	}
-	if !enabled {
-		return nil, errors.New("API key disabled")
-	}
-	return &middleware.AuthContext{
-		UserID: id,
-		Roles:  []string{role},
-	}, nil
-}
-
 var roleHierarchy = map[string][]string{
 	"viewer": {},
 	"editor": {"viewer"},
@@ -282,7 +284,7 @@ func roleInherits(userRole, requiredRole string) bool {
 	return false
 }
 
-func handleLogin(c *runtime.RestCtx, pool *pgxpool.Pool) error {
+func handleLogin(c *runtime.RestCtx) error {
 	var body struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
@@ -290,6 +292,7 @@ func handleLogin(c *runtime.RestCtx, pool *pgxpool.Pool) error {
 	if err := c.Bind(&body); err != nil {
 		return c.Status(400).JSON(runtime.Map{"code": 400, "message": "invalid body"})
 	}
+	pool := c.PoolPG("default")
 	var userID, passwordHash, role string
 	err := pool.QueryRow(c.Context(),
 		`SELECT id, password_hash, role FROM users WHERE username = $1`, body.Username).
@@ -304,7 +307,11 @@ func handleLogin(c *runtime.RestCtx, pool *pgxpool.Pool) error {
 	if role == "admin" {
 		permissions = []string{"users:manage"}
 	}
-	claims := middleware.DefaultClaims(userID, "", []string{role}, permissions, authExpiry)
+	orgID := "org-alfa"
+	if role == "viewer" {
+		orgID = "org-beta"
+	}
+	claims := middleware.DefaultClaims(userID, orgID, []string{role}, permissions, authExpiry)
 	signed, err := middleware.SignToken(jwtSecret, "HS256", claims)
 	if err != nil {
 		return c.Status(500).JSON(runtime.Map{"code": 500, "message": "token generation failed"})
@@ -313,7 +320,7 @@ func handleLogin(c *runtime.RestCtx, pool *pgxpool.Pool) error {
 	return c.JSON(runtime.Map{"token": signed, "role": role})
 }
 
-func handleSignup(c *runtime.RestCtx, pool *pgxpool.Pool) error {
+func handleSignup(c *runtime.RestCtx) error {
 	var body struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
@@ -332,6 +339,7 @@ func handleSignup(c *runtime.RestCtx, pool *pgxpool.Pool) error {
 	if !slices.Contains(allowedRoles, body.Role) {
 		return c.Status(400).JSON(runtime.Map{"code": 400, "message": "invalid role (use viewer, editor, or admin)"})
 	}
+	pool := c.PoolPG("default")
 	userID := "user-" + body.Username
 	hash, err := auth.HashPassword(body.Password)
 	if err != nil {
@@ -346,11 +354,12 @@ func handleSignup(c *runtime.RestCtx, pool *pgxpool.Pool) error {
 	return c.Status(201).JSON(runtime.Map{"status": "created", "username": body.Username, "role": body.Role})
 }
 
-func handleProfile(c *runtime.RestCtx, pool *pgxpool.Pool) error {
+func handleProfile(c *runtime.RestCtx) error {
 	auth := getAuth(c)
 	if auth == nil {
 		return c.Status(401).JSON(runtime.Map{"code": 401, "message": "unauthorized"})
 	}
+	pool := c.PoolPG("default")
 	var username, role string
 	err := pool.QueryRow(c.Context(), `SELECT username, role FROM users WHERE id = $1`, auth.UserID).Scan(&username, &role)
 	if err != nil {
@@ -359,32 +368,40 @@ func handleProfile(c *runtime.RestCtx, pool *pgxpool.Pool) error {
 	return c.JSON(runtime.Map{"username": username, "role": role, "user_id": auth.UserID})
 }
 
-func handleListUsers(c *runtime.RestCtx, pool *pgxpool.Pool) error {
+func handleListUsers(c *runtime.RestCtx) error {
+	pool := c.PoolPG("default")
 	rows, err := pool.Query(c.Context(), `SELECT id, username, role FROM users ORDER BY username`)
 	if err != nil {
 		return c.Status(500).JSON(runtime.Map{"code": 500, "message": err.Error()})
 	}
 	defer rows.Close()
-	type user struct {
+	var users []struct {
 		ID       string `json:"id"`
 		Username string `json:"username"`
 		Role     string `json:"role"`
 	}
-	var users []user
 	for rows.Next() {
-		var u user
+		var u struct {
+			ID       string `json:"id"`
+			Username string `json:"username"`
+			Role     string `json:"role"`
+		}
 		if err := rows.Scan(&u.ID, &u.Username, &u.Role); err != nil {
 			break
 		}
 		users = append(users, u)
 	}
 	if users == nil {
-		users = []user{}
+		users = []struct {
+			ID       string `json:"id"`
+			Username string `json:"username"`
+			Role     string `json:"role"`
+		}{}
 	}
 	return c.JSON(runtime.Map{"data": users})
 }
 
-func handleDeleteUser(c *runtime.RestCtx, pool *pgxpool.Pool) error {
+func handleDeleteUser(c *runtime.RestCtx) error {
 	auth := getAuth(c)
 	if auth == nil {
 		return c.Status(401).JSON(runtime.Map{"code": 401, "message": "unauthorized"})
@@ -393,6 +410,7 @@ func handleDeleteUser(c *runtime.RestCtx, pool *pgxpool.Pool) error {
 	if id == auth.UserID {
 		return c.Status(403).JSON(runtime.Map{"code": 403, "message": "cannot delete yourself"})
 	}
+	pool := c.PoolPG("default")
 	_, err := pool.Exec(c.Context(), `DELETE FROM users WHERE id = $1`, id)
 	if err != nil {
 		return c.Status(500).JSON(runtime.Map{"code": 500, "message": err.Error()})
@@ -400,7 +418,7 @@ func handleDeleteUser(c *runtime.RestCtx, pool *pgxpool.Pool) error {
 	return c.JSON(runtime.Map{"status": "deleted"})
 }
 
-func handleSetUserRole(c *runtime.RestCtx, pool *pgxpool.Pool) error {
+func handleSetUserRole(c *runtime.RestCtx) error {
 	auth := getAuth(c)
 	if auth == nil {
 		return c.Status(401).JSON(runtime.Map{"code": 401, "message": "unauthorized"})
@@ -419,6 +437,7 @@ func handleSetUserRole(c *runtime.RestCtx, pool *pgxpool.Pool) error {
 	if !slices.Contains(allowedRoles, body.Role) {
 		return c.Status(400).JSON(runtime.Map{"code": 400, "message": "invalid role (use viewer, editor, admin)"})
 	}
+	pool := c.PoolPG("default")
 	_, err := pool.Exec(c.Context(), `UPDATE users SET role = $1 WHERE id = $2`, body.Role, id)
 	if err != nil {
 		return c.Status(500).JSON(runtime.Map{"code": 500, "message": err.Error()})
@@ -434,12 +453,11 @@ func getAuth(c *runtime.RestCtx) *middleware.AuthContext {
 }
 
 type productStore struct {
-	pool *pgxpool.Pool
-	mu   sync.RWMutex
+	mu sync.RWMutex
 }
 
-func newProductStore(pool *pgxpool.Pool) *productStore {
-	return &productStore{pool: pool}
+func newProductStore() *productStore {
+	return &productStore{}
 }
 
 func (s *productStore) auth(c *runtime.RestCtx) *middleware.AuthContext {
@@ -463,7 +481,8 @@ func (s *productStore) hasRole(auth *middleware.AuthContext, role string) bool {
 
 func (s *productStore) list(c *runtime.RestCtx) error {
 	auth := s.auth(c)
-	rows, err := s.pool.Query(c.Context(),
+	pool := c.PoolPG("default")
+	rows, err := pool.Query(c.Context(),
 		`SELECT id, name, description, price, visibility, created_by, deleted_at, updated_at
 		 FROM products ORDER BY updated_at DESC`)
 	if err != nil {
@@ -504,11 +523,12 @@ func (s *productStore) list(c *runtime.RestCtx) error {
 func (s *productStore) get(c *runtime.RestCtx) error {
 	auth := s.auth(c)
 	id := c.Params("id")
+	pool := c.PoolPG("default")
 	var idOut, name, description, visibility, createdBy string
 	var price float64
 	var deletedAt *time.Time
 	var updatedAt time.Time
-	err := s.pool.QueryRow(c.Context(),
+	err := pool.QueryRow(c.Context(),
 		`SELECT id, name, description, price, visibility, created_by, deleted_at, updated_at
 		 FROM products WHERE id = $1 AND deleted_at IS NULL`, id).
 		Scan(&idOut, &name, &description, &price, &visibility, &createdBy, &deletedAt, &updatedAt)
@@ -545,8 +565,9 @@ func (s *productStore) create(c *runtime.RestCtx) error {
 	if body.Name == "" {
 		return c.Status(400).JSON(runtime.Map{"code": 400, "message": "name required"})
 	}
+	pool := c.PoolPG("default")
 	var id string
-	err := s.pool.QueryRow(c.Context(),
+	err := pool.QueryRow(c.Context(),
 		`INSERT INTO products (name, description, price, created_by) VALUES ($1,$2,$3,$4) RETURNING id`,
 		body.Name, body.Description, body.Price, auth.UserID).Scan(&id)
 	if err != nil {
@@ -594,7 +615,8 @@ func (s *productStore) update(c *runtime.RestCtx) error {
 	fields = append(fields, "updated_at = now()")
 	args = append(args, id)
 	q := fmt.Sprintf(`UPDATE products SET %s WHERE id = $%d AND deleted_at IS NULL`, strings.Join(fields, ", "), argIdx)
-	_, err := s.pool.Exec(c.Context(), q, args...)
+	pool := c.PoolPG("default")
+	_, err := pool.Exec(c.Context(), q, args...)
 	if err != nil {
 		return c.Status(500).JSON(runtime.Map{"code": 500, "message": err.Error()})
 	}
@@ -608,7 +630,8 @@ func (s *productStore) delete(c *runtime.RestCtx) error {
 		return c.Status(403).JSON(runtime.Map{"code": 403, "message": "forbidden"})
 	}
 	id := c.Params("id")
-	_, err := s.pool.Exec(c.Context(),
+	pool := c.PoolPG("default")
+	_, err := pool.Exec(c.Context(),
 		`UPDATE products SET deleted_at = now(), updated_at = now() WHERE id = $1 AND deleted_at IS NULL`, id)
 	if err != nil {
 		return c.Status(500).JSON(runtime.Map{"code": 500, "message": err.Error()})
@@ -623,7 +646,8 @@ func (s *productStore) hardDelete(c *runtime.RestCtx) error {
 		return c.Status(403).JSON(runtime.Map{"code": 403, "message": "forbidden"})
 	}
 	id := c.Params("id")
-	_, err := s.pool.Exec(c.Context(), `DELETE FROM products WHERE id = $1`, id)
+	pool := c.PoolPG("default")
+	_, err := pool.Exec(c.Context(), `DELETE FROM products WHERE id = $1`, id)
 	if err != nil {
 		return c.Status(500).JSON(runtime.Map{"code": 500, "message": err.Error()})
 	}
@@ -647,9 +671,10 @@ func (s *productStore) setVisibility(c *runtime.RestCtx) error {
 	if !slices.Contains(allowed, body.Visibility) {
 		return c.Status(400).JSON(runtime.Map{"code": 400, "message": "visibility must be public, internal, or confidential"})
 	}
+	pool := c.PoolPG("default")
 	var oldVis string
-	_ = s.pool.QueryRow(c.Context(), `SELECT visibility FROM products WHERE id = $1`, id).Scan(&oldVis)
-	_, err := s.pool.Exec(c.Context(),
+	_ = pool.QueryRow(c.Context(), `SELECT visibility FROM products WHERE id = $1`, id).Scan(&oldVis)
+	_, err := pool.Exec(c.Context(),
 		`UPDATE products SET visibility = $1, updated_at = now() WHERE id = $2`, body.Visibility, id)
 	if err != nil {
 		return c.Status(500).JSON(runtime.Map{"code": 500, "message": err.Error()})
@@ -665,7 +690,8 @@ func (s *productStore) getAuditLog(c *runtime.RestCtx) error {
 		return c.Status(403).JSON(runtime.Map{"code": 403, "message": "forbidden"})
 	}
 	id := c.Params("id")
-	rows, err := s.pool.Query(c.Context(),
+	pool := c.PoolPG("default")
+	rows, err := pool.Query(c.Context(),
 		`SELECT id, product_id, action, changed_by, old_value, new_value, created_at
 		 FROM audit_log WHERE product_id = $1 ORDER BY created_at DESC`, id)
 	if err != nil {
@@ -713,7 +739,8 @@ func (s *productStore) getAuditLog(c *runtime.RestCtx) error {
 func (s *productStore) logAudit(c *runtime.RestCtx, productID, action, changedBy string, oldVal, newVal any) {
 	oldJSON := marshalJSON(oldVal)
 	newJSON := marshalJSON(newVal)
-	_, _ = s.pool.Exec(c.Context(),
+	pool := c.PoolPG("default")
+	_, _ = pool.Exec(c.Context(),
 		`INSERT INTO audit_log (product_id, action, changed_by, old_value, new_value) VALUES ($1,$2,$3,$4,$5)`,
 		productID, action, changedBy, oldJSON, newJSON)
 }

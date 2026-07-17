@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/natuleadan/sdk-api/db"
 	"github.com/natuleadan/sdk-api/server/middleware"
 )
 
@@ -642,7 +642,7 @@ func TestAPIKey_DisabledKey(t *testing.T) {
 		poolURL = u
 	}
 	ctx := context.Background()
-	p, err := pgxpool.New(ctx, poolURL)
+	p, err := db.NewPool(ctx, db.PoolConfig{URL: poolURL})
 	if err != nil {
 		t.Fatalf("pool: %v", err)
 	}
@@ -886,7 +886,7 @@ func TestRaceCondition_DegradedAPIKey_StaleJWT(t *testing.T) {
 		poolURL = u
 	}
 	ctx := context.Background()
-	p, err := pgxpool.New(ctx, poolURL)
+	p, err := db.NewPool(ctx, db.PoolConfig{URL: poolURL})
 	if err != nil {
 		t.Fatalf("pool: %v", err)
 	}
@@ -2127,6 +2127,212 @@ func TestRoleHierarchy_EditorInheritsViewer(t *testing.T) {
 		t.Fatalf("admin on viewer endpoint: expected 200 (inherits via editor→viewer), got %d", resp3.StatusCode)
 	}
 	t.Log("admin inherits viewer role via editor→viewer")
+}
+
+// --- Tenant Scoping Tests ---
+
+func TestTenant_ListIsScoped(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	adminToken := login(t, "admin", seedPass) // org-alfa
+	viewerToken := login(t, "viewer", seedPass) // org-beta
+
+	// Admin (org-alfa) sees 2 products
+	resp := authenticated("GET", baseURL+"/tenant-products", adminToken, nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("admin list: expected 200, got %d", resp.StatusCode)
+	}
+	var adminList struct {
+		Data []TenantProduct `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&adminList); err != nil {
+		t.Fatalf("admin list decode: %v", err)
+	}
+	if len(adminList.Data) != 2 {
+		t.Fatalf("admin (org-alfa): expected 2 products, got %d", len(adminList.Data))
+	}
+	for _, p := range adminList.Data {
+		if p.TenantID != "org-alfa" {
+			t.Errorf("admin: expected tenant_id org-alfa, got %s", p.TenantID)
+		}
+	}
+	t.Logf("admin (org-alfa) sees %d products (expected 2)", len(adminList.Data))
+
+	// Viewer (org-beta) sees 1 product
+	resp2 := authenticated("GET", baseURL+"/tenant-products", viewerToken, nil)
+	defer resp2.Body.Close()
+	if resp2.StatusCode != 200 {
+		t.Fatalf("viewer list: expected 200, got %d", resp2.StatusCode)
+	}
+	var viewerList struct {
+		Data []TenantProduct `json:"data"`
+	}
+	if err := json.NewDecoder(resp2.Body).Decode(&viewerList); err != nil {
+		t.Fatalf("viewer list decode: %v", err)
+	}
+	if len(viewerList.Data) != 1 {
+		t.Fatalf("viewer (org-beta): expected 1 product, got %d", len(viewerList.Data))
+	}
+	for _, p := range viewerList.Data {
+		if p.TenantID != "org-beta" {
+			t.Errorf("viewer: expected tenant_id org-beta, got %s", p.TenantID)
+		}
+	}
+	t.Logf("viewer (org-beta) sees %d products (expected 1)", len(viewerList.Data))
+}
+
+func TestTenant_CreateInjectsTenantID(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	token := login(t, "admin", seedPass) // org-alfa
+	body := `{"name":"CreatedItem","price":15}`
+	resp := authenticated("POST", baseURL+"/tenant-products", token, bytes.NewReader([]byte(body)))
+	defer resp.Body.Close()
+	if resp.StatusCode != 201 {
+		t.Fatalf("create: expected 201, got %d", resp.StatusCode)
+	}
+	var created TenantProduct
+	if err := json.NewDecoder(resp.Body).Decode(&created); err != nil {
+		t.Fatalf("create decode: %v", err)
+	}
+	if created.TenantID != "org-alfa" {
+		t.Errorf("expected tenant_id org-alfa, got %s", created.TenantID)
+	}
+	if created.Name != "CreatedItem" {
+		t.Errorf("expected name CreatedItem, got %s", created.Name)
+	}
+	t.Logf("created product with tenant_id=%s (expected org-alfa)", created.TenantID)
+}
+
+func TestTenant_CannotAccessOtherTenant(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	// Admin creates a product
+	adminToken := login(t, "admin", seedPass)
+	createBody := `{"name":"Secret","price":99}`
+	createResp := authenticated("POST", baseURL+"/tenant-products", adminToken, bytes.NewReader([]byte(createBody)))
+	defer createResp.Body.Close()
+	if createResp.StatusCode != 201 {
+		t.Fatalf("create: expected 201, got %d", createResp.StatusCode)
+	}
+	var created TenantProduct
+	if err := json.NewDecoder(createResp.Body).Decode(&created); err != nil {
+		t.Fatalf("create decode: %v", err)
+	}
+	t.Logf("admin created product %s in org-alfa", created.ID)
+
+	// Viewer (org-beta) tries to access the admin's product → 404 (not found, not 403)
+	viewerToken := login(t, "viewer", seedPass)
+	resp := authenticated("GET", baseURL+"/tenant-products/"+created.ID, viewerToken, nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != 404 {
+		t.Fatalf("viewer accessing other tenant's product: expected 404, got %d", resp.StatusCode)
+	}
+	t.Log("viewer correctly got 404 when accessing org-alfa product")
+}
+
+func TestTenant_CreateWithoutAuthReturns401(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	body := `{"name":"NoAuth","price":5}`
+	resp := authenticated("POST", baseURL+"/tenant-products", "", bytes.NewReader([]byte(body)))
+	defer resp.Body.Close()
+	if resp.StatusCode != 401 {
+		t.Fatalf("create without auth: expected 401, got %d", resp.StatusCode)
+	}
+	t.Log("create without auth correctly returned 401")
+}
+
+func TestTenant_UpdateScoped_CrossTenant(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	// Admin (org-alfa) creates a product
+	adminToken := login(t, "admin", seedPass)
+	createBody := `{"name":"UpdateTarget","price":50}`
+	createResp := authenticated("POST", baseURL+"/tenant-products", adminToken, bytes.NewReader([]byte(createBody)))
+	defer createResp.Body.Close()
+	var created TenantProduct
+	json.NewDecoder(createResp.Body).Decode(&created)
+	t.Logf("admin created %s in org-alfa", created.ID)
+
+	// Viewer (org-beta) tries to PATCH it → 404
+	viewerToken := login(t, "viewer", seedPass)
+	patchBody := `{"name":"Hacked"}`
+	patchResp := authenticated("PATCH", baseURL+"/tenant-products/"+created.ID, viewerToken, bytes.NewReader([]byte(patchBody)))
+	defer patchResp.Body.Close()
+	if patchResp.StatusCode != 404 {
+		t.Fatalf("viewer updating other tenant's product: expected 404, got %d", patchResp.StatusCode)
+	}
+	t.Log("viewer correctly got 404 when updating org-alfa product")
+}
+
+func TestTenant_DeleteScoped_CrossTenant(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	// Admin (org-alfa) creates a product
+	adminToken := login(t, "admin", seedPass)
+	createBody := `{"name":"DeleteTarget","price":50}`
+	createResp := authenticated("POST", baseURL+"/tenant-products", adminToken, bytes.NewReader([]byte(createBody)))
+	defer createResp.Body.Close()
+	var created TenantProduct
+	json.NewDecoder(createResp.Body).Decode(&created)
+	t.Logf("admin created %s in org-alfa", created.ID)
+
+	// Viewer (org-beta) tries to DELETE it → 404
+	viewerToken := login(t, "viewer", seedPass)
+	delResp := authenticated("DELETE", baseURL+"/tenant-products/"+created.ID, viewerToken, nil)
+	defer delResp.Body.Close()
+	if delResp.StatusCode != 404 {
+		t.Fatalf("viewer deleting other tenant's product: expected 404, got %d", delResp.StatusCode)
+	}
+	t.Log("viewer correctly got 404 when deleting org-alfa product")
+}
+
+func TestTenant_CannotCreateForOtherTenant(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	// Admin (org-alfa) tries to create a product claiming to be org-beta
+	token := login(t, "admin", seedPass)
+	body := `{"name":"SpoofAttempt","price":99,"tenant_id":"org-beta"}`
+	resp := authenticated("POST", baseURL+"/tenant-products", token, bytes.NewReader([]byte(body)))
+	defer resp.Body.Close()
+	if resp.StatusCode != 201 {
+		t.Fatalf("create: expected 201, got %d", resp.StatusCode)
+	}
+	var created TenantProduct
+	if err := json.NewDecoder(resp.Body).Decode(&created); err != nil {
+		t.Fatalf("create decode: %v", err)
+	}
+	// The tenant_id in the response must be org-alfa (from JWT), NOT org-beta (from body)
+	if created.TenantID != "org-alfa" {
+		t.Fatalf("expected tenant_id org-alfa (from JWT), got %s (spoofed)", created.TenantID)
+	}
+	if created.Name != "SpoofAttempt" {
+		t.Errorf("expected name SpoofAttempt, got %s", created.Name)
+	}
+	t.Logf("tenant_id spoof prevented: request claimed org-beta, got org-alfa from JWT")
 }
 
 func cookieTokenFromResponse(resp *http.Response) string {

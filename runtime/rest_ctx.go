@@ -2,8 +2,10 @@ package runtime
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Map is a shorthand for map[string]any used in JSON responses.
@@ -34,11 +36,12 @@ func NewCookie(name, value string, maxAge int) *Cookie {
 }
 
 type RestCtx struct {
-	fc fiber.Ctx
+	fc    fiber.Ctx
+	pools map[string]any
 }
 
-func newRestCtx(c fiber.Ctx) *RestCtx {
-	return &RestCtx{fc: c}
+func newRestCtx(c fiber.Ctx, pools map[string]any) *RestCtx {
+	return &RestCtx{fc: c, pools: pools}
 }
 
 func (c *RestCtx) Body() []byte {
@@ -128,4 +131,18 @@ func (c *RestCtx) Redirect(url string, statusCode ...int) error {
 		code = statusCode[0]
 	}
 	return c.fc.Redirect().Status(code).To(url)
+}
+
+func (c *RestCtx) PoolPG(name string) *pgxpool.Pool {
+	if c.pools == nil {
+		return nil
+	}
+	return PoolPG(c.pools, name)
+}
+
+func (c *RestCtx) PoolSQL(name string) *sql.DB {
+	if c.pools == nil {
+		return nil
+	}
+	return PoolSQL(c.pools, name)
 }

@@ -399,7 +399,7 @@ func (s *Service) WithRest(name string, h func(*RestCtx) error) *Service {
 	if s.handlers.Rest == nil {
 		s.handlers.Rest = make(map[string]func(fiber.Ctx) error)
 	}
-	s.handlers.Rest[name] = func(c fiber.Ctx) error { return h(newRestCtx(c)) }
+	s.handlers.Rest[name] = func(c fiber.Ctx) error { return h(newRestCtx(c, s.pools)) }
 	return s
 }
 
@@ -488,12 +488,15 @@ func (s *Service) WithAPIKeyValidator(fn func(ctx context.Context, key string) (
 }
 
 // WithRateLimitMaxFunc registers a dynamic rate limit resolver.
-// The function receives the Fiber context and returns the max requests per window.
+// The function receives the SDK RestCtx and returns the max requests per window.
 // Overrides YAML-defined static limits when it returns > 0.
 // Useful for per-tenant, per-user, or per-request dynamic rate limits.
-func (s *Service) WithRateLimitMaxFunc(fn func(c fiber.Ctx) int) *Service {
-	SetRateLimitMaxFunc(fn)
-	s.rlMaxFunc = fn
+func (s *Service) WithRateLimitMaxFunc(fn func(c *RestCtx) int) *Service {
+	wrapped := func(fc fiber.Ctx) int {
+		return fn(newRestCtx(fc, nil))
+	}
+	SetRateLimitMaxFunc(wrapped)
+	s.rlMaxFunc = wrapped
 	return s
 }
 

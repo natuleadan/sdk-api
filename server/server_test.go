@@ -296,3 +296,53 @@ func TestErrorHandler_LeavesClientErrors(t *testing.T) {
 		t.Errorf("expected original message, got %q", errResp.Message)
 	}
 }
+
+func TestSanitizeErrorMessage_4xxWithIP(t *testing.T) {
+	msg := sanitizeErrorMessage("dial tcp 10.0.0.5:5432: timeout", 400)
+	if msg != "dial tcp [redacted]:5432: timeout" {
+		t.Errorf("expected IP redacted, got %q", msg)
+	}
+}
+
+func TestSanitizeErrorMessage_4xxWithConnString(t *testing.T) {
+	msg := sanitizeErrorMessage("connection to postgres://admin:pass@db:5432/mydb failed", 400)
+	if msg != "connection to postgres://[redacted]@db:5432/mydb failed" {
+		t.Errorf("expected conn string redacted, got %q", msg)
+	}
+
+	msg = sanitizeErrorMessage("nats://user:secret@nats:4222: connection refused", 400)
+	if msg != "nats://[redacted]@nats:4222: connection refused" {
+		t.Errorf("expected nats conn string redacted, got %q", msg)
+	}
+}
+
+func TestSanitizeErrorMessage_4xxWithFilePath(t *testing.T) {
+	msg := sanitizeErrorMessage("config not found at /etc/sdk-api/service.yaml", 400)
+	if msg != "config not found at [redacted]" {
+		t.Errorf("expected file path redacted, got %q", msg)
+	}
+}
+
+func TestSanitizeErrorMessage_4xxNormal(t *testing.T) {
+	msg := sanitizeErrorMessage("invalid email format", 400)
+	if msg != "invalid email format" {
+		t.Errorf("expected message unchanged, got %q", msg)
+	}
+
+	msg = sanitizeErrorMessage("product name is required", 422)
+	if msg != "product name is required" {
+		t.Errorf("expected message unchanged, got %q", msg)
+	}
+}
+
+func TestSanitizeErrorMessage_5xxAlways(t *testing.T) {
+	msg := sanitizeErrorMessage("dial tcp 10.0.0.5:5432: timeout", 500)
+	if msg != "internal server error" {
+		t.Errorf("expected internal server error for 5xx, got %q", msg)
+	}
+
+	msg = sanitizeErrorMessage("something went wrong", 503)
+	if msg != "internal server error" {
+		t.Errorf("expected internal server error for 5xx, got %q", msg)
+	}
+}

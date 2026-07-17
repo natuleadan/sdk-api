@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"regexp"
 	"strings"
 	"time"
 
@@ -326,9 +327,18 @@ func errorHandler(c fiber.Ctx, err error) error {
 	})
 }
 
+var (
+	reSanitizeIP      = regexp.MustCompile(`\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}`)
+	reSanitizeConnURL = regexp.MustCompile(`(postgres|mysql|nats|redis|mongodb)[+a-z]*://[^@\s]+@`)
+	reSanitizePath    = regexp.MustCompile(`(/[\w.-]+)+\.(go|yaml|json|pem|key|env|conf|toml|xml)`)
+)
+
 func sanitizeErrorMessage(msg string, code int) string {
-	if code < 500 {
-		return msg
+	msg = reSanitizeIP.ReplaceAllString(msg, "[redacted]")
+	msg = reSanitizeConnURL.ReplaceAllString(msg, "$1://[redacted]@")
+	msg = reSanitizePath.ReplaceAllString(msg, "[redacted]")
+	if code >= 500 {
+		return "internal server error"
 	}
-	return "internal server error"
+	return msg
 }

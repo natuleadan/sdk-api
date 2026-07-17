@@ -34,3 +34,5 @@ services:
       DOCKER_TEST: "1"
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/auth_roles?sslmode=disable
       REDIS_URL: dragonfly:6379
+      JWT_SECRET: dev-secret-hs256-change-in-prod
+      ENCRYPT_COOKIE_KEY: diPHoCg5vhBrTHCSJhlud1RRMRFpRo+4N/d32S+48t8=

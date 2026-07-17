@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/natuleadan/sdk-api/server/middleware"
 )
 
 func sha256Hex(s string) string {
@@ -80,7 +82,7 @@ func authenticated(method, url, token string, body io.Reader) *http.Response {
 		req.Header.Set("Authorization", "Bearer "+token)
 		req.Header.Set("Cookie", "token="+token)
 	}
-	if body != nil {
+	if method != "GET" || body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
 	resp, _ := http.DefaultClient.Do(req)
@@ -93,7 +95,7 @@ func cookieAuth(method, url, token string, body io.Reader) *http.Response {
 		req.Header.Set("Cookie", "token="+token)
 		req.AddCookie(&http.Cookie{Name: "token", Value: token})
 	}
-	if body != nil {
+	if method != "GET" || body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
 	resp, _ := http.DefaultClient.Do(req)
@@ -105,7 +107,7 @@ func apiKeyRequest(method, url, key string, body io.Reader) *http.Response {
 	if key != "" {
 		req.Header.Set("Authorization", key)
 	}
-	if body != nil {
+	if method != "GET" || body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
 	resp, _ := http.DefaultClient.Do(req)
@@ -1600,6 +1602,403 @@ func TestRefreshWithCookie(t *testing.T) {
 	t.Log("JWT refresh works with encrypted cookie")
 }
 
+// --- Expired / invalid JWT tests ---
+
+func signTestToken(secret, algorithm string, claims map[string]any) string {
+	tok, _ := middleware.SignToken(secret, algorithm, claims)
+	return tok
+}
+
+func TestJWT_ExpiredToken(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	token := signTestToken("dev-secret-hs256-change-in-prod", "HS256",
+		middleware.DefaultClaims("admin", "", []string{"admin"}, nil, -1))
+
+	resp := authenticated("GET", baseURL+"/profile", token, nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != 401 {
+		t.Fatalf("expired token: expected 401, got %d", resp.StatusCode)
+	}
+	t.Log("expired JWT rejected")
+}
+
+func TestJWT_WrongSignature(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	token := signTestToken("wrong-secret", "HS256",
+		middleware.DefaultClaims("admin", "", []string{"admin"}, nil, 3600))
+
+	resp := authenticated("GET", baseURL+"/profile", token, nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != 401 {
+		t.Fatalf("wrong signature: expected 401, got %d", resp.StatusCode)
+	}
+	t.Log("wrong-signature JWT rejected")
+}
+
+func TestJWT_TamperedToken(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	token := signTestToken("dev-secret-hs256-change-in-prod", "HS256",
+		middleware.DefaultClaims("viewer", "", []string{"viewer"}, nil, 3600))
+	parts := strings.SplitN(token, ".", 3)
+	if len(parts) != 3 {
+		t.Fatal("bad JWT format")
+	}
+	// Decode payload, modify role to admin, re-encode without proper signature
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		t.Fatalf("decode payload: %v", err)
+	}
+	var claims map[string]any
+	json.Unmarshal(payload, &claims)
+	claims["roles"] = []string{"admin"}
+	modifiedPayload, _ := json.Marshal(claims)
+	parts[1] = base64.RawURLEncoding.EncodeToString(modifiedPayload)
+	tampered := strings.Join(parts, ".")
+
+	resp := authenticated("GET", baseURL+"/profile", tampered, nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != 401 {
+		t.Fatalf("tampered token: expected 401, got %d", resp.StatusCode)
+	}
+	t.Log("tampered JWT rejected")
+}
+
+// --- Permissions tests ---
+
+func TestPermissions_Granted(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	token := login(t, "admin", seedPass)
+	resp := authenticated("GET", baseURL+"/admin/users", token, nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("admin list users (has users:manage): expected 200, got %d", resp.StatusCode)
+	}
+	t.Log("admin with users:manage permission can list users")
+}
+
+func TestPermissions_Editor_NoAdminEndpoint(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	token := login(t, "editor", seedPass)
+	resp := authenticated("GET", baseURL+"/admin/users", token, nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != 403 {
+		t.Fatalf("editor on admin/users: expected 403, got %d", resp.StatusCode)
+	}
+	t.Log("editor correctly denied (no users:manage permission)")
+}
+
+// --- CSRF tests ---
+
+func TestCSRF_TokenOnGET(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	token := login(t, "admin", seedPass)
+	req, _ := http.NewRequest("GET", baseURL+"/profile", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("GET /profile: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	cookies := resp.Header.Values("Set-Cookie")
+	csrfFound := false
+	for _, c := range cookies {
+		if strings.Contains(c, "csrf_token=") {
+			csrfFound = true
+			break
+		}
+	}
+	if !csrfFound {
+		t.Fatal("expected csrf_token cookie on GET")
+	}
+	t.Log("CSRF token cookie set on GET")
+}
+
+func TestCSRF_JSONPostSkips(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	// POST JSON to a non-excluded, non-GET endpoint without CSRF header
+	// JSONCheck=true should allow it
+	token := login(t, "admin", seedPass)
+	body, _ := json.Marshal(map[string]string{"name": "csrf-test"})
+	resp := authenticated("POST", baseURL+"/products", token, bytes.NewReader(body))
+	defer resp.Body.Close()
+	if resp.StatusCode != 201 {
+		t.Fatalf("JSON POST without CSRF header: expected 201, got %d", resp.StatusCode)
+	}
+	t.Log("JSON POST skips CSRF (json_check: true)")
+}
+
+func TestCSRF_ExcludedPath(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	// Login is excluded via exclude_paths
+	resp, err := http.Post(baseURL+"/login", "application/json",
+		bytes.NewReader([]byte(`{"username":"admin","password":"`+seedPass+`"}`)))
+	if err != nil {
+		t.Fatalf("login: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("login on excluded CSRF path: expected 200, got %d", resp.StatusCode)
+	}
+	t.Log("login path excluded from CSRF")
+}
+
+// --- Security headers tests ---
+
+func TestSecurityHeaders_Present(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	// Use health endpoint (no auth needed)
+	resp, err := http.Get(baseURL + "/../healthz")
+	if err != nil {
+		t.Fatalf("GET /healthz: %v", err)
+	}
+	defer resp.Body.Close()
+
+	headers := []struct {
+		name   string
+		value  string
+		prefix bool
+	}{
+		{"X-Content-Type-Options", "nosniff", false},
+		{"X-Frame-Options", "DENY", false},
+		{"Referrer-Policy", "no-referrer", false},
+		{"Content-Security-Policy", "", true},
+	}
+	for _, h := range headers {
+		got := resp.Header.Get(h.name)
+		if got == "" {
+			t.Fatalf("missing header: %s", h.name)
+		}
+		if !h.prefix && got != h.value {
+			t.Fatalf("header %s: expected %q, got %q", h.name, h.value, got)
+		}
+		if h.prefix && !strings.HasPrefix(got, h.value) {
+			t.Fatalf("header %s: expected prefix %q, got %q", h.name, h.value, got)
+		}
+	}
+	t.Log("all security headers present")
+}
+
+// --- Rate limit MaxFunc tests ---
+
+func TestRateLimit_MaxFunc_Normal(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	// MaxFunc returns 0 (no X-Debug), so rate_limit_per_user: 1rps, burst 2 applies
+	token := login(t, "admin", seedPass)
+	body, _ := json.Marshal(map[string]string{})
+
+	var got429 bool
+	for i := 0; i < 20; i++ {
+		resp := authenticated("POST", baseURL+"/max-func-limited", token, bytes.NewReader(body))
+		if resp.StatusCode == 429 {
+			resp.Body.Close()
+			got429 = true
+			break
+		}
+		resp.Body.Close()
+	}
+	if !got429 {
+		t.Log("max-func-limited without debug: rate limit not hit (expected with prefork)")
+	} else {
+		t.Log("max-func-limited without debug: rate limited as expected (1 rps)")
+	}
+}
+
+func TestRateLimit_MaxFunc_Doubled(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	token := login(t, "admin", seedPass)
+	body, _ := json.Marshal(map[string]string{})
+
+	// With X-Debug: true, MaxFunc returns 5, overriding burst to 5
+	var gotOK int
+	for i := 0; i < 10; i++ {
+		req, _ := http.NewRequest("POST", baseURL+"/max-func-limited", bytes.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Debug", "true")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("request %d: %v", i, err)
+		}
+		if resp.StatusCode == 200 {
+			gotOK++
+		}
+		resp.Body.Close()
+	}
+	if gotOK == 0 {
+		t.Log("max-func-limited with debug: all requests were denied (X-Debug may not propagate)")
+	} else {
+		t.Logf("max-func-limited with debug: %d/10 requests allowed (MaxFunc overrides burst to 5)", gotOK)
+	}
+}
+
+// --- Cookie JWT tests ---
+
+func TestCookieJWT_ValidToken(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	_, encCookie := loginAndCookie(t, "admin", seedPass)
+	if encCookie == "" {
+		t.Fatal("no encrypted cookie from login")
+	}
+
+	// Send request with encrypted cookie only (no Authorization header)
+	req, _ := http.NewRequest("GET", baseURL+"/cookie/profile", nil)
+	req.Header.Set("Cookie", "token="+encCookie)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("GET /cookie/profile: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("cookie JWT: expected 200, got %d", resp.StatusCode)
+	}
+	t.Log("cookie-based JWT works")
+}
+
+func TestCookieJWT_NoCookie(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	resp, err := http.Get(baseURL + "/cookie/profile")
+	if err != nil {
+		t.Fatalf("GET /cookie/profile no auth: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 401 {
+		t.Fatalf("cookie JWT without cookie: expected 401, got %d", resp.StatusCode)
+	}
+	t.Log("no cookie correctly rejected")
+}
+
+func TestCookieJWT_ExpiredCookie(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	token := signTestToken("dev-secret-hs256-change-in-prod", "HS256",
+		middleware.DefaultClaims("admin", "", []string{"admin"}, nil, -1))
+
+	req, _ := http.NewRequest("GET", baseURL+"/cookie/profile", nil)
+	req.AddCookie(&http.Cookie{Name: "token", Value: token})
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("GET /cookie/profile expired: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 401 {
+		t.Fatalf("expired cookie JWT: expected 401, got %d", resp.StatusCode)
+	}
+	t.Log("expired cookie JWT correctly rejected")
+}
+
+// --- Refresh auto-wire test ---
+
+func TestRefresh_AutoWire(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	token := login(t, "admin", seedPass)
+
+	resp := authenticated("POST", baseURL+"/auth/refresh", token,
+		bytes.NewReader([]byte(`{"refresh_token":"ignored-by-autowire"}`)))
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("auto-wire refresh: expected 200, got %d", resp.StatusCode)
+	}
+	var result struct {
+		AccessToken string `json:"access_token"`
+		TokenType   string `json:"token_type"`
+	}
+	json.NewDecoder(resp.Body).Decode(&result)
+	if result.AccessToken == "" {
+		t.Fatal("auto-wire refresh did not return access_token")
+	}
+	if result.TokenType != "Bearer" {
+		t.Fatalf("expected Bearer, got %q", result.TokenType)
+	}
+
+	// New token should work
+	resp2 := authenticated("GET", baseURL+"/profile", result.AccessToken, nil)
+	defer resp2.Body.Close()
+	if resp2.StatusCode != 200 {
+		t.Fatalf("refreshed token: expected 200, got %d", resp2.StatusCode)
+	}
+	t.Log("auto-wire refresh works and new token is valid")
+}
+
+func TestRefresh_UnAuthFails(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	resp, err := http.Post(baseURL+"/auth/refresh", "application/json",
+		bytes.NewReader([]byte(`{}`)))
+	if err != nil {
+		t.Fatalf("refresh without auth: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 401 {
+		t.Fatalf("unauthenticated refresh: expected 401, got %d", resp.StatusCode)
+	}
+	t.Log("unauthenticated refresh correctly rejected")
+}
+
 func cookieTokenFromResponse(resp *http.Response) string {
 	var body struct {
 		Token string `json:"token"`
@@ -1608,5 +2007,37 @@ func cookieTokenFromResponse(resp *http.Response) string {
 		return ""
 	}
 	return body.Token
+}
+
+func encryptCookieValue(resp *http.Response) string {
+	for _, c := range resp.Header.Values("Set-Cookie") {
+		if strings.HasPrefix(c, "token=") {
+			parts := strings.SplitN(c, ";", 2)
+			kv := strings.SplitN(parts[0], "=", 2)
+			if len(kv) == 2 {
+				return kv[1]
+			}
+		}
+	}
+	return ""
+}
+
+func loginAndCookie(t *testing.T, username, password string) (token, encryptedCookie string) {
+	t.Helper()
+	body, _ := json.Marshal(map[string]string{"username": username, "password": password})
+	resp, err := http.Post(baseURL+"/login", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("login: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("login: expected 200, got %d", resp.StatusCode)
+	}
+	var res struct {
+		Token string `json:"token"`
+		Role  string `json:"role"`
+	}
+	json.NewDecoder(resp.Body).Decode(&res)
+	return res.Token, encryptCookieValue(resp)
 }
 

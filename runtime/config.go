@@ -240,6 +240,7 @@ type CSRFConf struct {
 	SameSite     string   `json:"same_site" config:",optional"`
 	Secure       bool     `json:"secure" config:",optional"`
 	ExcludePaths []string `json:"exclude_paths" config:",optional"`
+	JSONCheck    bool     `json:"json_check" config:",optional"`
 }
 
 type RouteMW struct {

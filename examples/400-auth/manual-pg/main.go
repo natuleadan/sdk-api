@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/sha256"
+	_ "embed"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -10,26 +11,52 @@ import (
 	"log"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/gofiber/fiber/v3"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/natuleadan/sdk-api/runtime"
 	"github.com/natuleadan/sdk-api/runtime/auth"
 	"github.com/natuleadan/sdk-api/server/middleware"
 )
 
+//go:embed service.yaml
+var serviceYAML []byte
+
+var (
+	jwtSecret  = envOrDefault("JWT_SECRET", "dev-secret-hs256-change-in-prod")
+	authExpiry = envIntOrDefault("AUTH_EXPIRY", 900)
+	seedPass   = envOrDefault("SEED_PASSWORD", "pass123")
+)
+
+func envOrDefault(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return def
+}
+
+func envIntOrDefault(key string, def int) int {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			return n
+		}
+	}
+	return def
+}
+
 func main() {
-	cfg := loadConfig()
-	svc, err := runtime.NewFromYAML(cfg)
+	svc, err := runtime.NewFromYAML(serviceYAML)
 	if err != nil {
 		log.Fatalf("init: %v", err)
 	}
 
-	poolURL := "postgres://postgres:postgres@postgres:5432/auth_roles?sslmode=disable"
-	if u := os.Getenv("DATABASE_URL"); u != "" {
-		poolURL = u
+	poolURL := os.Getenv("DATABASE_URL")
+	if poolURL == "" {
+		poolURL = "postgres://postgres:postgres@postgres:5432/auth_roles?sslmode=disable"
 	}
 	pool, err := initPool(context.Background(), poolURL)
 	if err != nil {
@@ -47,11 +74,20 @@ func main() {
 		return resolveAPIKey(ctx, pool, key)
 	})
 
+	svc.WithRateLimitMaxFunc(func(c fiber.Ctx) int {
+		if c.Get("X-Debug") == "true" {
+			return 5
+		}
+		return 0
+	})
+
 	store := newProductStore(pool)
 
 	svc.WithRest("loginHandler", func(c *runtime.RestCtx) error {
 		return handleLogin(c, pool)
 	})
+	svc.WithRest("signupHandler", func(c *runtime.RestCtx) error { return handleSignup(c, pool) })
+	svc.WithRest("profileHandler", func(c *runtime.RestCtx) error { return handleProfile(c, pool) })
 	svc.WithRest("listProducts", func(c *runtime.RestCtx) error { return store.list(c) })
 	svc.WithRest("createProduct", func(c *runtime.RestCtx) error { return store.create(c) })
 	svc.WithRest("getProduct", func(c *runtime.RestCtx) error { return store.get(c) })
@@ -60,244 +96,16 @@ func main() {
 	svc.WithRest("hardDeleteProduct", func(c *runtime.RestCtx) error { return store.hardDelete(c) })
 	svc.WithRest("setVisibility", func(c *runtime.RestCtx) error { return store.setVisibility(c) })
 	svc.WithRest("getAuditLog", func(c *runtime.RestCtx) error { return store.getAuditLog(c) })
-	svc.WithRest("signupHandler", func(c *runtime.RestCtx) error { return handleSignup(c, pool) })
-	svc.WithRest("profileHandler", func(c *runtime.RestCtx) error { return handleProfile(c, pool) })
 	svc.WithRest("listUsers", func(c *runtime.RestCtx) error { return handleListUsers(c, pool) })
 	svc.WithRest("deleteUser", func(c *runtime.RestCtx) error { return handleDeleteUser(c, pool) })
 	svc.WithRest("setUserRole", func(c *runtime.RestCtx) error { return handleSetUserRole(c, pool) })
-	svc.WithRest("rateLimitedHandler", func(c *runtime.RestCtx) error {
-		return c.JSON(runtime.Map{"status": "ok"})
-	})
-	svc.WithRest("perUserLimited", func(c *runtime.RestCtx) error {
-		return c.JSON(runtime.Map{"status": "ok"})
-	})
-	svc.WithRest("perKeyLimited", func(c *runtime.RestCtx) error {
-		return c.JSON(runtime.Map{"status": "ok"})
-	})
-	svc.WithRest("perRoleLimited", func(c *runtime.RestCtx) error {
-		return c.JSON(runtime.Map{"status": "ok"})
-	})
-	svc.WithRest("refreshHandler", func(c *runtime.RestCtx) error {
-		auth := getAuth(c)
-		if auth == nil {
-			return c.Status(401).JSON(runtime.Map{"code": 401, "message": "unauthorized"})
-		}
-		claims := middleware.DefaultClaims(auth.UserID, auth.OrgID, auth.Roles, auth.Permissions, 900)
-		signed, err := middleware.SignToken("dev-secret-hs256-change-in-prod", "HS256", claims)
-		if err != nil {
-			return c.Status(500).JSON(runtime.Map{"code": 500, "message": "token generation failed"})
-		}
-		c.SetCookie(runtime.NewCookie("token", signed, 900))
-		return c.JSON(runtime.Map{"access_token": signed, "token_type": "Bearer", "expires_in": 900})
-	})
+	svc.WithRest("rateLimitedHandler", func(c *runtime.RestCtx) error { return c.JSON(runtime.Map{"status": "ok"}) })
+	svc.WithRest("perUserLimited", func(c *runtime.RestCtx) error { return c.JSON(runtime.Map{"status": "ok"}) })
+	svc.WithRest("perKeyLimited", func(c *runtime.RestCtx) error { return c.JSON(runtime.Map{"status": "ok"}) })
+	svc.WithRest("perRoleLimited", func(c *runtime.RestCtx) error { return c.JSON(runtime.Map{"status": "ok"}) })
+	svc.WithRest("maxFuncLimited", func(c *runtime.RestCtx) error { return c.JSON(runtime.Map{"status": "ok"}) })
 
 	log.Fatal(svc.Run())
-}
-
-func loadConfig() []byte {
-	cfg := `name: auth-roles
-port: 23400
-
-server:
-  host: "0.0.0.0"
-  prefork: true
-  timeout: 30s
-  body_limit: 4194304
-  max_conns: 10000
-  health_path: /healthz
-  api_prefix: /api/v1
-  shutdown_timeout: 10s
-  middleware:
-    - path: "/*"
-      apply: [logger]
-  security:
-    encrypt_cookie:
-      enabled: true
-      key: "diPHoCg5vhBrTHCSJhlud1RRMRFpRo+4N/d32S+48t8="
-      except:
-        - "csrf_token"
-  rate_limit:
-    enabled: true
-    kv: cache-main
-    algorithm: token_bucket
-    ttl: 5m
-
-kv:
-  - name: cache-main
-    driver: redis
-    url: "${REDIS_URL}"
-
-databases:
-  - name: primary
-    driver: postgres
-    url: "postgres://postgres:postgres@postgres:5432/auth_roles?sslmode=disable"
-    pool:
-      max_conns: 50
-      min_conns: 2
-      reserved_conns: 5
-
-auth:
-  enabled: true
-  driver: manual
-  secret: "dev-secret-hs256-change-in-prod"
-  algorithm: HS256
-
-entry:
-  - type: rest
-    method: POST
-    path: /login
-    handler: loginHandler
-
-  - type: rest
-    method: POST
-    path: /signup
-    handler: signupHandler
-
-  - type: rest
-    method: GET
-    path: /profile
-    handler: profileHandler
-    auth_modes: [jwt]
-
-  - type: rest
-    method: GET
-    path: /products
-    handler: listProducts
-    auth_modes: [jwt, apikey]
-    api_key_prefix: "sk-"
-
-  - type: rest
-    method: POST
-    path: /products
-    handler: createProduct
-    auth_modes: [jwt, apikey]
-    api_key_prefix: "sk-"
-
-  - type: rest
-    method: GET
-    path: /products/:id
-    handler: getProduct
-    auth_modes: [jwt, apikey]
-    api_key_prefix: "sk-"
-
-  - type: rest
-    method: PATCH
-    path: /products/:id
-    handler: updateProduct
-    auth_modes: [jwt, apikey]
-    api_key_prefix: "sk-"
-
-  - type: rest
-    method: DELETE
-    path: /products/:id
-    handler: deleteProduct
-    auth_modes: [jwt, apikey]
-    api_key_prefix: "sk-"
-
-  - type: rest
-    method: DELETE
-    path: /admin/products/:id/hard
-    handler: hardDeleteProduct
-    auth_modes: [jwt]
-    roles: ["admin"]
-
-  - type: rest
-    method: PATCH
-    path: /admin/products/:id/visibility
-    handler: setVisibility
-    auth_modes: [jwt]
-    roles: ["admin"]
-
-  - type: rest
-    method: GET
-    path: /admin/products/:id/audit
-    handler: getAuditLog
-    auth_modes: [jwt]
-    roles: ["admin"]
-
-  - type: rest
-    method: GET
-    path: /admin/users
-    handler: listUsers
-    auth_modes: [jwt]
-    roles: ["admin"]
-
-  - type: rest
-    method: DELETE
-    path: /admin/users/:id
-    handler: deleteUser
-    auth_modes: [jwt]
-    roles: ["admin"]
-
-  - type: rest
-    method: PATCH
-    path: /admin/users/:id/role
-    handler: setUserRole
-    auth_modes: [jwt]
-    roles: ["admin"]
-
-  - type: rest
-    method: POST
-    path: /auth/refresh
-    handler: refreshHandler
-    auth_modes: [jwt]
-
-  - type: rest
-    method: POST
-    path: /rate-limited
-    handler: rateLimitedHandler
-    auth_modes: [jwt, apikey]
-    api_key_prefix: "sk-"
-    rate_limit:
-      requests_per_second: 10
-      burst: 20
-    rate_limit_per_user:
-      requests_per_second: 5
-      burst: 10
-    rate_limit_per_key:
-      requests_per_second: 10
-      burst: 20
-
-  - type: rest
-    method: POST
-    path: /per-user-limited
-    handler: perUserLimited
-    auth_modes: [jwt]
-    rate_limit_per_user:
-      requests_per_second: 2
-      burst: 4
-
-  - type: rest
-    method: POST
-    path: /per-role-limited
-    handler: perRoleLimited
-    auth_modes: [jwt]
-    roles: ["admin", "editor", "viewer"]
-    rate_limit_per_role:
-      admin:
-        requests_per_second: 5
-        burst: 10
-      editor:
-        requests_per_second: 3
-        burst: 6
-      viewer:
-        requests_per_second: 1
-        burst: 2
-
-  - type: rest
-    method: POST
-    path: /per-key-limited
-    handler: perKeyLimited
-    auth_modes: [apikey]
-    api_key_prefix: "sk-"
-    rate_limit_per_key:
-      requests_per_second: 3
-      burst: 6
-`
-	if os.Getenv("DOCKER_TEST") != "1" {
-		return []byte(cfg)
-	}
-	return []byte(cfg)
 }
 
 func initPool(ctx context.Context, url string) (*pgxpool.Pool, error) {
@@ -370,9 +178,9 @@ func mustSeedData(pool *pgxpool.Pool) {
 	}
 
 	users := []struct{ id, username, password, role string }{
-		{"user-viewer", "viewer", "pass123", "viewer"},
-		{"user-editor", "editor", "pass123", "editor"},
-		{"user-admin", "admin", "pass123", "admin"},
+		{"user-viewer", "viewer", seedPass, "viewer"},
+		{"user-editor", "editor", seedPass, "editor"},
+		{"user-admin", "admin", seedPass, "admin"},
 	}
 	for _, u := range users {
 		hash, _ := auth.HashPassword(u.password)
@@ -393,16 +201,42 @@ func mustSeedData(pool *pgxpool.Pool) {
 	}
 }
 
-func validateJWT(_ context.Context, auth *middleware.AuthContext, requiredRoles, _ []string) error {
-	if len(requiredRoles) == 0 {
-		return nil
-	}
-	for _, r := range auth.Roles {
-		if r == requiredRoles[0] || roleInherits(r, requiredRoles[0]) {
-			return nil
+func validateJWT(_ context.Context, auth *middleware.AuthContext, requiredRoles, requiredPermissions []string) error {
+	if len(requiredRoles) > 0 {
+		allowed := false
+		for _, r := range auth.Roles {
+			for _, req := range requiredRoles {
+				if r == req || roleInherits(r, req) {
+					allowed = true
+					break
+				}
+			}
+			if allowed {
+				break
+			}
+		}
+		if !allowed {
+			return errors.New("insufficient role")
 		}
 	}
-	return errors.New("insufficient role")
+	if len(requiredPermissions) > 0 {
+		allowed := false
+		for _, p := range auth.Permissions {
+			for _, req := range requiredPermissions {
+				if p == req {
+					allowed = true
+					break
+				}
+			}
+			if allowed {
+				break
+			}
+		}
+		if !allowed {
+			return errors.New("insufficient permissions")
+		}
+	}
+	return nil
 }
 
 func resolveAPIKey(ctx context.Context, pool *pgxpool.Pool, key string) (*middleware.AuthContext, error) {
@@ -465,12 +299,16 @@ func handleLogin(c *runtime.RestCtx, pool *pgxpool.Pool) error {
 	if !auth.VerifyPassword(passwordHash, body.Password) {
 		return c.Status(401).JSON(runtime.Map{"code": 401, "message": "invalid credentials"})
 	}
-	claims := middleware.DefaultClaims(userID, "", []string{role}, nil, 900)
-	signed, err := middleware.SignToken("dev-secret-hs256-change-in-prod", "HS256", claims)
+	var permissions []string
+	if role == "admin" {
+		permissions = []string{"users:manage"}
+	}
+	claims := middleware.DefaultClaims(userID, "", []string{role}, permissions, authExpiry)
+	signed, err := middleware.SignToken(jwtSecret, "HS256", claims)
 	if err != nil {
 		return c.Status(500).JSON(runtime.Map{"code": 500, "message": "token generation failed"})
 	}
-	c.SetCookie(runtime.NewCookie("token", signed, 900))
+	c.SetCookie(runtime.NewCookie("token", signed, authExpiry))
 	return c.JSON(runtime.Map{"token": signed, "role": role})
 }
 

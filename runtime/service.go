@@ -826,6 +826,16 @@ func (s *Service) initServer() {
 		})
 	}
 
+	// Collect per-entry CSRF exclusions from entry[].csrf: false
+	for _, e := range s.config.Entry {
+		if e.CSRF != nil && !*e.CSRF {
+			if sc.CSRF == nil {
+				sc.CSRF = &CSRFConf{}
+			}
+			sc.CSRF.ExcludePaths = append(sc.CSRF.ExcludePaths, e.Path)
+		}
+	}
+
 	srvCfg := server.Config{
 		Port:            s.config.Port,
 		Host:            sc.Host,
@@ -1074,6 +1084,11 @@ func registerAuthRefresh(s *Service, auth *AuthConfig) {
 	if path == "" {
 		path = "/auth/refresh"
 	}
+	// Prepend API prefix to match entry route convention
+	prefix := s.config.Server.APIPrefix
+	if prefix != "" && !strings.HasPrefix(path, prefix) {
+		path = prefix + path
+	}
 	for _, entry := range s.config.Entry {
 		if entry.Path == path {
 			logx.Infof("auth: refresh endpoint %q already defined in entries, skipping auto-wire", path)
@@ -1087,7 +1102,8 @@ func registerAuthRefresh(s *Service, auth *AuthConfig) {
 	}
 
 	app := s.srv.App()
-	app.Post(path, func(c fiber.Ctx) error {
+	jwtMw := middleware.JWT(*s.jwtCfg)
+	app.Post(path, jwtMw, func(c fiber.Ctx) error {
 		authCtx := middleware.GetAuth(c)
 		if authCtx == nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -1242,6 +1258,7 @@ func convertCSRF(cfg *CSRFConf, cookieCfg *CookieConf) *middleware.CSRFConfig {
 		SameSite:     cfg.SameSite,
 		Secure:       cfg.Secure,
 		ExcludePaths: cfg.ExcludePaths,
+		JSONCheck:    cfg.JSONCheck,
 	}
 	// Apply global cookie config if not overridden per-CSRF
 	if c.SameSite == "" && cookieCfg != nil {

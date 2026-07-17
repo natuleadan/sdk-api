@@ -16,9 +16,27 @@ server:
   security:
     encrypt_cookie:
       enabled: true
-      key: "diPHoCg5vhBrTHCSJhlud1RRMRFpRo+4N/d32S+48t8="
+      key: "${ENCRYPT_COOKIE_KEY}"
       except:
         - "csrf_token"
+        - "token"
+  csrf:
+    enabled: true
+    json_check: true
+    exclude_paths:
+      - "/api/v1/login"
+      - "/api/v1/signup"
+  security_headers:
+    frame_options: DENY
+    referrer_policy: no-referrer
+    permissions_policy: "camera=(), microphone=()"
+    hsts: false
+    csp_config:
+      level: basic
+      default_src: ["'self'"]
+      script_src: ["'self'"]
+      style_src: ["'self'"]
+      img_src: ["'self'", "data:"]
   rate_limit:
     enabled: true
     kv: cache-main
@@ -33,7 +51,7 @@ kv:
 databases:
   - name: primary
     driver: postgres
-    url: "postgres://postgres:postgres@postgres:5432/auth_roles?sslmode=disable"
+    url: "${DATABASE_URL}"
     pool:
       max_conns: 50
       min_conns: 2
@@ -42,8 +60,16 @@ databases:
 auth:
   enabled: true
   driver: manual
-  secret: "dev-secret-hs256-change-in-prod"
+  secret: "${JWT_SECRET}"
   algorithm: HS256
+  expiry: 900
+  cookie:
+    access_token_name: token
+    http_only: true
+    secure: false
+    same_site: Lax
+  refresh:
+    enabled: true
 
 entry:
   - type: rest
@@ -61,6 +87,13 @@ entry:
     path: /profile
     handler: profileHandler
     auth_modes: [jwt]
+
+  - type: rest
+    method: GET
+    path: /cookie/profile
+    handler: profileHandler
+    auth_modes: [jwt]
+    jwt_from: "cookie:token"
 
   - type: rest
     method: GET
@@ -124,6 +157,7 @@ entry:
     handler: listUsers
     auth_modes: [jwt]
     roles: ["admin"]
+    permissions: ["users:manage"]
 
   - type: rest
     method: DELETE
@@ -131,6 +165,7 @@ entry:
     handler: deleteUser
     auth_modes: [jwt]
     roles: ["admin"]
+    permissions: ["users:manage"]
 
   - type: rest
     method: PATCH
@@ -138,12 +173,7 @@ entry:
     handler: setUserRole
     auth_modes: [jwt]
     roles: ["admin"]
-
-  - type: rest
-    method: POST
-    path: /auth/refresh
-    handler: refreshHandler
-    auth_modes: [jwt]
+    permissions: ["users:manage"]
 
   - type: rest
     method: POST
@@ -196,3 +226,12 @@ entry:
     rate_limit_per_key:
       requests_per_second: 3
       burst: 6
+
+  - type: rest
+    method: POST
+    path: /max-func-limited
+    handler: maxFuncLimited
+    auth_modes: [jwt]
+    rate_limit_per_user:
+      requests_per_second: 1
+      burst: 2

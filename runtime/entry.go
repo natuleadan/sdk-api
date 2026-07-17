@@ -166,7 +166,11 @@ func appendJWTMiddleware(mws []fiber.Handler, entry *EntryDef, driver string, jw
 			mws = append(mws, openfgaMiddleware(entry, fgaClient, entry.Roles, entry.Permissions))
 		}
 	case "ory":
-		mws = append(mws, jwtMiddleware(entry, jwtCfg))
+		if oryClient != nil {
+			mws = append(mws, oryJWTMiddleware(entry, jwtCfg, oryClient))
+		} else {
+			mws = append(mws, jwtMiddleware(entry, jwtCfg))
+		}
 		if oryClient != nil {
 			mws = append(mws, oryMiddleware(entry, oryClient, entry.Roles, entry.Permissions))
 		}
@@ -341,13 +345,16 @@ func jwtMiddleware(entry *EntryDef, jwtCfg *middleware.JWTConfig) fiber.Handler 
 	if entry.JWTFrom != "" {
 		cfg.TokenLookup = entry.JWTFrom
 	}
+	// When jwt_from overrides the default (header:Authorization), don't skip
+	// based on Authorization header — token may be in cookie or query param.
+	hasCustomLookup := entry.JWTFrom != ""
 	mw := middleware.JWT(cfg)
 	return func(c fiber.Ctx) error {
 		mode, _ := c.Locals("auth_mode").(string)
 		if mode == "apikey" {
 			return c.Next()
 		}
-		if mode == "" && !strings.HasPrefix(c.Get("Authorization"), "Bearer ") {
+		if !hasCustomLookup && mode == "" && !strings.HasPrefix(c.Get("Authorization"), "Bearer ") {
 			return c.Next()
 		}
 		return mw(c)
@@ -359,6 +366,13 @@ func zitadelJWTMiddleware(entry *EntryDef, jwtCfg *middleware.JWTConfig, zClient
 		return nil
 	}
 	return middleware.JWTWithZitadel(*jwtCfg, zClient)
+}
+
+func oryJWTMiddleware(entry *EntryDef, jwtCfg *middleware.JWTConfig, oClient *ory.Client) fiber.Handler {
+	if !hasAuth(entry, "jwt") || oClient == nil {
+		return nil
+	}
+	return middleware.JWTWithOry(*jwtCfg, oClient)
 }
 
 func openfgaMiddleware(entry *EntryDef, fgaClient openfga.Checker, roles, permissions []string) fiber.Handler {

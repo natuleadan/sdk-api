@@ -103,6 +103,7 @@ func main() {
 	svc.WithRest("perUserLimited", func(c *runtime.RestCtx) error { return c.JSON(runtime.Map{"status": "ok"}) })
 	svc.WithRest("perKeyLimited", func(c *runtime.RestCtx) error { return c.JSON(runtime.Map{"status": "ok"}) })
 	svc.WithRest("perRoleLimited", func(c *runtime.RestCtx) error { return c.JSON(runtime.Map{"status": "ok"}) })
+	svc.WithRest("viewerDataHandler", func(c *runtime.RestCtx) error { return c.JSON(runtime.Map{"data": "viewer-only"}) })
 	svc.WithRest("maxFuncLimited", func(c *runtime.RestCtx) error { return c.JSON(runtime.Map{"status": "ok"}) })
 
 	log.Fatal(svc.Run())

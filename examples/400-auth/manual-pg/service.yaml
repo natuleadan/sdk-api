@@ -228,6 +228,21 @@ entry:
       burst: 6
 
   - type: rest
+    method: GET
+    path: /viewer-data
+    handler: viewerDataHandler
+    auth_modes: [jwt]
+    roles: ["viewer"]
+
+  - type: rest
+    method: GET
+    path: /admin/dual-products
+    handler: listProducts
+    auth_modes: [jwt, apikey]
+    api_key_prefix: "sk-"
+    roles: ["admin"]
+
+  - type: rest
     method: POST
     path: /max-func-limited
     handler: maxFuncLimited

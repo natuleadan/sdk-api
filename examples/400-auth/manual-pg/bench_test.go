@@ -1999,6 +1999,136 @@ func TestRefresh_UnAuthFails(t *testing.T) {
 	t.Log("unauthenticated refresh correctly rejected")
 }
 
+func TestJWT_WrongAlgorithm(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	token := signTestToken("dev-secret-hs256-change-in-prod", "HS512",
+		middleware.DefaultClaims("admin", "", []string{"admin"}, nil, 3600))
+
+	resp := authenticated("GET", baseURL+"/profile", token, nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != 401 {
+		t.Fatalf("wrong algorithm: expected 401, got %d", resp.StatusCode)
+	}
+	t.Log("HS512 JWT rejected (server uses HS256)")
+}
+
+func TestCSRF_RejectsWithoutHeader(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	token := login(t, "admin", seedPass)
+
+	// POST without Content-Type (no JSONCheck) and without X-CSRF-Token
+	req, _ := http.NewRequest("POST", baseURL+"/rate-limited", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("POST /rate-limited: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 403 {
+		t.Fatalf("expected 403 (CSRF required), got %d", resp.StatusCode)
+	}
+	t.Log("CSRF correctly rejects POST without Content-Type nor CSRF header")
+}
+
+func TestDualAuth_APIKeyWrongRole(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	// Viewer API key on admin-only dual-auth endpoint → 403 (insufficient role)
+	resp := apiKeyRequest("GET", baseURL+"/admin/dual-products", "sk-viewer_abc123", nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != 403 {
+		t.Fatalf("viewer key on admin dual endpoint: expected 403, got %d", resp.StatusCode)
+	}
+	t.Log("viewer API key correctly denied from admin dual-auth endpoint")
+
+	// Admin API key on same endpoint → 200
+	resp2 := apiKeyRequest("GET", baseURL+"/admin/dual-products", "sk-admin_abc123", nil)
+	defer resp2.Body.Close()
+	if resp2.StatusCode != 200 {
+		t.Fatalf("admin key on admin dual endpoint: expected 200, got %d", resp2.StatusCode)
+	}
+	t.Log("admin API key correctly allowed on admin dual-auth endpoint")
+}
+
+func TestDisabledUser_Rejected(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	// Signup a temp user and login
+	signupBody, _ := json.Marshal(map[string]string{"username": "tempuser5", "password": seedPass})
+	http.Post(baseURL+"/signup", "application/json", bytes.NewReader(signupBody))
+
+	token := login(t, "tempuser5", seedPass)
+
+	// Delete the user
+	adminToken := login(t, "admin", seedPass)
+	delResp := authenticated("DELETE", baseURL+"/admin/users/user-tempuser5", adminToken, nil)
+	delResp.Body.Close()
+
+	// JWT middleware passes (signature valid) but handler returns 404 (user not in DB)
+	resp := authenticated("GET", baseURL+"/profile", token, nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != 404 {
+		t.Fatalf("deleted user profile: expected 404 (JWT valid but user gone), got %d", resp.StatusCode)
+	}
+	t.Log("JWT valid but user gone → profile returns 404 (expected)")
+
+	// Login fails (user no longer exists)
+	resp2, _ := http.Post(baseURL+"/login", "application/json", bytes.NewReader(signupBody))
+	defer resp2.Body.Close()
+	if resp2.StatusCode != 401 {
+		t.Fatalf("login after deletion: expected 401, got %d", resp2.StatusCode)
+	}
+	t.Log("login correctly fails after user deletion")
+}
+
+func TestRoleHierarchy_EditorInheritsViewer(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	// Editor JWT → inherits viewer role → can access viewer-only endpoint
+	token := login(t, "editor", seedPass)
+	resp := authenticated("GET", baseURL+"/viewer-data", token, nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("editor on viewer endpoint: expected 200 (inherits viewer), got %d", resp.StatusCode)
+	}
+	t.Log("editor inherits viewer role correctly")
+
+	// Viewer JWT → can also access (it's their own role)
+	token2 := login(t, "viewer", seedPass)
+	resp2 := authenticated("GET", baseURL+"/viewer-data", token2, nil)
+	defer resp2.Body.Close()
+	if resp2.StatusCode != 200 {
+		t.Fatalf("viewer on viewer endpoint: expected 200, got %d", resp2.StatusCode)
+	}
+	t.Log("viewer can access viewer endpoint")
+
+	// Admin JWT → also inherits viewer via editor
+	token3 := login(t, "admin", seedPass)
+	resp3 := authenticated("GET", baseURL+"/viewer-data", token3, nil)
+	defer resp3.Body.Close()
+	if resp3.StatusCode != 200 {
+		t.Fatalf("admin on viewer endpoint: expected 200 (inherits via editor→viewer), got %d", resp3.StatusCode)
+	}
+	t.Log("admin inherits viewer role via editor→viewer")
+}
+
 func cookieTokenFromResponse(resp *http.Response) string {
 	var body struct {
 		Token string `json:"token"`

@@ -79,6 +79,13 @@ func (t *Table[T]) List(ctx context.Context) ([]T, error) {
 	return result, nil
 }
 
+func (t *Table[T]) ListScoped(ctx context.Context, tenantField string, tenantID string) ([]T, error) {
+	if _, err := t.validColumn(tenantField); err != nil {
+		return nil, err
+	}
+	return t.QueryWhere(ctx, map[string]any{tenantField: tenantID}, t.info.PrimaryKey, 0, 0)
+}
+
 func (t *Table[T]) Get(ctx context.Context, id any) (*T, error) {
 	query := fmt.Sprintf("SELECT %s FROM %s WHERE %s = $1",
 		t.columnsList(), t.tableName, t.info.PrimaryKey)
@@ -94,6 +101,28 @@ func (t *Table[T]) Get(ctx context.Context, id any) (*T, error) {
 			return nil, ErrNotFound
 		}
 		return nil, fmt.Errorf("db: get: %w", err)
+	}
+	return &entity, nil
+}
+
+func (t *Table[T]) GetScoped(ctx context.Context, id any, tenantField string, tenantID string) (*T, error) {
+	if _, err := t.validColumn(tenantField); err != nil {
+		return nil, err
+	}
+	query := fmt.Sprintf("SELECT %s FROM %s WHERE %s = $1 AND %s = $2",
+		t.columnsList(), t.tableName, t.info.PrimaryKey, tenantField)
+	rows, err := t.pool.Query(ctx, query, id, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("db: get scoped: %w", err)
+	}
+	defer rows.Close()
+
+	entity, err := pgx.CollectExactlyOneRow(rows, pgx.RowToStructByName[T])
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("db: get scoped: %w", err)
 	}
 	return &entity, nil
 }
@@ -164,6 +193,23 @@ func (t *Table[T]) Create(ctx context.Context, entity *T) error {
 	return nil
 }
 
+func (t *Table[T]) CreateScoped(ctx context.Context, entity *T, tenantField string, tenantID string) error {
+	if _, err := t.validColumn(tenantField); err != nil {
+		return err
+	}
+	v := reflect.ValueOf(entity).Elem()
+	for _, f := range t.info.Fields {
+		if f.Column == tenantField {
+			fv := v.FieldByName(f.GoName)
+			if fv.IsValid() && fv.CanSet() {
+				fv.SetString(tenantID)
+			}
+			break
+		}
+	}
+	return t.Create(ctx, entity)
+}
+
 func (t *Table[T]) Update(ctx context.Context, id any, patch map[string]any) (*T, error) {
 	if len(patch) == 0 {
 		return nil, fmt.Errorf("db: update: no fields")
@@ -205,11 +251,72 @@ func (t *Table[T]) Update(ctx context.Context, id any, patch map[string]any) (*T
 	return &updated, nil
 }
 
+func (t *Table[T]) UpdateScoped(ctx context.Context, id any, patch map[string]any, tenantField string, tenantID string) (*T, error) {
+	if _, err := t.validColumn(tenantField); err != nil {
+		return nil, err
+	}
+	if len(patch) == 0 {
+		return nil, fmt.Errorf("db: update: no fields")
+	}
+
+	idx := 1
+	var sets []string
+	args := make([]any, 0, len(patch)+2)
+	for col, val := range patch {
+		if _, err := t.validColumn(col); err != nil {
+			return nil, err
+		}
+		sets = append(sets, fmt.Sprintf("%s = $%d", col, idx))
+		args = append(args, val)
+		idx++
+	}
+	args = append(args, id, tenantID)
+
+	query := fmt.Sprintf("UPDATE %s SET %s WHERE %s = $%d AND %s = $%d RETURNING %s",
+		t.tableName,
+		strings.Join(sets, ", "),
+		t.info.PrimaryKey,
+		idx,
+		tenantField,
+		idx+1,
+		t.columnsList())
+
+	rows, err := t.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("db: update scoped: %w", err)
+	}
+	defer rows.Close()
+
+	updated, err := pgx.CollectExactlyOneRow(rows, pgx.RowToStructByName[T])
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("db: update scoped: %w", err)
+	}
+	return &updated, nil
+}
+
 func (t *Table[T]) Delete(ctx context.Context, id any) error {
 	query := fmt.Sprintf("DELETE FROM %s WHERE %s = $1", t.tableName, t.info.PrimaryKey)
 	tag, err := t.pool.Exec(ctx, query, id)
 	if err != nil {
 		return fmt.Errorf("db: delete: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (t *Table[T]) DeleteScoped(ctx context.Context, id any, tenantField string, tenantID string) error {
+	if _, err := t.validColumn(tenantField); err != nil {
+		return err
+	}
+	query := fmt.Sprintf("DELETE FROM %s WHERE %s = $1 AND %s = $2", t.tableName, t.info.PrimaryKey, tenantField)
+	tag, err := t.pool.Exec(ctx, query, id, tenantID)
+	if err != nil {
+		return fmt.Errorf("db: delete scoped: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
 		return ErrNotFound

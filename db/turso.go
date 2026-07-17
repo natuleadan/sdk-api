@@ -356,4 +356,114 @@ func (t *TursoTable[T]) Delete(ctx context.Context, id any) error {
 	return nil
 }
 
+func (t *TursoTable[T]) ListScoped(ctx context.Context, tenantField string, tenantID string) ([]T, error) {
+	f := t.columnField(tenantField)
+	if f == nil {
+		return nil, fmt.Errorf("db: turso list scoped: invalid column %q", tenantField)
+	}
+	var b strings.Builder
+	b.Grow(128)
+	b.WriteString("SELECT ")
+	b.WriteString(t.columnsList())
+	b.WriteString(" FROM ")
+	b.WriteString(t.tableName)
+	b.WriteString(" WHERE ")
+	b.WriteString(f.Column)
+	b.WriteString(" = ? ORDER BY ")
+	b.WriteString(t.info.PrimaryKey)
+	rows, err := t.db.QueryContext(ctx, b.String(), tenantID)
+	if err != nil { return nil, fmt.Errorf("db: turso list scoped: %w", err) }
+	defer func() { _ = rows.Close() }()
+	return t.scanRows(rows)
+}
+
+func (t *TursoTable[T]) GetScoped(ctx context.Context, id any, tenantField string, tenantID string) (*T, error) {
+	f := t.columnField(tenantField)
+	if f == nil {
+		return nil, fmt.Errorf("db: turso get scoped: invalid column %q", tenantField)
+	}
+	var b strings.Builder
+	b.Grow(128)
+	b.WriteString("SELECT ")
+	b.WriteString(t.columnsList())
+	b.WriteString(" FROM ")
+	b.WriteString(t.tableName)
+	b.WriteString(" WHERE ")
+	b.WriteString(t.info.PrimaryKey)
+	b.WriteString(" = ? AND ")
+	b.WriteString(f.Column)
+	b.WriteString(" = ?")
+	row := t.db.QueryRowContext(ctx, b.String(), id, tenantID)
+	var entity T
+	if err := t.scanRow(row, &entity); err != nil {
+		if err == sql.ErrNoRows { return nil, ErrNotFound }
+		return nil, fmt.Errorf("db: turso get scoped: %w", err)
+	}
+	return &entity, nil
+}
+
+func (t *TursoTable[T]) CreateScoped(ctx context.Context, entity *T, tenantField string, tenantID string) error {
+	f := t.columnField(tenantField)
+	if f == nil {
+		return fmt.Errorf("db: turso create scoped: invalid column %q", tenantField)
+	}
+	v := reflect.ValueOf(entity).Elem()
+	if fv := v.FieldByName(f.GoName); fv.IsValid() && fv.CanSet() {
+		fv.SetString(tenantID)
+	}
+	return t.Create(ctx, entity)
+}
+
+func (t *TursoTable[T]) UpdateScoped(ctx context.Context, id any, patch map[string]any, tenantField string, tenantID string) (*T, error) {
+	f := t.columnField(tenantField)
+	if f == nil {
+		return nil, fmt.Errorf("db: turso update scoped: invalid column %q", tenantField)
+	}
+	if len(patch) == 0 { return nil, fmt.Errorf("db: turso update scoped: no fields") }
+	var sets []string
+	var args []any
+	for col, val := range patch {
+		sets = append(sets, col+" = ?")
+		args = append(args, val)
+	}
+	args = append(args, id, tenantID)
+	var b strings.Builder
+	b.Grow(128)
+	b.WriteString("UPDATE ")
+	b.WriteString(t.tableName)
+	b.WriteString(" SET ")
+	b.WriteString(strings.Join(sets, ", "))
+	b.WriteString(" WHERE ")
+	b.WriteString(t.info.PrimaryKey)
+	b.WriteString(" = ? AND ")
+	b.WriteString(f.Column)
+	b.WriteString(" = ?")
+	res, err := t.db.ExecContext(ctx, b.String(), args...)
+	if err != nil { return nil, fmt.Errorf("db: turso update scoped: %w", err) }
+	n, _ := res.RowsAffected()
+	if n == 0 { return nil, ErrNotFound }
+	return t.GetScoped(ctx, id, tenantField, tenantID)
+}
+
+func (t *TursoTable[T]) DeleteScoped(ctx context.Context, id any, tenantField string, tenantID string) error {
+	f := t.columnField(tenantField)
+	if f == nil {
+		return fmt.Errorf("db: turso delete scoped: invalid column %q", tenantField)
+	}
+	var b strings.Builder
+	b.Grow(64)
+	b.WriteString("DELETE FROM ")
+	b.WriteString(t.tableName)
+	b.WriteString(" WHERE ")
+	b.WriteString(t.info.PrimaryKey)
+	b.WriteString(" = ? AND ")
+	b.WriteString(f.Column)
+	b.WriteString(" = ?")
+	res, err := t.db.ExecContext(ctx, b.String(), id, tenantID)
+	if err != nil { return fmt.Errorf("db: turso delete scoped: %w", err) }
+	n, _ := res.RowsAffected()
+	if n == 0 { return ErrNotFound }
+	return nil
+}
+
 func (t *TursoTable[T]) Close() error { return t.db.Close() }

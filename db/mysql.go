@@ -213,6 +213,28 @@ func (t *MySQLTable[T]) List(ctx context.Context) ([]T, error) {
 	return t.scanRows(rows)
 }
 
+func (t *MySQLTable[T]) ListScoped(ctx context.Context, tenantField string, tenantID string) ([]T, error) {
+	if t.columnField(tenantField) == nil {
+		return nil, fmt.Errorf("db: mysql list scoped: invalid column %q", tenantField)
+	}
+	var b strings.Builder
+	b.Grow(128)
+	b.WriteString("SELECT ")
+	b.WriteString(t.columnsList())
+	b.WriteString(" FROM ")
+	b.WriteString(t.tableName)
+	b.WriteString(" WHERE ")
+	b.WriteString(tenantField)
+	b.WriteString(" = ? ORDER BY ")
+	b.WriteString(t.info.PrimaryKey)
+	rows, err := t.db.QueryContext(ctx, b.String(), tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("db: mysql list scoped: %w", err)
+	}
+	defer func() { if err := rows.Close(); err != nil { fmt.Printf("close error: %v\n", err) } }()
+	return t.scanRows(rows)
+}
+
 func (t *MySQLTable[T]) QueryKeyset(ctx context.Context, cursor string, size int, orderBy string, where map[string]any) ([]T, string, error) {
 	if orderBy == "" {
 		orderBy = t.info.PrimaryKey
@@ -391,6 +413,105 @@ func (t *MySQLTable[T]) Delete(ctx context.Context, id any) error {
 	res, err := t.db.ExecContext(ctx, b.String(), id)
 	if err != nil {
 		return fmt.Errorf("db: mysql delete: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (t *MySQLTable[T]) GetScoped(ctx context.Context, id any, tenantField string, tenantID string) (*T, error) {
+	if t.columnField(tenantField) == nil {
+		return nil, fmt.Errorf("db: mysql get scoped: invalid column %q", tenantField)
+	}
+	var b strings.Builder
+	b.Grow(128)
+	b.WriteString("SELECT ")
+	b.WriteString(t.columnsList())
+	b.WriteString(" FROM ")
+	b.WriteString(t.tableName)
+	b.WriteString(" WHERE ")
+	b.WriteString(t.info.PrimaryKey)
+	b.WriteString(" = ? AND ")
+	b.WriteString(tenantField)
+	b.WriteString(" = ?")
+	row := t.db.QueryRowContext(ctx, b.String(), id, tenantID)
+	var entity T
+	if err := t.scanRow(row, &entity); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("db: mysql get scoped: %w", err)
+	}
+	return &entity, nil
+}
+
+func (t *MySQLTable[T]) CreateScoped(ctx context.Context, entity *T, tenantField string, tenantID string) error {
+	if t.columnField(tenantField) == nil {
+		return fmt.Errorf("db: mysql create scoped: invalid column %q", tenantField)
+	}
+	v := reflect.ValueOf(entity).Elem()
+	for _, f := range t.info.Fields {
+		if f.Column == tenantField {
+			fv := v.FieldByName(f.GoName)
+			if fv.IsValid() && fv.CanSet() {
+				fv.SetString(tenantID)
+			}
+			break
+		}
+	}
+	return t.Create(ctx, entity)
+}
+
+func (t *MySQLTable[T]) UpdateScoped(ctx context.Context, id any, patch map[string]any, tenantField string, tenantID string) (*T, error) {
+	if t.columnField(tenantField) == nil {
+		return nil, fmt.Errorf("db: mysql update scoped: invalid column %q", tenantField)
+	}
+	if len(patch) == 0 {
+		return nil, fmt.Errorf("db: mysql update scoped: no fields")
+	}
+	var sets []string
+	var args []any
+	for col, val := range patch {
+		sets = append(sets, "`"+col+"` = ?")
+		args = append(args, val)
+	}
+	args = append(args, id, tenantID)
+
+	var b strings.Builder
+	b.Grow(128)
+	b.WriteString("UPDATE ")
+	b.WriteString(t.tableName)
+	b.WriteString(" SET ")
+	b.WriteString(strings.Join(sets, ", "))
+	b.WriteString(" WHERE ")
+	b.WriteString(t.info.PrimaryKey)
+	b.WriteString(" = ? AND ")
+	b.WriteString(tenantField)
+	b.WriteString(" = ?")
+	if _, err := t.db.ExecContext(ctx, b.String(), args...); err != nil {
+		return nil, fmt.Errorf("db: mysql update scoped: %w", err)
+	}
+	return t.GetScoped(ctx, id, tenantField, tenantID)
+}
+
+func (t *MySQLTable[T]) DeleteScoped(ctx context.Context, id any, tenantField string, tenantID string) error {
+	if t.columnField(tenantField) == nil {
+		return fmt.Errorf("db: mysql delete scoped: invalid column %q", tenantField)
+	}
+	var b strings.Builder
+	b.Grow(64)
+	b.WriteString("DELETE FROM ")
+	b.WriteString(t.tableName)
+	b.WriteString(" WHERE ")
+	b.WriteString(t.info.PrimaryKey)
+	b.WriteString(" = ? AND ")
+	b.WriteString(tenantField)
+	b.WriteString(" = ?")
+	res, err := t.db.ExecContext(ctx, b.String(), id, tenantID)
+	if err != nil {
+		return fmt.Errorf("db: mysql delete scoped: %w", err)
 	}
 	n, _ := res.RowsAffected()
 	if n == 0 {

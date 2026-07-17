@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/natuleadan/sdk-api/events"
 )
 
@@ -20,6 +21,35 @@ func registerCRUD(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, pref
 	ov := entry.Overrides
 	if ov == nil {
 		ov = &CRUDOverrides{}
+	}
+
+	// Tenant scoping middleware: extracts tenant ID from the JWT claim configured in tenant_scope
+	if entry.TenantField != "" {
+		tenantMw := func(c fiber.Ctx) error {
+			scope := entry.TenantScope
+			if scope == "" {
+				scope = "org_id"
+			}
+
+			tenantID := ""
+			if claims, ok := c.Locals("claims").(jwt.MapClaims); ok {
+				if tid, ok := claims[scope].(string); ok {
+					tenantID = tid
+				}
+			}
+
+			if tenantID == "" {
+				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+					"code":    403,
+					"message": fmt.Sprintf("tenant scope %q not found in token claims", scope),
+				})
+			}
+
+			c.Locals("tenant_field", entry.TenantField)
+			c.Locals("tenant_id", tenantID)
+			return c.Next()
+		}
+		mws = append(mws, tenantMw)
 	}
 
 	ctx := context.Background()

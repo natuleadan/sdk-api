@@ -32,9 +32,25 @@ func (t *tableCRUD[T]) SetHooks(hooks any) {
 	}
 }
 
+func tenantInfo(c fiber.Ctx) (field, id string) {
+	f, okF := c.Locals("tenant_field").(string)
+	i, okI := c.Locals("tenant_id").(string)
+	if okF && okI && f != "" && i != "" {
+		return f, i
+	}
+	return "", ""
+}
+
 func (t *tableCRUD[T]) List(ctx fiber.Ctx, params ListParams) error {
+	tf, tid := tenantInfo(ctx)
 	if params.Pagination == "keyset" {
 		where := makeFiltersMap(params.Filters)
+		if tf != "" && tid != "" {
+			if where == nil {
+				where = make(map[string]any)
+			}
+			where[tf] = tid
+		}
 		items, nextCursor, err := t.table.QueryKeyset(ctx.Context(), params.Cursor, params.Size, params.Sort, where)
 		if err != nil {
 			return fiber.NewError(500, err.Error())
@@ -42,12 +58,16 @@ func (t *tableCRUD[T]) List(ctx fiber.Ctx, params ListParams) error {
 		return ctx.JSON(KeysetResponse{Data: items, NextCursor: nextCursor, PageSize: params.Size})
 	}
 
-	if len(params.Filters) > 0 {
-		where := make(map[string]any, len(params.Filters))
+	if len(params.Filters) > 0 || (tf != "" && tid != "") {
+		where := make(map[string]any, len(params.Filters)+1)
 		var wcs []db.ColumnValue
 		for k, v := range params.Filters {
 			where[k] = v
 			wcs = append(wcs, db.Col(k, v))
+		}
+		if tf != "" && tid != "" {
+			where[tf] = tid
+			wcs = append(wcs, db.Col(tf, tid))
 		}
 		items, err := t.table.QueryWhere(ctx.Context(), where, params.Sort, params.Size, (params.Page-1)*params.Size)
 		if err != nil {
@@ -68,6 +88,17 @@ func (t *tableCRUD[T]) List(ctx fiber.Ctx, params ListParams) error {
 }
 
 func (t *tableCRUD[T]) Get(ctx fiber.Ctx, id string) error {
+	tf, tid := tenantInfo(ctx)
+	if tf != "" && tid != "" {
+		item, err := t.table.GetScoped(ctx.Context(), id, tf, tid)
+		if err != nil {
+			if err == db.ErrNotFound {
+				return fiber.NewError(404, "not found")
+			}
+			return fiber.NewError(500, err.Error())
+		}
+		return ctx.JSON(item)
+	}
 	item, err := t.table.Get(ctx.Context(), id)
 	if err != nil {
 		if err == db.ErrNotFound {
@@ -90,8 +121,15 @@ func (t *tableCRUD[T]) Create(ctx fiber.Ctx, body []byte) error {
 		return fiber.NewError(400, err.Error())
 	}
 
-	if err := t.table.Create(ctx.Context(), &entity); err != nil {
-		return fiber.NewError(500, err.Error())
+	tf, tid := tenantInfo(ctx)
+	if tf != "" && tid != "" {
+		if err := t.table.CreateScoped(ctx.Context(), &entity, tf, tid); err != nil {
+			return fiber.NewError(500, err.Error())
+		}
+	} else {
+		if err := t.table.Create(ctx.Context(), &entity); err != nil {
+			return fiber.NewError(500, err.Error())
+		}
 	}
 
 	if err := t.hooks.AfterCreate(ctx.Context(), &entity); err != nil {
@@ -113,6 +151,21 @@ func (t *tableCRUD[T]) Update(ctx fiber.Ctx, id string, body []byte) error {
 	}
 
 	patch = t.table.ResolvePatch(patch)
+	tf, tid := tenantInfo(ctx)
+	if tf != "" && tid != "" {
+		entity, err := t.table.UpdateScoped(ctx.Context(), id, patch, tf, tid)
+		if err != nil {
+			if err == db.ErrNotFound {
+				return fiber.NewError(404, "not found")
+			}
+			return fiber.NewError(500, err.Error())
+		}
+		if err := t.hooks.AfterUpdate(ctx.Context(), entity); err != nil {
+			logx.Errorf("after update hook: %v", err)
+		}
+		return ctx.JSON(entity)
+	}
+
 	entity, err := t.table.Update(ctx.Context(), id, patch)
 	if err != nil {
 		if err == db.ErrNotFound {
@@ -131,11 +184,21 @@ func (t *tableCRUD[T]) Delete(ctx fiber.Ctx, id string) error {
 	if err := t.hooks.BeforeDelete(ctx.Context(), id); err != nil {
 		return fiber.NewError(400, err.Error())
 	}
-	if err := t.table.Delete(ctx.Context(), id); err != nil {
-		if err == db.ErrNotFound {
-			return fiber.NewError(404, "not found")
+	tf, tid := tenantInfo(ctx)
+	if tf != "" && tid != "" {
+		if err := t.table.DeleteScoped(ctx.Context(), id, tf, tid); err != nil {
+			if err == db.ErrNotFound {
+				return fiber.NewError(404, "not found")
+			}
+			return fiber.NewError(500, err.Error())
 		}
-		return fiber.NewError(500, err.Error())
+	} else {
+		if err := t.table.Delete(ctx.Context(), id); err != nil {
+			if err == db.ErrNotFound {
+				return fiber.NewError(404, "not found")
+			}
+			return fiber.NewError(500, err.Error())
+		}
 	}
 	if err := t.hooks.AfterDelete(ctx.Context(), id); err != nil {
 		logx.Errorf("after delete hook: %v", err)
@@ -180,15 +243,28 @@ func (t *mysqlCRUD[T]) SetHooks(hooks any) {
 }
 
 func (t *mysqlCRUD[T]) List(ctx fiber.Ctx, params ListParams) error {
+	tf, tid := tenantInfo(ctx)
 	if params.Pagination == "keyset" {
 		where := makeFiltersMap(params.Filters)
+		if tf != "" && tid != "" {
+			if where == nil {
+				where = make(map[string]any)
+			}
+			where[tf] = tid
+		}
 		items, nextCursor, err := t.table.QueryKeyset(ctx.Context(), params.Cursor, params.Size, params.Sort, where)
 		if err != nil {
 			return fiber.NewError(500, err.Error())
 		}
 		return ctx.JSON(KeysetResponse{Data: items, NextCursor: nextCursor, PageSize: params.Size})
 	}
-	items, err := t.table.List(ctx.Context())
+	var items []T
+	var err error
+	if tf != "" && tid != "" {
+		items, err = t.table.ListScoped(ctx.Context(), tf, tid)
+	} else {
+		items, err = t.table.List(ctx.Context())
+	}
 	if err != nil {
 		return fiber.NewError(500, err.Error())
 	}
@@ -199,6 +275,17 @@ func (t *mysqlCRUD[T]) List(ctx fiber.Ctx, params ListParams) error {
 }
 
 func (t *mysqlCRUD[T]) Get(ctx fiber.Ctx, id string) error {
+	tf, tid := tenantInfo(ctx)
+	if tf != "" && tid != "" {
+		item, err := t.table.GetScoped(ctx.Context(), id, tf, tid)
+		if err != nil {
+			if err == db.ErrNotFound {
+				return fiber.NewError(404, "not found")
+			}
+			return fiber.NewError(500, err.Error())
+		}
+		return ctx.JSON(item)
+	}
 	item, err := t.table.Get(ctx.Context(), id)
 	if err != nil {
 		if err == db.ErrNotFound {
@@ -218,8 +305,15 @@ func (t *mysqlCRUD[T]) Create(ctx fiber.Ctx, body []byte) error {
 	if err != nil {
 		return fiber.NewError(400, err.Error())
 	}
-	if err := t.table.Create(ctx.Context(), &entity); err != nil {
-		return fiber.NewError(500, err.Error())
+	tf, tid := tenantInfo(ctx)
+	if tf != "" && tid != "" {
+		if err := t.table.CreateScoped(ctx.Context(), &entity, tf, tid); err != nil {
+			return fiber.NewError(500, err.Error())
+		}
+	} else {
+		if err := t.table.Create(ctx.Context(), &entity); err != nil {
+			return fiber.NewError(500, err.Error())
+		}
 	}
 	if err := t.hooks.AfterCreate(ctx.Context(), &entity); err != nil {
 		logx.Errorf("crud: after create hook error: %v", err)
@@ -235,6 +329,20 @@ func (t *mysqlCRUD[T]) Update(ctx fiber.Ctx, id string, body []byte) error {
 	patch, err := t.hooks.BeforeUpdate(ctx.Context(), id, patch)
 	if err != nil {
 		return fiber.NewError(400, err.Error())
+	}
+	tf, tid := tenantInfo(ctx)
+	if tf != "" && tid != "" {
+		entity, err := t.table.UpdateScoped(ctx.Context(), id, patch, tf, tid)
+		if err != nil {
+			if err == db.ErrNotFound {
+				return fiber.NewError(404, "not found")
+			}
+			return fiber.NewError(500, err.Error())
+		}
+		if err := t.hooks.AfterUpdate(ctx.Context(), entity); err != nil {
+			logx.Errorf("crud: after update hook error: %v", err)
+		}
+		return ctx.JSON(entity)
 	}
 	entity, err := t.table.Update(ctx.Context(), id, patch)
 	if err != nil {
@@ -253,11 +361,21 @@ func (t *mysqlCRUD[T]) Delete(ctx fiber.Ctx, id string) error {
 	if err := t.hooks.BeforeDelete(ctx.Context(), id); err != nil {
 		return fiber.NewError(400, err.Error())
 	}
-	if err := t.table.Delete(ctx.Context(), id); err != nil {
-		if err == db.ErrNotFound {
-			return fiber.NewError(404, "not found")
+	tf, tid := tenantInfo(ctx)
+	if tf != "" && tid != "" {
+		if err := t.table.DeleteScoped(ctx.Context(), id, tf, tid); err != nil {
+			if err == db.ErrNotFound {
+				return fiber.NewError(404, "not found")
+			}
+			return fiber.NewError(500, err.Error())
 		}
-		return fiber.NewError(500, err.Error())
+	} else {
+		if err := t.table.Delete(ctx.Context(), id); err != nil {
+			if err == db.ErrNotFound {
+				return fiber.NewError(404, "not found")
+			}
+			return fiber.NewError(500, err.Error())
+		}
 	}
 	if err := t.hooks.AfterDelete(ctx.Context(), id); err != nil {
 		logx.Errorf("crud: after delete hook error: %v", err)
@@ -287,15 +405,28 @@ func (t *tursoCRUD[T]) SetHooks(hooks any) {
 }
 
 func (t *tursoCRUD[T]) List(ctx fiber.Ctx, params ListParams) error {
+	tf, tid := tenantInfo(ctx)
 	if params.Pagination == "keyset" {
 		where := makeFiltersMap(params.Filters)
+		if tf != "" && tid != "" {
+			if where == nil {
+				where = make(map[string]any)
+			}
+			where[tf] = tid
+		}
 		items, nextCursor, err := t.table.QueryKeyset(ctx.Context(), params.Cursor, params.Size, params.Sort, where)
 		if err != nil {
 			return fiber.NewError(500, err.Error())
 		}
 		return ctx.JSON(KeysetResponse{Data: items, NextCursor: nextCursor, PageSize: params.Size})
 	}
-	items, err := t.table.List(ctx.Context())
+	var items []T
+	var err error
+	if tf != "" && tid != "" {
+		items, err = t.table.ListScoped(ctx.Context(), tf, tid)
+	} else {
+		items, err = t.table.List(ctx.Context())
+	}
 	if err != nil {
 		return fiber.NewError(500, err.Error())
 	}
@@ -306,6 +437,17 @@ func (t *tursoCRUD[T]) List(ctx fiber.Ctx, params ListParams) error {
 }
 
 func (t *tursoCRUD[T]) Get(ctx fiber.Ctx, id string) error {
+	tf, tid := tenantInfo(ctx)
+	if tf != "" && tid != "" {
+		item, err := t.table.GetScoped(ctx.Context(), id, tf, tid)
+		if err != nil {
+			if err == db.ErrNotFound {
+				return fiber.NewError(404, "not found")
+			}
+			return fiber.NewError(500, err.Error())
+		}
+		return ctx.JSON(item)
+	}
 	item, err := t.table.Get(ctx.Context(), id)
 	if err != nil {
 		if err == db.ErrNotFound {
@@ -325,8 +467,15 @@ func (t *tursoCRUD[T]) Create(ctx fiber.Ctx, body []byte) error {
 	if err != nil {
 		return fiber.NewError(400, err.Error())
 	}
-	if err := t.table.Create(ctx.Context(), &entity); err != nil {
-		return fiber.NewError(500, err.Error())
+	tf, tid := tenantInfo(ctx)
+	if tf != "" && tid != "" {
+		if err := t.table.CreateScoped(ctx.Context(), &entity, tf, tid); err != nil {
+			return fiber.NewError(500, err.Error())
+		}
+	} else {
+		if err := t.table.Create(ctx.Context(), &entity); err != nil {
+			return fiber.NewError(500, err.Error())
+		}
 	}
 	if err := t.hooks.AfterCreate(ctx.Context(), &entity); err != nil {
 		logx.Errorf("crud: after create hook error: %v", err)
@@ -342,6 +491,20 @@ func (t *tursoCRUD[T]) Update(ctx fiber.Ctx, id string, body []byte) error {
 	patch, err := t.hooks.BeforeUpdate(ctx.Context(), id, patch)
 	if err != nil {
 		return fiber.NewError(400, err.Error())
+	}
+	tf, tid := tenantInfo(ctx)
+	if tf != "" && tid != "" {
+		entity, err := t.table.UpdateScoped(ctx.Context(), id, patch, tf, tid)
+		if err != nil {
+			if err == db.ErrNotFound {
+				return fiber.NewError(404, "not found")
+			}
+			return fiber.NewError(500, err.Error())
+		}
+		if err := t.hooks.AfterUpdate(ctx.Context(), entity); err != nil {
+			logx.Errorf("crud: after update hook error: %v", err)
+		}
+		return ctx.JSON(entity)
 	}
 	entity, err := t.table.Update(ctx.Context(), id, patch)
 	if err != nil {
@@ -360,11 +523,21 @@ func (t *tursoCRUD[T]) Delete(ctx fiber.Ctx, id string) error {
 	if err := t.hooks.BeforeDelete(ctx.Context(), id); err != nil {
 		return fiber.NewError(400, err.Error())
 	}
-	if err := t.table.Delete(ctx.Context(), id); err != nil {
-		if err == db.ErrNotFound {
-			return fiber.NewError(404, "not found")
+	tf, tid := tenantInfo(ctx)
+	if tf != "" && tid != "" {
+		if err := t.table.DeleteScoped(ctx.Context(), id, tf, tid); err != nil {
+			if err == db.ErrNotFound {
+				return fiber.NewError(404, "not found")
+			}
+			return fiber.NewError(500, err.Error())
 		}
-		return fiber.NewError(500, err.Error())
+	} else {
+		if err := t.table.Delete(ctx.Context(), id); err != nil {
+			if err == db.ErrNotFound {
+				return fiber.NewError(404, "not found")
+			}
+			return fiber.NewError(500, err.Error())
+		}
 	}
 	if err := t.hooks.AfterDelete(ctx.Context(), id); err != nil {
 		logx.Errorf("crud: after delete hook error: %v", err)
@@ -386,7 +559,11 @@ func NewMongoCRUDProvider(model *mon.Model, lookupField string) CRUDProvider {
 }
 
 func (m *mongoCRUD) List(ctx fiber.Ctx, params ListParams) error {
+	tf, tid := tenantInfo(ctx)
 	filter := bson.M{}
+	if tf != "" && tid != "" {
+		filter[tf] = tid
+	}
 
 	if params.Pagination == "keyset" {
 		size := params.Size + 1
@@ -413,7 +590,7 @@ func (m *mongoCRUD) List(ctx fiber.Ctx, params ListParams) error {
 	}
 
 	var results []any
-	if err := m.model.Find(ctx.Context(), &results, bson.M{}); err != nil {
+	if err := m.model.Find(ctx.Context(), &results, filter); err != nil {
 		return fiber.NewError(500, err.Error())
 	}
 	return ctx.JSON(results)
@@ -422,6 +599,9 @@ func (m *mongoCRUD) List(ctx fiber.Ctx, params ListParams) error {
 func (m *mongoCRUD) Get(ctx fiber.Ctx, id string) error {
 	var result any
 	filter := m.filterFor(id)
+	if tf, tid := tenantInfo(ctx); tf != "" && tid != "" {
+		filter[tf] = tid
+	}
 	if err := m.model.FindOne(ctx.Context(), &result, filter); err != nil {
 		return fiber.NewError(404, "not found")
 	}
@@ -432,6 +612,11 @@ func (m *mongoCRUD) Create(ctx fiber.Ctx, body []byte) error {
 	var doc any
 	if err := json.Unmarshal(body, &doc); err != nil {
 		return fiber.NewError(400, fmt.Sprintf("invalid body: %v", err))
+	}
+	if tf, tid := tenantInfo(ctx); tf != "" && tid != "" {
+		if m, ok := doc.(map[string]any); ok {
+			m[tf] = tid
+		}
 	}
 	res, err := m.model.InsertOne(ctx.Context(), doc)
 	if err != nil {
@@ -448,14 +633,22 @@ func (m *mongoCRUD) Update(ctx fiber.Ctx, id string, body []byte) error {
 	if err := json.Unmarshal(body, &patch); err != nil {
 		return fiber.NewError(400, fmt.Sprintf("invalid body: %v", err))
 	}
-	if _, err := m.model.UpdateOne(ctx.Context(), m.filterFor(id), bson.M{"$set": patch}); err != nil {
+	filter := m.filterFor(id)
+	if tf, tid := tenantInfo(ctx); tf != "" && tid != "" {
+		filter[tf] = tid
+	}
+	if _, err := m.model.UpdateOne(ctx.Context(), filter, bson.M{"$set": patch}); err != nil {
 		return fiber.NewError(500, err.Error())
 	}
 	return ctx.JSON(patch)
 }
 
 func (m *mongoCRUD) Delete(ctx fiber.Ctx, id string) error {
-	if _, err := m.model.DeleteOne(ctx.Context(), m.filterFor(id)); err != nil {
+	filter := m.filterFor(id)
+	if tf, tid := tenantInfo(ctx); tf != "" && tid != "" {
+		filter[tf] = tid
+	}
+	if _, err := m.model.DeleteOne(ctx.Context(), filter); err != nil {
 		return fiber.NewError(500, err.Error())
 	}
 	return ctx.SendStatus(204)

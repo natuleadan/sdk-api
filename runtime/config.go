@@ -416,6 +416,8 @@ type EntryDef struct {
 	Roles       []string `json:"roles" config:",optional"`
 	Permissions []string `json:"permissions" config:",optional"`
 	DB          string   `json:"db" config:",optional"` // references database name
+	TenantScope string   `json:"tenant_scope" config:",optional"` // JWT claim for tenant ID (e.g. "org_id")
+	TenantField string   `json:"tenant_field" config:",optional"` // DB column for tenant filter (e.g. "tenant_id")
 
 	// CRUD
 	Model     string         `json:"model" config:",optional"`

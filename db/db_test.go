@@ -1,3 +1,5 @@
+//go:build integration
+
 // Package db provides database table abstractions and ORM-like CRUD operations.
 package db
 

@@ -1,3 +1,5 @@
+//go:build integration
+
 package events
 
 import (
@@ -28,7 +30,7 @@ func testConn(t *testing.T) *Conn {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	t.Cleanup(cancel)
 
-	conn, err := Connect(ctx, ConnOptions{URL: url, RetryOnFail: true})
+	conn, err := Connect(ctx, ConnOptions{URL: url, RetryOnFail: false})
 	if err != nil {
 		t.Skipf("NATS not available at %s: %v", url, err)
 	}

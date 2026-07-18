@@ -13,6 +13,8 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/natuleadan/sdk-api/runtime/errcode"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/acme/autocert"
 )
 
@@ -26,6 +28,7 @@ func testRequest(path string) *http.Request {
 }
 
 func TestHealthEndpoint(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, nil)
 
@@ -34,12 +37,11 @@ func TestHealthEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("health request failed: %v", err)
 	}
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 func TestErrorHandler(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, nil)
 	app.app.Get("/error", func(_ fiber.Ctx) error {
@@ -51,21 +53,18 @@ func TestErrorHandler(t *testing.T) {
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
 	}
-	if resp.StatusCode != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 
 	body, _ := io.ReadAll(resp.Body)
 	var errResp ErrorResponse
 	if err := json.Unmarshal(body, &errResp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
-	if errResp.Code != 500 {
-		t.Errorf("expected code 500, got %d", errResp.Code)
-	}
+	assert.Equal(t, 500, errResp.Code)
 }
 
 func TestCustomRoute(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, nil)
 	app.app.Get("/api/v1/hello", func(c fiber.Ctx) error {
@@ -77,9 +76,7 @@ func TestCustomRoute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
 	}
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
 	body, _ := io.ReadAll(resp.Body)
 	var result map[string]string
@@ -90,16 +87,16 @@ func TestCustomRoute(t *testing.T) {
 }
 
 func TestDefaultConfig(t *testing.T) {
+	t.Parallel()
 	cfg := DefaultConfig()
-	if cfg.Port != 8080 {
-		t.Errorf("expected port 8080, got %d", cfg.Port)
-	}
+	assert.Equal(t, 8080, cfg.Port)
 	if cfg.Host != "0.0.0.0" {
 		t.Errorf("expected host 0.0.0.0, got %s", cfg.Host)
 	}
 }
 
 func TestRecoveryMiddleware(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, nil)
 	app.app.Get("/panic", func(_ fiber.Ctx) error {
@@ -111,12 +108,11 @@ func TestRecoveryMiddleware(t *testing.T) {
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
 	}
-	if resp.StatusCode != http.StatusInternalServerError {
-		t.Errorf("expected 500 (recovered), got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 }
 
 func TestNotFound(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, nil)
 
@@ -125,12 +121,11 @@ func TestNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
 	}
-	if resp.StatusCode != http.StatusNotFound {
-		t.Errorf("expected 404, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 }
 
 func TestTLS_Disabled(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	cfg := DefaultConfig()
 	cfg.TLS = nil
@@ -144,12 +139,11 @@ func TestTLS_Disabled(t *testing.T) {
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
 	}
-	if resp.StatusCode != 200 {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, 200, resp.StatusCode)
 }
 
 func TestTLS_Config_Manual(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	cfg := DefaultConfig()
 	cfg.TLS = &TLSConfig{
@@ -163,10 +157,10 @@ func TestTLS_Config_Manual(t *testing.T) {
 	}
 	app := New(cfg, TelemetryConfig{}, SecurityConfig{}, nil)
 	if app.config.TLS == nil {
-		t.Fatal("TLS config should not be nil")
+		require.FailNow(t, "TLS config should not be nil")
 	}
 	if app.config.TLS.Manual == nil {
-		t.Fatal("Manual TLS config should not be nil")
+		require.FailNow(t, "Manual TLS config should not be nil")
 	}
 	if app.config.TLS.Manual.CertFile != "/tmp/test.crt" {
 		t.Errorf("CertFile = %q", app.config.TLS.Manual.CertFile)
@@ -174,6 +168,7 @@ func TestTLS_Config_Manual(t *testing.T) {
 }
 
 func TestTLS_Config_Autocert(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	cfg := DefaultConfig()
 	cfg.TLS = &TLSConfig{
@@ -186,10 +181,10 @@ func TestTLS_Config_Autocert(t *testing.T) {
 	}
 	app := New(cfg, TelemetryConfig{}, SecurityConfig{}, nil)
 	if app.config.TLS == nil {
-		t.Fatal("TLS config should not be nil")
+		require.FailNow(t, "TLS config should not be nil")
 	}
 	if app.config.TLS.Autocert == nil {
-		t.Fatal("Autocert config should not be nil")
+		require.FailNow(t, "Autocert config should not be nil")
 	}
 	if len(app.config.TLS.Autocert.Domains) != 1 || app.config.TLS.Autocert.Domains[0] != "api.example.com" {
 		t.Errorf("Domains = %v", app.config.TLS.Autocert.Domains)
@@ -197,6 +192,7 @@ func TestTLS_Config_Autocert(t *testing.T) {
 }
 
 func TestTLS_ParseVersion(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input string
 		want  uint16
@@ -210,13 +206,12 @@ func TestTLS_ParseVersion(t *testing.T) {
 	}
 	for _, tt := range tests {
 		got := parseTLSVersion(tt.input)
-		if got != tt.want {
-			t.Errorf("parseTLSVersion(%q) = %d, want %d", tt.input, got, tt.want)
-		}
+		assert.Equal(t, tt.want, got)
 	}
 }
 
 func TestTLS_ParseCurves(t *testing.T) {
+	t.Parallel()
 	curves := parseCurves([]string{"X25519", "P-256"})
 	if len(curves) != 2 {
 		t.Fatalf("expected 2 curves, got %d", len(curves))
@@ -230,6 +225,7 @@ func TestTLS_ParseCurves(t *testing.T) {
 }
 
 func TestTLS_ParseCiphers(t *testing.T) {
+	t.Parallel()
 	ciphers := parseCiphers([]string{
 		"TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
 		"TLS_AES_256_GCM_SHA384",
@@ -240,6 +236,7 @@ func TestTLS_ParseCiphers(t *testing.T) {
 }
 
 func TestTLS_AutocertManager(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	m := &autocert.Manager{
 		Prompt:     autocert.AcceptTOS,
@@ -258,6 +255,7 @@ func TestTLS_AutocertManager(t *testing.T) {
 // --- Error Sanitization Tests ---
 
 func TestErrorHandler_SanitizesInternalError(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, nil)
 	app.app.Get("/db-error", func(_ fiber.Ctx) error {
@@ -270,15 +268,14 @@ func TestErrorHandler_SanitizesInternalError(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	var errResp ErrorResponse
 	json.Unmarshal(body, &errResp)
-	if errResp.Code != 500 {
-		t.Errorf("expected code 500, got %d", errResp.Code)
-	}
+	assert.Equal(t, 500, errResp.Code)
 	if errResp.Message != "internal server error" {
 		t.Errorf("expected sanitized message, got %q", errResp.Message)
 	}
 }
 
 func TestErrorHandler_LeavesClientErrors(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, nil)
 	app.app.Get("/bad-request", func(_ fiber.Ctx) error {
@@ -291,15 +288,14 @@ func TestErrorHandler_LeavesClientErrors(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	var errResp ErrorResponse
 	json.Unmarshal(body, &errResp)
-	if errResp.Code != 400 {
-		t.Errorf("expected code 400, got %d", errResp.Code)
-	}
+	assert.Equal(t, 400, errResp.Code)
 	if errResp.Message != "invalid input" {
 		t.Errorf("expected original message, got %q", errResp.Message)
 	}
 }
 
 func TestOopsErrorHandler_4xxWithCode(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, nil)
 	app.app.Get("/unauthorized", func(_ fiber.Ctx) error {
@@ -312,18 +308,15 @@ func TestOopsErrorHandler_4xxWithCode(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	var errResp ErrorResponse
 	json.Unmarshal(body, &errResp)
-	if errResp.Code != 401 {
-		t.Errorf("expected code 401, got %d", errResp.Code)
-	}
-	if errResp.Error != errcode.ErrCodeUnauthorized {
-		t.Errorf("expected error code %q, got %q", errcode.ErrCodeUnauthorized, errResp.Error)
-	}
+	assert.Equal(t, 401, errResp.Code)
+	assert.Equal(t, errcode.ErrCodeUnauthorized, errResp.Error)
 	if errResp.Message != "missing token" {
 		t.Errorf("expected message %q, got %q", "missing token", errResp.Message)
 	}
 }
 
 func TestOopsErrorHandler_5xxWithCode(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, nil)
 	app.app.Get("/db-error", func(_ fiber.Ctx) error {
@@ -336,18 +329,15 @@ func TestOopsErrorHandler_5xxWithCode(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	var errResp ErrorResponse
 	json.Unmarshal(body, &errResp)
-	if errResp.Code != 500 {
-		t.Errorf("expected code 500, got %d", errResp.Code)
-	}
-	if errResp.Error != errcode.ErrCodeDBQuery {
-		t.Errorf("expected error code %q, got %q", errcode.ErrCodeDBQuery, errResp.Error)
-	}
+	assert.Equal(t, 500, errResp.Code)
+	assert.Equal(t, errcode.ErrCodeDBQuery, errResp.Error)
 	if errResp.Message != "internal server error" {
 		t.Errorf("expected 'internal server error', got %q", errResp.Message)
 	}
 }
 
 func TestOopsErrorHandler_404WithCode(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, nil)
 	app.app.Get("/not-found", func(_ fiber.Ctx) error {
@@ -360,18 +350,15 @@ func TestOopsErrorHandler_404WithCode(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	var errResp ErrorResponse
 	json.Unmarshal(body, &errResp)
-	if errResp.Code != 404 {
-		t.Errorf("expected code 404, got %d", errResp.Code)
-	}
-	if errResp.Error != errcode.ErrCodeNotFound {
-		t.Errorf("expected error code %q, got %q", errcode.ErrCodeNotFound, errResp.Error)
-	}
+	assert.Equal(t, 404, errResp.Code)
+	assert.Equal(t, errcode.ErrCodeNotFound, errResp.Error)
 	if errResp.Message != "resource not found" {
 		t.Errorf("expected 'resource not found', got %q", errResp.Message)
 	}
 }
 
 func TestOopsErrorHandler_FallbackToFiberError(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, nil)
 	app.app.Get("/fiber-err", func(_ fiber.Ctx) error {
@@ -384,15 +371,14 @@ func TestOopsErrorHandler_FallbackToFiberError(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	var errResp ErrorResponse
 	json.Unmarshal(body, &errResp)
-	if errResp.Code != 422 {
-		t.Errorf("expected code 422, got %d", errResp.Code)
-	}
+	assert.Equal(t, 422, errResp.Code)
 	if errResp.Message != "invalid input" {
 		t.Errorf("expected message 'invalid input', got %q", errResp.Message)
 	}
 }
 
 func TestOopsErrorHandler_RateLimited(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, nil)
 	app.app.Get("/rate-limited", func(_ fiber.Ctx) error {
@@ -405,10 +391,6 @@ func TestOopsErrorHandler_RateLimited(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	var errResp ErrorResponse
 	json.Unmarshal(body, &errResp)
-	if resp.StatusCode != 429 {
-		t.Errorf("expected status 429, got %d", resp.StatusCode)
-	}
-	if errResp.Error != errcode.ErrCodeRateLimited {
-		t.Errorf("expected error code %q, got %q", errcode.ErrCodeRateLimited, errResp.Error)
-	}
+	assert.Equal(t, 429, resp.StatusCode)
+	assert.Equal(t, errcode.ErrCodeRateLimited, errResp.Error)
 }

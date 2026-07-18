@@ -20,6 +20,8 @@ import (
 	"github.com/natuleadan/sdk-api/server/auth/openfga"
 	"github.com/natuleadan/sdk-api/server/auth/ory"
 	"github.com/natuleadan/sdk-api/server/auth/zitadel"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/time/rate"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -41,6 +43,7 @@ func tokenFor(secret string) string {
 }
 
 func TestJWTValid(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(JWT(JWTConfig{Secret: "secret123"}))
@@ -52,12 +55,11 @@ func TestJWTValid(t *testing.T) {
 	req := testRequest(context.Background(), "GET", "/protected", nil)
 	req.Header.Set("Authorization", "Bearer "+tokenFor("secret123"))
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 func TestJWTMissing(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(JWT(JWTConfig{Secret: "secret123"}))
@@ -67,12 +69,11 @@ func TestJWTMissing(t *testing.T) {
 
 	req := testRequest(context.Background(), "GET", "/protected", nil)
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
 
 func TestJWTInvalid(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(JWT(JWTConfig{Secret: "secret123"}))
@@ -83,12 +84,11 @@ func TestJWTInvalid(t *testing.T) {
 	req := testRequest(context.Background(), "GET", "/protected", nil)
 	req.Header.Set("Authorization", "Bearer invalid-token")
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
 
 func TestJWTSecretRotation(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(JWT(JWTConfig{
@@ -102,12 +102,11 @@ func TestJWTSecretRotation(t *testing.T) {
 	req := testRequest(context.Background(), "GET", "/protected", nil)
 	req.Header.Set("Authorization", "Bearer "+tokenFor("old-secret"))
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200 (prev secret), got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 func TestJWTAlgorithmPinning(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(JWT(JWTConfig{Secret: "secret123", Algorithm: "HS256"}))
@@ -120,22 +119,19 @@ func TestJWTAlgorithmPinning(t *testing.T) {
 		req := testRequest(context.Background(), "GET", "/protected", nil)
 		req.Header.Set("Authorization", "Bearer "+tok)
 		resp, _ := app.Test(req)
-		if resp.StatusCode != http.StatusUnauthorized {
-			t.Errorf("expected 401 for HS384 on HS256-configured middleware, got %d", resp.StatusCode)
-		}
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	})
 
 	t.Run("correct algorithm", func(t *testing.T) {
 		req := testRequest(context.Background(), "GET", "/protected", nil)
 		req.Header.Set("Authorization", "Bearer "+tokenFor("secret123"))
 		resp, _ := app.Test(req)
-		if resp.StatusCode != http.StatusOK {
-			t.Errorf("expected 200, got %d", resp.StatusCode)
-		}
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
 	})
 }
 
 func TestJWTIssuerValidation(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(JWT(JWTConfig{Secret: "secret123", Issuer: "sdk-api"}))
@@ -151,9 +147,7 @@ func TestJWTIssuerValidation(t *testing.T) {
 		req := testRequest(context.Background(), "GET", "/protected", nil)
 		req.Header.Set("Authorization", "Bearer "+tok)
 		resp, _ := app.Test(req)
-		if resp.StatusCode != http.StatusUnauthorized {
-			t.Errorf("expected 401 for wrong issuer, got %d", resp.StatusCode)
-		}
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	})
 
 	t.Run("correct issuer", func(t *testing.T) {
@@ -164,13 +158,12 @@ func TestJWTIssuerValidation(t *testing.T) {
 		req := testRequest(context.Background(), "GET", "/protected", nil)
 		req.Header.Set("Authorization", "Bearer "+tok)
 		resp, _ := app.Test(req)
-		if resp.StatusCode != http.StatusOK {
-			t.Errorf("expected 200, got %d", resp.StatusCode)
-		}
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
 	})
 }
 
 func TestJWTAudienceValidation(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(JWT(JWTConfig{Secret: "secret123", Audience: "api.example.com"}))
@@ -186,9 +179,7 @@ func TestJWTAudienceValidation(t *testing.T) {
 		req := testRequest(context.Background(), "GET", "/protected", nil)
 		req.Header.Set("Authorization", "Bearer "+tok)
 		resp, _ := app.Test(req)
-		if resp.StatusCode != http.StatusUnauthorized {
-			t.Errorf("expected 401 for wrong audience, got %d", resp.StatusCode)
-		}
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	})
 
 	t.Run("correct audience", func(t *testing.T) {
@@ -199,13 +190,12 @@ func TestJWTAudienceValidation(t *testing.T) {
 		req := testRequest(context.Background(), "GET", "/protected", nil)
 		req.Header.Set("Authorization", "Bearer "+tok)
 		resp, _ := app.Test(req)
-		if resp.StatusCode != http.StatusOK {
-			t.Errorf("expected 200, got %d", resp.StatusCode)
-		}
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
 	})
 }
 
 func TestJWTExpiredToken(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(JWT(JWTConfig{Secret: "secret123"}))
@@ -221,12 +211,11 @@ func TestJWTExpiredToken(t *testing.T) {
 	req := testRequest(context.Background(), "GET", "/protected", nil)
 	req.Header.Set("Authorization", "Bearer "+tok)
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusUnauthorized {
-		t.Errorf("expected 401 for expired token, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
 
 func TestJWTUserClaimExtraction(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(JWT(JWTConfig{Secret: "secret123"}))
@@ -242,12 +231,11 @@ func TestJWTUserClaimExtraction(t *testing.T) {
 	req := testRequest(context.Background(), "GET", "/whoami", nil)
 	req.Header.Set("Authorization", "Bearer "+tok)
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 func TestAuthContextExtraction(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(JWT(JWTConfig{Secret: "secret123"}))
@@ -274,6 +262,7 @@ func TestAuthContextExtraction(t *testing.T) {
 }
 
 func TestJWTCookieExtraction(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(JWT(JWTConfig{Secret: "secret123", TokenLookup: "cookie:token"}))
@@ -289,9 +278,7 @@ func TestJWTCookieExtraction(t *testing.T) {
 	req := testRequest(context.Background(), "GET", "/whoami", nil)
 	req.AddCookie(&http.Cookie{Name: "token", Value: tok})
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("JWT cookie extraction: expected 200, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
 	// Also verify without cookie — should fail
 	req2 := testRequest(context.Background(), "GET", "/whoami", nil)
@@ -312,6 +299,7 @@ The test verifies that encryptcookie transparently encrypts/decrypts
 cookies so JWT middleware (which reads c.Cookies("token")) works correctly.
 
 func TestEncryptCookieJWTRoundtrip(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	key := encryptcookie.GenerateKey(32)
 	app := fiber.New()
@@ -334,6 +322,7 @@ func TestEncryptCookieJWTRoundtrip(t *testing.T) {
 */
 
 func TestAuthContextFromFiberCtx(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(JWT(JWTConfig{Secret: "secret123"}))
@@ -358,12 +347,11 @@ func TestAuthContextFromFiberCtx(t *testing.T) {
 	req := testRequest(context.Background(), "GET", "/extract", nil)
 	req.Header.Set("Authorization", "Bearer "+tok)
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 func TestAuthContextFromContext(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(JWT(JWTConfig{Secret: "secret123"}))
@@ -384,12 +372,11 @@ func TestAuthContextFromContext(t *testing.T) {
 	req := testRequest(context.Background(), "GET", "/fromctx", nil)
 	req.Header.Set("Authorization", "Bearer "+tok)
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 func TestAuthContextNoJWT(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 
@@ -407,12 +394,11 @@ func TestAuthContextNoJWT(t *testing.T) {
 
 	req := testRequest(context.Background(), "GET", "/noauth", nil)
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 func TestJWTWithZitadel_NilClientPanics(t *testing.T) {
+	t.Parallel()
 	defer func() {
 		if r := recover(); r == nil {
 			t.Error("expected panic with nil client")
@@ -422,6 +408,7 @@ func TestJWTWithZitadel_NilClientPanics(t *testing.T) {
 }
 
 func TestJWTWithZitadel_NoToken(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	zClient := zitadel.NewClient(zitadel.Config{Issuer: "https://example.com"})
@@ -431,12 +418,11 @@ func TestJWTWithZitadel_NoToken(t *testing.T) {
 	})
 	req := testRequest(context.Background(), "GET", "/protected", nil)
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
 
 func TestAPIKey_MissingHeader(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(APIKey(APIKeyConfig{Prefix: "sk-"}))
@@ -445,12 +431,11 @@ func TestAPIKey_MissingHeader(t *testing.T) {
 	})
 	req := testRequest(context.Background(), "GET", "/protected", nil)
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
 
 func TestAPIKey_WrongPrefix(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(APIKey(APIKeyConfig{Prefix: "sk-"}))
@@ -460,12 +445,11 @@ func TestAPIKey_WrongPrefix(t *testing.T) {
 	req := testRequest(context.Background(), "GET", "/protected", nil)
 	req.Header.Set("Authorization", "pk-test-key-123")
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
 
 func TestAPIKey_ValidWithoutFGA(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(APIKey(APIKeyConfig{Prefix: "sk-"}))
@@ -475,12 +459,11 @@ func TestAPIKey_ValidWithoutFGA(t *testing.T) {
 	req := testRequest(context.Background(), "GET", "/protected", nil)
 	req.Header.Set("Authorization", "sk-test-key-456")
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 func TestDeriveKeyID(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input    string
 		expected string
@@ -501,6 +484,7 @@ func TestDeriveKeyID(t *testing.T) {
 }
 
 func TestOry_NilClientPanics(t *testing.T) {
+	t.Parallel()
 	defer func() {
 		if r := recover(); r == nil {
 			t.Error("expected panic with nil client")
@@ -510,6 +494,7 @@ func TestOry_NilClientPanics(t *testing.T) {
 }
 
 func TestOry_NoAuthContext(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	oryClient := ory.NewClient(ory.Config{})
@@ -519,35 +504,32 @@ func TestOry_NoAuthContext(t *testing.T) {
 	})
 	req := testRequest(context.Background(), "GET", "/protected", nil)
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
 
 func TestTokenRefresh_MissingBody(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Post("/refresh", TokenRefreshHandler(TokenRefreshConfig{}))
 	req := testRequest(context.Background(), "POST", "/refresh", nil)
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
 func TestTokenRefresh_MissingField(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Post("/refresh", TokenRefreshHandler(TokenRefreshConfig{}))
 	req := testRequest(context.Background(), "POST", "/refresh", strings.NewReader(`{}`))
 	req.Header.Set("Content-Type", "application/json")
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
 func TestTokenRefresh_ManualWithoutAuth(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Post("/refresh", TokenRefreshHandler(TokenRefreshConfig{}))
@@ -555,12 +537,11 @@ func TestTokenRefresh_ManualWithoutAuth(t *testing.T) {
 	req := testRequest(context.Background(), "POST", "/refresh", body)
 	req.Header.Set("Content-Type", "application/json")
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
 
 func TestTokenRefresh_ManualWithAuth(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(JWT(JWTConfig{Secret: "secret123"}))
@@ -572,12 +553,11 @@ func TestTokenRefresh_ManualWithAuth(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+tokenFor("secret123"))
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 func TestOpenFGACache_NilClientPanics(t *testing.T) {
+	t.Parallel()
 	defer func() {
 		if r := recover(); r == nil {
 			t.Error("expected panic with nil client")
@@ -587,6 +567,7 @@ func TestOpenFGACache_NilClientPanics(t *testing.T) {
 }
 
 func TestOpenFGA_NoAuthContext(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	fgaClient, err := openfga.NewClient(openfga.Config{APIURL: "http://localhost:9999"})
@@ -599,12 +580,11 @@ func TestOpenFGA_NoAuthContext(t *testing.T) {
 	})
 	req := testRequest(context.Background(), "GET", "/protected", nil)
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
 
 func TestTokenRefresh_InvalidBody(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Post("/refresh", TokenRefreshHandler(TokenRefreshConfig{}))
@@ -612,12 +592,11 @@ func TestTokenRefresh_InvalidBody(t *testing.T) {
 	req := testRequest(context.Background(), "POST", "/refresh", body)
 	req.Header.Set("Content-Type", "application/json")
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
 func TestCORS(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(CORS(DefaultCORSConfig()))
@@ -634,6 +613,7 @@ func TestCORS(t *testing.T) {
 }
 
 func TestLogger(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(Logger())
@@ -643,12 +623,11 @@ func TestLogger(t *testing.T) {
 
 	req := testRequest(context.Background(), "GET", "/test", nil)
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 func TestRecovery(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New(fiber.Config{ErrorHandler: func(c fiber.Ctx, err error) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"code": 500, "message": "internal server error"})
@@ -660,9 +639,7 @@ func TestRecovery(t *testing.T) {
 
 	req := testRequest(context.Background(), "GET", "/panic", nil)
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 
 	body, _ := io.ReadAll(resp.Body)
 	var data map[string]any
@@ -673,6 +650,7 @@ func TestRecovery(t *testing.T) {
 }
 
 func TestTimeout(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(Timeout(50 * time.Millisecond))
@@ -687,25 +665,18 @@ func TestTimeout(t *testing.T) {
 	// Fast request should succeed
 	req := testRequest(context.Background(), "GET", "/fast", nil)
 	resp, err := app.Test(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("fast: expected 200, got %d", resp.StatusCode)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
 	// Slow request should timeout
 	req = testRequest(context.Background(), "GET", "/slow", nil)
 	resp, err = app.Test(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if resp.StatusCode != http.StatusRequestTimeout {
-		t.Errorf("slow: expected 408, got %d", resp.StatusCode)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusRequestTimeout, resp.StatusCode)
 }
 
 func TestMaxConns(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(MaxConns(5))
@@ -716,13 +687,12 @@ func TestMaxConns(t *testing.T) {
 	for range 5 {
 		req := testRequest(context.Background(), "GET", "/test", nil)
 		resp, _ := app.Test(req)
-		if resp.StatusCode != http.StatusOK {
-			t.Errorf("expected 200 within limit, got %d", resp.StatusCode)
-		}
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
 	}
 }
 
 func TestGunzip(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(Gunzip())
@@ -732,9 +702,7 @@ func TestGunzip(t *testing.T) {
 
 	req := testRequest(context.Background(), "POST", "/test", strings.NewReader(`{"hello":"world"}`))
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	body, _ := io.ReadAll(resp.Body)
 	if string(body) != `{"hello":"world"}` {
 		t.Errorf("expected body unchanged, got %q", string(body))
@@ -742,6 +710,7 @@ func TestGunzip(t *testing.T) {
 }
 
 func TestGunzipNoEncoding(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(Gunzip())
@@ -751,9 +720,7 @@ func TestGunzipNoEncoding(t *testing.T) {
 
 	req := testRequest(context.Background(), "POST", "/test", strings.NewReader("plain-text"))
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	body, _ := io.ReadAll(resp.Body)
 	if string(body) != "plain-text" {
 		t.Errorf("expected plain body unchanged, got %q", string(body))
@@ -761,6 +728,7 @@ func TestGunzipNoEncoding(t *testing.T) {
 }
 
 func TestSSE(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Get("/events", SSE(), func(c fiber.Ctx) error {
@@ -769,9 +737,7 @@ func TestSSE(t *testing.T) {
 
 	req := testRequest(context.Background(), "GET", "/events", nil)
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	if resp.Header.Get("Content-Type") != "text/event-stream" {
 		t.Errorf("expected Content-Type: text/event-stream, got %s", resp.Header.Get("Content-Type"))
 	}
@@ -781,6 +747,7 @@ func TestSSE(t *testing.T) {
 }
 
 func TestShedding(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(Shedding())
@@ -790,12 +757,11 @@ func TestShedding(t *testing.T) {
 
 	req := testRequest(context.Background(), "GET", "/test", nil)
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 func TestBreaker(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(Breaker())
@@ -805,12 +771,11 @@ func TestBreaker(t *testing.T) {
 
 	req := testRequest(context.Background(), "GET", "/test", nil)
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 func TestBreakerClientError(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(Breaker())
@@ -821,12 +786,11 @@ func TestBreakerClientError(t *testing.T) {
 	req := testRequest(context.Background(), "GET", "/test", nil)
 	resp, _ := app.Test(req)
 	// Client errors should be accepted by breaker (not trip it)
-	if resp.StatusCode != 400 {
-		t.Errorf("expected 400, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, 400, resp.StatusCode)
 }
 
 func TestTrace(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(Trace(TraceConfig{}))
@@ -836,12 +800,11 @@ func TestTrace(t *testing.T) {
 
 	req := testRequest(context.Background(), "GET", "/test", nil)
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 func TestTraceResponseHeader(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(Trace(TraceConfig{
@@ -853,9 +816,7 @@ func TestTraceResponseHeader(t *testing.T) {
 
 	req := testRequest(context.Background(), "GET", "/test", nil)
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	traceID := resp.Header.Get("X-Trace-Id")
 	if traceID == "" {
 		t.Error("expected X-Trace-Id header to be set")
@@ -866,6 +827,7 @@ func TestTraceResponseHeader(t *testing.T) {
 }
 
 func TestTraceSkipPath(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(Trace(TraceConfig{
@@ -877,12 +839,11 @@ func TestTraceSkipPath(t *testing.T) {
 
 	req := testRequest(context.Background(), "GET", "/health", nil)
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 func TestTraceCustomAttributes(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(Trace(TraceConfig{
@@ -898,12 +859,11 @@ func TestTraceCustomAttributes(t *testing.T) {
 
 	req := testRequest(context.Background(), "GET", "/test", nil)
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 func TestTracePropagatesContext(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(Trace(TraceConfig{}))
@@ -917,9 +877,7 @@ func TestTracePropagatesContext(t *testing.T) {
 
 	req := testRequest(context.Background(), "GET", "/test", nil)
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 func testKeyPair(t *testing.T) (*rsa.PrivateKey, *rsa.PublicKey) {
@@ -932,6 +890,7 @@ func testKeyPair(t *testing.T) (*rsa.PrivateKey, *rsa.PublicKey) {
 }
 
 func TestContentSecurityStrict(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	_, pub := testKeyPair(t)
 	app := fiber.New()
@@ -943,12 +902,11 @@ func TestContentSecurityStrict(t *testing.T) {
 	req := testRequest(context.Background(), "POST", "/test", strings.NewReader(`{"hello":"world"}`))
 	req.Header.Set("Content-Type", "application/json")
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusForbidden {
-		t.Errorf("expected 403 for missing signature, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 }
 
 func TestContentSecurityNonStrict(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	_, pub := testKeyPair(t)
 	app := fiber.New()
@@ -960,12 +918,11 @@ func TestContentSecurityNonStrict(t *testing.T) {
 	req := testRequest(context.Background(), "POST", "/test", strings.NewReader(`{"hello":"world"}`))
 	req.Header.Set("Content-Type", "application/json")
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200 for non-strict, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 func TestContentSecurityValidSignature(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	priv, pub := testKeyPair(t)
 	app := fiber.New()
@@ -976,19 +933,16 @@ func TestContentSecurityValidSignature(t *testing.T) {
 
 	body := `{"hello":"world"}`
 	sig, err := SignBody(priv, []byte(body))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	req := testRequest(context.Background(), "POST", "/test", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Content-Security", sig)
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200 for valid signature, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 func TestContentSecurityInvalidSignature(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	_, pub := testKeyPair(t)
 	app := fiber.New()
@@ -1002,12 +956,11 @@ func TestContentSecurityInvalidSignature(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Content-Security", "invalid-sig")
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusForbidden {
-		t.Errorf("expected 403 for invalid signature, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 }
 
 func TestCryption(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	key := []byte("0123456789abcdef0123456789abcdef")
 	app := fiber.New()
@@ -1018,18 +971,15 @@ func TestCryption(t *testing.T) {
 
 	plaintext := `{"hello":"world"}`
 	encrypted, err := AESEncrypt([]byte(plaintext), key)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	req := testRequest(context.Background(), "POST", "/test", strings.NewReader(string(encrypted)))
 	req.Header.Set("Content-Type", "application/json")
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 func TestCryptionInvalidBody(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	key := []byte("0123456789abcdef0123456789abcdef")
 	app := fiber.New()
@@ -1041,12 +991,11 @@ func TestCryptionInvalidBody(t *testing.T) {
 	req := testRequest(context.Background(), "POST", "/test", strings.NewReader("not-encoded-raw-data"))
 	req.Header.Set("Content-Type", "application/json")
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Errorf("expected 400 for invalid body, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
 func TestCryptionEmptyBody(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	key := []byte("0123456789abcdef0123456789abcdef")
 	app := fiber.New()
@@ -1058,12 +1007,11 @@ func TestCryptionEmptyBody(t *testing.T) {
 	req := testRequest(context.Background(), "POST", "/test", nil)
 	req.Header.Set("Content-Type", "application/json")
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200 for empty body, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 func TestCryptionInvalidKey(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	key := []byte("short")
 	app := fiber.New()
@@ -1075,12 +1023,11 @@ func TestCryptionInvalidKey(t *testing.T) {
 	req := testRequest(context.Background(), "POST", "/test", strings.NewReader("some-body"))
 	req.Header.Set("Content-Type", "application/json")
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Errorf("expected 400 for invalid key, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
 func TestPrometheus(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(Prometheus())
@@ -1091,9 +1038,7 @@ func TestPrometheus(t *testing.T) {
 
 	req := testRequest(context.Background(), "GET", "/test", nil)
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
 	req2 := testRequest(context.Background(), "GET", "/metrics", nil)
 	resp2, _ := app.Test(req2)
@@ -1110,6 +1055,7 @@ func TestPrometheus(t *testing.T) {
 }
 
 func TestPrometheusMultipleRequests(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(Prometheus())
@@ -1138,6 +1084,7 @@ func TestPrometheusMultipleRequests(t *testing.T) {
 }
 
 func TestTimeoutShort(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(Timeout(5 * time.Millisecond))
@@ -1148,17 +1095,14 @@ func TestTimeoutShort(t *testing.T) {
 
 	req := testRequest(context.Background(), "GET", "/slow", nil)
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusRequestTimeout {
-		t.Errorf("expected 408 for timeout, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusRequestTimeout, resp.StatusCode)
 }
 
 func TestParsePublicKey(t *testing.T) {
+	t.Parallel()
 	_, pub := testKeyPair(t)
 	pubBytes, err := x509.MarshalPKIXPublicKey(pub)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	pemStr := pem.EncodeToMemory(&pem.Block{
 		Type:  "PUBLIC KEY",
 		Bytes: pubBytes,
@@ -1174,6 +1118,7 @@ func TestParsePublicKey(t *testing.T) {
 }
 
 func TestParsePublicKeyInvalid(t *testing.T) {
+	t.Parallel()
 	_, err := ParsePublicKey("not-a-pem")
 	if err == nil {
 		t.Fatal("expected error for invalid PEM")
@@ -1181,6 +1126,7 @@ func TestParsePublicKeyInvalid(t *testing.T) {
 }
 
 func TestMaxBytes(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(MaxBytes(10))
@@ -1191,9 +1137,7 @@ func TestMaxBytes(t *testing.T) {
 	req := testRequest(context.Background(), "POST", "/test", strings.NewReader(`{"a":1}`))
 	req.Header.Set("Content-Type", "application/json")
 	resp, _ := app.Test(req)
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200 for small body, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
 	req2 := testRequest(context.Background(), "POST", "/test", strings.NewReader(`{"a":"0123456789"}`))
 	req2.Header.Set("Content-Type", "application/json")
@@ -1206,6 +1150,7 @@ func TestMaxBytes(t *testing.T) {
 // --- Security Headers Tests ---
 
 func TestSecurityHeaders_Default(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(SecurityHeaders(SecurityHeadersConfig{
@@ -1239,6 +1184,7 @@ func TestSecurityHeaders_Default(t *testing.T) {
 }
 
 func TestSecurityHeaders_EmptyConfig(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(SecurityHeaders(SecurityHeadersConfig{}))
@@ -1258,6 +1204,7 @@ func TestSecurityHeaders_EmptyConfig(t *testing.T) {
 }
 
 func TestSecurityHeaders_CSP(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(SecurityHeaders(SecurityHeadersConfig{
@@ -1277,6 +1224,7 @@ func TestSecurityHeaders_CSP(t *testing.T) {
 }
 
 func TestSecurityHeaders_AllHeaders(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(SecurityHeaders(SecurityHeadersConfig{
@@ -1321,6 +1269,7 @@ func TestSecurityHeaders_AllHeaders(t *testing.T) {
 // --- CSP Builder Tests ---
 
 func TestBuildCSP_Basic(t *testing.T) {
+	t.Parallel()
 	csp := BuildCSP(CSPConfig{})
 	if csp == "" {
 		t.Fatal("expected non-empty CSP")
@@ -1331,6 +1280,7 @@ func TestBuildCSP_Basic(t *testing.T) {
 }
 
 func TestBuildCSP_Strict(t *testing.T) {
+	t.Parallel()
 	csp := BuildCSP(CSPConfig{Level: CSPLevelStrict})
 	if !contains(csp, "strict-dynamic") {
 		t.Errorf("expected strict-dynamic in strict CSP, got %q", csp)
@@ -1338,6 +1288,7 @@ func TestBuildCSP_Strict(t *testing.T) {
 }
 
 func TestBuildCSP_Custom(t *testing.T) {
+	t.Parallel()
 	csp := BuildCSP(CSPConfig{
 		DefaultSrc: []string{"'none'"},
 		ScriptSrc:  []string{"'self'", "https://cdn.example.com"},
@@ -1352,6 +1303,7 @@ func TestBuildCSP_Custom(t *testing.T) {
 }
 
 func TestGenerateNonce(t *testing.T) {
+	t.Parallel()
 	n1 := GenerateNonce()
 	n2 := GenerateNonce()
 	if n1 == "" || n2 == "" {
@@ -1374,6 +1326,7 @@ func contains(s, substr string) bool {
 // --- CSRF Tests ---
 
 func TestCSRF_InjectOnGET(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(CSRF(CSRFConfig{Enabled: true}))
@@ -1384,9 +1337,7 @@ func TestCSRF_InjectOnGET(t *testing.T) {
 	req := testRequest(context.Background(), "GET", "/test", nil)
 	resp, _ := app.Test(req)
 
-	if resp.StatusCode != 200 {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, 200, resp.StatusCode)
 	cookies := resp.Header.Values("Set-Cookie")
 	found := false
 	for _, c := range cookies {
@@ -1401,6 +1352,7 @@ func TestCSRF_InjectOnGET(t *testing.T) {
 }
 
 func TestCSRF_ValidateOnPOST(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(CSRF(CSRFConfig{Enabled: true, CookieName: "csrf_test", HeaderName: "X-CSRF-Test"}))
@@ -1425,6 +1377,7 @@ func TestCSRF_ValidateOnPOST(t *testing.T) {
 }
 
 func TestCSRF_RejectOnMismatch(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(CSRF(CSRFConfig{Enabled: true}))
@@ -1437,12 +1390,11 @@ func TestCSRF_RejectOnMismatch(t *testing.T) {
 	req.Header.Set("Cookie", "csrf_token=other-token")
 	resp, _ := app.Test(req)
 
-	if resp.StatusCode != 403 {
-		t.Errorf("expected 403 for mismatched token, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, 403, resp.StatusCode)
 }
 
 func TestCSRF_SkipExcludedPath(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(CSRF(CSRFConfig{
@@ -1456,9 +1408,7 @@ func TestCSRF_SkipExcludedPath(t *testing.T) {
 	req := testRequest(context.Background(), "POST", "/webhooks/stripe", nil)
 	resp, _ := app.Test(req)
 
-	if resp.StatusCode != 200 {
-		t.Errorf("expected 200 for excluded path, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, 200, resp.StatusCode)
 }
 
 func extractCSRFToken(setCookie string) string {
@@ -1484,6 +1434,7 @@ func extractCookieName(setCookie string) string {
 // --- Rate Limit Tests ---
 
 func TestRateLimit_Global_UnderLimit(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(RateLimit(RateLimitConfig{
@@ -1503,6 +1454,7 @@ func TestRateLimit_Global_UnderLimit(t *testing.T) {
 }
 
 func TestRateLimit_Global_OverLimit(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(RateLimit(RateLimitConfig{
@@ -1515,9 +1467,7 @@ func TestRateLimit_Global_OverLimit(t *testing.T) {
 	// First request should pass (burst=1)
 	req := testRequest(context.Background(), "GET", "/test", nil)
 	resp, _ := app.Test(req)
-	if resp.StatusCode != 200 {
-		t.Errorf("first request: expected 200, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, 200, resp.StatusCode)
 
 	// Immediate second request should be rate limited
 	req2 := testRequest(context.Background(), "GET", "/test", nil)
@@ -1528,6 +1478,7 @@ func TestRateLimit_Global_OverLimit(t *testing.T) {
 }
 
 func TestRateLimit_Disabled(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	// If no rate limit config is set (or not enabled), no middleware should be added.
@@ -1548,6 +1499,7 @@ func TestRateLimit_Disabled(t *testing.T) {
 }
 
 func TestRateLimit_PerIP(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(RateLimit(RateLimitConfig{
@@ -1560,9 +1512,7 @@ func TestRateLimit_PerIP(t *testing.T) {
 	// First request passes (burst=1)
 	req := testRequest(context.Background(), "GET", "/test", nil)
 	resp, _ := app.Test(req)
-	if resp.StatusCode != 200 {
-		t.Errorf("first request: expected 200, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, 200, resp.StatusCode)
 
 	// Second request from same IP is rate limited
 	req2 := testRequest(context.Background(), "GET", "/test", nil)
@@ -1573,6 +1523,7 @@ func TestRateLimit_PerIP(t *testing.T) {
 }
 
 func TestRateLimit_RetryAfterHeader(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(RateLimit(RateLimitConfig{
@@ -1600,6 +1551,7 @@ func TestRateLimit_RetryAfterHeader(t *testing.T) {
 // --- CRLF Protection Tests ---
 
 func TestHeaderSanitize_Clean(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(HeaderSanitize())
@@ -1610,12 +1562,11 @@ func TestHeaderSanitize_Clean(t *testing.T) {
 	req := testRequest(context.Background(), "GET", "/test", nil)
 	req.Header.Set("X-Custom", "clean-value")
 	resp, _ := app.Test(req)
-	if resp.StatusCode != 200 {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, 200, resp.StatusCode)
 }
 
 func TestCRLF_Detect(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input []byte
 		want  bool
@@ -1637,6 +1588,7 @@ func TestCRLF_Detect(t *testing.T) {
 // --- SSRF Tests ---
 
 func TestSSRF_Disabled(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	cfg := SSRFConfig{Enabled: false}
 	client := NewSafeHTTPClient(cfg)
@@ -1646,6 +1598,7 @@ func TestSSRF_Disabled(t *testing.T) {
 }
 
 func TestSSRF_BlockPrivate(t *testing.T) {
+	t.Parallel()
 	cfg := SSRFConfig{
 		Enabled:      true,
 		BlockPrivate: true,
@@ -1658,6 +1611,7 @@ func TestSSRF_BlockPrivate(t *testing.T) {
 }
 
 func TestSSRF_BlockLoopback(t *testing.T) {
+	t.Parallel()
 	cfg := SSRFConfig{
 		Enabled:       true,
 		BlockLoopback: true,
@@ -1670,6 +1624,7 @@ func TestSSRF_BlockLoopback(t *testing.T) {
 }
 
 func TestSSRF_BlockMetadata(t *testing.T) {
+	t.Parallel()
 	cfg := SSRFConfig{
 		Enabled:       true,
 		BlockMetadata: true,
@@ -1682,6 +1637,7 @@ func TestSSRF_BlockMetadata(t *testing.T) {
 }
 
 func TestSSRF_ExternalHostPasses(t *testing.T) {
+	t.Parallel()
 	cfg := SSRFConfig{
 		Enabled:      true,
 		BlockPrivate: true,
@@ -1694,6 +1650,7 @@ func TestSSRF_ExternalHostPasses(t *testing.T) {
 }
 
 func TestSSRF_AllowedHost(t *testing.T) {
+	t.Parallel()
 	cfg := SSRFConfig{
 		Enabled:      true,
 		BlockPrivate: true,
@@ -1712,6 +1669,7 @@ func TestSSRF_AllowedHost(t *testing.T) {
 }
 
 func TestSSRF_AllowAll(t *testing.T) {
+	t.Parallel()
 	// allow_all bypasses validation entirely (even for private IPs)
 	cfg := SSRFConfig{
 		Enabled:       true,
@@ -1740,9 +1698,11 @@ func authInjector(auth *AuthContext) fiber.Handler {
 }
 
 func TestRateLimitPost_EntryPerUser_IndependentBuckets(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
-	app.Post("/test",
+	app.Post(
+		"/test",
 		authInjector(&AuthContext{UserID: "user-a"}),
 		RateLimitPost(RateLimitPostConfig{
 			EntryPerUser: &RateLimitEntry{RequestsPerSecond: 2, Burst: 4},
@@ -1765,7 +1725,8 @@ func TestRateLimitPost_EntryPerUser_IndependentBuckets(t *testing.T) {
 
 	// User B — should be a separate app with new store (independent bucket)
 	app2 := fiber.New()
-	app2.Post("/test",
+	app2.Post(
+		"/test",
 		authInjector(&AuthContext{UserID: "user-b"}),
 		RateLimitPost(RateLimitPostConfig{
 			EntryPerUser: &RateLimitEntry{RequestsPerSecond: 2, Burst: 4},
@@ -1774,15 +1735,15 @@ func TestRateLimitPost_EntryPerUser_IndependentBuckets(t *testing.T) {
 	)
 	req := testRequest(context.Background(), "POST", "/test", nil)
 	resp, _ := app2.Test(req)
-	if resp.StatusCode != 200 {
-		t.Errorf("user B should have independent bucket, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, 200, resp.StatusCode)
 }
 
 func TestRateLimitPost_EntryPerKey_IndependentBuckets(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
-	app.Post("/test",
+	app.Post(
+		"/test",
 		authInjector(&AuthContext{UserID: "key-a"}), // RawToken empty = API key
 		RateLimitPost(RateLimitPostConfig{
 			EntryPerKey: &RateLimitEntry{RequestsPerSecond: 2, Burst: 4},
@@ -1805,7 +1766,8 @@ func TestRateLimitPost_EntryPerKey_IndependentBuckets(t *testing.T) {
 
 	// Key B — independent store
 	app2 := fiber.New()
-	app2.Post("/test",
+	app2.Post(
+		"/test",
 		authInjector(&AuthContext{UserID: "key-b"}),
 		RateLimitPost(RateLimitPostConfig{
 			EntryPerKey: &RateLimitEntry{RequestsPerSecond: 2, Burst: 4},
@@ -1814,15 +1776,15 @@ func TestRateLimitPost_EntryPerKey_IndependentBuckets(t *testing.T) {
 	)
 	req := testRequest(context.Background(), "POST", "/test", nil)
 	resp, _ := app2.Test(req)
-	if resp.StatusCode != 200 {
-		t.Errorf("key B should have independent bucket, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, 200, resp.StatusCode)
 }
 
 func TestRateLimitPost_ServerPerUser_NoAuthSkipped(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
-	app.Post("/test",
+	app.Post(
+		"/test",
 		RateLimitPost(RateLimitPostConfig{
 			ServerPerUser: &RateLimitEntry{RequestsPerSecond: 1, Burst: 1},
 		}),
@@ -1840,9 +1802,11 @@ func TestRateLimitPost_ServerPerUser_NoAuthSkipped(t *testing.T) {
 }
 
 func TestRateLimitPost_EntryPerUser_AllowsWithinBurst(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
-	app.Post("/test",
+	app.Post(
+		"/test",
 		authInjector(&AuthContext{UserID: "user-a"}),
 		RateLimitPost(RateLimitPostConfig{
 			EntryPerUser: &RateLimitEntry{RequestsPerSecond: 10, Burst: 10},
@@ -1862,9 +1826,11 @@ func TestRateLimitPost_EntryPerUser_AllowsWithinBurst(t *testing.T) {
 // --- extractKeyID Tests ---
 
 func TestExtractKeyID_JWT(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
-	app.Get("/test",
+	app.Get(
+		"/test",
 		func(c fiber.Ctx) error {
 			injectAuth(c, &AuthContext{UserID: "user-admin", RawToken: "eyJ.xxx.yyy"})
 			if id := extractKeyID(c); id != "" {
@@ -1875,15 +1841,15 @@ func TestExtractKeyID_JWT(t *testing.T) {
 	)
 	req := testRequest(context.Background(), "GET", "/test", nil)
 	resp, _ := app.Test(req)
-	if resp.StatusCode != 200 {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, 200, resp.StatusCode)
 }
 
 func TestExtractKeyID_APIKey(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
-	app.Get("/test",
+	app.Get(
+		"/test",
 		func(c fiber.Ctx) error {
 			injectAuth(c, &AuthContext{UserID: "key-admin"})
 			if id := extractKeyID(c); id != "key-admin" {
@@ -1894,15 +1860,15 @@ func TestExtractKeyID_APIKey(t *testing.T) {
 	)
 	req := testRequest(context.Background(), "GET", "/test", nil)
 	resp, _ := app.Test(req)
-	if resp.StatusCode != 200 {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, 200, resp.StatusCode)
 }
 
 func TestExtractKeyID_NoAuth(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
-	app.Get("/test",
+	app.Get(
+		"/test",
 		func(c fiber.Ctx) error {
 			if id := extractKeyID(c); id != "" {
 				t.Errorf("expected empty, got %q", id)
@@ -1912,14 +1878,13 @@ func TestExtractKeyID_NoAuth(t *testing.T) {
 	)
 	req := testRequest(context.Background(), "GET", "/test", nil)
 	resp, _ := app.Test(req)
-	if resp.StatusCode != 200 {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, 200, resp.StatusCode)
 }
 
 // --- Sliding Window Algorithm Tests ---
 
 func TestSlidingWindow_BasicAllow(t *testing.T) {
+	t.Parallel()
 	l := newSlidingWindowLimiter(10, 1) // 10 rps, 1s window
 	for i := range 10 {
 		if !l.Allow() {
@@ -1933,6 +1898,7 @@ func TestSlidingWindow_BasicAllow(t *testing.T) {
 }
 
 func TestSlidingWindow_Remaining(t *testing.T) {
+	t.Parallel()
 	l := newSlidingWindowLimiter(5, 1) // 5 rps
 	if n := l.Remaining(); n != 5 {
 		t.Errorf("expected 5 remaining initially, got %d", n)
@@ -1944,6 +1910,7 @@ func TestSlidingWindow_Remaining(t *testing.T) {
 }
 
 func TestSlidingWindow_AllowAfterWindowExpires(t *testing.T) {
+	t.Parallel()
 	l := newSlidingWindowLimiter(1, 1) // 1 per 1s window
 	if !l.Allow() {
 		t.Fatal("expected first request allowed")
@@ -1956,6 +1923,7 @@ func TestSlidingWindow_AllowAfterWindowExpires(t *testing.T) {
 }
 
 func TestSlidingWindow_BurstSmallerThanMax(t *testing.T) {
+	t.Parallel()
 	l := newSlidingWindowLimiter(100, 10) // 100 rps, 10s window (burst = expiration)
 	for i := range 100 {
 		if !l.Allow() {
@@ -1968,6 +1936,7 @@ func TestSlidingWindow_BurstSmallerThanMax(t *testing.T) {
 // --- RateLimit With Algorithm Tests ---
 
 func TestRateLimit_AlgorithmSlidingWindow(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(RateLimit(RateLimitConfig{
@@ -1990,12 +1959,11 @@ func TestRateLimit_AlgorithmSlidingWindow(t *testing.T) {
 	// Third should be denied (2 max per window)
 	req := testRequest(context.Background(), "GET", "/test", nil)
 	resp, _ := app.Test(req)
-	if resp.StatusCode != 429 {
-		t.Errorf("expected 429 over limit, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, 429, resp.StatusCode)
 }
 
 func TestRateLimit_AlgorithmTokenBucket(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(RateLimit(RateLimitConfig{
@@ -2018,17 +1986,17 @@ func TestRateLimit_AlgorithmTokenBucket(t *testing.T) {
 	// Third should be denied (no tokens left)
 	req := testRequest(context.Background(), "GET", "/test", nil)
 	resp, _ := app.Test(req)
-	if resp.StatusCode != 429 {
-		t.Errorf("expected 429 over limit, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, 429, resp.StatusCode)
 }
 
 // --- Per-Role Rate Limit Tests ---
 
 func TestRateLimitPost_PerRoleLimits_AdminBlocked(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
-	app.Post("/test",
+	app.Post(
+		"/test",
 		authInjector(&AuthContext{UserID: "user-admin", Roles: []string{"admin"}}),
 		RateLimitPost(RateLimitPostConfig{
 			PerRoleLimits: map[string]*RateLimitEntry{
@@ -2054,9 +2022,11 @@ func TestRateLimitPost_PerRoleLimits_AdminBlocked(t *testing.T) {
 }
 
 func TestRateLimitPost_PerRoleLimits_ViewerNotBlockedByAdminLimit(t *testing.T) {
+	t.Parallel()
 	// Different role = different bucket
 	app := fiber.New()
-	app.Post("/test",
+	app.Post(
+		"/test",
 		authInjector(&AuthContext{UserID: "user-viewer", Roles: []string{"viewer"}}),
 		RateLimitPost(RateLimitPostConfig{
 			PerRoleLimits: map[string]*RateLimitEntry{
@@ -2078,9 +2048,11 @@ func TestRateLimitPost_PerRoleLimits_ViewerNotBlockedByAdminLimit(t *testing.T) 
 }
 
 func TestRateLimitPost_PerRoleLimits_NoMatchingRole(t *testing.T) {
+	t.Parallel()
 	// Role not in PerRoleLimits = no per-role limit applied
 	app := fiber.New()
-	app.Post("/test",
+	app.Post(
+		"/test",
 		authInjector(&AuthContext{UserID: "user-super", Roles: []string{"super"}}),
 		RateLimitPost(RateLimitPostConfig{
 			PerRoleLimits: map[string]*RateLimitEntry{
@@ -2100,9 +2072,11 @@ func TestRateLimitPost_PerRoleLimits_NoMatchingRole(t *testing.T) {
 }
 
 func TestRateLimitPost_PerRoleLimits_MultipleRoles(t *testing.T) {
+	t.Parallel()
 	// User has multiple roles — the FIRST matching role limit applies
 	app := fiber.New()
-	app.Post("/test",
+	app.Post(
+		"/test",
 		authInjector(&AuthContext{UserID: "user-multi", Roles: []string{"viewer", "editor"}}),
 		RateLimitPost(RateLimitPostConfig{
 			PerRoleLimits: map[string]*RateLimitEntry{
@@ -2129,9 +2103,11 @@ func TestRateLimitPost_PerRoleLimits_MultipleRoles(t *testing.T) {
 }
 
 func TestRateLimitPost_PerRoleLimits_NoAuth(t *testing.T) {
+	t.Parallel()
 	// No auth context = no per-role limit (skips gracefully)
 	app := fiber.New()
-	app.Post("/test",
+	app.Post(
+		"/test",
 		RateLimitPost(RateLimitPostConfig{
 			PerRoleLimits: map[string]*RateLimitEntry{
 				"admin": {RequestsPerSecond: 1, Burst: 1},
@@ -2152,6 +2128,7 @@ func TestRateLimitPost_PerRoleLimits_NoAuth(t *testing.T) {
 // --- Cancel/Rollback Tests ---
 
 func TestXrateLimiter_Cancel(t *testing.T) {
+	t.Parallel()
 	l := &xrateLimiter{Limiter: rate.NewLimiter(rate.Limit(1), 1)}
 	if !l.Allow() {
 		t.Fatal("expected first allow")
@@ -2166,6 +2143,7 @@ func TestXrateLimiter_Cancel(t *testing.T) {
 }
 
 func TestSlidingWindowLimiter_Cancel(t *testing.T) {
+	t.Parallel()
 	l := newSlidingWindowLimiter(1, 1)
 	if !l.Allow() {
 		t.Fatal("expected first allow")
@@ -2179,6 +2157,7 @@ func TestSlidingWindowLimiter_Cancel(t *testing.T) {
 // --- SkipFailedRequests Tests ---
 
 func TestRateLimit_SkipFailedRequests(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	app := fiber.New()
 	app.Use(RateLimit(RateLimitConfig{
@@ -2207,18 +2186,18 @@ func TestRateLimit_SkipFailedRequests(t *testing.T) {
 	// Successful requests should still work (tokens were not consumed by failures)
 	req := testRequest(context.Background(), "GET", "/ok", nil)
 	resp, _ := app.Test(req)
-	if resp.StatusCode != 200 {
-		t.Errorf("ok after fails: expected 200, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, 200, resp.StatusCode)
 }
 
 // --- MaxFunc Tests (post-auth path) ---
 
 func TestRateLimitPost_MaxFunc(t *testing.T) {
+	t.Parallel()
 	logx.Disable()
 	callCount := 0
 	app := fiber.New()
-	app.Post("/test",
+	app.Post(
+		"/test",
 		authInjector(&AuthContext{UserID: "user-a"}),
 		RateLimitPost(RateLimitPostConfig{
 			EntryPerUser: &RateLimitEntry{RequestsPerSecond: 100, Burst: 100},
@@ -2233,16 +2212,12 @@ func TestRateLimitPost_MaxFunc(t *testing.T) {
 	// First passes
 	req := testRequest(context.Background(), "POST", "/test", nil)
 	resp, _ := app.Test(req)
-	if resp.StatusCode != 200 {
-		t.Errorf("first: expected 200, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, 200, resp.StatusCode)
 
 	// Second should be blocked (MaxFunc overrode to 1 rps)
 	req = testRequest(context.Background(), "POST", "/test", nil)
 	resp, _ = app.Test(req)
-	if resp.StatusCode != 429 {
-		t.Errorf("second: expected 429, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, 429, resp.StatusCode)
 
 	if callCount == 0 {
 		t.Error("MaxFunc was never called")

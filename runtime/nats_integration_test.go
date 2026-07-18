@@ -1,3 +1,5 @@
+//go:build integration
+
 package runtime
 
 import (
@@ -25,7 +27,7 @@ func TestIntegration_ExitWorker_Push(t *testing.T) {
 	ctx := context.Background()
 	conn, err := events.Connect(ctx, events.ConnOptions{URL: natsURL, Timeout: 3 * time.Second})
 	if err != nil {
-		t.Fatalf("connect: %v", err)
+		t.Skipf("connect: %v", err)
 	}
 	defer conn.Drain()
 
@@ -76,7 +78,7 @@ func TestIntegration_ExitWorker_Reply(t *testing.T) {
 	ctx := context.Background()
 	conn, err := events.Connect(ctx, events.ConnOptions{URL: natsURL, Timeout: 3 * time.Second})
 	if err != nil {
-		t.Fatalf("connect: %v", err)
+		t.Skipf("connect: %v", err)
 	}
 	defer conn.Drain()
 
@@ -127,7 +129,7 @@ func TestIntegration_Producer_RequestReply(t *testing.T) {
 
 	nc, err := nats.Connect(natsURL)
 	if err != nil {
-		t.Fatalf("connect: %v", err)
+		t.Skipf("connect: %v", err)
 	}
 	defer nc.Drain()
 
@@ -228,7 +230,7 @@ func TestIntegration_Service_CronNATS(t *testing.T) {
 	ctx := context.Background()
 	conn, err := events.Connect(ctx, events.ConnOptions{URL: natsURL, Timeout: 3 * time.Second})
 	if err != nil {
-		t.Fatalf("connect: %v", err)
+		t.Skipf("connect: %v", err)
 	}
 	defer conn.Drain()
 
@@ -273,7 +275,7 @@ func TestIntegration_GracefulShutdown(t *testing.T) {
 	ctx := context.Background()
 	conn, err := events.Connect(ctx, events.ConnOptions{URL: natsURL, Timeout: 3 * time.Second})
 	if err != nil {
-		t.Fatalf("connect: %v", err)
+		t.Skipf("connect: %v", err)
 	}
 	defer conn.Drain()
 
@@ -328,7 +330,7 @@ func TestIntegration_CRUD_NATSPublish(t *testing.T) {
 	ctx := context.Background()
 	conn, err := events.Connect(ctx, events.ConnOptions{URL: natsURL, Timeout: 3 * time.Second})
 	if err != nil {
-		t.Fatalf("connect: %v", err)
+		t.Skipf("connect: %v", err)
 	}
 	defer conn.Drain()
 
@@ -409,7 +411,7 @@ func TestIntegration_ExitWorker_Pull(t *testing.T) {
 	ctx := context.Background()
 	conn, err := events.Connect(ctx, events.ConnOptions{URL: natsURL, Timeout: 3 * time.Second})
 	if err != nil {
-		t.Fatalf("connect: %v", err)
+		t.Skipf("connect: %v", err)
 	}
 	defer conn.Drain()
 
@@ -462,7 +464,7 @@ func TestIntegration_ExitWorker_HandlerErrorNak(t *testing.T) {
 	ctx := context.Background()
 	conn, err := events.Connect(ctx, events.ConnOptions{URL: natsURL, Timeout: 3 * time.Second})
 	if err != nil {
-		t.Fatalf("connect: %v", err)
+		t.Skipf("connect: %v", err)
 	}
 	defer conn.Drain()
 
@@ -514,13 +516,13 @@ func TestIntegration_MultiBroker(t *testing.T) {
 	ctx := context.Background()
 	conn1, err := events.Connect(ctx, events.ConnOptions{URL: natsURL, Timeout: 3 * time.Second, Name: "broker1"})
 	if err != nil {
-		t.Fatalf("connect broker1: %v", err)
+		t.Skipf("connect broker1: %v", err)
 	}
 	defer conn1.Drain()
 
 	conn2, err := events.Connect(ctx, events.ConnOptions{URL: natsURL, Timeout: 3 * time.Second, Name: "broker2"})
 	if err != nil {
-		t.Fatalf("connect broker2: %v", err)
+		t.Skipf("connect broker2: %v", err)
 	}
 	defer conn2.Drain()
 

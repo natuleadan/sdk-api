@@ -1496,7 +1496,9 @@ func (c *cachedStorage) Download(ctx context.Context, key string) (io.ReadCloser
 }
 
 func sanitizeKey(key string) string {
-	return strings.ReplaceAll(key, "..", "")
+	key = strings.ReplaceAll(key, "..", "")
+	key = strings.TrimLeft(key, "/")
+	return key
 }
 
 func (c *cachedStorage) PresignTTL() time.Duration {

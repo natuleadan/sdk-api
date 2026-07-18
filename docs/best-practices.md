@@ -303,6 +303,28 @@ The project enforces these rules via `golangci-lint`:
 
 ### Linter removals
 
+## Pool health check
+
+Use `runtime.CheckPoolHealth(name, driver, pool)` to inspect database connection pool status:
+
+```go
+h := runtime.CheckPoolHealth("pg-main", "postgres", pool)
+// → {Name, Driver, TotalConns, InUseConns, UtilizationPct, Status}
+```
+
+Supported pool types: `*pgxpool.Pool` (PostgreSQL), `*sql.DB` (MySQL, Turso).
+Status: `"healthy"` (<60% utilization), `"degraded"` (60-80%), `"saturated"` (>80%).
+
+## Testing patterns
+
+See `docs/testing.md` for the complete testing guide. Key points:
+
+- Unit tests: `go test -short ./...` (no Docker required)
+- Integration tests: `make test-integration` (requires Docker)
+- Use testify (`assert`/`require`) for all assertions
+- Add `t.Parallel()` to every test function
+- Fuzz parsers and validators with `go test -fuzz`
+
 Two linters were evaluated against go-zero's philosophy and intentionally removed:
 
 **`wrapcheck`** — requires all errors from external packages to be wrapped with `%w`.

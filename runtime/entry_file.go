@@ -112,8 +112,11 @@ func parseMaxSize(s string) int {
 		s = strings.TrimSuffix(s, "b")
 	}
 	var n int
-	if _, err := fmt.Sscanf(s, "%d", &n); err != nil {
-		logx.Errorf("entry_file: parse size error: %v", err)
+	if _, err := fmt.Sscanf(s, "%d", &n); err != nil || n < 0 {
+		if err != nil {
+			logx.Errorf("entry_file: parse size error: %v", err)
+		}
+		return 0
 	}
 	return n * multiplier
 }

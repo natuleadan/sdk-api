@@ -4,8 +4,8 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/logx"
+	"github.com/stretchr/testify/assert"
 )
 
 func init() {
@@ -30,7 +30,7 @@ func TestTypedSetInt(t *testing.T) {
 	// Test getting all keys
 	keys := set.Keys()
 	sort.Ints(keys)
-	assert.EqualValues(t, []int{1, 2, 3}, keys)
+	assert.Equal(t, []int{1, 2, 3}, keys)
 
 	// Test removal
 	set.Remove(2)
@@ -52,7 +52,7 @@ func TestTypedSetStringOps(t *testing.T) {
 
 	keys := set.Keys()
 	sort.Strings(keys)
-	assert.EqualValues(t, []string{"a", "b", "c"}, keys)
+	assert.Equal(t, []string{"a", "b", "c"}, keys)
 }
 
 func TestTypedSetClear(t *testing.T) {
@@ -129,7 +129,7 @@ func TestAdd(t *testing.T) {
 
 	// then
 	assert.True(t, set.Contains(1) && set.Contains(2) && set.Contains(3))
-	assert.Equal(t, len(values), len(set.Keys()))
+	assert.Len(t, set.Keys(), len(values))
 }
 
 func TestAddInt(t *testing.T) {
@@ -144,7 +144,7 @@ func TestAddInt(t *testing.T) {
 	assert.True(t, set.Contains(1) && set.Contains(2) && set.Contains(3))
 	keys := set.Keys()
 	sort.Ints(keys)
-	assert.EqualValues(t, values, keys)
+	assert.Equal(t, values, keys)
 }
 
 func TestAddInt64(t *testing.T) {
@@ -157,7 +157,7 @@ func TestAddInt64(t *testing.T) {
 
 	// then
 	assert.True(t, set.Contains(1) && set.Contains(2) && set.Contains(3))
-	assert.Equal(t, len(values), len(set.Keys()))
+	assert.Len(t, set.Keys(), len(values))
 }
 
 func TestAddUint(t *testing.T) {
@@ -170,7 +170,7 @@ func TestAddUint(t *testing.T) {
 
 	// then
 	assert.True(t, set.Contains(1) && set.Contains(2) && set.Contains(3))
-	assert.Equal(t, len(values), len(set.Keys()))
+	assert.Len(t, set.Keys(), len(values))
 }
 
 func TestAddUint64(t *testing.T) {
@@ -183,7 +183,7 @@ func TestAddUint64(t *testing.T) {
 
 	// then
 	assert.True(t, set.Contains(1) && set.Contains(2) && set.Contains(3))
-	assert.Equal(t, len(values), len(set.Keys()))
+	assert.Len(t, set.Keys(), len(values))
 }
 
 func TestAddStr(t *testing.T) {
@@ -196,7 +196,7 @@ func TestAddStr(t *testing.T) {
 
 	// then
 	assert.True(t, set.Contains("1") && set.Contains("2") && set.Contains("3"))
-	assert.Equal(t, len(values), len(set.Keys()))
+	assert.Len(t, set.Keys(), len(values))
 }
 
 func TestContainsWithoutElements(t *testing.T) {
@@ -225,5 +225,5 @@ func TestCount(t *testing.T) {
 	set.Add([]int{1, 2, 3}...)
 
 	// then
-	assert.Equal(t, set.Count(), 3)
+	assert.Equal(t, 3, set.Count())
 }

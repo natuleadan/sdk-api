@@ -28,7 +28,7 @@ func TestAtomicErrorSetNil(t *testing.T) {
 
 func TestAtomicErrorNil(t *testing.T) {
 	var err AtomicError
-	assert.Nil(t, err.Load())
+	assert.NoError(t, err.Load())
 }
 
 func BenchmarkAtomicError(b *testing.B) {
@@ -54,7 +54,7 @@ func BenchmarkAtomicError(b *testing.B) {
 	})
 	b.Run("Set", func(b *testing.B) {
 		var done uint32
-				go func() {
+		go func() {
 			for atomic.LoadUint32(&done) == 0 {
 				aerr.Load()
 			}

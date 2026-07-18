@@ -57,7 +57,8 @@ type (
 
 // New returns a Cache.
 func New(c ClusterConf, barrier syncx.SingleFlight, st *Stat, errNotFound error,
-	opts ...Option) Cache {
+	opts ...Option,
+) Cache {
 	if len(c) == 0 || TotalWeights(c) <= 0 {
 		log.Fatal("no cache nodes")
 	}

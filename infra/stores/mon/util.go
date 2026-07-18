@@ -33,7 +33,8 @@ func logDuration(ctx context.Context, name, method string, startTime time.Durati
 }
 
 func logDurationWithDocs(ctx context.Context, name, method string, startTime time.Duration,
-	err error, docs ...any) {
+	err error, docs ...any,
+) {
 	duration := timex.Since(startTime)
 	logger := logx.WithContext(ctx).WithDuration(duration)
 

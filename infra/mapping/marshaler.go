@@ -65,7 +65,8 @@ func insertValue(collector map[string]map[string]any, tag string, key string, va
 }
 
 func processMember(field reflect.StructField, value reflect.Value,
-	collector map[string]map[string]any) error {
+	collector map[string]map[string]any,
+) error {
 	var key string
 	var opt *fieldOptions
 	var err error

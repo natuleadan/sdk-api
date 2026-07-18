@@ -104,7 +104,7 @@ func TestPeriodicalExecutor_Bulk(t *testing.T) {
 	}
 
 	lock.Lock()
-	assert.EqualValues(t, expect, vals)
+	assert.Equal(t, expect, vals)
 	lock.Unlock()
 }
 

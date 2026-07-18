@@ -4,8 +4,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/color"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestWithColor(t *testing.T) {

@@ -34,7 +34,11 @@ func dumpGoroutines(ctor creator) {
 	if f, err := ctor.Create(dumpFile); err != nil {
 		logx.Errorf("Failed to dump goroutine profile, error: %v", err)
 	} else {
-		defer func() { if err := f.Close(); err != nil { fmt.Fprintf(os.Stderr, "proc: close error: %v\n", err) } }()
+		defer func() {
+			if err := f.Close(); err != nil {
+				fmt.Fprintf(os.Stderr, "proc: close error: %v\n", err)
+			}
+		}()
 		if err := pprof.Lookup(goroutineProfile).WriteTo(f, debugLevel); err != nil {
 			logx.Errorf("Failed to write goroutine profile, error: %v", err)
 		}

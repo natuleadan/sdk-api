@@ -10,12 +10,12 @@ import (
 )
 
 func TestRetry(t *testing.T) {
-	assert.NotNil(t, DoWithRetry(func() error {
+	assert.Error(t, DoWithRetry(func() error {
 		return errors.New("any")
 	}))
 
 	times1 := 0
-	assert.Nil(t, DoWithRetry(func() error {
+	assert.NoError(t, DoWithRetry(func() error {
 		times1++
 		if times1 == defaultRetryTimes {
 			return nil
@@ -24,7 +24,7 @@ func TestRetry(t *testing.T) {
 	}))
 
 	times2 := 0
-	assert.NotNil(t, DoWithRetry(func() error {
+	assert.Error(t, DoWithRetry(func() error {
 		times2++
 		if times2 == defaultRetryTimes+1 {
 			return nil
@@ -34,7 +34,7 @@ func TestRetry(t *testing.T) {
 
 	total := 2 * defaultRetryTimes
 	times3 := 0
-	assert.Nil(t, DoWithRetry(func() error {
+	assert.NoError(t, DoWithRetry(func() error {
 		times3++
 		if times3 == total {
 			return nil
@@ -44,12 +44,12 @@ func TestRetry(t *testing.T) {
 }
 
 func TestRetryWithTimeout(t *testing.T) {
-	assert.Nil(t, DoWithRetry(func() error {
+	assert.NoError(t, DoWithRetry(func() error {
 		return nil
 	}, WithTimeout(time.Millisecond*500)))
 
 	times1 := 0
-	assert.Nil(t, DoWithRetry(func() error {
+	assert.NoError(t, DoWithRetry(func() error {
 		times1++
 		if times1 == 1 {
 			return errors.New("any ")
@@ -60,7 +60,7 @@ func TestRetryWithTimeout(t *testing.T) {
 
 	total := defaultRetryTimes
 	times2 := 0
-	assert.Nil(t, DoWithRetry(func() error {
+	assert.NoError(t, DoWithRetry(func() error {
 		times2++
 		if times2 == total {
 			return nil
@@ -69,14 +69,14 @@ func TestRetryWithTimeout(t *testing.T) {
 		return errors.New("any")
 	}, WithTimeout(time.Millisecond*50*(time.Duration(total)+2))))
 
-	assert.NotNil(t, DoWithRetry(func() error {
+	assert.Error(t, DoWithRetry(func() error {
 		return errors.New("any")
 	}, WithTimeout(time.Millisecond*250)))
 }
 
 func TestRetryWithInterval(t *testing.T) {
 	times1 := 0
-	assert.NotNil(t, DoWithRetry(func() error {
+	assert.Error(t, DoWithRetry(func() error {
 		times1++
 		if times1 == 1 {
 			return errors.New("any")
@@ -86,7 +86,7 @@ func TestRetryWithInterval(t *testing.T) {
 	}, WithTimeout(time.Millisecond*250), WithInterval(time.Millisecond*150)))
 
 	times2 := 0
-	assert.NotNil(t, DoWithRetry(func() error {
+	assert.Error(t, DoWithRetry(func() error {
 		times2++
 		if times2 == 2 {
 			return nil
@@ -94,7 +94,6 @@ func TestRetryWithInterval(t *testing.T) {
 		time.Sleep(time.Millisecond * 150)
 		return errors.New("any ")
 	}, WithTimeout(time.Millisecond*250), WithInterval(time.Millisecond*150)))
-
 }
 
 func TestRetryWithWithIgnoreErrors(t *testing.T) {
@@ -102,22 +101,22 @@ func TestRetryWithWithIgnoreErrors(t *testing.T) {
 	ignoreErr2 := errors.New("ignore error2")
 	ignoreErrs := []error{ignoreErr1, ignoreErr2}
 
-	assert.Nil(t, DoWithRetry(func() error {
+	assert.NoError(t, DoWithRetry(func() error {
 		return ignoreErr1
 	}, WithIgnoreErrors(ignoreErrs)))
 
-	assert.Nil(t, DoWithRetry(func() error {
+	assert.NoError(t, DoWithRetry(func() error {
 		return ignoreErr2
 	}, WithIgnoreErrors(ignoreErrs)))
 
-	assert.NotNil(t, DoWithRetry(func() error {
+	assert.Error(t, DoWithRetry(func() error {
 		return errors.New("any")
 	}))
 }
 
 func TestRetryCtx(t *testing.T) {
 	t.Run("with timeout", func(t *testing.T) {
-		assert.NotNil(t, DoWithRetryCtx(context.Background(), func(ctx context.Context, retryCount int) error {
+		assert.Error(t, DoWithRetryCtx(context.Background(), func(ctx context.Context, retryCount int) error {
 			if retryCount == 0 {
 				return errors.New("any")
 			}
@@ -125,7 +124,7 @@ func TestRetryCtx(t *testing.T) {
 			return nil
 		}, WithTimeout(time.Millisecond*250), WithInterval(time.Millisecond*150)))
 
-		assert.NotNil(t, DoWithRetryCtx(context.Background(), func(ctx context.Context, retryCount int) error {
+		assert.Error(t, DoWithRetryCtx(context.Background(), func(ctx context.Context, retryCount int) error {
 			if retryCount == 1 {
 				return nil
 			}

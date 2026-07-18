@@ -52,7 +52,7 @@ func NewPeriodicalExecutor(interval time.Duration, container TaskContainer) *Per
 		interval:    interval,
 		container:   container,
 		confirmChan: make(chan lang.PlaceholderType),
-		newTicker: timex.NewTicker,
+		newTicker:   timex.NewTicker,
 	}
 	proc.AddShutdownListener(func() {
 		executor.Flush()
@@ -134,13 +134,13 @@ func (pe *PeriodicalExecutor) backgroundFlush() {
 				last = timex.Now()
 			case <-ticker.Chan():
 				switch {
-			case commanded:
-				commanded = false
-			case pe.Flush():
-				last = timex.Now()
-			case pe.shallQuit(last):
-				return
-			}
+				case commanded:
+					commanded = false
+				case pe.Flush():
+					last = timex.Now()
+				case pe.shallQuit(last):
+					return
+				}
 			}
 		}
 	}()

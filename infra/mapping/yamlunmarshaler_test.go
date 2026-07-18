@@ -15,7 +15,7 @@ func TestUnmarshalYamlBytes(t *testing.T) {
 	}
 	content := []byte(`Name: liao`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
 	assert.Equal(t, "liao", c.Name)
 }
 
@@ -24,7 +24,7 @@ func TestUnmarshalYamlBytesErrorInput(t *testing.T) {
 		Name string
 	}
 	content := []byte(`liao`)
-	assert.NotNil(t, UnmarshalYamlBytes(content, &c))
+	assert.Error(t, UnmarshalYamlBytes(content, &c))
 }
 
 func TestUnmarshalYamlBytesEmptyInput(t *testing.T) {
@@ -32,7 +32,7 @@ func TestUnmarshalYamlBytesEmptyInput(t *testing.T) {
 		Name string
 	}
 	content := []byte(``)
-	assert.NotNil(t, UnmarshalYamlBytes(content, &c))
+	assert.Error(t, UnmarshalYamlBytes(content, &c))
 }
 
 func TestUnmarshalYamlBytesOptional(t *testing.T) {
@@ -42,7 +42,7 @@ func TestUnmarshalYamlBytesOptional(t *testing.T) {
 	}
 	content := []byte(`Name: liao`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
 	assert.Equal(t, "liao", c.Name)
 }
 
@@ -53,7 +53,7 @@ func TestUnmarshalYamlBytesOptionalDefault(t *testing.T) {
 	}
 	content := []byte(`Name: liao`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
 	assert.Equal(t, "liao", c.Name)
 	assert.Equal(t, 1, c.Age)
 }
@@ -65,7 +65,7 @@ func TestUnmarshalYamlBytesDefaultOptional(t *testing.T) {
 	}
 	content := []byte(`Name: liao`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
 	assert.Equal(t, "liao", c.Name)
 	assert.Equal(t, 1, c.Age)
 }
@@ -76,7 +76,7 @@ func TestUnmarshalYamlBytesDefault(t *testing.T) {
 	}
 	content := []byte(`{}`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
 	assert.Equal(t, "liao", c.Name)
 }
 
@@ -86,7 +86,7 @@ func TestUnmarshalYamlBytesBool(t *testing.T) {
 	}
 	content := []byte(`Great: true`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
 	assert.True(t, c.Great)
 }
 
@@ -96,7 +96,7 @@ func TestUnmarshalYamlBytesInt(t *testing.T) {
 	}
 	content := []byte(`Age: 1`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
 	assert.Equal(t, 1, c.Age)
 }
 
@@ -106,7 +106,7 @@ func TestUnmarshalYamlBytesUint(t *testing.T) {
 	}
 	content := []byte(`Age: 1`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
 	assert.Equal(t, uint(1), c.Age)
 }
 
@@ -116,7 +116,7 @@ func TestUnmarshalYamlBytesFloat(t *testing.T) {
 	}
 	content := []byte(`Age: 1.5`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
 	assert.Equal(t, float32(1.5), c.Age)
 }
 
@@ -130,7 +130,7 @@ func TestUnmarshalYamlBytesMustInOptional(t *testing.T) {
 	}
 	content := []byte(`{}`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
 }
 
 func TestUnmarshalYamlBytesMustInOptionalMissedPart(t *testing.T) {
@@ -144,7 +144,7 @@ func TestUnmarshalYamlBytesMustInOptionalMissedPart(t *testing.T) {
 	content := []byte(`Inner:
   There: sure`)
 
-	assert.NotNil(t, UnmarshalYamlBytes(content, &c))
+	assert.Error(t, UnmarshalYamlBytes(content, &c))
 }
 
 func TestUnmarshalYamlBytesMustInOptionalOnlyOptionalFilled(t *testing.T) {
@@ -158,7 +158,7 @@ func TestUnmarshalYamlBytesMustInOptionalOnlyOptionalFilled(t *testing.T) {
 	content := []byte(`Inner:
   Optional: sure`)
 
-	assert.NotNil(t, UnmarshalYamlBytes(content, &c))
+	assert.Error(t, UnmarshalYamlBytes(content, &c))
 }
 
 func TestUnmarshalYamlBytesPartial(t *testing.T) {
@@ -168,7 +168,7 @@ func TestUnmarshalYamlBytesPartial(t *testing.T) {
 	}
 	content := []byte(`Age: 1.5`)
 
-	assert.NotNil(t, UnmarshalYamlBytes(content, &c))
+	assert.Error(t, UnmarshalYamlBytes(content, &c))
 }
 
 func TestUnmarshalYamlBytesStruct(t *testing.T) {
@@ -180,7 +180,7 @@ func TestUnmarshalYamlBytesStruct(t *testing.T) {
 	content := []byte(`Inner:
   Name: liao`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
 	assert.Equal(t, "liao", c.Inner.Name)
 }
 
@@ -194,7 +194,7 @@ func TestUnmarshalYamlBytesStructOptional(t *testing.T) {
 	content := []byte(`Inner:
   Name: liao`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
 	assert.Equal(t, "liao", c.Inner.Name)
 }
 
@@ -207,7 +207,7 @@ func TestUnmarshalYamlBytesStructPtr(t *testing.T) {
 	content := []byte(`Inner:
   Name: liao`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
 	assert.Equal(t, "liao", c.Inner.Name)
 }
 
@@ -221,7 +221,7 @@ func TestUnmarshalYamlBytesStructPtrOptional(t *testing.T) {
 	content := []byte(`Inner:
   Name: liao`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
 }
 
 func TestUnmarshalYamlBytesStructPtrDefault(t *testing.T) {
@@ -234,7 +234,7 @@ func TestUnmarshalYamlBytesStructPtrDefault(t *testing.T) {
 	content := []byte(`Inner:
   Name: liao`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
 	assert.Equal(t, "liao", c.Inner.Name)
 	assert.Equal(t, 4, c.Inner.Age)
 }
@@ -247,7 +247,7 @@ func TestUnmarshalYamlBytesSliceString(t *testing.T) {
 - liao
 - chaoxin`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
 
 	want := []string{"liao", "chaoxin"}
 	if !reflect.DeepEqual(c.Names, want) {
@@ -264,7 +264,7 @@ func TestUnmarshalYamlBytesSliceStringOptional(t *testing.T) {
 - liao
 - chaoxin`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
 
 	want := []string{"liao", "chaoxin"}
 	if !reflect.DeepEqual(c.Names, want) {
@@ -285,7 +285,7 @@ func TestUnmarshalYamlBytesSliceStruct(t *testing.T) {
 - Name: chaoxin
   Age: 2`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
 
 	want := []struct {
 		Name string
@@ -313,7 +313,7 @@ func TestUnmarshalYamlBytesSliceStructOptional(t *testing.T) {
 - Name: chaoxin
   Age: 2`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
 
 	want := []struct {
 		Name   string
@@ -341,7 +341,7 @@ func TestUnmarshalYamlBytesSliceStructPtr(t *testing.T) {
 - Name: chaoxin
   Age: 2`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
 
 	want := []*struct {
 		Name string
@@ -369,7 +369,7 @@ func TestUnmarshalYamlBytesSliceStructPtrOptional(t *testing.T) {
 - Name: chaoxin
   Age: 2`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
 
 	want := []*struct {
 		Name   string
@@ -398,7 +398,7 @@ func TestUnmarshalYamlBytesSliceStructPtrPartial(t *testing.T) {
 - Name: chaoxin
   Age: 2`)
 
-	assert.NotNil(t, UnmarshalYamlBytes(content, &c))
+	assert.Error(t, UnmarshalYamlBytes(content, &c))
 }
 
 func TestUnmarshalYamlBytesSliceStructPtrDefault(t *testing.T) {
@@ -415,7 +415,7 @@ func TestUnmarshalYamlBytesSliceStructPtrDefault(t *testing.T) {
 - Name: chaoxin
   Age: 2`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
 
 	want := []*struct {
 		Name  string
@@ -442,7 +442,7 @@ func TestUnmarshalYamlBytesSliceStringPartial(t *testing.T) {
 	}
 	content := []byte(`Age: 1`)
 
-	assert.NotNil(t, UnmarshalYamlBytes(content, &c))
+	assert.Error(t, UnmarshalYamlBytes(content, &c))
 }
 
 func TestUnmarshalYamlBytesSliceStructPartial(t *testing.T) {
@@ -455,7 +455,7 @@ func TestUnmarshalYamlBytesSliceStructPartial(t *testing.T) {
 	}
 	content := []byte(`Group: chaoxin`)
 
-	assert.NotNil(t, UnmarshalYamlBytes(content, &c))
+	assert.Error(t, UnmarshalYamlBytes(content, &c))
 }
 
 func TestUnmarshalYamlBytesInnerAnonymousPartial(t *testing.T) {
@@ -476,7 +476,7 @@ func TestUnmarshalYamlBytesInnerAnonymousPartial(t *testing.T) {
 	content := []byte(`Value:
   InnerV: chaoxin`)
 
-	assert.NotNil(t, UnmarshalYamlBytes(content, &c))
+	assert.Error(t, UnmarshalYamlBytes(content, &c))
 }
 
 func TestUnmarshalYamlBytesStructPartial(t *testing.T) {
@@ -489,7 +489,7 @@ func TestUnmarshalYamlBytesStructPartial(t *testing.T) {
 	}
 	content := []byte(`Group: chaoxin`)
 
-	assert.NotNil(t, UnmarshalYamlBytes(content, &c))
+	assert.Error(t, UnmarshalYamlBytes(content, &c))
 }
 
 func TestUnmarshalYamlBytesEmptyMap(t *testing.T) {
@@ -498,7 +498,7 @@ func TestUnmarshalYamlBytesEmptyMap(t *testing.T) {
 	}
 	content := []byte(`{}`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
 	assert.Empty(t, c.Persons)
 }
 
@@ -510,8 +510,8 @@ func TestUnmarshalYamlBytesMap(t *testing.T) {
   first: 1
   second: 2`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
-	assert.Equal(t, 2, len(c.Persons))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
+	assert.Len(t, c.Persons, 2)
 	assert.Equal(t, 1, c.Persons["first"])
 	assert.Equal(t, 2, c.Persons["second"])
 }
@@ -528,8 +528,8 @@ func TestUnmarshalYamlBytesMapStruct(t *testing.T) {
     ID: 1
     name: kevin`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
-	assert.Equal(t, 1, len(c.Persons))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
+	assert.Len(t, c.Persons, 1)
 	assert.Equal(t, 1, c.Persons["first"].ID)
 	assert.Equal(t, "kevin", c.Persons["first"].Name)
 }
@@ -546,8 +546,8 @@ func TestUnmarshalYamlBytesMapStructPtr(t *testing.T) {
     ID: 1
     name: kevin`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
-	assert.Equal(t, 1, len(c.Persons))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
+	assert.Len(t, c.Persons, 1)
 	assert.Equal(t, 1, c.Persons["first"].ID)
 	assert.Equal(t, "kevin", c.Persons["first"].Name)
 }
@@ -563,7 +563,7 @@ func TestUnmarshalYamlBytesMapStructMissingPartial(t *testing.T) {
   first:
     ID: 1`)
 
-	assert.NotNil(t, UnmarshalYamlBytes(content, &c))
+	assert.Error(t, UnmarshalYamlBytes(content, &c))
 }
 
 func TestUnmarshalYamlBytesMapStructOptional(t *testing.T) {
@@ -577,8 +577,8 @@ func TestUnmarshalYamlBytesMapStructOptional(t *testing.T) {
   first:
     ID: 1`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
-	assert.Equal(t, 1, len(c.Persons))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
+	assert.Len(t, c.Persons, 1)
 	assert.Equal(t, 1, c.Persons["first"].ID)
 }
 
@@ -594,8 +594,8 @@ func TestUnmarshalYamlBytesMapStructSlice(t *testing.T) {
   - ID: 1
     name: kevin`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
-	assert.Equal(t, 1, len(c.Persons))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
+	assert.Len(t, c.Persons, 1)
 	assert.Equal(t, 1, c.Persons["first"][0].ID)
 	assert.Equal(t, "kevin", c.Persons["first"][0].Name)
 }
@@ -610,8 +610,8 @@ func TestUnmarshalYamlBytesMapEmptyStructSlice(t *testing.T) {
 	content := []byte(`Persons:
   first: []`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
-	assert.Equal(t, 1, len(c.Persons))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
+	assert.Len(t, c.Persons, 1)
 	assert.Empty(t, c.Persons["first"])
 }
 
@@ -627,8 +627,8 @@ func TestUnmarshalYamlBytesMapStructPtrSlice(t *testing.T) {
   - ID: 1
     name: kevin`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
-	assert.Equal(t, 1, len(c.Persons))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
+	assert.Len(t, c.Persons, 1)
 	assert.Equal(t, 1, c.Persons["first"][0].ID)
 	assert.Equal(t, "kevin", c.Persons["first"][0].Name)
 }
@@ -643,8 +643,8 @@ func TestUnmarshalYamlBytesMapEmptyStructPtrSlice(t *testing.T) {
 	content := []byte(`Persons:
   first: []`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
-	assert.Equal(t, 1, len(c.Persons))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
+	assert.Len(t, c.Persons, 1)
 	assert.Empty(t, c.Persons["first"])
 }
 
@@ -659,7 +659,7 @@ func TestUnmarshalYamlBytesMapStructPtrSliceMissingPartial(t *testing.T) {
   first:
   - ID: 1`)
 
-	assert.NotNil(t, UnmarshalYamlBytes(content, &c))
+	assert.Error(t, UnmarshalYamlBytes(content, &c))
 }
 
 func TestUnmarshalYamlBytesMapStructPtrSliceOptional(t *testing.T) {
@@ -673,8 +673,8 @@ func TestUnmarshalYamlBytesMapStructPtrSliceOptional(t *testing.T) {
   first:
   - ID: 1`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
-	assert.Equal(t, 1, len(c.Persons))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
+	assert.Len(t, c.Persons, 1)
 	assert.Equal(t, 1, c.Persons["first"][0].ID)
 }
 
@@ -689,7 +689,7 @@ func TestUnmarshalYamlStructOptional(t *testing.T) {
 	content := []byte(`Name: kevin`)
 
 	err := UnmarshalYamlBytes(content, &c)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "kevin", c.Name)
 }
 
@@ -705,7 +705,7 @@ etcd:
   Key: the key`)
 
 	err := UnmarshalYamlBytes(content, &c)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "kevin", c.Name)
 	assert.Equal(t, "the key", c.Etcd.Key)
 }
@@ -719,7 +719,7 @@ func TestUnmarshalYamlWithStructAllOptionalWithEmpty(t *testing.T) {
 	}
 	content := []byte(`Else: sure`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
 }
 
 func TestUnmarshalYamlWithStructAllOptionalPtr(t *testing.T) {
@@ -731,7 +731,7 @@ func TestUnmarshalYamlWithStructAllOptionalPtr(t *testing.T) {
 	}
 	content := []byte(`Else: sure`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
 }
 
 func TestUnmarshalYamlWithStructOptional(t *testing.T) {
@@ -745,9 +745,9 @@ func TestUnmarshalYamlWithStructOptional(t *testing.T) {
 	}
 	content := []byte(`Else: sure`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
 	assert.Equal(t, "sure", c.Else)
-	assert.Equal(t, "", c.In.Must)
+	assert.Empty(t, c.In.Must)
 }
 
 func TestUnmarshalYamlWithStructPtrOptional(t *testing.T) {
@@ -761,7 +761,7 @@ func TestUnmarshalYamlWithStructPtrOptional(t *testing.T) {
 	}
 	content := []byte(`Else: sure`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
 	assert.Equal(t, "sure", c.Else)
 	assert.Nil(t, c.In)
 }
@@ -777,7 +777,7 @@ func TestUnmarshalYamlWithStructAllOptionalAnonymous(t *testing.T) {
 	}
 	content := []byte(`Else: sure`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
 }
 
 func TestUnmarshalYamlWithStructAllOptionalAnonymousPtr(t *testing.T) {
@@ -791,7 +791,7 @@ func TestUnmarshalYamlWithStructAllOptionalAnonymousPtr(t *testing.T) {
 	}
 	content := []byte(`Else: sure`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
 }
 
 func TestUnmarshalYamlWithStructAllOptionalProvoidedAnonymous(t *testing.T) {
@@ -806,7 +806,7 @@ func TestUnmarshalYamlWithStructAllOptionalProvoidedAnonymous(t *testing.T) {
 	content := []byte(`Else: sure
 Optional: optional`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
 	assert.Equal(t, "sure", c.Else)
 	assert.Equal(t, "optional", c.Optional)
 }
@@ -823,7 +823,7 @@ func TestUnmarshalYamlWithStructAllOptionalProvoidedAnonymousPtr(t *testing.T) {
 	content := []byte(`Else: sure
 Optional: optional`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
 	assert.Equal(t, "sure", c.Else)
 	assert.Equal(t, "optional", c.Optional)
 }
@@ -840,7 +840,7 @@ func TestUnmarshalYamlWithStructAnonymous(t *testing.T) {
 	content := []byte(`Else: sure
 Must: must`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
 	assert.Equal(t, "sure", c.Else)
 	assert.Equal(t, "must", c.Must)
 }
@@ -857,7 +857,7 @@ func TestUnmarshalYamlWithStructAnonymousPtr(t *testing.T) {
 	content := []byte(`Else: sure
 Must: must`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
 	assert.Equal(t, "sure", c.Else)
 	assert.Equal(t, "must", c.Must)
 }
@@ -873,9 +873,9 @@ func TestUnmarshalYamlWithStructAnonymousOptional(t *testing.T) {
 	}
 	content := []byte(`Else: sure`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
 	assert.Equal(t, "sure", c.Else)
-	assert.Equal(t, "", c.Must)
+	assert.Empty(t, c.Must)
 }
 
 func TestUnmarshalYamlWithStructPtrAnonymousOptional(t *testing.T) {
@@ -889,7 +889,7 @@ func TestUnmarshalYamlWithStructPtrAnonymousOptional(t *testing.T) {
 	}
 	content := []byte(`Else: sure`)
 
-	assert.Nil(t, UnmarshalYamlBytes(content, &c))
+	assert.NoError(t, UnmarshalYamlBytes(content, &c))
 	assert.Equal(t, "sure", c.Else)
 	assert.Nil(t, c.Inner)
 }
@@ -906,10 +906,10 @@ string: ""`)
 
 	var in inner
 	ast := assert.New(t)
-	ast.Nil(UnmarshalYamlBytes(content, &in))
+	ast.NoError(UnmarshalYamlBytes(content, &in))
 	ast.False(in.False)
 	ast.Equal(0, in.Int)
-	ast.Equal("", in.String)
+	ast.Empty(in.String)
 }
 
 func TestUnmarshalYamlBytesError(t *testing.T) {
@@ -920,8 +920,8 @@ func TestUnmarshalYamlBytesError(t *testing.T) {
 	}
 
 	err := UnmarshalYamlBytes([]byte(payload), &v)
-	assert.Nil(t, err)
-	assert.Equal(t, 1, len(v.Any))
+	assert.NoError(t, err)
+	assert.Len(t, v.Any, 1)
 	assert.Equal(t, "cdef", v.Any[0])
 }
 
@@ -932,7 +932,7 @@ func TestUnmarshalYamlReaderError(t *testing.T) {
 
 	reader := strings.NewReader(`abcd: cdef`)
 	err := UnmarshalYamlReader(reader, &v)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 
 	reader = strings.NewReader("foo")
 	assert.Error(t, UnmarshalYamlReader(reader, &v))
@@ -944,7 +944,7 @@ func TestUnmarshalYamlBadReader(t *testing.T) {
 	}
 
 	err := UnmarshalYamlReader(new(badReader), &v)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }
 
 func TestUnmarshalYamlMapBool(t *testing.T) {
@@ -957,7 +957,7 @@ func TestUnmarshalYamlMapBool(t *testing.T) {
 		Machine map[string]bool `json:"machine,optional"`
 	}
 	reader := strings.NewReader(text)
-	assert.Nil(t, UnmarshalYamlReader(reader, &v))
+	assert.NoError(t, UnmarshalYamlReader(reader, &v))
 	assert.True(t, v.Machine["node1"])
 	assert.True(t, v.Machine["node2"])
 	assert.True(t, v.Machine["node3"])
@@ -973,7 +973,7 @@ func TestUnmarshalYamlMapInt(t *testing.T) {
 		Machine map[string]int `json:"machine,optional"`
 	}
 	reader := strings.NewReader(text)
-	assert.Nil(t, UnmarshalYamlReader(reader, &v))
+	assert.NoError(t, UnmarshalYamlReader(reader, &v))
 	assert.Equal(t, 1, v.Machine["node1"])
 	assert.Equal(t, 2, v.Machine["node2"])
 	assert.Equal(t, 3, v.Machine["node3"])
@@ -989,7 +989,7 @@ func TestUnmarshalYamlMapByte(t *testing.T) {
 		Machine map[string]byte `json:"machine,optional"`
 	}
 	reader := strings.NewReader(text)
-	assert.Nil(t, UnmarshalYamlReader(reader, &v))
+	assert.NoError(t, UnmarshalYamlReader(reader, &v))
 	assert.Equal(t, byte(1), v.Machine["node1"])
 	assert.Equal(t, byte(2), v.Machine["node2"])
 	assert.Equal(t, byte(3), v.Machine["node3"])
@@ -1005,7 +1005,7 @@ func TestUnmarshalYamlMapRune(t *testing.T) {
 		Machine map[string]rune `json:"machine,optional"`
 	}
 	reader := strings.NewReader(text)
-	assert.Nil(t, UnmarshalYamlReader(reader, &v))
+	assert.NoError(t, UnmarshalYamlReader(reader, &v))
 	assert.Equal(t, rune(1), v.Machine["node1"])
 	assert.Equal(t, rune(2), v.Machine["node2"])
 	assert.Equal(t, rune(3), v.Machine["node3"])

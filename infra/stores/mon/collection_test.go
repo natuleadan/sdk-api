@@ -24,7 +24,7 @@ func TestKeepPromise_accept(t *testing.T) {
 		promise: p,
 		log:     func(error) {},
 	}
-	assert.Nil(t, kp.accept(nil))
+	assert.NoError(t, kp.accept(nil))
 	assert.Equal(t, ErrNotFound, kp.accept(ErrNotFound))
 }
 
@@ -76,7 +76,7 @@ func TestCollection_Aggregate(t *testing.T) {
 	mockCollection.EXPECT().Aggregate(gomock.Any(), gomock.Any(), gomock.Any()).Return(&mongo.Cursor{}, nil)
 	c := newTestCollection(mockCollection, breaker.GetBreaker("localhost"))
 	_, err := c.Aggregate(context.Background(), []any{}, options.Aggregate())
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func TestCollection_BulkWrite(t *testing.T) {
@@ -88,7 +88,7 @@ func TestCollection_BulkWrite(t *testing.T) {
 	_, err := c.BulkWrite(context.Background(), []mongo.WriteModel{
 		mongo.NewInsertOneModel().SetDocument(bson.D{{Key: "foo", Value: 1}}),
 	})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	c.brk = new(dropBreaker)
 	_, err = c.BulkWrite(context.Background(), []mongo.WriteModel{
 		mongo.NewInsertOneModel().SetDocument(bson.D{{Key: "foo", Value: 1}}),
@@ -103,7 +103,7 @@ func TestCollection_CountDocuments(t *testing.T) {
 	mockCollection.EXPECT().CountDocuments(gomock.Any(), gomock.Any(), gomock.Any()).Return(int64(0), nil)
 	c := newTestCollection(mockCollection, breaker.GetBreaker("localhost"))
 	res, err := c.CountDocuments(context.Background(), bson.D{})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, int64(0), res)
 	c.brk = new(dropBreaker)
 	_, err = c.CountDocuments(context.Background(), bson.D{{Key: "foo", Value: 1}})
@@ -117,7 +117,7 @@ func TestDecoratedCollection_DeleteMany(t *testing.T) {
 	mockCollection.EXPECT().DeleteMany(gomock.Any(), gomock.Any(), gomock.Any()).Return(&mongo.DeleteResult{}, nil)
 	c := newTestCollection(mockCollection, breaker.GetBreaker("localhost"))
 	_, err := c.DeleteMany(context.Background(), bson.D{})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	c.brk = new(dropBreaker)
 	_, err = c.DeleteMany(context.Background(), bson.D{{Key: "foo", Value: 1}})
 	assert.Equal(t, errDummy, err)
@@ -130,7 +130,7 @@ func TestCollection_Distinct(t *testing.T) {
 	mockCollection.EXPECT().Distinct(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(&mongo.DistinctResult{})
 	c := newTestCollection(mockCollection, breaker.GetBreaker("localhost"))
 	_, err := c.Distinct(context.Background(), "foo", bson.D{})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	c.brk = new(dropBreaker)
 	_, err = c.Distinct(context.Background(), "foo", bson.D{{Key: "foo", Value: 1}})
 	assert.Equal(t, errDummy, err)
@@ -143,7 +143,7 @@ func TestCollection_EstimatedDocumentCount(t *testing.T) {
 	mockCollection.EXPECT().EstimatedDocumentCount(gomock.Any(), gomock.Any()).Return(int64(0), nil)
 	c := newTestCollection(mockCollection, breaker.GetBreaker("localhost"))
 	_, err := c.EstimatedDocumentCount(context.Background())
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	c.brk = new(dropBreaker)
 	_, err = c.EstimatedDocumentCount(context.Background())
 	assert.Equal(t, errDummy, err)
@@ -157,7 +157,7 @@ func TestCollection_Find(t *testing.T) {
 	c := newTestCollection(mockCollection, breaker.GetBreaker("localhost"))
 	filter := bson.D{{Key: "x", Value: 1}}
 	_, err := c.Find(context.Background(), filter, options.Find())
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	c.brk = new(dropBreaker)
 	_, err = c.Find(context.Background(), filter, options.Find())
 	assert.Equal(t, errDummy, err)
@@ -239,7 +239,7 @@ func TestCollection_InsertOne(t *testing.T) {
 	mockCollection.EXPECT().InsertOne(gomock.Any(), gomock.Any(), gomock.Any()).Return(&mongo.InsertOneResult{}, nil)
 	c := newTestCollection(mockCollection, breaker.GetBreaker("localhost"))
 	res, err := c.InsertOne(context.Background(), bson.D{{Key: "foo", Value: "bar"}})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.NotNil(t, res)
 	c.brk = new(dropBreaker)
 	_, err = c.InsertOne(context.Background(), bson.D{{Key: "foo", Value: "bar"}})
@@ -256,7 +256,7 @@ func TestCollection_InsertMany(t *testing.T) {
 		bson.D{{Key: "foo", Value: "bar"}},
 		bson.D{{Key: "foo", Value: "baz"}},
 	})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	c.brk = new(dropBreaker)
 	_, err = c.InsertMany(context.Background(), []any{bson.D{{Key: "foo", Value: "bar"}}})
 	assert.Equal(t, errDummy, err)
@@ -269,7 +269,7 @@ func TestCollection_DeleteOne(t *testing.T) {
 	mockCollection.EXPECT().DeleteOne(gomock.Any(), gomock.Any(), gomock.Any()).Return(&mongo.DeleteResult{}, nil)
 	c := newTestCollection(mockCollection, breaker.GetBreaker("localhost"))
 	_, err := c.DeleteOne(context.Background(), bson.D{{Key: "foo", Value: "bar"}})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	c.brk = new(dropBreaker)
 	_, err = c.DeleteOne(context.Background(), bson.D{{Key: "foo", Value: "bar"}})
 	assert.Equal(t, errDummy, err)
@@ -282,7 +282,7 @@ func TestCollection_DeleteMany(t *testing.T) {
 	mockCollection.EXPECT().DeleteMany(gomock.Any(), gomock.Any(), gomock.Any()).Return(&mongo.DeleteResult{}, nil)
 	c := newTestCollection(mockCollection, breaker.GetBreaker("localhost"))
 	_, err := c.DeleteMany(context.Background(), bson.D{{Key: "foo", Value: "bar"}})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	c.brk = new(dropBreaker)
 	_, err = c.DeleteMany(context.Background(), bson.D{{Key: "foo", Value: "bar"}})
 	assert.Equal(t, errDummy, err)
@@ -297,7 +297,7 @@ func TestCollection_ReplaceOne(t *testing.T) {
 	_, err := c.ReplaceOne(context.Background(), bson.D{{Key: "foo", Value: "bar"}},
 		bson.D{{Key: "foo", Value: "baz"}},
 	)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	c.brk = new(dropBreaker)
 	_, err = c.ReplaceOne(context.Background(), bson.D{{Key: "foo", Value: "bar"}},
 		bson.D{{Key: "foo", Value: "baz"}})
@@ -312,7 +312,7 @@ func TestCollection_UpdateOne(t *testing.T) {
 	c := newTestCollection(mockCollection, breaker.GetBreaker("localhost"))
 	_, err := c.UpdateOne(context.Background(), bson.D{{Key: "foo", Value: "bar"}},
 		bson.D{{Key: "$set", Value: bson.D{{Key: "baz", Value: "qux"}}}})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	c.brk = new(dropBreaker)
 	_, err = c.UpdateOne(context.Background(), bson.D{{Key: "foo", Value: "bar"}},
 		bson.D{{Key: "$set", Value: bson.D{{Key: "baz", Value: "qux"}}}})
@@ -327,7 +327,7 @@ func TestCollection_UpdateByID(t *testing.T) {
 	c := newTestCollection(mockCollection, breaker.GetBreaker("localhost"))
 	_, err := c.UpdateByID(context.Background(), bson.NewObjectID(),
 		bson.D{{Key: "$set", Value: bson.D{{Key: "baz", Value: "qux"}}}})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	c.brk = new(dropBreaker)
 	_, err = c.UpdateByID(context.Background(), bson.NewObjectID(),
 		bson.D{{Key: "$set", Value: bson.D{{Key: "baz", Value: "qux"}}}})
@@ -342,7 +342,7 @@ func TestCollection_UpdateMany(t *testing.T) {
 	c := newTestCollection(mockCollection, breaker.GetBreaker("localhost"))
 	_, err := c.UpdateMany(context.Background(), bson.D{{Key: "foo", Value: "bar"}},
 		bson.D{{Key: "$set", Value: bson.D{{Key: "baz", Value: "qux"}}}})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	c.brk = new(dropBreaker)
 	_, err = c.UpdateMany(context.Background(), bson.D{{Key: "foo", Value: "bar"}},
 		bson.D{{Key: "$set", Value: bson.D{{Key: "baz", Value: "qux"}}}})
@@ -356,7 +356,7 @@ func TestCollection_Watch(t *testing.T) {
 	mockCollection.EXPECT().Watch(gomock.Any(), gomock.Any(), gomock.Any()).Return(&mongo.ChangeStream{}, nil)
 	c := newTestCollection(mockCollection, breaker.GetBreaker("localhost"))
 	_, err := c.Watch(context.Background(), bson.D{{Key: "foo", Value: "bar"}})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func TestCollection_Clone(t *testing.T) {
@@ -386,7 +386,7 @@ func TestCollection_Drop(t *testing.T) {
 	mockCollection.EXPECT().Drop(gomock.Any()).Return(nil)
 	c := newTestCollection(mockCollection, breaker.GetBreaker("localhost"))
 	err := c.Drop(context.Background())
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func TestCollection_Indexes(t *testing.T) {
@@ -547,11 +547,13 @@ func (d *dropBreaker) DoWithFallbackCtx(_ context.Context, _ func() error, _ bre
 }
 
 func (d *dropBreaker) DoWithFallbackAcceptable(_ func() error, _ breaker.Fallback,
-	_ breaker.Acceptable) error {
+	_ breaker.Acceptable,
+) error {
 	return nil
 }
 
 func (d *dropBreaker) DoWithFallbackAcceptableCtx(_ context.Context, _ func() error,
-	_ breaker.Fallback, _ breaker.Acceptable) error {
+	_ breaker.Fallback, _ breaker.Acceptable,
+) error {
 	return nil
 }

@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/natuleadan/sdk-api/infra/lang"
 	"github.com/pelletier/go-toml/v2"
 	"github.com/titanous/json5"
-	"github.com/natuleadan/sdk-api/infra/lang"
 	"gopkg.in/yaml.v2"
 )
 

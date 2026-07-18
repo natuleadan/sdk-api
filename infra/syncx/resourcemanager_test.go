@@ -28,7 +28,7 @@ func TestResourceManager_GetResource(t *testing.T) {
 				age: age,
 			}, nil
 		})
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, 1, val.(*dummyResource).age)
 	}
 }
@@ -41,7 +41,7 @@ func TestResourceManager_GetResourceError(t *testing.T) {
 		_, err := manager.GetResource("key", func() (io.Closer, error) {
 			return nil, errors.New("fail")
 		})
-		assert.NotNil(t, err)
+		assert.Error(t, err)
 	}
 }
 
@@ -53,11 +53,11 @@ func TestResourceManager_Close(t *testing.T) {
 		_, err := manager.GetResource("key", func() (io.Closer, error) {
 			return nil, errors.New("fail")
 		})
-		assert.NotNil(t, err)
+		assert.Error(t, err)
 	}
 
 	if assert.NoError(t, manager.Close()) {
-		assert.Equal(t, 0, len(manager.resources))
+		assert.Empty(t, manager.resources)
 	}
 }
 
@@ -68,12 +68,12 @@ func TestResourceManager_UseAfterClose(t *testing.T) {
 	_, err := manager.GetResource("key", func() (io.Closer, error) {
 		return nil, errors.New("fail")
 	})
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	if assert.NoError(t, manager.Close()) {
 		_, err = manager.GetResource("key", func() (io.Closer, error) {
 			return nil, errors.New("fail")
 		})
-		assert.NotNil(t, err)
+		assert.Error(t, err)
 
 		assert.Panics(t, func() {
 			_, err = manager.GetResource("key", func() (io.Closer, error) {
@@ -94,6 +94,6 @@ func TestResourceManager_Inject(t *testing.T) {
 	val, err := manager.GetResource("key", func() (io.Closer, error) {
 		return nil, nil
 	})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, 10, val.(*dummyResource).age)
 }

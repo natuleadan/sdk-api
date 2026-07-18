@@ -16,7 +16,7 @@ func TestRemoteWriter(t *testing.T) {
 	err := writer.Write(&StatReport{
 		Name: "bar",
 	})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func TestRemoteWriterFail(t *testing.T) {
@@ -27,7 +27,7 @@ func TestRemoteWriterFail(t *testing.T) {
 	err := writer.Write(&StatReport{
 		Name: "bar",
 	})
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }
 
 func TestRemoteWriterError(t *testing.T) {
@@ -38,5 +38,5 @@ func TestRemoteWriterError(t *testing.T) {
 	err := writer.Write(&StatReport{
 		Name: "bar",
 	})
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }

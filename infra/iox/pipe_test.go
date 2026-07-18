@@ -8,6 +8,6 @@ import (
 
 func TestRedirectInOut(t *testing.T) {
 	restore, err := RedirectInOut()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer restore()
 }

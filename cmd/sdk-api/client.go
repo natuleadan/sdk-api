@@ -101,7 +101,11 @@ func runClient(args []string) error {
 		if err != nil {
 			return fmt.Errorf("create output: %w", err)
 		}
-		defer func() { if err := f.Close(); err != nil { fmt.Fprintf(os.Stderr, "close error: %v\n", err) } }()
+		defer func() {
+			if err := f.Close(); err != nil {
+				fmt.Fprintf(os.Stderr, "close error: %v\n", err)
+			}
+		}()
 		w = f
 	}
 

@@ -145,7 +145,7 @@ func TestReplacer_ReplaceEmpty(t *testing.T) {
 		"bcdf": "1235",
 		"cdef": "2345",
 	}
-	assert.Equal(t, "", NewReplacer(mapping).Replace(""))
+	assert.Empty(t, NewReplacer(mapping).Replace(""))
 }
 
 func TestFuzzReplacerCase1(t *testing.T) {

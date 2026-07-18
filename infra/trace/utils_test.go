@@ -17,7 +17,7 @@ import (
 
 func TestPeerFromContext(t *testing.T) {
 	addrs, err := net.InterfaceAddrs()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.NotEmpty(t, addrs)
 	tests := []struct {
 		name  string
@@ -149,7 +149,7 @@ func TestPeerAttr(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			kvs := PeerAttr(test.addr)
-			assert.EqualValues(t, test.expect, kvs)
+			assert.Equal(t, test.expect, kvs)
 		})
 	}
 }
@@ -169,7 +169,6 @@ func TestTracerFromContext(t *testing.T) {
 		if hasTraceId {
 			assert.Equal(t, parentTraceId, spanContext.TraceID().String())
 		}
-
 	}
 
 	t.Run("context", func(t *testing.T) {

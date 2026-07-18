@@ -3,7 +3,6 @@ package breaker
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/natuleadan/sdk-api/infra/stat"
@@ -15,7 +14,7 @@ func init() {
 }
 
 func TestBreakersDo(t *testing.T) {
-	assert.Nil(t, Do("any", func() error {
+	assert.NoError(t, Do("any", func() error {
 		return nil
 	}))
 
@@ -73,7 +72,7 @@ func TestBreakersNoBreakerFor(t *testing.T) {
 			return errDummy
 		}))
 	}
-	assert.Equal(t, nil, Do("any", func() error {
+	assert.NoError(t, Do("any", func() error {
 		return nil
 	}))
 }
@@ -135,5 +134,5 @@ func verify(t *testing.T, fn func() bool) {
 			count++
 		}
 	}
-	assert.True(t, count >= 75, fmt.Sprintf("should be greater than 75, actual %d", count))
+	assert.GreaterOrEqual(t, count, 75, "should be greater than 75, actual %d", count)
 }

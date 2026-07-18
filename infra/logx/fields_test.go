@@ -38,7 +38,7 @@ func TestContextWithFields(t *testing.T) {
 	assert.NotNil(t, vals)
 	fields, ok := vals.([]LogField)
 	assert.True(t, ok)
-	assert.EqualValues(t, []LogField{Field("a", 1), Field("b", 2)}, fields)
+	assert.Equal(t, []LogField{Field("a", 1), Field("b", 2)}, fields)
 }
 
 func TestWithFields(t *testing.T) {
@@ -47,13 +47,13 @@ func TestWithFields(t *testing.T) {
 	assert.NotNil(t, vals)
 	fields, ok := vals.([]LogField)
 	assert.True(t, ok)
-	assert.EqualValues(t, []LogField{Field("a", 1), Field("b", 2)}, fields)
+	assert.Equal(t, []LogField{Field("a", 1), Field("b", 2)}, fields)
 }
 
 type ctxKey string
 
 func TestWithFieldsAppend(t *testing.T) {
-	var dummyKey = ctxKey("dummy")
+	dummyKey := ctxKey("dummy")
 	ctx := context.WithValue(context.Background(), dummyKey, "dummy")
 	ctx = ContextWithFields(ctx, Field("a", 1), Field("b", 2))
 	ctx = ContextWithFields(ctx, Field("c", 3), Field("d", 4))
@@ -62,7 +62,7 @@ func TestWithFieldsAppend(t *testing.T) {
 	fields, ok := vals.([]LogField)
 	assert.True(t, ok)
 	assert.Equal(t, "dummy", ctx.Value(dummyKey))
-	assert.EqualValues(t, []LogField{
+	assert.Equal(t, []LogField{
 		Field("a", 1),
 		Field("b", 2),
 		Field("c", 3),
@@ -82,8 +82,8 @@ func TestWithFieldsAppendCopy(t *testing.T) {
 	ctxa := ContextWithFields(ctx, af)
 	ctxb := ContextWithFields(ctx, bf)
 
-	assert.EqualValues(t, af, ctxa.Value(fieldsKey{}).([]LogField)[count])
-	assert.EqualValues(t, bf, ctxb.Value(fieldsKey{}).([]LogField)[count])
+	assert.Equal(t, af, ctxa.Value(fieldsKey{}).([]LogField)[count])
+	assert.Equal(t, bf, ctxb.Value(fieldsKey{}).([]LogField)[count])
 }
 
 func BenchmarkAtomicValue(b *testing.B) {

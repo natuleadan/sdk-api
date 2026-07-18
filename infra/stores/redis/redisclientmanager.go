@@ -5,15 +5,15 @@ import (
 	"io"
 	"runtime"
 
-	red "github.com/redis/go-redis/v9"
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/natuleadan/sdk-api/infra/syncx"
+	red "github.com/redis/go-redis/v9"
 )
 
-	const (
-		maxRetries = 3
-		idleConns  = 8
-	)
+const (
+	maxRetries = 3
+	idleConns  = 8
+)
 
 var (
 	clientManager = syncx.NewResourceManager()

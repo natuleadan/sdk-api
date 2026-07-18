@@ -8,11 +8,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/natuleadan/sdk-api/infra/prometheus"
 	"github.com/natuleadan/sdk-api/infra/threading"
 	"github.com/natuleadan/sdk-api/internal/health"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var once sync.Once
@@ -37,8 +37,8 @@ func (s *Server) addRoutes(c Config) {
 	// route path, routes list
 	s.handleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
 		if err := json.NewEncoder(w).Encode(s.routes); err != nil {
-		logx.Errorf("devserver: encode error: %v", err)
-	}
+			logx.Errorf("devserver: encode error: %v", err)
+		}
 	})
 
 	// health

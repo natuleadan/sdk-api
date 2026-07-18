@@ -36,7 +36,8 @@ type (
 // NewRollingWindow returns a RollingWindow that with size buckets and time interval,
 // use opts to customize the RollingWindow.
 func NewRollingWindow[T Numerical, B BucketInterface[T]](newBucket func() B, size int,
-	interval time.Duration, opts ...RollingWindowOption[T, B]) *RollingWindow[T, B] {
+	interval time.Duration, opts ...RollingWindowOption[T, B],
+) *RollingWindow[T, B] {
 	if size < 1 {
 		panic("size must be greater than 0")
 	}

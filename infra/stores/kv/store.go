@@ -758,12 +758,14 @@ func (cs clusterStore) SremCtx(ctx context.Context, key string, values ...any) (
 }
 
 func (cs clusterStore) Sscan(key string, cursor uint64, match string, count int64) (
-	keys []string, cur uint64, err error) {
+	keys []string, cur uint64, err error,
+) {
 	return cs.SscanCtx(context.Background(), key, cursor, match, count)
 }
 
 func (cs clusterStore) SscanCtx(ctx context.Context, key string, cursor uint64, match string, count int64) (
-	keys []string, cur uint64, err error) {
+	keys []string, cur uint64, err error,
+) {
 	node, err := cs.getRedis(key)
 	if err != nil {
 		return nil, 0, err
@@ -911,12 +913,14 @@ func (cs clusterStore) ZrangebyscoreWithScoresCtx(ctx context.Context, key strin
 }
 
 func (cs clusterStore) ZrangebyscoreWithScoresAndLimit(key string, start, stop int64, page, size int) (
-	[]redis.Pair, error) {
+	[]redis.Pair, error,
+) {
 	return cs.ZrangebyscoreWithScoresAndLimitCtx(context.Background(), key, start, stop, page, size)
 }
 
 func (cs clusterStore) ZrangebyscoreWithScoresAndLimitCtx(ctx context.Context, key string, start, stop int64, page, size int) (
-	[]redis.Pair, error) {
+	[]redis.Pair, error,
+) {
 	node, err := cs.getRedis(key)
 	if err != nil {
 		return nil, err
@@ -991,12 +995,14 @@ func (cs clusterStore) ZrevrangebyscoreWithScoresCtx(ctx context.Context, key st
 }
 
 func (cs clusterStore) ZrevrangebyscoreWithScoresAndLimit(key string, start, stop int64, page, size int) (
-	[]redis.Pair, error) {
+	[]redis.Pair, error,
+) {
 	return cs.ZrevrangebyscoreWithScoresAndLimitCtx(context.Background(), key, start, stop, page, size)
 }
 
 func (cs clusterStore) ZrevrangebyscoreWithScoresAndLimitCtx(ctx context.Context, key string, start, stop int64, page, size int) (
-	[]redis.Pair, error) {
+	[]redis.Pair, error,
+) {
 	node, err := cs.getRedis(key)
 	if err != nil {
 		return nil, err

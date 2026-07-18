@@ -1,8 +1,8 @@
 package metric
 
 import (
-	prom "github.com/prometheus/client_golang/prometheus"
 	"github.com/natuleadan/sdk-api/infra/proc"
+	prom "github.com/prometheus/client_golang/prometheus"
 )
 
 type (

@@ -9,14 +9,14 @@ import (
 
 func TestDiffieHellman(t *testing.T) {
 	key1, err := GenerateKey()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	key2, err := GenerateKey()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	pubKey1, err := ComputeKey(key1.PubKey, key2.PriKey)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	pubKey2, err := ComputeKey(key2.PubKey, key1.PriKey)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	assert.Equal(t, pubKey1, pubKey2)
 }
@@ -29,61 +29,61 @@ func TestDiffieHellman1024(t *testing.T) {
 	}()
 
 	key1, err := GenerateKey()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	key2, err := GenerateKey()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	pubKey1, err := ComputeKey(key1.PubKey, key2.PriKey)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	pubKey2, err := ComputeKey(key2.PubKey, key1.PriKey)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	assert.Equal(t, pubKey1, pubKey2)
 }
 
 func TestDiffieHellmanMiddleManAttack(t *testing.T) {
 	key1, err := GenerateKey()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	keyMiddle, err := GenerateKey()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	key2, err := GenerateKey()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	const aesByteLen = 32
 	pubKey1, err := ComputeKey(keyMiddle.PubKey, key1.PriKey)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	src := []byte(`hello, world!`)
 	encryptedSrc, err := EcbEncrypt(pubKey1.Bytes()[:aesByteLen], src)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	pubKeyMiddle, err := ComputeKey(key1.PubKey, keyMiddle.PriKey)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	decryptedSrc, err := EcbDecrypt(pubKeyMiddle.Bytes()[:aesByteLen], encryptedSrc)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, string(src), string(decryptedSrc))
 
 	pubKeyMiddle, err = ComputeKey(key2.PubKey, keyMiddle.PriKey)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	encryptedSrc, err = EcbEncrypt(pubKeyMiddle.Bytes()[:aesByteLen], decryptedSrc)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	pubKey2, err := ComputeKey(keyMiddle.PubKey, key2.PriKey)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	decryptedSrc, err = EcbDecrypt(pubKey2.Bytes()[:aesByteLen], encryptedSrc)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, string(src), string(decryptedSrc))
 }
 
 func TestKeyBytes(t *testing.T) {
 	var empty DhKey
-	assert.Equal(t, 0, len(empty.Bytes()))
+	assert.Empty(t, empty.Bytes())
 
 	key, err := GenerateKey()
-	assert.Nil(t, err)
-	assert.True(t, len(key.Bytes()) > 0)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, key.Bytes())
 }
 
 func TestDHOnErrors(t *testing.T) {
 	key, err := GenerateKey()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.NotEmpty(t, key.Bytes())
 	_, err = ComputeKey(key.PubKey, key.PriKey)
 	assert.NoError(t, err)
@@ -97,7 +97,7 @@ func TestDHOnErrors(t *testing.T) {
 
 func TestDHPubKeyBoundary(t *testing.T) {
 	key, err := GenerateKey()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	// pubKey = 0 should be rejected
 	_, err = ComputeKey(big.NewInt(0), key.PriKey)

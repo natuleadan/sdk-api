@@ -21,7 +21,7 @@ const (
 
 func TestNewTimingWheel(t *testing.T) {
 	_, err := NewTimingWheel(0, 10, func(key, value any) {})
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }
 
 func TestTimingWheel_Drain(t *testing.T) {
@@ -46,9 +46,9 @@ func TestTimingWheel_Drain(t *testing.T) {
 	wg.Wait()
 	sort.Strings(keys)
 	sort.Ints(vals)
-	assert.Equal(t, 3, len(keys))
-	assert.EqualValues(t, []string{"first", "second", "third"}, keys)
-	assert.EqualValues(t, []int{3, 5, 7}, vals)
+	assert.Len(t, keys, 3)
+	assert.Equal(t, []string{"first", "second", "third"}, keys)
+	assert.Equal(t, []int{3, 5, 7}, vals)
 	var count int
 	tw.Drain(func(key, value any) {
 		count++
@@ -71,7 +71,7 @@ func TestTimingWheel_SetTimerSoon(t *testing.T) {
 	defer tw.Stop()
 	tw.SetTimer("any", 3, testStep>>1)
 	ticker.Tick()
-	assert.Nil(t, ticker.Wait(waitTime))
+	assert.NoError(t, ticker.Wait(waitTime))
 	assert.True(t, run.True())
 }
 
@@ -90,7 +90,7 @@ func TestTimingWheel_SetTimerTwice(t *testing.T) {
 	for range 8 {
 		ticker.Tick()
 	}
-	assert.Nil(t, ticker.Wait(waitTime))
+	assert.NoError(t, ticker.Wait(waitTime))
 	assert.True(t, run.True())
 }
 
@@ -130,7 +130,7 @@ func TestTimingWheel_MoveTimer(t *testing.T) {
 	for range 3 {
 		ticker.Tick()
 	}
-	assert.Nil(t, ticker.Wait(waitTime))
+	assert.NoError(t, ticker.Wait(waitTime))
 	assert.True(t, run.True())
 	tw.Stop()
 	assert.Equal(t, ErrClosed, tw.MoveTimer("any", time.Millisecond))
@@ -148,7 +148,7 @@ func TestTimingWheel_MoveTimerSoon(t *testing.T) {
 	defer tw.Stop()
 	tw.SetTimer("any", 3, testStep*4)
 	tw.MoveTimer("any", testStep>>1)
-	assert.Nil(t, ticker.Wait(waitTime))
+	assert.NoError(t, ticker.Wait(waitTime))
 	assert.True(t, run.True())
 }
 
@@ -167,7 +167,7 @@ func TestTimingWheel_MoveTimerEarlier(t *testing.T) {
 	for range 3 {
 		ticker.Tick()
 	}
-	assert.Nil(t, ticker.Wait(waitTime))
+	assert.NoError(t, ticker.Wait(waitTime))
 	assert.True(t, run.True())
 }
 
@@ -241,7 +241,7 @@ func TestTimingWheel_SetTimer(t *testing.T) {
 				actual = atomic.LoadInt32(&count)
 				close(done)
 			}, ticker)
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 			defer tw.Stop()
 
 			tw.SetTimer(1, 2, testStep*test.setAt)
@@ -319,7 +319,7 @@ func TestTimingWheel_SetAndMoveThenStart(t *testing.T) {
 				actual = atomic.LoadInt32(&count)
 				close(done)
 			}, ticker)
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 			defer tw.Stop()
 
 			tw.SetTimer(1, 2, testStep*test.setAt)
@@ -406,7 +406,7 @@ func TestTimingWheel_SetAndMoveTwice(t *testing.T) {
 				actual = atomic.LoadInt32(&count)
 				close(done)
 			}, ticker)
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 			defer tw.Stop()
 
 			tw.SetTimer(1, 2, testStep*test.setAt)
@@ -486,7 +486,7 @@ func TestTimingWheel_ElapsedAndSet(t *testing.T) {
 				actual = atomic.LoadInt32(&count)
 				close(done)
 			}, ticker)
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 			defer tw.Stop()
 
 			for i := 0; i < int(test.elapsed); i++ {
@@ -576,7 +576,7 @@ func TestTimingWheel_ElapsedAndSetThenMove(t *testing.T) {
 				actual = atomic.LoadInt32(&count)
 				close(done)
 			}, ticker)
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 			defer tw.Stop()
 
 			for i := 0; i < int(test.elapsed); i++ {
@@ -621,7 +621,7 @@ func TestMoveAndRemoveTask(t *testing.T) {
 	tw.RemoveTimer("any")
 	tick(30)
 	time.Sleep(time.Millisecond)
-	assert.Equal(t, 0, len(keys))
+	assert.Empty(t, keys)
 }
 
 // TestTimingWheel_DrainClosureBug tests the closure capture bug in drainAll
@@ -705,7 +705,7 @@ func TestTimingWheel_RunTasksClosureBug(t *testing.T) {
 	}
 
 	// Verify all tasks executed with correct values
-	assert.Equal(t, count, len(executed), "should have executed all tasks")
+	assert.Len(t, executed, count, "should have executed all tasks")
 	for k, v := range executed {
 		expected := k * 10
 		assert.Equal(t, expected, v, "key %d should have value %d, got %d", k, expected, v)
@@ -759,7 +759,7 @@ func TestTimingWheel_RunTasksRaceCondition(t *testing.T) {
 			// Check for duplicates or wrong values
 			wrongCount := 0
 			for key, values := range keyValues {
-				assert.Equal(t, 1, len(values), "key %d should only execute once, got %v", key, values)
+				assert.Len(t, values, 1, "key %d should only execute once, got %v", key, values)
 				if len(values) > 0 {
 					expected := key * 100
 					if values[0] != expected {

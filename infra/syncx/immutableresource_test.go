@@ -20,13 +20,13 @@ func TestImmutableResource(t *testing.T) {
 	res, err := r.Get()
 	assert.Equal(t, "hello", res)
 	assert.Equal(t, 1, count)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	// again
 	res, err = r.Get()
 	assert.Equal(t, "hello", res)
 	assert.Equal(t, 1, count)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func TestImmutableResourceError(t *testing.T) {
@@ -38,14 +38,14 @@ func TestImmutableResourceError(t *testing.T) {
 
 	res, err := r.Get()
 	assert.Nil(t, res)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	assert.Equal(t, "any", err.Error())
 	assert.Equal(t, 1, count)
 
 	// again
 	res, err = r.Get()
 	assert.Nil(t, res)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	assert.Equal(t, "any", err.Error())
 	assert.Equal(t, 1, count)
 
@@ -53,7 +53,7 @@ func TestImmutableResourceError(t *testing.T) {
 	time.Sleep(time.Millisecond)
 	res, err = r.Get()
 	assert.Nil(t, res)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	assert.Equal(t, "any", err.Error())
 	assert.Equal(t, 2, count)
 }
@@ -97,7 +97,7 @@ func TestImmutableResourceConcurrent(t *testing.T) {
 
 	// all goroutines should eventually get the same result
 	for i := range goroutines {
-		assert.Nil(t, errs[i])
+		assert.NoError(t, errs[i])
 		assert.Equal(t, message, results[i])
 	}
 }
@@ -111,14 +111,14 @@ func TestImmutableResourceErrorRefreshAlways(t *testing.T) {
 
 	res, err := r.Get()
 	assert.Nil(t, res)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	assert.Equal(t, "any", err.Error())
 	assert.Equal(t, 1, count)
 
 	// again
 	res, err = r.Get()
 	assert.Nil(t, res)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	assert.Equal(t, "any", err.Error())
 	assert.Equal(t, 2, count)
 }

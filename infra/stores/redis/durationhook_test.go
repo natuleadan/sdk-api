@@ -5,15 +5,14 @@ import (
 	"errors"
 	"io"
 	"net"
-	"strings"
 	"testing"
 	"time"
 
-	red "github.com/redis/go-redis/v9"
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/breaker"
 	"github.com/natuleadan/sdk-api/infra/logx/logtest"
 	"github.com/natuleadan/sdk-api/infra/trace/tracetest"
+	red "github.com/redis/go-redis/v9"
+	"github.com/stretchr/testify/assert"
 	tracesdk "go.opentelemetry.io/otel/trace"
 )
 
@@ -29,7 +28,7 @@ func TestHookProcessCase1(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	assert.False(t, strings.Contains(w.String(), "slow"))
+	assert.NotContains(t, w.String(), "slow")
 }
 
 func TestHookProcessCase2(t *testing.T) {
@@ -45,9 +44,9 @@ func TestHookProcessCase2(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	assert.True(t, strings.Contains(w.String(), "slow"))
-	assert.True(t, strings.Contains(w.String(), "trace"))
-	assert.True(t, strings.Contains(w.String(), "span"))
+	assert.Contains(t, w.String(), "slow")
+	assert.Contains(t, w.String(), "trace")
+	assert.Contains(t, w.String(), "span")
 }
 
 func TestHookProcessPipelineCase1(t *testing.T) {
@@ -67,7 +66,7 @@ func TestHookProcessPipelineCase1(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	assert.False(t, strings.Contains(w.String(), "slow"))
+	assert.NotContains(t, w.String(), "slow")
 }
 
 func TestHookProcessPipelineCase2(t *testing.T) {
@@ -83,9 +82,9 @@ func TestHookProcessPipelineCase2(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	assert.True(t, strings.Contains(w.String(), "slow"))
-	assert.True(t, strings.Contains(w.String(), "trace"))
-	assert.True(t, strings.Contains(w.String(), "span"))
+	assert.Contains(t, w.String(), "slow")
+	assert.Contains(t, w.String(), "trace")
+	assert.Contains(t, w.String(), "span")
 }
 
 func TestHookProcessPipelineCase3(t *testing.T) {
@@ -109,13 +108,13 @@ func TestLogDuration(t *testing.T) {
 	logDuration(context.Background(), []red.Cmder{
 		red.NewCmd(context.Background(), "get", "foo"),
 	}, 1*time.Second)
-	assert.True(t, strings.Contains(w.String(), "get foo"))
+	assert.Contains(t, w.String(), "get foo")
 
 	logDuration(context.Background(), []red.Cmder{
 		red.NewCmd(context.Background(), "get", "foo"),
 		red.NewCmd(context.Background(), "set", "bar", 0),
 	}, 1*time.Second)
-	assert.True(t, strings.Contains(w.String(), `get foo\nset bar 0`))
+	assert.Contains(t, w.String(), `get foo\nset bar 0`)
 }
 
 func TestFormatError(t *testing.T) {
@@ -126,10 +125,10 @@ func TestFormatError(t *testing.T) {
 	assert.Equal(t, "timeout", formatError(err))
 
 	// Test case: err is nil
-	assert.Equal(t, "", formatError(nil))
+	assert.Empty(t, formatError(nil))
 
 	// Test case: err is red.Nil
-	assert.Equal(t, "", formatError(red.Nil))
+	assert.Empty(t, formatError(red.Nil))
 
 	// Test case: err is io.EOF
 	assert.Equal(t, "eof", formatError(io.EOF))
@@ -144,8 +143,7 @@ func TestFormatError(t *testing.T) {
 	assert.Equal(t, "unexpected error", formatError(errors.New("some error")))
 }
 
-type mockOpError struct {
-}
+type mockOpError struct{}
 
 func (mockOpError) Error() string {
 	return "mock error"

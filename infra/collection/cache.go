@@ -118,12 +118,12 @@ func (c *Cache) SetWithExpire(key string, value any, expire time.Duration) {
 	expiry := c.unstableExpiry.AroundDuration(expire)
 	if ok {
 		if err := c.timingWheel.MoveTimer(key, expiry); err != nil {
-		logx.Errorf("cache: move timer error: %v", err)
-	}
+			logx.Errorf("cache: move timer error: %v", err)
+		}
 	} else {
 		if err := c.timingWheel.SetTimer(key, value, expiry); err != nil {
-		logx.Errorf("cache: set timer error: %v", err)
-	}
+			logx.Errorf("cache: set timer error: %v", err)
+		}
 	}
 }
 

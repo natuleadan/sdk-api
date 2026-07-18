@@ -132,7 +132,8 @@ func ForEach[T any](generate GenerateFunc[T], mapper ForEachFunc[T], opts ...Opt
 // MapReduce maps all elements generated from given generate func,
 // and reduces the output elements with given reducer.
 func MapReduce[T, U, V any](generate GenerateFunc[T], mapper MapperFunc[T, U], reducer ReducerFunc[U, V],
-	opts ...Option) (V, error) {
+	opts ...Option,
+) (V, error) {
 	panicChan := &onceChan{channel: make(chan any)}
 	source := buildSource(generate, panicChan)
 	return mapReduceWithPanicChan(source, panicChan, mapper, reducer, opts...)
@@ -140,7 +141,8 @@ func MapReduce[T, U, V any](generate GenerateFunc[T], mapper MapperFunc[T, U], r
 
 // MapReduceChan maps all elements from source, and reduce the output elements with given reducer.
 func MapReduceChan[T, U, V any](source <-chan T, mapper MapperFunc[T, U], reducer ReducerFunc[U, V],
-	opts ...Option) (V, error) {
+	opts ...Option,
+) (V, error) {
 	panicChan := &onceChan{channel: make(chan any)}
 	return mapReduceWithPanicChan(source, panicChan, mapper, reducer, opts...)
 }
@@ -148,7 +150,8 @@ func MapReduceChan[T, U, V any](source <-chan T, mapper MapperFunc[T, U], reduce
 // MapReduceVoid maps all elements generated from given generate,
 // and reduce the output elements with given reducer.
 func MapReduceVoid[T, U any](generate GenerateFunc[T], mapper MapperFunc[T, U],
-	reducer VoidReducerFunc[U], opts ...Option) error {
+	reducer VoidReducerFunc[U], opts ...Option,
+) error {
 	_, err := MapReduce(generate, mapper, func(input <-chan U, writer Writer[any], cancel func(error)) {
 		reducer(input, cancel)
 	}, opts...)
@@ -252,7 +255,8 @@ func executeMappers[T, U any](mCtx mapperContext[T, U]) {
 
 // mapReduceWithPanicChan maps all elements from source, and reduce the output elements with given reducer.
 func mapReduceWithPanicChan[T, U, V any](source <-chan T, panicChan *onceChan, mapper MapperFunc[T, U],
-	reducer ReducerFunc[U, V], opts ...Option) (val V, err error) {
+	reducer ReducerFunc[U, V], opts ...Option,
+) (val V, err error) {
 	options := buildOptions(opts...)
 	// output is used to write the final result
 	output := make(chan V)

@@ -14,14 +14,14 @@ import (
 var dupErr conflictKeyError
 
 func TestLoadConfig_notExists(t *testing.T) {
-	assert.NotNil(t, Load("not_a_file", nil))
+	assert.Error(t, Load("not_a_file", nil))
 }
 
 func TestLoadConfig_notRecogFile(t *testing.T) {
 	filename, err := fs.TempFilenameWithText("hello")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer os.Remove(filename)
-	assert.NotNil(t, LoadConfig(filename, nil))
+	assert.Error(t, LoadConfig(filename, nil))
 }
 
 func TestConfigJson(t *testing.T) {
@@ -41,7 +41,7 @@ func TestConfigJson(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test, func(t *testing.T) {
 			tmpfile, err := createTempFile(t, test, text)
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 
 			var val struct {
 				A string `json:"a"`
@@ -71,7 +71,7 @@ func TestLoadFromJsonBytesArray(t *testing.T) {
 	for _, user := range val.Users {
 		expect = append(expect, user.Name)
 	}
-	assert.EqualValues(t, []string{"foo", "bar"}, expect)
+	assert.Equal(t, []string{"foo", "bar"}, expect)
 }
 
 func TestConfigJson5(t *testing.T) {
@@ -86,7 +86,7 @@ func TestConfigJson5(t *testing.T) {
 	t.Setenv("FOO", "2")
 
 	tmpfile, err := createTempFile(t, ".json5", text)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	var val struct {
 		A string `json:"a"`
@@ -112,7 +112,7 @@ func TestConfigJsonStandardParser(t *testing.T) {
 	t.Setenv("FOO", "2")
 
 	tmpfile, err := createTempFile(t, ".json", text)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	var val struct {
 		A string `json:"a"`
@@ -135,7 +135,7 @@ func TestConfigJsonLargeIntegers(t *testing.T) {
 }`
 
 	tmpfile, err := createTempFile(t, ".json", text)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	var val struct {
 		ID        int64 `json:"id"`
@@ -157,7 +157,7 @@ func TestConfigJson5Env(t *testing.T) {
 	t.Setenv("FOO", "2")
 
 	tmpfile, err := createTempFile(t, ".json5", text)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	var val struct {
 		A string `json:"a"`
@@ -192,7 +192,7 @@ func TestLoadFromJson5Bytes(t *testing.T) {
 	for _, user := range val.Users {
 		expect = append(expect, user.Name)
 	}
-	assert.EqualValues(t, []string{"foo", "bar"}, expect)
+	assert.Equal(t, []string{"foo", "bar"}, expect)
 }
 
 func TestLoadFromJson5BytesError(t *testing.T) {
@@ -214,7 +214,7 @@ func TestConfigJson5LargeIntegersLimitation(t *testing.T) {
 }`
 
 	tmpfile, err := createTempFile(t, ".json5", text)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	var val struct {
 		ID int64 `json:"id"`
@@ -236,7 +236,7 @@ d = "abcd!@#$112"
 `
 	t.Setenv("FOO", "2")
 	tmpfile, err := createTempFile(t, ".toml", text)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	var val struct {
 		A string `json:"a"`
@@ -258,7 +258,7 @@ c = "FOO"
 d = "abcd"
 `
 	tmpfile, err := createTempFile(t, ".toml", text)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	var val struct {
 		A string `json:"a"`
@@ -279,7 +279,7 @@ func TestConfigWithLower(t *testing.T) {
 b = 1
 `
 	tmpfile, err := createTempFile(t, ".toml", text)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	var val struct {
 		A string `json:"a"`
@@ -358,7 +358,7 @@ d = "abcd!@#112"
 `
 	t.Setenv("FOO", "2")
 	tmpfile, err := createTempFile(t, ".toml", text)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	var val struct {
 		A string `json:"a"`
@@ -390,7 +390,7 @@ func TestConfigJsonEnv(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test, func(t *testing.T) {
 			tmpfile, err := createTempFile(t, test, text)
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 
 			var val struct {
 				A string `json:"a"`
@@ -664,8 +664,8 @@ func TestUnmarshalJsonBytesMapWithSliceElements(t *testing.T) {
 	}
 
 	assert.NoError(t, LoadFromJsonBytes(input, &val))
-	assert.EqualValues(t, []string{"bff.bff", "any"}, val.Foo["/mtproto.RPCTos"])
-	assert.EqualValues(t, []string{"baz", "qux"}, val.Foo["bar"])
+	assert.Equal(t, []string{"bff.bff", "any"}, val.Foo["/mtproto.RPCTos"])
+	assert.Equal(t, []string{"baz", "qux"}, val.Foo["bar"])
 }
 
 func TestUnmarshalJsonBytesMapWithSliceOfStructs(t *testing.T) {
@@ -680,9 +680,9 @@ func TestUnmarshalJsonBytesMapWithSliceOfStructs(t *testing.T) {
 	}
 
 	assert.NoError(t, LoadFromJsonBytes(input, &val))
-	assert.Equal(t, 1, len(val.Foo["/mtproto.RPCTos"]))
+	assert.Len(t, val.Foo["/mtproto.RPCTos"], 1)
 	assert.Equal(t, "any", val.Foo["/mtproto.RPCTos"][0].Bar)
-	assert.Equal(t, 2, len(val.Foo["bar"]))
+	assert.Len(t, val.Foo["bar"], 2)
 	assert.Equal(t, "qux", val.Foo["bar"][0].Bar)
 	assert.Equal(t, "ever", val.Foo["bar"][1].Bar)
 }
@@ -721,7 +721,7 @@ func TestUnmarshalJsonBytesWithMapValueOfStruct(t *testing.T) {
 		}
 	)
 
-	var inputs = [][]byte{
+	inputs := [][]byte{
 		[]byte(`{"Items": {"Key":{"Name": "foo"}}}`),
 		[]byte(`{"Items": {"Key":{"Name": "foo"}}}`),
 		[]byte(`{"items": {"key":{"name": "foo"}}}`),
@@ -730,7 +730,7 @@ func TestUnmarshalJsonBytesWithMapValueOfStruct(t *testing.T) {
 	for _, input := range inputs {
 		var c Config
 		if assert.NoError(t, LoadFromJsonBytes(input, &c)) {
-			assert.Equal(t, 1, len(c.Items))
+			assert.Len(t, c.Items, 1)
 			for _, v := range c.Items {
 				assert.Equal(t, "foo", v.Name)
 			}
@@ -751,7 +751,7 @@ func TestUnmarshalJsonBytesWithMapTypeValueOfStruct(t *testing.T) {
 		}
 	)
 
-	var inputs = [][]byte{
+	inputs := [][]byte{
 		[]byte(`{"Map": {"Key":{"Name": "foo"}}}`),
 		[]byte(`{"Map": {"Key":{"Name": "foo"}}}`),
 		[]byte(`{"map": {"key":{"name": "foo"}}}`),
@@ -760,7 +760,7 @@ func TestUnmarshalJsonBytesWithMapTypeValueOfStruct(t *testing.T) {
 	for _, input := range inputs {
 		var c Config
 		if assert.NoError(t, LoadFromJsonBytes(input, &c)) {
-			assert.Equal(t, 1, len(c.Map))
+			assert.Len(t, c.Map, 1)
 			for _, v := range c.Map {
 				assert.Equal(t, "foo", v.Name)
 			}
@@ -1223,7 +1223,7 @@ func TestFillDefaultUnmarshal(t *testing.T) {
 		var st St
 		err := FillDefault(&st)
 		assert.NoError(t, err)
-		assert.Equal(t, st.A, "a")
+		assert.Equal(t, "a", st.A)
 	})
 
 	t.Run("env", func(t *testing.T) {
@@ -1237,8 +1237,8 @@ func TestFillDefaultUnmarshal(t *testing.T) {
 		var st St
 		err := FillDefault(&st)
 		assert.NoError(t, err)
-		assert.Equal(t, st.A, "a")
-		assert.Equal(t, st.C, "c")
+		assert.Equal(t, "a", st.A)
+		assert.Equal(t, "c", st.C)
 	})
 
 	t.Run("has value", func(t *testing.T) {
@@ -1246,7 +1246,7 @@ func TestFillDefaultUnmarshal(t *testing.T) {
 			A string `json:",default=a"`
 			B string
 		}
-		var st = St{
+		st := St{
 			A: "b",
 		}
 		err := FillDefault(&st)
@@ -1256,7 +1256,7 @@ func TestFillDefaultUnmarshal(t *testing.T) {
 
 func TestConfigWithJsonTag(t *testing.T) {
 	t.Run("map with value", func(t *testing.T) {
-		var input = []byte(`[Value]
+		input := []byte(`[Value]
 [Value.first]
 Email = "foo"
 [Value.second]
@@ -1277,7 +1277,7 @@ Email = "bar"`)
 	})
 
 	t.Run("map with ptr value", func(t *testing.T) {
-		var input = []byte(`[Value]
+		input := []byte(`[Value]
 [Value.first]
 Email = "foo"
 [Value.second]
@@ -1298,7 +1298,7 @@ Email = "bar"`)
 	})
 
 	t.Run("map with optional", func(t *testing.T) {
-		var input = []byte(`[Value]
+		input := []byte(`[Value]
 [Value.first]
 Email = "foo"
 [Value.second]
@@ -1319,7 +1319,7 @@ Email = "bar"`)
 	})
 
 	t.Run("map with empty tag", func(t *testing.T) {
-		var input = []byte(`[Value]
+		input := []byte(`[Value]
 [Value.first]
 Email = "foo"
 [Value.second]
@@ -1350,7 +1350,7 @@ Email = "bar"`)
 			Value map[string]map[string]Value
 		}
 
-		var input = []byte(`
+		input := []byte(`
 [Value.first.User1.User]
 Name = "foo"
 [Value.second.User2.User]
@@ -1614,7 +1614,7 @@ func TestLoadValidation_WithoutEnv(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tmpfile, err := createTempFile(t, tt.extension, tt.content)
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 
 			var cfg validatorConfig
 			err = Load(tmpfile, &cfg)
@@ -1691,7 +1691,7 @@ func TestLoadValidation_WithEnv(t *testing.T) {
 			t.Setenv("TEST_VALUE", tt.envValue)
 
 			tmpfile, err := createTempFile(t, tt.extension, tt.content)
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 
 			var cfg validatorConfig
 			err = Load(tmpfile, &cfg, UseEnv())
@@ -1725,14 +1725,14 @@ func TestLoadValidation_Consistency(t *testing.T) {
 		t.Run("invalid_"+format.ext, func(t *testing.T) {
 			// Test without UseEnv()
 			tmpfile1, err := createTempFile(t, format.ext, format.invalid)
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 
 			var cfg1 validatorConfig
 			err1 := Load(tmpfile1, &cfg1)
 
 			// Test with UseEnv()
 			tmpfile2, err := createTempFile(t, format.ext, format.invalid)
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 
 			var cfg2 validatorConfig
 			err2 := Load(tmpfile2, &cfg2, UseEnv())
@@ -1747,14 +1747,14 @@ func TestLoadValidation_Consistency(t *testing.T) {
 		t.Run("valid_"+format.ext, func(t *testing.T) {
 			// Test without UseEnv()
 			tmpfile1, err := createTempFile(t, format.ext, format.valid)
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 
 			var cfg1 validatorConfig
 			err1 := Load(tmpfile1, &cfg1)
 
 			// Test with UseEnv()
 			tmpfile2, err := createTempFile(t, format.ext, format.valid)
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 
 			var cfg2 validatorConfig
 			err2 := Load(tmpfile2, &cfg2, UseEnv())

@@ -532,7 +532,7 @@ func TestUnion(t *testing.T) {
 	contains := func(v string) bool {
 		return slices.Contains(union, v)
 	}
-	assert.Equal(t, 5, len(union))
+	assert.Len(t, union, 5)
 	assert.True(t, contains("zero"))
 	assert.True(t, contains("one"))
 	assert.True(t, contains("two"))

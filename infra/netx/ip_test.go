@@ -7,5 +7,5 @@ import (
 )
 
 func TestInternalIp(t *testing.T) {
-	assert.True(t, len(InternalIp()) > 0)
+	assert.NotEmpty(t, InternalIp())
 }

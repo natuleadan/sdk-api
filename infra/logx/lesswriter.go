@@ -21,8 +21,8 @@ func newLessWriter(writer io.Writer, milliseconds int) *lessWriter {
 func (w *lessWriter) Write(p []byte) (n int, err error) {
 	w.logOrDiscard(func() {
 		if _, err := w.writer.Write(p); err != nil {
-		fmt.Fprintf(os.Stderr, "logx: lesswriter write error: %v\n", err)
-	}
+			fmt.Fprintf(os.Stderr, "logx: lesswriter write error: %v\n", err)
+		}
 	})
 	return len(p), nil
 }

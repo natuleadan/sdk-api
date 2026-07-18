@@ -5,18 +5,17 @@ package proc
 import (
 	"errors"
 	"os"
-	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/logx/logtest"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestDumpGoroutines(t *testing.T) {
 	t.Run("real file", func(t *testing.T) {
 		buf := logtest.NewCollector(t)
 		dumpGoroutines(fileCreator{})
-		assert.True(t, strings.Contains(buf.String(), ".dump"))
+		assert.Contains(t, buf.String(), ".dump")
 	})
 
 	t.Run("fake file", func(t *testing.T) {
@@ -27,7 +26,7 @@ func TestDumpGoroutines(t *testing.T) {
 			file: &os.File{},
 			err:  err,
 		})
-		assert.True(t, strings.Contains(buf.String(), msg))
+		assert.Contains(t, buf.String(), msg)
 	})
 }
 

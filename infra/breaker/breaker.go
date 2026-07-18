@@ -153,7 +153,8 @@ func (cb *circuitBreaker) DoWithAcceptable(req func() error, acceptable Acceptab
 }
 
 func (cb *circuitBreaker) DoWithAcceptableCtx(ctx context.Context, req func() error,
-	acceptable Acceptable) error {
+	acceptable Acceptable,
+) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -167,7 +168,8 @@ func (cb *circuitBreaker) DoWithFallback(req func() error, fallback Fallback) er
 }
 
 func (cb *circuitBreaker) DoWithFallbackCtx(ctx context.Context, req func() error,
-	fallback Fallback) error {
+	fallback Fallback,
+) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -177,12 +179,14 @@ func (cb *circuitBreaker) DoWithFallbackCtx(ctx context.Context, req func() erro
 }
 
 func (cb *circuitBreaker) DoWithFallbackAcceptable(req func() error, fallback Fallback,
-	acceptable Acceptable) error {
+	acceptable Acceptable,
+) error {
 	return cb.doReq(req, fallback, acceptable)
 }
 
 func (cb *circuitBreaker) DoWithFallbackAcceptableCtx(ctx context.Context, req func() error,
-	fallback Fallback, acceptable Acceptable) error {
+	fallback Fallback, acceptable Acceptable,
+) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()

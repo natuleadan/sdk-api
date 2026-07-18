@@ -133,21 +133,21 @@ func TestCache_SetDel(t *testing.T) {
 		c := New(conf, syncx.NewSingleFlight(), NewStat("mock"), errPlaceholder)
 		for i := range total {
 			if i%2 == 0 {
-				assert.Nil(t, c.Set(fmt.Sprintf("key/%d", i), i))
+				assert.NoError(t, c.Set(fmt.Sprintf("key/%d", i), i))
 			} else {
-				assert.Nil(t, c.SetWithExpire(fmt.Sprintf("key/%d", i), i, 0))
+				assert.NoError(t, c.SetWithExpire(fmt.Sprintf("key/%d", i), i, 0))
 			}
 		}
 		for i := range total {
 			var val int
-			assert.Nil(t, c.Get(fmt.Sprintf("key/%d", i), &val))
+			assert.NoError(t, c.Get(fmt.Sprintf("key/%d", i), &val))
 			assert.Equal(t, i, val)
 		}
-		assert.Nil(t, c.Del())
+		assert.NoError(t, c.Del())
 		for i := range total {
-			assert.Nil(t, c.Del(fmt.Sprintf("key/%d", i)))
+			assert.NoError(t, c.Del(fmt.Sprintf("key/%d", i)))
 		}
-		assert.Nil(t, c.Del("a", "b", "c"))
+		assert.NoError(t, c.Del("a", "b", "c"))
 		for i := range total {
 			var val int
 			assert.True(t, c.IsNotFound(c.Get(fmt.Sprintf("key/%d", i), &val)))
@@ -202,19 +202,19 @@ func TestCache_OneNode(t *testing.T) {
 	c := New(conf, syncx.NewSingleFlight(), NewStat("mock"), errPlaceholder)
 	for i := range total {
 		if i%2 == 0 {
-			assert.Nil(t, c.Set(fmt.Sprintf("key/%d", i), i))
+			assert.NoError(t, c.Set(fmt.Sprintf("key/%d", i), i))
 		} else {
-			assert.Nil(t, c.SetWithExpire(fmt.Sprintf("key/%d", i), i, 0))
+			assert.NoError(t, c.SetWithExpire(fmt.Sprintf("key/%d", i), i, 0))
 		}
 	}
 	for i := range total {
 		var val int
-		assert.Nil(t, c.Get(fmt.Sprintf("key/%d", i), &val))
+		assert.NoError(t, c.Get(fmt.Sprintf("key/%d", i), &val))
 		assert.Equal(t, i, val)
 	}
-	assert.Nil(t, c.Del())
+	assert.NoError(t, c.Del())
 	for i := range total {
-		assert.Nil(t, c.Del(fmt.Sprintf("key/%d", i)))
+		assert.NoError(t, c.Del(fmt.Sprintf("key/%d", i)))
 	}
 	for i := range total {
 		var val int
@@ -247,7 +247,7 @@ func TestCache_Balance(t *testing.T) {
 		errNotFound: errPlaceholder,
 	}
 	for i := range total {
-		assert.Nil(t, c.Set(strconv.Itoa(i), i))
+		assert.NoError(t, c.Set(strconv.Itoa(i), i))
 	}
 
 	counts := make(map[int]int)
@@ -255,31 +255,31 @@ func TestCache_Balance(t *testing.T) {
 		counts[i] = len(m)
 	}
 	entropy := calcEntropy(counts, total)
-	assert.True(t, len(counts) > 1)
-	assert.True(t, entropy > .95, fmt.Sprintf("entropy should be greater than 0.95, but got %.2f", entropy))
+	assert.Greater(t, len(counts), 1)
+	assert.Greater(t, entropy, .95, "entropy should be greater than 0.95, but got %.2f", entropy)
 
 	for i := range total {
 		var val int
-		assert.Nil(t, c.Get(strconv.Itoa(i), &val))
+		assert.NoError(t, c.Get(strconv.Itoa(i), &val))
 		assert.Equal(t, i, val)
 	}
 
 	for i := range total / 10 {
-		assert.Nil(t, c.Del(strconv.Itoa(i*10), strconv.Itoa(i*10+1), strconv.Itoa(i*10+2)))
-		assert.Nil(t, c.Del(strconv.Itoa(i*10+9)))
+		assert.NoError(t, c.Del(strconv.Itoa(i*10), strconv.Itoa(i*10+1), strconv.Itoa(i*10+2)))
+		assert.NoError(t, c.Del(strconv.Itoa(i*10+9)))
 	}
 
 	var count int
 	for i := range total / 10 {
 		var val int
 		if i%2 == 0 {
-			assert.Nil(t, c.Take(&val, strconv.Itoa(i*10), func(val any) error {
+			assert.NoError(t, c.Take(&val, strconv.Itoa(i*10), func(val any) error {
 				*val.(*int) = i
 				count++
 				return nil
 			}))
 		} else {
-			assert.Nil(t, c.TakeWithExpire(&val, strconv.Itoa(i*10), func(val any, expire time.Duration) error {
+			assert.NoError(t, c.TakeWithExpire(&val, strconv.Itoa(i*10), func(val any, expire time.Duration) error {
 				*val.(*int) = i
 				count++
 				return nil
@@ -296,15 +296,15 @@ func TestCacheNoNode(t *testing.T) {
 		dispatcher:  dispatcher,
 		errNotFound: errPlaceholder,
 	}
-	assert.NotNil(t, c.Del("foo"))
-	assert.NotNil(t, c.Del("foo", "bar", "any"))
-	assert.NotNil(t, c.Get("foo", nil))
-	assert.NotNil(t, c.Set("foo", nil))
-	assert.NotNil(t, c.SetWithExpire("foo", nil, time.Second))
-	assert.NotNil(t, c.Take(nil, "foo", func(val any) error {
+	assert.Error(t, c.Del("foo"))
+	assert.Error(t, c.Del("foo", "bar", "any"))
+	assert.Error(t, c.Get("foo", nil))
+	assert.Error(t, c.Set("foo", nil))
+	assert.Error(t, c.SetWithExpire("foo", nil, time.Second))
+	assert.Error(t, c.Take(nil, "foo", func(val any) error {
 		return nil
 	}))
-	assert.NotNil(t, c.TakeWithExpire(nil, "foo", func(val any, duration time.Duration) error {
+	assert.Error(t, c.TakeWithExpire(nil, "foo", func(val any, duration time.Duration) error {
 		return nil
 	}))
 }

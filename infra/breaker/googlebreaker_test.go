@@ -51,15 +51,15 @@ func markFailedWithDuration(b *googleBreaker, count int, sleep time.Duration) {
 func TestGoogleBreakerClose(t *testing.T) {
 	b := getGoogleBreaker()
 	markSuccess(b, 80)
-	assert.Nil(t, b.accept())
+	assert.NoError(t, b.accept())
 	markSuccess(b, 120)
-	assert.Nil(t, b.accept())
+	assert.NoError(t, b.accept())
 }
 
 func TestGoogleBreakerOpen(t *testing.T) {
 	b := getGoogleBreaker()
 	markSuccess(b, 10)
-	assert.Nil(t, b.accept())
+	assert.NoError(t, b.accept())
 	markFailed(b, 100000)
 	time.Sleep(testInterval * 2)
 	verify(t, func() bool {
@@ -97,7 +97,7 @@ func TestGoogleBreakerRecover(t *testing.T) {
 func TestGoogleBreakerFallback(t *testing.T) {
 	b := getGoogleBreaker()
 	markSuccess(b, 1)
-	assert.Nil(t, b.accept())
+	assert.NoError(t, b.accept())
 	markFailed(b, 10000)
 	time.Sleep(testInterval * 2)
 	verify(t, func() bool {
@@ -112,7 +112,7 @@ func TestGoogleBreakerFallback(t *testing.T) {
 func TestGoogleBreakerReject(t *testing.T) {
 	b := getGoogleBreaker()
 	markSuccess(b, 100)
-	assert.Nil(t, b.accept())
+	assert.NoError(t, b.accept())
 	markFailed(b, 10000)
 	time.Sleep(testInterval)
 	assert.Equal(t, ErrServiceUnavailable, b.doReq(func() error {
@@ -153,7 +153,7 @@ func TestGoogleBreakerMoreFallingBuckets(t *testing.T) {
 				count++
 			}
 		}
-		assert.True(t, count > 90)
+		assert.Greater(t, count, 90)
 	})
 }
 
@@ -188,7 +188,7 @@ func TestGoogleBreakerPanic(t *testing.T) {
 
 func TestGoogleBreakerHalfOpen(t *testing.T) {
 	b := getGoogleBreaker()
-	assert.Nil(t, b.accept())
+	assert.NoError(t, b.accept())
 	t.Run("accept single failed/accept", func(t *testing.T) {
 		markFailed(b, 10000)
 		time.Sleep(testInterval * 2)
@@ -206,7 +206,7 @@ func TestGoogleBreakerHalfOpen(t *testing.T) {
 	})
 	time.Sleep(testInterval * testBuckets)
 	t.Run("accept single succeed", func(t *testing.T) {
-		assert.Nil(t, b.accept())
+		assert.NoError(t, b.accept())
 		markSuccess(b, 10000)
 		verify(t, func() bool {
 			return b.accept() == nil
@@ -219,7 +219,7 @@ func TestGoogleBreakerSelfProtection(t *testing.T) {
 		b := getGoogleBreaker()
 		markFailed(b, 4)
 		time.Sleep(testInterval)
-		assert.Nil(t, b.accept())
+		assert.NoError(t, b.accept())
 	})
 	t.Run("total request > 100, total < 2 * success", func(t *testing.T) {
 		b := getGoogleBreaker()
@@ -227,7 +227,7 @@ func TestGoogleBreakerSelfProtection(t *testing.T) {
 		accepts := size + 1
 		markSuccess(b, accepts)
 		markFailed(b, size-accepts)
-		assert.Nil(t, b.accept())
+		assert.NoError(t, b.accept())
 	})
 }
 

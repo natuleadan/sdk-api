@@ -15,7 +15,7 @@ func TestUnmarshalBytes(t *testing.T) {
 	}
 	content := []byte(`{"Name": "liao"}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
 	assert.Equal(t, "liao", c.Name)
 }
 
@@ -26,7 +26,7 @@ func TestUnmarshalBytesOptional(t *testing.T) {
 	}
 	content := []byte(`{"Name": "liao"}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
 	assert.Equal(t, "liao", c.Name)
 }
 
@@ -37,7 +37,7 @@ func TestUnmarshalBytesOptionalDefault(t *testing.T) {
 	}
 	content := []byte(`{"Name": "liao"}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
 	assert.Equal(t, "liao", c.Name)
 	assert.Equal(t, 1, c.Age)
 }
@@ -49,7 +49,7 @@ func TestUnmarshalBytesDefaultOptional(t *testing.T) {
 	}
 	content := []byte(`{"Name": "liao"}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
 	assert.Equal(t, "liao", c.Name)
 	assert.Equal(t, 1, c.Age)
 }
@@ -60,7 +60,7 @@ func TestUnmarshalBytesDefault(t *testing.T) {
 	}
 	content := []byte(`{}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
 	assert.Equal(t, "liao", c.Name)
 }
 
@@ -70,7 +70,7 @@ func TestUnmarshalBytesBool(t *testing.T) {
 	}
 	content := []byte(`{"Great": true}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
 	assert.True(t, c.Great)
 }
 
@@ -80,7 +80,7 @@ func TestUnmarshalBytesInt(t *testing.T) {
 	}
 	content := []byte(`{"Age": 1}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
 	assert.Equal(t, 1, c.Age)
 }
 
@@ -90,7 +90,7 @@ func TestUnmarshalBytesUint(t *testing.T) {
 	}
 	content := []byte(`{"Age": 1}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
 	assert.Equal(t, uint(1), c.Age)
 }
 
@@ -100,7 +100,7 @@ func TestUnmarshalBytesFloat(t *testing.T) {
 	}
 	content := []byte(`{"Age": 1.5}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
 	assert.Equal(t, float32(1.5), c.Age)
 }
 
@@ -114,7 +114,7 @@ func TestUnmarshalBytesMustInOptional(t *testing.T) {
 	}
 	content := []byte(`{}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
 }
 
 func TestUnmarshalBytesMustInOptionalMissedPart(t *testing.T) {
@@ -127,7 +127,7 @@ func TestUnmarshalBytesMustInOptionalMissedPart(t *testing.T) {
 	}
 	content := []byte(`{"Inner": {"There": "sure"}}`)
 
-	assert.NotNil(t, UnmarshalJsonBytes(content, &c))
+	assert.Error(t, UnmarshalJsonBytes(content, &c))
 }
 
 func TestUnmarshalBytesMustInOptionalOnlyOptionalFilled(t *testing.T) {
@@ -140,7 +140,7 @@ func TestUnmarshalBytesMustInOptionalOnlyOptionalFilled(t *testing.T) {
 	}
 	content := []byte(`{"Inner": {"Optional": "sure"}}`)
 
-	assert.NotNil(t, UnmarshalJsonBytes(content, &c))
+	assert.Error(t, UnmarshalJsonBytes(content, &c))
 }
 
 func TestUnmarshalBytesNil(t *testing.T) {
@@ -149,7 +149,7 @@ func TestUnmarshalBytesNil(t *testing.T) {
 	}
 	content := []byte(`{"int":null}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
 	assert.Equal(t, int64(0), c.Int)
 }
 
@@ -159,8 +159,8 @@ func TestUnmarshalBytesNilSlice(t *testing.T) {
 	}
 	content := []byte(`{"ints":[null]}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
-	assert.Equal(t, 0, len(c.Ints))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
+	assert.Empty(t, c.Ints)
 }
 
 func TestUnmarshalBytesPartial(t *testing.T) {
@@ -170,7 +170,7 @@ func TestUnmarshalBytesPartial(t *testing.T) {
 	}
 	content := []byte(`{"Age": 1.5}`)
 
-	assert.NotNil(t, UnmarshalJsonBytes(content, &c))
+	assert.Error(t, UnmarshalJsonBytes(content, &c))
 }
 
 func TestUnmarshalBytesStruct(t *testing.T) {
@@ -181,7 +181,7 @@ func TestUnmarshalBytesStruct(t *testing.T) {
 	}
 	content := []byte(`{"Inner": {"Name": "liao"}}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
 	assert.Equal(t, "liao", c.Inner.Name)
 }
 
@@ -194,7 +194,7 @@ func TestUnmarshalBytesStructOptional(t *testing.T) {
 	}
 	content := []byte(`{"Inner": {"Name": "liao"}}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
 	assert.Equal(t, "liao", c.Inner.Name)
 }
 
@@ -206,7 +206,7 @@ func TestUnmarshalBytesStructPtr(t *testing.T) {
 	}
 	content := []byte(`{"Inner": {"Name": "liao"}}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
 	assert.Equal(t, "liao", c.Inner.Name)
 }
 
@@ -219,7 +219,7 @@ func TestUnmarshalBytesStructPtrOptional(t *testing.T) {
 	}
 	content := []byte(`{"Inner": {"Name": "liao"}}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
 }
 
 func TestUnmarshalBytesStructPtrDefault(t *testing.T) {
@@ -231,7 +231,7 @@ func TestUnmarshalBytesStructPtrDefault(t *testing.T) {
 	}
 	content := []byte(`{"Inner": {"Name": "liao"}}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
 	assert.Equal(t, "liao", c.Inner.Name)
 	assert.Equal(t, 4, c.Inner.Age)
 }
@@ -242,7 +242,7 @@ func TestUnmarshalBytesSliceString(t *testing.T) {
 	}
 	content := []byte(`{"Names": ["liao", "chaoxin"]}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
 
 	want := []string{"liao", "chaoxin"}
 	if !reflect.DeepEqual(c.Names, want) {
@@ -257,7 +257,7 @@ func TestUnmarshalBytesSliceStringOptional(t *testing.T) {
 	}
 	content := []byte(`{"Names": ["liao", "chaoxin"]}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
 
 	want := []string{"liao", "chaoxin"}
 	if !reflect.DeepEqual(c.Names, want) {
@@ -274,7 +274,7 @@ func TestUnmarshalBytesSliceStruct(t *testing.T) {
 	}
 	content := []byte(`{"People": [{"Name": "liao", "Age": 1}, {"Name": "chaoxin", "Age": 2}]}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
 
 	want := []struct {
 		Name string
@@ -298,7 +298,7 @@ func TestUnmarshalBytesSliceStructOptional(t *testing.T) {
 	}
 	content := []byte(`{"People": [{"Name": "liao", "Age": 1}, {"Name": "chaoxin", "Age": 2}]}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
 
 	want := []struct {
 		Name   string
@@ -322,7 +322,7 @@ func TestUnmarshalBytesSliceStructPtr(t *testing.T) {
 	}
 	content := []byte(`{"People": [{"Name": "liao", "Age": 1}, {"Name": "chaoxin", "Age": 2}]}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
 
 	want := []*struct {
 		Name string
@@ -346,7 +346,7 @@ func TestUnmarshalBytesSliceStructPtrOptional(t *testing.T) {
 	}
 	content := []byte(`{"People": [{"Name": "liao", "Age": 1}, {"Name": "chaoxin", "Age": 2}]}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
 
 	want := []*struct {
 		Name   string
@@ -371,7 +371,7 @@ func TestUnmarshalBytesSliceStructPtrPartial(t *testing.T) {
 	}
 	content := []byte(`{"People": [{"Name": "liao", "Age": 1}, {"Name": "chaoxin", "Age": 2}]}`)
 
-	assert.NotNil(t, UnmarshalJsonBytes(content, &c))
+	assert.Error(t, UnmarshalJsonBytes(content, &c))
 }
 
 func TestUnmarshalBytesSliceStructPtrDefault(t *testing.T) {
@@ -384,7 +384,7 @@ func TestUnmarshalBytesSliceStructPtrDefault(t *testing.T) {
 	}
 	content := []byte(`{"People": [{"Name": "liao", "Age": 1}, {"Name": "chaoxin", "Age": 2}]}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
 
 	want := []*struct {
 		Name  string
@@ -411,7 +411,7 @@ func TestUnmarshalBytesSliceStringPartial(t *testing.T) {
 	}
 	content := []byte(`{"Age": 1}`)
 
-	assert.NotNil(t, UnmarshalJsonBytes(content, &c))
+	assert.Error(t, UnmarshalJsonBytes(content, &c))
 }
 
 func TestUnmarshalBytesSliceStructPartial(t *testing.T) {
@@ -424,7 +424,7 @@ func TestUnmarshalBytesSliceStructPartial(t *testing.T) {
 	}
 	content := []byte(`{"Group": "chaoxin"}`)
 
-	assert.NotNil(t, UnmarshalJsonBytes(content, &c))
+	assert.Error(t, UnmarshalJsonBytes(content, &c))
 }
 
 func TestUnmarshalBytesInnerAnonymousPartial(t *testing.T) {
@@ -444,7 +444,7 @@ func TestUnmarshalBytesInnerAnonymousPartial(t *testing.T) {
 	}
 	content := []byte(`{"Value": {"InnerV": "chaoxin"}}`)
 
-	assert.NotNil(t, UnmarshalJsonBytes(content, &c))
+	assert.Error(t, UnmarshalJsonBytes(content, &c))
 }
 
 func TestUnmarshalBytesStructPartial(t *testing.T) {
@@ -457,7 +457,7 @@ func TestUnmarshalBytesStructPartial(t *testing.T) {
 	}
 	content := []byte(`{"Group": "chaoxin"}`)
 
-	assert.NotNil(t, UnmarshalJsonBytes(content, &c))
+	assert.Error(t, UnmarshalJsonBytes(content, &c))
 }
 
 func TestUnmarshalBytesEmptyMap(t *testing.T) {
@@ -466,7 +466,7 @@ func TestUnmarshalBytesEmptyMap(t *testing.T) {
 	}
 	content := []byte(`{"Persons": {}}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
 	assert.Empty(t, c.Persons)
 }
 
@@ -476,8 +476,8 @@ func TestUnmarshalBytesMap(t *testing.T) {
 	}
 	content := []byte(`{"Persons": {"first": 1, "second": 2}}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
-	assert.Equal(t, 2, len(c.Persons))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
+	assert.Len(t, c.Persons, 2)
 	assert.Equal(t, 1, c.Persons["first"])
 	assert.Equal(t, 2, c.Persons["second"])
 }
@@ -491,8 +491,8 @@ func TestUnmarshalBytesMapStruct(t *testing.T) {
 	}
 	content := []byte(`{"Persons": {"first": {"ID": 1, "name": "kevin"}}}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
-	assert.Equal(t, 1, len(c.Persons))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
+	assert.Len(t, c.Persons, 1)
 	assert.Equal(t, 1, c.Persons["first"].ID)
 	assert.Equal(t, "kevin", c.Persons["first"].Name)
 }
@@ -506,8 +506,8 @@ func TestUnmarshalBytesMapStructPtr(t *testing.T) {
 	}
 	content := []byte(`{"Persons": {"first": {"ID": 1, "name": "kevin"}}}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
-	assert.Equal(t, 1, len(c.Persons))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
+	assert.Len(t, c.Persons, 1)
 	assert.Equal(t, 1, c.Persons["first"].ID)
 	assert.Equal(t, "kevin", c.Persons["first"].Name)
 }
@@ -521,7 +521,7 @@ func TestUnmarshalBytesMapStructMissingPartial(t *testing.T) {
 	}
 	content := []byte(`{"Persons": {"first": {"ID": 1}}}`)
 
-	assert.NotNil(t, UnmarshalJsonBytes(content, &c))
+	assert.Error(t, UnmarshalJsonBytes(content, &c))
 }
 
 func TestUnmarshalBytesMapStructOptional(t *testing.T) {
@@ -533,8 +533,8 @@ func TestUnmarshalBytesMapStructOptional(t *testing.T) {
 	}
 	content := []byte(`{"Persons": {"first": {"ID": 1}}}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
-	assert.Equal(t, 1, len(c.Persons))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
+	assert.Len(t, c.Persons, 1)
 	assert.Equal(t, 1, c.Persons["first"].ID)
 }
 
@@ -547,8 +547,8 @@ func TestUnmarshalBytesMapEmptyStructSlice(t *testing.T) {
 	}
 	content := []byte(`{"Persons": {"first": []}}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
-	assert.Equal(t, 1, len(c.Persons))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
+	assert.Len(t, c.Persons, 1)
 	assert.Empty(t, c.Persons["first"])
 }
 
@@ -561,8 +561,8 @@ func TestUnmarshalBytesMapStructSlice(t *testing.T) {
 	}
 	content := []byte(`{"Persons": {"first": [{"ID": 1, "name": "kevin"}]}}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
-	assert.Equal(t, 1, len(c.Persons))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
+	assert.Len(t, c.Persons, 1)
 	assert.Equal(t, 1, c.Persons["first"][0].ID)
 	assert.Equal(t, "kevin", c.Persons["first"][0].Name)
 }
@@ -576,8 +576,8 @@ func TestUnmarshalBytesMapEmptyStructPtrSlice(t *testing.T) {
 	}
 	content := []byte(`{"Persons": {"first": []}}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
-	assert.Equal(t, 1, len(c.Persons))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
+	assert.Len(t, c.Persons, 1)
 	assert.Empty(t, c.Persons["first"])
 }
 
@@ -590,8 +590,8 @@ func TestUnmarshalBytesMapStructPtrSlice(t *testing.T) {
 	}
 	content := []byte(`{"Persons": {"first": [{"ID": 1, "name": "kevin"}]}}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
-	assert.Equal(t, 1, len(c.Persons))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
+	assert.Len(t, c.Persons, 1)
 	assert.Equal(t, 1, c.Persons["first"][0].ID)
 	assert.Equal(t, "kevin", c.Persons["first"][0].Name)
 }
@@ -605,7 +605,7 @@ func TestUnmarshalBytesMapStructPtrSliceMissingPartial(t *testing.T) {
 	}
 	content := []byte(`{"Persons": {"first": [{"ID": 1}]}}`)
 
-	assert.NotNil(t, UnmarshalJsonBytes(content, &c))
+	assert.Error(t, UnmarshalJsonBytes(content, &c))
 }
 
 func TestUnmarshalBytesMapStructPtrSliceOptional(t *testing.T) {
@@ -617,8 +617,8 @@ func TestUnmarshalBytesMapStructPtrSliceOptional(t *testing.T) {
 	}
 	content := []byte(`{"Persons": {"first": [{"ID": 1}]}}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
-	assert.Equal(t, 1, len(c.Persons))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
+	assert.Len(t, c.Persons, 1)
 	assert.Equal(t, 1, c.Persons["first"][0].ID)
 }
 
@@ -633,7 +633,7 @@ func TestUnmarshalStructOptional(t *testing.T) {
 	content := []byte(`{"Name": "kevin"}`)
 
 	err := UnmarshalJsonBytes(content, &c)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "kevin", c.Name)
 }
 
@@ -647,7 +647,7 @@ func TestUnmarshalStructLowerCase(t *testing.T) {
 	content := []byte(`{"Name": "kevin", "etcd": {"Key": "the key"}}`)
 
 	err := UnmarshalJsonBytes(content, &c)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "kevin", c.Name)
 	assert.Equal(t, "the key", c.Etcd.Key)
 }
@@ -661,7 +661,7 @@ func TestUnmarshalWithStructAllOptionalWithEmpty(t *testing.T) {
 	}
 	content := []byte(`{"Else": "sure", "Inner": {}}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
 }
 
 func TestUnmarshalWithStructAllOptionalPtr(t *testing.T) {
@@ -673,7 +673,7 @@ func TestUnmarshalWithStructAllOptionalPtr(t *testing.T) {
 	}
 	content := []byte(`{"Else": "sure", "Inner": {}}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
 }
 
 func TestUnmarshalWithStructOptional(t *testing.T) {
@@ -687,9 +687,9 @@ func TestUnmarshalWithStructOptional(t *testing.T) {
 	}
 	content := []byte(`{"Else": "sure"}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
 	assert.Equal(t, "sure", c.Else)
-	assert.Equal(t, "", c.In.Must)
+	assert.Empty(t, c.In.Must)
 }
 
 func TestUnmarshalWithStructPtrOptional(t *testing.T) {
@@ -703,7 +703,7 @@ func TestUnmarshalWithStructPtrOptional(t *testing.T) {
 	}
 	content := []byte(`{"Else": "sure"}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
 	assert.Equal(t, "sure", c.Else)
 	assert.Nil(t, c.In)
 }
@@ -719,7 +719,7 @@ func TestUnmarshalWithStructAllOptionalAnonymous(t *testing.T) {
 	}
 	content := []byte(`{"Else": "sure"}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
 }
 
 func TestUnmarshalWithStructAllOptionalAnonymousPtr(t *testing.T) {
@@ -733,7 +733,7 @@ func TestUnmarshalWithStructAllOptionalAnonymousPtr(t *testing.T) {
 	}
 	content := []byte(`{"Else": "sure"}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
 }
 
 func TestUnmarshalWithStructAllOptionalProvoidedAnonymous(t *testing.T) {
@@ -747,7 +747,7 @@ func TestUnmarshalWithStructAllOptionalProvoidedAnonymous(t *testing.T) {
 	}
 	content := []byte(`{"Else": "sure", "Optional": "optional"}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
 	assert.Equal(t, "sure", c.Else)
 	assert.Equal(t, "optional", c.Optional)
 }
@@ -763,7 +763,7 @@ func TestUnmarshalWithStructAllOptionalProvoidedAnonymousPtr(t *testing.T) {
 	}
 	content := []byte(`{"Else": "sure", "Optional": "optional"}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
 	assert.Equal(t, "sure", c.Else)
 	assert.Equal(t, "optional", c.Optional)
 }
@@ -779,7 +779,7 @@ func TestUnmarshalWithStructAnonymous(t *testing.T) {
 	}
 	content := []byte(`{"Else": "sure", "Must": "must"}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
 	assert.Equal(t, "sure", c.Else)
 	assert.Equal(t, "must", c.Must)
 }
@@ -795,7 +795,7 @@ func TestUnmarshalWithStructAnonymousPtr(t *testing.T) {
 	}
 	content := []byte(`{"Else": "sure", "Must": "must"}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
 	assert.Equal(t, "sure", c.Else)
 	assert.Equal(t, "must", c.Must)
 }
@@ -811,9 +811,9 @@ func TestUnmarshalWithStructAnonymousOptional(t *testing.T) {
 	}
 	content := []byte(`{"Else": "sure"}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
 	assert.Equal(t, "sure", c.Else)
-	assert.Equal(t, "", c.Must)
+	assert.Empty(t, c.Must)
 }
 
 func TestUnmarshalWithStructPtrAnonymousOptional(t *testing.T) {
@@ -827,7 +827,7 @@ func TestUnmarshalWithStructPtrAnonymousOptional(t *testing.T) {
 	}
 	content := []byte(`{"Else": "sure"}`)
 
-	assert.Nil(t, UnmarshalJsonBytes(content, &c))
+	assert.NoError(t, UnmarshalJsonBytes(content, &c))
 	assert.Equal(t, "sure", c.Else)
 	assert.Nil(t, c.Inner)
 }
@@ -843,10 +843,10 @@ func TestUnmarshalWithZeroValues(t *testing.T) {
 
 	var in inner
 	ast := assert.New(t)
-	ast.Nil(UnmarshalJsonReader(reader, &in))
+	ast.NoError(UnmarshalJsonReader(reader, &in))
 	ast.False(in.False)
 	ast.Equal(0, in.Int)
-	ast.Equal("", in.String)
+	ast.Empty(in.String)
 }
 
 func TestUnmarshalBytesError(t *testing.T) {
@@ -877,8 +877,8 @@ func TestUnmarshalMap(t *testing.T) {
 		}
 
 		err := UnmarshalJsonMap(m, &v)
-		assert.Nil(t, err)
-		assert.True(t, len(v.Any) == 0)
+		assert.NoError(t, err)
+		assert.Empty(t, v.Any)
 	})
 
 	t.Run("empty map but not valid", func(t *testing.T) {
@@ -888,7 +888,7 @@ func TestUnmarshalMap(t *testing.T) {
 		}
 
 		err := UnmarshalJsonMap(m, &v)
-		assert.NotNil(t, err)
+		assert.Error(t, err)
 	})
 
 	t.Run("empty map and valid", func(t *testing.T) {
@@ -900,8 +900,8 @@ func TestUnmarshalMap(t *testing.T) {
 		err := UnmarshalJsonMap(m, &v, WithCanonicalKeyFunc(func(s string) string {
 			return s
 		}))
-		assert.Nil(t, err)
-		assert.True(t, len(v.Any) == 0)
+		assert.NoError(t, err)
+		assert.Empty(t, v.Any)
 	})
 
 	t.Run("valid map", func(t *testing.T) {
@@ -913,7 +913,7 @@ func TestUnmarshalMap(t *testing.T) {
 		}
 
 		err := UnmarshalJsonMap(m, &v)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, "foo", v.Any)
 	})
 }
@@ -926,7 +926,7 @@ func TestUnmarshalJsonArray(t *testing.T) {
 
 	body := `[{"name":"kevin", "age": 18}]`
 	assert.NoError(t, UnmarshalJsonBytes([]byte(body), &v))
-	assert.Equal(t, 1, len(v))
+	assert.Len(t, v, 1)
 	assert.Equal(t, "kevin", v[0].Name)
 	assert.Equal(t, 18, v[0].Age)
 }

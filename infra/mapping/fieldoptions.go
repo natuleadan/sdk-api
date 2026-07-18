@@ -67,7 +67,8 @@ func (o *fieldOptions) optionalDep() string {
 }
 
 func (o *fieldOptions) toOptionsWithContext(key string, m Valuer, fullName string) (
-	*fieldOptionsWithContext, error) {
+	*fieldOptionsWithContext, error,
+) {
 	var optional bool
 	if o.optional() {
 		dep := o.optionalDep()

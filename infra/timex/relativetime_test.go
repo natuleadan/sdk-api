@@ -10,9 +10,9 @@ import (
 func TestRelativeTime(t *testing.T) {
 	time.Sleep(time.Millisecond)
 	now := Now()
-	assert.True(t, now > 0)
+	assert.Positive(t, now)
 	time.Sleep(time.Millisecond)
-	assert.True(t, Since(now) > 0)
+	assert.Positive(t, Since(now))
 }
 
 func BenchmarkTimeSince(b *testing.B) {

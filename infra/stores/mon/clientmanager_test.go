@@ -11,6 +11,6 @@ func TestClientManger_getClient(t *testing.T) {
 	c := &mongo.Client{}
 	Inject("foo", c)
 	cli, err := getClient("foo")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, c, cli)
 }

@@ -9,11 +9,11 @@ import (
 
 func TestRand(t *testing.T) {
 	Seed(time.Now().UnixNano())
-	assert.True(t, len(Rand()) > 0)
-	assert.True(t, len(RandId()) > 0)
+	assert.NotEmpty(t, Rand())
+	assert.NotEmpty(t, RandId())
 
 	const size = 10
-	assert.True(t, len(Randn(size)) == size)
+	assert.Len(t, Randn(size), size)
 }
 
 func BenchmarkRandString(b *testing.B) {

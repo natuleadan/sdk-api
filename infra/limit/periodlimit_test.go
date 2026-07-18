@@ -19,7 +19,7 @@ func TestPeriodLimit_TakeWithAlign(t *testing.T) {
 
 func TestPeriodLimit_RedisUnavailable(t *testing.T) {
 	s, err := miniredis.Run()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	const (
 		seconds = 1
@@ -28,7 +28,7 @@ func TestPeriodLimit_RedisUnavailable(t *testing.T) {
 	l := NewPeriodLimit(seconds, quota, redis.MustNewRedis(redis.RedisConf{Host: s.Addr(), Type: redis.NodeType}), "periodlimit")
 	s.Close()
 	val, err := l.Take("first")
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	assert.Equal(t, 0, val)
 }
 
@@ -66,10 +66,10 @@ func testPeriodLimit(t *testing.T, opts ...PeriodOption) {
 
 func TestQuotaFull(t *testing.T) {
 	s, err := miniredis.Run()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	l := NewPeriodLimit(1, 1, redis.MustNewRedis(redis.RedisConf{Host: s.Addr(), Type: redis.NodeType}), "periodlimit")
 	val, err := l.Take("first")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, HitQuota, val)
 }

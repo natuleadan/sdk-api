@@ -352,5 +352,5 @@ func TestInvalidSpanContextDropped(t *testing.T) {
 		metadata: &md,
 	}
 	assert.Empty(t, mm.Keys())
-	assert.Equal(t, "", mm.Get("traceparent"), "injected invalid SpanContext")
+	assert.Empty(t, mm.Get("traceparent"), "injected invalid SpanContext")
 }

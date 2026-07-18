@@ -7,9 +7,9 @@ import (
 )
 
 func TestProcessName(t *testing.T) {
-	assert.True(t, len(ProcessName()) > 0)
+	assert.NotEmpty(t, ProcessName())
 }
 
 func TestPid(t *testing.T) {
-	assert.True(t, Pid() > 0)
+	assert.Positive(t, Pid())
 }

@@ -16,17 +16,17 @@ var (
 
 // A RedisConf is a redis config.
 type RedisConf struct {
-	Host              string
-	Type              string `config:",default=node,options=node|cluster|sentinel"`
-	User              string `config:",optional"`
-	Pass              string `config:",optional"`
-	Tls               bool   `config:",optional"`
-	TlsSkipVerify     bool   `config:",optional"`
-	NonBlock          bool   `config:",default=true"`
-	Database          int    `config:",default=0"`
-	MasterName        string `config:",optional"`
-	SentinelUsername  string `config:",optional"`
-	SentinelPassword  string `config:",optional"`
+	Host             string
+	Type             string `config:",default=node,options=node|cluster|sentinel"`
+	User             string `config:",optional"`
+	Pass             string `config:",optional"`
+	Tls              bool   `config:",optional"`
+	TlsSkipVerify    bool   `config:",optional"`
+	NonBlock         bool   `config:",default=true"`
+	Database         int    `config:",default=0"`
+	MasterName       string `config:",optional"`
+	SentinelUsername string `config:",optional"`
+	SentinelPassword string `config:",optional"`
 	// PingTimeout is the timeout for ping redis.
 	PingTimeout time.Duration `config:",default=1s"`
 }

@@ -207,5 +207,5 @@ func TestSetManyTimesNew(t *testing.T) {
 	for i := range maxDeletion - copyThreshold + 1 {
 		m.Del(i + maxDeletion*2)
 	}
-	assert.Equal(t, 0, len(m.dirtyNew))
+	assert.Empty(t, m.dirtyNew)
 }

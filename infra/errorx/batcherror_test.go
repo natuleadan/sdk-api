@@ -16,10 +16,10 @@ const (
 
 func TestBatchErrorNil(t *testing.T) {
 	var batch BatchError
-	assert.Nil(t, batch.Err())
+	assert.NoError(t, batch.Err())
 	assert.False(t, batch.NotNil())
 	batch.Add(nil)
-	assert.Nil(t, batch.Err())
+	assert.NoError(t, batch.Err())
 	assert.False(t, batch.NotNil())
 }
 
@@ -28,13 +28,13 @@ func TestBatchErrorNilFromFunc(t *testing.T) {
 		var be BatchError
 		return be.Err()
 	}()
-	assert.True(t, err == nil)
+	assert.NoError(t, err)
 }
 
 func TestBatchErrorOneError(t *testing.T) {
 	var batch BatchError
 	batch.Add(errors.New(err1))
-	assert.NotNil(t, batch.Err())
+	assert.Error(t, batch.Err())
 	assert.Equal(t, err1, batch.Err().Error())
 	assert.True(t, batch.NotNil())
 }
@@ -43,7 +43,7 @@ func TestBatchErrorWithErrors(t *testing.T) {
 	var batch BatchError
 	batch.Add(errors.New(err1))
 	batch.Add(errors.New(err2))
-	assert.NotNil(t, batch.Err())
+	assert.Error(t, batch.Err())
 	assert.Equal(t, fmt.Sprintf("%s\n%s", err1, err2), batch.Err().Error())
 	assert.True(t, batch.NotNil())
 }
@@ -62,37 +62,37 @@ func TestBatchErrorConcurrentAdd(t *testing.T) {
 	}
 	wg.Wait()
 
-	assert.NotNil(t, batch.Err())
-	assert.Equal(t, count, len(batch.errs))
+	assert.Error(t, batch.Err())
+	assert.Len(t, batch.errs, count)
 	assert.True(t, batch.NotNil())
 }
 
 func TestBatchError_Unwrap(t *testing.T) {
 	t.Run("nil", func(t *testing.T) {
 		var be BatchError
-		assert.Nil(t, be.Err())
-		assert.True(t, errors.Is(be.Err(), nil))
+		assert.NoError(t, be.Err())
+		assert.NoError(t, be.Err())
 	})
 
 	t.Run("one error", func(t *testing.T) {
-		var errFoo = errors.New("foo")
-		var errBar = errors.New("bar")
+		errFoo := errors.New("foo")
+		errBar := errors.New("bar")
 		var be BatchError
 		be.Add(errFoo)
-		assert.True(t, errors.Is(be.Err(), errFoo))
-		assert.False(t, errors.Is(be.Err(), errBar))
+		assert.ErrorIs(t, be.Err(), errFoo)
+		assert.NotErrorIs(t, be.Err(), errBar)
 	})
 
 	t.Run("two errors", func(t *testing.T) {
-		var errFoo = errors.New("foo")
-		var errBar = errors.New("bar")
-		var errBaz = errors.New("baz")
+		errFoo := errors.New("foo")
+		errBar := errors.New("bar")
+		errBaz := errors.New("baz")
 		var be BatchError
 		be.Add(errFoo)
 		be.Add(errBar)
-		assert.True(t, errors.Is(be.Err(), errFoo))
-		assert.True(t, errors.Is(be.Err(), errBar))
-		assert.False(t, errors.Is(be.Err(), errBaz))
+		assert.ErrorIs(t, be.Err(), errFoo)
+		assert.ErrorIs(t, be.Err(), errBar)
+		assert.NotErrorIs(t, be.Err(), errBaz)
 	})
 }
 
@@ -119,7 +119,7 @@ func TestBatchError_Err(t *testing.T) {
 	var be BatchError
 
 	// Test Err() on empty BatchError
-	assert.Nil(t, be.Err(), "Expected nil error for empty BatchError")
+	assert.NoError(t, be.Err(), "Expected nil error for empty BatchError")
 
 	// Test Err() with multiple errors
 	err1 := errors.New("error 1")
@@ -127,21 +127,21 @@ func TestBatchError_Err(t *testing.T) {
 	be.Add(err1, err2)
 
 	combinedErr := be.Err()
-	assert.NotNil(t, combinedErr, "Expected nil error for BatchError with multiple errors")
+	assert.Error(t, combinedErr, "Expected nil error for BatchError with multiple errors")
 
 	// Check if the combined error contains both error messages
 	errString := combinedErr.Error()
-	assert.Truef(t, errors.Is(combinedErr, err1), "Combined error doesn't contain first error: %s", errString)
-	assert.Truef(t, errors.Is(combinedErr, err2), "Combined error doesn't contain second error: %s", errString)
+	assert.ErrorIsf(t, combinedErr, err1, "Combined error doesn't contain first error: %s", errString)
+	assert.ErrorIsf(t, combinedErr, err2, "Combined error doesn't contain second error: %s", errString)
 }
 
 func TestBatchError_NotNil(t *testing.T) {
 	var be BatchError
 
 	// Test NotNil() on empty BatchError
-	assert.Nil(t, be.Err(), "Expected nil error for empty BatchError")
+	assert.NoError(t, be.Err(), "Expected nil error for empty BatchError")
 
 	// Test NotNil() after adding an error
 	be.Add(errors.New("test error"))
-	assert.NotNil(t, be.Err(), "Expected non-nil error after adding an error")
+	assert.Error(t, be.Err(), "Expected non-nil error after adding an error")
 }

@@ -21,11 +21,11 @@ func TestCountLines(t *testing.T) {
 	file.WriteString(val)
 	file.Close()
 	lines, err := CountLines(file.Name())
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, 4, lines)
 }
 
 func TestCountLinesError(t *testing.T) {
 	_, err := CountLines("not-exist")
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }

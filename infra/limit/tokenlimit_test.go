@@ -18,7 +18,7 @@ func init() {
 
 func TestTokenLimit_WithCtx(t *testing.T) {
 	s, err := miniredis.Run()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	const (
 		total = 100
@@ -42,7 +42,7 @@ func TestTokenLimit_WithCtx(t *testing.T) {
 
 func TestTokenLimit_Rescue(t *testing.T) {
 	s, err := miniredis.Run()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	const (
 		total = 100
@@ -56,7 +56,7 @@ func TestTokenLimit_Rescue(t *testing.T) {
 	for i := range total {
 		time.Sleep(time.Second / time.Duration(total))
 		if i == total>>1 {
-			assert.Nil(t, s.Restart())
+			assert.NoError(t, s.Restart())
 		}
 		if l.Allow() {
 			allowed++
@@ -66,7 +66,7 @@ func TestTokenLimit_Rescue(t *testing.T) {
 		l.startMonitor()
 	}
 
-	assert.True(t, allowed >= burst+rate)
+	assert.GreaterOrEqual(t, allowed, burst+rate)
 }
 
 func TestTokenLimit_Take(t *testing.T) {
@@ -86,7 +86,7 @@ func TestTokenLimit_Take(t *testing.T) {
 		}
 	}
 
-	assert.True(t, allowed >= burst+rate)
+	assert.GreaterOrEqual(t, allowed, burst+rate)
 }
 
 func TestTokenLimit_TakeBurst(t *testing.T) {
@@ -105,5 +105,5 @@ func TestTokenLimit_TakeBurst(t *testing.T) {
 		}
 	}
 
-	assert.True(t, allowed >= burst)
+	assert.GreaterOrEqual(t, allowed, burst)
 }

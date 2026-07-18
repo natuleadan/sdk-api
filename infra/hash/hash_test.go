@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	text      = "hello, world!\n"
+	text         = "hello, world!\n"
 	sha256Digest = "4dca0fd5f424a31b03ab807cbae77eb32bf2d089eed1cee154b3afed458de0dc"
 )
 
@@ -45,7 +45,7 @@ func TestHash_Empty(t *testing.T) {
 
 func TestMd5Hex_Empty(t *testing.T) {
 	result := Md5Hex([]byte{})
-	assert.Equal(t, 64, len(result))
+	assert.Len(t, result, 64)
 }
 
 func BenchmarkHashFnv(b *testing.B) {

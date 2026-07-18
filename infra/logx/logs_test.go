@@ -709,7 +709,7 @@ func TestErrorfWithWrappedError(t *testing.T) {
 	defer writer.Store(old)
 
 	Errorf("hello %s", errors.New(message))
-	assert.True(t, strings.Contains(w.String(), "hello there"))
+	assert.Contains(t, w.String(), "hello there")
 }
 
 func TestMustNil(t *testing.T) {
@@ -761,16 +761,16 @@ func TestSetup(t *testing.T) {
 	})
 
 	defer os.RemoveAll("CD01CB7D-2705-4F3F-889E-86219BF56F10")
-	assert.NotNil(t, setupWithVolume(LogConf{}))
-	assert.Nil(t, setupWithVolume(LogConf{
+	assert.Error(t, setupWithVolume(LogConf{}))
+	assert.NoError(t, setupWithVolume(LogConf{
 		ServiceName: "CD01CB7D-2705-4F3F-889E-86219BF56F10",
 	}))
-	assert.Nil(t, setupWithVolume(LogConf{
+	assert.NoError(t, setupWithVolume(LogConf{
 		ServiceName: "CD01CB7D-2705-4F3F-889E-86219BF56F10",
 		Rotation:    sizeRotationRule,
 	}))
-	assert.NotNil(t, setupWithFiles(LogConf{}))
-	assert.Nil(t, setupWithFiles(LogConf{
+	assert.Error(t, setupWithFiles(LogConf{}))
+	assert.NoError(t, setupWithFiles(LogConf{
 		ServiceName: "any",
 		Path:        os.TempDir(),
 		Compress:    true,
@@ -782,7 +782,7 @@ func TestSetup(t *testing.T) {
 	setupLogLevel(levelError)
 	setupLogLevel(levelSevere)
 	_, err := createOutput("")
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	Disable()
 	SetLevel(InfoLevel)
 	atomic.StoreUint32(&encoding, jsonEncodingType)
@@ -800,8 +800,8 @@ func TestDisable(t *testing.T) {
 	WithGzip()(&opt)
 	WithMaxBackups(1)(&opt)
 	WithMaxSize(1024)(&opt)
-	assert.Nil(t, Close())
-	assert.Nil(t, Close())
+	assert.NoError(t, Close())
+	assert.NoError(t, Close())
 	assert.Equal(t, uint32(disableLevel), atomic.LoadUint32(&logLevel))
 }
 
@@ -832,7 +832,7 @@ func TestSetWriter(t *testing.T) {
 	Reset()
 	SetWriter(nopWriter{})
 	assert.NotNil(t, writer.Load())
-	assert.True(t, writer.Load() == nopWriter{})
+	assert.Equal(t, nopWriter{}, writer.Load())
 	mocked := new(mockWriter)
 	SetWriter(mocked)
 	assert.Equal(t, mocked, writer.Load())
@@ -922,7 +922,7 @@ func TestWithField_LogLevelWithContext(t *testing.T) {
 		logger.Info("hello there")
 		logger.Info("hello there")
 		logger.Info("hello there")
-		assert.True(t, val.Count() > 0)
+		assert.Positive(t, val.Count())
 	})
 
 	t.Run("context more than once with error/info", func(t *testing.T) {
@@ -1037,13 +1037,13 @@ func doTestStructedLog(t *testing.T, level string, w *mockWriter, write func(...
 	assert.Equal(t, level, entry[levelKey])
 	val, ok := entry[contentKey]
 	assert.True(t, ok)
-	assert.True(t, strings.Contains(val.(string), message))
+	assert.Contains(t, val.(string), message)
 }
 
 func doTestStructedLogConsole(t *testing.T, w *mockWriter, write func(...any)) {
 	const message = "hello there"
 	write(message)
-	assert.True(t, strings.Contains(w.String(), message))
+	assert.Contains(t, w.String(), message)
 }
 
 func doTestStructedLogEmpty(t *testing.T, w *mockWriter, level uint32, write func(...any)) {
@@ -1132,8 +1132,7 @@ func (s innerPanicStringer) String() string {
 	return s.Inner.Name
 }
 
-type panicStringer struct {
-}
+type panicStringer struct{}
 
 func (s panicStringer) String() string {
 	panic("panic")
@@ -1211,6 +1210,6 @@ func TestLogKey(t *testing.T) {
 	assert.NotEmpty(t, m["_trace"])
 	assert.NotEmpty(t, m["_span"])
 	parsedTime, err := time.Parse(timeFormat, m["_timestamp"])
-	assert.True(t, err == nil)
+	assert.NoError(t, err)
 	assert.Equal(t, now.Minute(), parsedTime.Minute())
 }

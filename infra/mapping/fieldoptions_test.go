@@ -17,13 +17,13 @@ func TestFieldOptionOptionalDep(t *testing.T) {
 		val, opt, err := parseKeyAndOptions(jsonTagKey, field)
 		assert.Equal(t, "val", val)
 		assert.Nil(t, opt)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	}
 
 	// check nil working
 	var o *fieldOptions
 	check := func(o *fieldOptions) {
-		assert.Equal(t, 0, len(o.optionalDep()))
+		assert.Empty(t, o.optionalDep())
 	}
 	check(o)
 }

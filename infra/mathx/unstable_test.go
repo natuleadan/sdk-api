@@ -11,8 +11,8 @@ func TestUnstable_AroundDuration(t *testing.T) {
 	unstable := NewUnstable(0.05)
 	for range 1000 {
 		val := unstable.AroundDuration(time.Second)
-		assert.True(t, float64(time.Second)*0.95 <= float64(val))
-		assert.True(t, float64(val) <= float64(time.Second)*1.05)
+		assert.LessOrEqual(t, float64(time.Second)*0.95, float64(val))
+		assert.LessOrEqual(t, float64(val), float64(time.Second)*1.05)
 	}
 }
 
@@ -21,8 +21,8 @@ func TestUnstable_AroundInt(t *testing.T) {
 	unstable := NewUnstable(0.05)
 	for range 1000 {
 		val := unstable.AroundInt(target)
-		assert.True(t, float64(target)*0.95 <= float64(val))
-		assert.True(t, float64(val) <= float64(target)*1.05)
+		assert.LessOrEqual(t, float64(target)*0.95, float64(val))
+		assert.LessOrEqual(t, float64(val), float64(target)*1.05)
 	}
 }
 
@@ -31,8 +31,8 @@ func TestUnstable_AroundIntLarge(t *testing.T) {
 	unstable := NewUnstable(5)
 	for range 1000 {
 		val := unstable.AroundInt(target)
-		assert.True(t, 0 <= val)
-		assert.True(t, val <= 2*target)
+		assert.LessOrEqual(t, 0, val)
+		assert.LessOrEqual(t, val, 2*target)
 	}
 }
 
@@ -66,6 +66,6 @@ func TestUnstable_Distribution(t *testing.T) {
 		mi[k] = v
 	}
 	entropy := CalcEntropy(mi)
-	assert.True(t, len(m) > 1)
-	assert.True(t, entropy > 0.95)
+	assert.Greater(t, len(m), 1)
+	assert.Greater(t, entropy, 0.95)
 }

@@ -74,7 +74,8 @@ func NewTimingWheel(interval time.Duration, numSlots int, execute Execute) (*Tim
 
 // NewTimingWheelWithTicker returns a TimingWheel with the given ticker.
 func NewTimingWheelWithTicker(interval time.Duration, numSlots int, execute Execute,
-	ticker timex.Ticker) (*TimingWheel, error) {
+	ticker timex.Ticker,
+) (*TimingWheel, error) {
 	tw := &TimingWheel{
 		interval:      interval,
 		ticker:        ticker,

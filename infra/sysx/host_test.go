@@ -7,5 +7,5 @@ import (
 )
 
 func TestHostname(t *testing.T) {
-	assert.True(t, len(Hostname()) > 0)
+	assert.NotEmpty(t, Hostname())
 }

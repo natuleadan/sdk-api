@@ -112,7 +112,7 @@ func TestYamlToJsonSlice(t *testing.T) {
 - bar
 - baz`))
 	assert.NoError(t, err)
-	assert.Equal(t, `{"foo":["bar","baz"]}
+	assert.JSONEq(t, `{"foo":["bar","baz"]}
 `, string(b))
 }
 
@@ -213,7 +213,7 @@ func TestJson5ToJsonSlice(t *testing.T) {
 		],
 	}`))
 	assert.NoError(t, err)
-	assert.Equal(t, `{"foo":["bar","baz"]}
+	assert.JSONEq(t, `{"foo":["bar","baz"]}
 `, string(b))
 }
 

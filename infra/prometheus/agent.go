@@ -6,10 +6,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/natuleadan/sdk-api/infra/syncx"
 	"github.com/natuleadan/sdk-api/infra/threading"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (

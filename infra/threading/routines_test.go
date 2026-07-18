@@ -5,14 +5,14 @@ import (
 	"context"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/lang"
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/natuleadan/sdk-api/infra/logx/logtest"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestRoutineId(t *testing.T) {
-	assert.True(t, RoutineId() > 0)
+	assert.Positive(t, RoutineId())
 }
 
 func TestRunSafe(t *testing.T) {

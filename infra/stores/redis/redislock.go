@@ -10,9 +10,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	red "github.com/redis/go-redis/v9"
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/natuleadan/sdk-api/infra/stringx"
+	red "github.com/redis/go-redis/v9"
 )
 
 const (

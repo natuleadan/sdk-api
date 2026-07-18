@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/grafana/pyroscope-go"
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/conf"
 	"github.com/natuleadan/sdk-api/infra/syncx"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestStart(t *testing.T) {
@@ -48,7 +48,7 @@ func TestStart(t *testing.T) {
 			ProfilingDuration: time.Millisecond * 10,
 			CpuThreshold:      0,
 		}
-		var done = make(chan struct{})
+		done := make(chan struct{})
 		go startPyroscope(c, done)
 
 		time.Sleep(time.Millisecond * 50)
@@ -71,7 +71,7 @@ func TestStart(t *testing.T) {
 			ProfilingDuration: time.Millisecond * 10,
 			CpuThreshold:      900,
 		}
-		var done = make(chan struct{})
+		done := make(chan struct{})
 		go startPyroscope(c, done)
 
 		time.Sleep(time.Millisecond * 50)
@@ -95,7 +95,7 @@ func TestStart(t *testing.T) {
 			ProfilingDuration: time.Millisecond * 10,
 			CpuThreshold:      0,
 		}
-		var done = make(chan struct{})
+		done := make(chan struct{})
 		go startPyroscope(c, done)
 
 		time.Sleep(time.Millisecond * 50)

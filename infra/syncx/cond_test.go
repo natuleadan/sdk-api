@@ -52,8 +52,8 @@ func TestTimeoutCondWaitTimeoutRemain(t *testing.T) {
 	}()
 	wait.Wait()
 	remainTimeout := <-ch
-	assert.True(t, remainTimeout < timeout, "expect remainTimeout %v < %v", remainTimeout, timeout)
-	assert.True(t, remainTimeout >= time.Duration(200)*time.Millisecond,
+	assert.Less(t, remainTimeout, timeout, "expect remainTimeout %v < %v", remainTimeout, timeout)
+	assert.GreaterOrEqual(t, remainTimeout, time.Duration(200)*time.Millisecond,
 		"expect remainTimeout %v >= 200 millisecond", remainTimeout)
 }
 

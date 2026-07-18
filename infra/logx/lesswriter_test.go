@@ -12,7 +12,7 @@ func TestLessWriter(t *testing.T) {
 	w := newLessWriter(&builder, 500)
 	for range 100 {
 		_, err := w.Write([]byte("hello"))
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	}
 
 	assert.Equal(t, "hello", builder.String())

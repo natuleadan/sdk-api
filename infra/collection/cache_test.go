@@ -15,7 +15,7 @@ var errDummy = errors.New("dummy")
 
 func TestCacheSet(t *testing.T) {
 	cache, err := NewCache(time.Second*2, WithName("any"))
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	cache.Set("first", "first element")
 	cache.SetWithExpire("second", "second element", time.Second*3)
@@ -30,7 +30,7 @@ func TestCacheSet(t *testing.T) {
 
 func TestCacheDel(t *testing.T) {
 	cache, err := NewCache(time.Second * 2)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	cache.Set("first", "first element")
 	cache.Set("second", "second element")
@@ -45,7 +45,7 @@ func TestCacheDel(t *testing.T) {
 
 func TestCacheTake(t *testing.T) {
 	cache, err := NewCache(time.Second * 2)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	var count int32
 	var wg sync.WaitGroup
@@ -66,7 +66,7 @@ func TestCacheTake(t *testing.T) {
 
 func TestCacheTakeExists(t *testing.T) {
 	cache, err := NewCache(time.Second * 2)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	var count int32
 	var wg sync.WaitGroup
@@ -88,7 +88,7 @@ func TestCacheTakeExists(t *testing.T) {
 
 func TestCacheTakeError(t *testing.T) {
 	cache, err := NewCache(time.Second * 2)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	var count int32
 	var wg sync.WaitGroup
@@ -110,7 +110,7 @@ func TestCacheTakeError(t *testing.T) {
 
 func TestCacheWithLruEvicts(t *testing.T) {
 	cache, err := NewCache(time.Minute, WithLimit(3))
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	cache.Set("first", "first element")
 	cache.Set("second", "second element")
@@ -132,7 +132,7 @@ func TestCacheWithLruEvicts(t *testing.T) {
 
 func TestCacheWithLruEvicted(t *testing.T) {
 	cache, err := NewCache(time.Minute, WithLimit(3))
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	cache.Set("first", "first element")
 	cache.Set("second", "second element")

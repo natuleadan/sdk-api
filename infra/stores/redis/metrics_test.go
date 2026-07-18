@@ -1,19 +1,19 @@
 package redis
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"strings"
-	"context"
 	"testing"
 	"time"
 
+	"github.com/natuleadan/sdk-api/infra/conf"
+	"github.com/natuleadan/sdk-api/internal/devserver"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	red "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
-	"github.com/natuleadan/sdk-api/infra/conf"
-	"github.com/natuleadan/sdk-api/internal/devserver"
 )
 
 func TestRedisMetric(t *testing.T) {
@@ -30,10 +30,10 @@ func TestRedisMetric(t *testing.T) {
 	url := "http://127.0.0.1:6060/metrics"
 	req, _ := http.NewRequestWithContext(context.Background(), "GET", url, nil)
 	resp, err := http.DefaultClient.Do(req)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer resp.Body.Close()
 	s, err := io.ReadAll(resp.Body)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	content := string(s)
 	assert.Contains(t, content, "redis_client_requests_duration_ms_sum{command=\"test-cmd\"} 8\n")
 	assert.Contains(t, content, "redis_client_requests_duration_ms_count{command=\"test-cmd\"} 1\n")

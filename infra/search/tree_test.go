@@ -102,7 +102,7 @@ func TestSearch(t *testing.T) {
 			assert.Equal(t, test.contains, ok)
 			if ok {
 				actual := result.Item.(int)
-				assert.EqualValues(t, test.params, result.Params)
+				assert.Equal(t, test.params, result.Params)
 				assert.Equal(t, test.expect, actual)
 			}
 		})
@@ -150,19 +150,19 @@ func TestStrictSearchSibling(t *testing.T) {
 func TestAddDuplicate(t *testing.T) {
 	tree := NewTree()
 	err := tree.Add("/a/b", 1)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	err = tree.Add("/a/b", 2)
-	assert.Error(t, errDupItem, err)
+	assert.ErrorIs(t, errDupItem, err)
 	err = tree.Add("/a/b/", 2)
-	assert.Error(t, errDupItem, err)
+	assert.ErrorIs(t, errDupItem, err)
 }
 
 func TestPlain(t *testing.T) {
 	tree := NewTree()
 	err := tree.Add("/a/b", 1)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	err = tree.Add("/a/c", 2)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	_, ok := tree.Search("/a/d")
 	assert.False(t, ok)
 }
@@ -170,7 +170,7 @@ func TestPlain(t *testing.T) {
 func TestSearchWithDoubleSlashes(t *testing.T) {
 	tree := NewTree()
 	err := tree.Add("//a", 1)
-	assert.Error(t, errDupSlash, err)
+	assert.ErrorIs(t, errDupSlash, err)
 }
 
 func TestSearchInvalidRoute(t *testing.T) {

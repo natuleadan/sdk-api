@@ -18,10 +18,10 @@ func TestScanner(t *testing.T) {
 	var lines []string
 	for scanner.Scan() {
 		line, err := scanner.Line()
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		lines = append(lines, line)
 	}
-	assert.EqualValues(t, []string{"1", "2", "3", "4"}, lines)
+	assert.Equal(t, []string{"1", "2", "3", "4"}, lines)
 }
 
 func TestBadScanner(t *testing.T) {

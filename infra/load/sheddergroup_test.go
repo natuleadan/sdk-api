@@ -16,5 +16,5 @@ func TestGroup(t *testing.T) {
 
 func TestShedderClose(t *testing.T) {
 	var nop nopCloser
-	assert.Nil(t, nop.Close())
+	assert.NoError(t, nop.Close())
 }

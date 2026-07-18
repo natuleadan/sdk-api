@@ -17,7 +17,11 @@ func CountLines(file string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer func() { if err := f.Close(); err != nil { fmt.Fprintf(os.Stderr, "textfile: close error: %v\n", err) } }()
+	defer func() {
+		if err := f.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "textfile: close error: %v\n", err)
+		}
+	}()
 
 	var noEol bool
 	buf := make([]byte, bufSize)

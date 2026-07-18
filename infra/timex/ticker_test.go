@@ -38,7 +38,7 @@ func TestFakeTicker(t *testing.T) {
 		ticker.Tick()
 	}
 
-	assert.Nil(t, ticker.Wait(time.Second))
+	assert.NoError(t, ticker.Wait(time.Second))
 	assert.Equal(t, int32(total), atomic.LoadInt32(&count))
 }
 
@@ -46,5 +46,5 @@ func TestFakeTickerTimeout(t *testing.T) {
 	ticker := NewFakeTicker()
 	defer ticker.Stop()
 
-	assert.NotNil(t, ticker.Wait(time.Millisecond))
+	assert.Error(t, ticker.Wait(time.Millisecond))
 }

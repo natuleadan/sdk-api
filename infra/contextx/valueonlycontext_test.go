@@ -20,7 +20,7 @@ func TestContextCancel(t *testing.T) {
 
 	for _, c := range contexts {
 		assert.NotNil(t, c.Done())
-		assert.Nil(t, c.Err())
+		assert.NoError(t, c.Err())
 
 		select {
 		case x := <-c.Done():
@@ -32,7 +32,7 @@ func TestContextCancel(t *testing.T) {
 	cancel()
 	<-c1.Done()
 
-	assert.Nil(t, o.Err())
+	assert.NoError(t, o.Err())
 	assert.Equal(t, context.Canceled, c1.Err())
 	assert.NotEqual(t, context.Canceled, c2.Err())
 }

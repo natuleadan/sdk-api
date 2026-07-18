@@ -41,11 +41,11 @@ b`,
 	for _, test := range tests {
 		t.Run(test.input, func(t *testing.T) {
 			tmpFile, err := fs.TempFilenameWithText(test.input)
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 			defer os.Remove(tmpFile)
 
 			content, err := ReadText(tmpFile)
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 			assert.Equal(t, test.expect, content)
 		})
 	}
@@ -53,7 +53,7 @@ b`,
 
 func TestReadTextError(t *testing.T) {
 	_, err := ReadText("not-exist")
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }
 
 func TestReadTextLines(t *testing.T) {
@@ -65,7 +65,7 @@ func TestReadTextLines(t *testing.T) {
     3`
 
 	tmpFile, err := fs.TempFilenameWithText(text)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer os.Remove(tmpFile)
 
 	tests := []struct {
@@ -93,15 +93,15 @@ func TestReadTextLines(t *testing.T) {
 	for _, test := range tests {
 		t.Run(stringx.Rand(), func(t *testing.T) {
 			lines, err := ReadTextLines(tmpFile, test.options...)
-			assert.Nil(t, err)
-			assert.Equal(t, test.expectLines, len(lines))
+			assert.NoError(t, err)
+			assert.Len(t, lines, test.expectLines)
 		})
 	}
 }
 
 func TestReadTextLinesError(t *testing.T) {
 	_, err := ReadTextLines("not-exist")
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }
 
 func TestDupReadCloser(t *testing.T) {
@@ -110,7 +110,7 @@ func TestDupReadCloser(t *testing.T) {
 	r1, r2 := DupReadCloser(reader)
 	verify := func(r io.Reader) {
 		output, err := io.ReadAll(r)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, input, string(output))
 	}
 
@@ -125,7 +125,7 @@ func TestLimitDupReadCloser(t *testing.T) {
 	r1, r2 := LimitDupReadCloser(reader, limitBytes)
 	verify := func(r io.Reader) {
 		output, err := io.ReadAll(r)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, input, string(output))
 	}
 	verifyLimit := func(r io.Reader, limit int64) {
@@ -133,7 +133,7 @@ func TestLimitDupReadCloser(t *testing.T) {
 		if limit < int64(len(input)) {
 			input = input[:limit]
 		}
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, input, string(output))
 	}
 
@@ -145,7 +145,7 @@ func TestReadBytes(t *testing.T) {
 	reader := io.NopCloser(bytes.NewBufferString("helloworld"))
 	buf := make([]byte, 5)
 	err := ReadBytes(reader, buf)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "hello", string(buf))
 }
 
@@ -168,6 +168,6 @@ func TestReadBytesChunks(t *testing.T) {
 	}()
 
 	err := ReadBytes(reader, buf)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "aaaaa", string(buf))
 }

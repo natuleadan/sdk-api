@@ -36,7 +36,11 @@ func SplitLineChunks(filename string, chunks int) ([]OffsetRange, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer func() { if err := file.Close(); err != nil { fmt.Fprintf(os.Stderr, "close error: %v\n", err) } }()
+	defer func() {
+		if err := file.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "close error: %v\n", err)
+		}
+	}()
 
 	var ranges []OffsetRange
 	var offset int64

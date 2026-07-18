@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/breaker"
+	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -30,10 +30,10 @@ func TestModel_StartSession(t *testing.T) {
 	m := newTestModel(mockedMonClient, mockMonCollection, breaker.GetBreaker("test"))
 	mockedMonClient.EXPECT().StartSession(gomock.Any()).Return(warpSession, errors.New("error"))
 	_, err := m.StartSession()
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	mockedMonClient.EXPECT().StartSession(gomock.Any()).Return(warpSession, nil)
 	sess, err := m.StartSession()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer sess.EndSession(context.Background())
 	mockMonSession.EXPECT().WithTransaction(gomock.Any(), gomock.Any()).Return(nil, nil)
 	mockMonSession.EXPECT().CommitTransaction(gomock.Any()).Return(nil)
@@ -45,7 +45,7 @@ func TestModel_StartSession(t *testing.T) {
 		// sessCtx.EndSession(context.Background())
 		return nil, nil
 	})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.NoError(t, sess.CommitTransaction(context.Background()))
 	assert.NoError(t, sess.AbortTransaction(context.Background()))
 }
@@ -68,8 +68,8 @@ func TestModel_Aggregate(t *testing.T) {
 	m := newTestModel(mockedMonClient, mockMonCollection, breaker.GetBreaker("test"))
 	var result []bson.M
 	err = m.Aggregate(context.Background(), &result, bson.D{})
-	assert.Nil(t, err)
-	assert.Equal(t, 2, len(result))
+	assert.NoError(t, err)
+	assert.Len(t, result, 2)
 	assert.Equal(t, "John", result[0]["name"])
 	assert.Equal(t, "Mary", result[1]["name"])
 	triggerBreaker(m)
@@ -84,7 +84,7 @@ func TestModel_DeleteMany(t *testing.T) {
 	mockMonCollection.EXPECT().DeleteMany(gomock.Any(), gomock.Any(), gomock.Any()).Return(&mongo.DeleteResult{}, nil)
 	m := newTestModel(mockedMonClient, mockMonCollection, breaker.GetBreaker("test"))
 	_, err := m.DeleteMany(context.Background(), bson.D{})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	triggerBreaker(m)
 	_, err = m.DeleteMany(context.Background(), bson.D{})
 	assert.Equal(t, errDummy, err)
@@ -98,7 +98,7 @@ func TestModel_DeleteOne(t *testing.T) {
 	mockMonCollection.EXPECT().DeleteOne(gomock.Any(), gomock.Any(), gomock.Any()).Return(&mongo.DeleteResult{}, nil)
 	m := newTestModel(mockedMonClient, mockMonCollection, breaker.GetBreaker("test"))
 	_, err := m.DeleteOne(context.Background(), bson.D{})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	triggerBreaker(m)
 	_, err = m.DeleteOne(context.Background(), bson.D{})
 	assert.Equal(t, errDummy, err)
@@ -122,8 +122,8 @@ func TestModel_Find(t *testing.T) {
 	m := newTestModel(mockedMonClient, mockMonCollection, breaker.GetBreaker("test"))
 	var result []bson.M
 	err = m.Find(context.Background(), &result, bson.D{})
-	assert.Nil(t, err)
-	assert.Equal(t, 2, len(result))
+	assert.NoError(t, err)
+	assert.Len(t, result, 2)
 	assert.Equal(t, "John", result[0]["name"])
 	assert.Equal(t, "Mary", result[1]["name"])
 	triggerBreaker(m)
@@ -139,7 +139,7 @@ func TestModel_FindOne(t *testing.T) {
 	m := newTestModel(mockedMonClient, mockMonCollection, breaker.GetBreaker("test"))
 	var result bson.M
 	err := m.FindOne(context.Background(), &result, bson.D{})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "John", result["name"])
 	triggerBreaker(m)
 	assert.Equal(t, errDummy, m.FindOne(context.Background(), &result, bson.D{}))
@@ -154,7 +154,7 @@ func TestModel_FindOneAndDelete(t *testing.T) {
 	m := newTestModel(mockedMonClient, mockMonCollection, breaker.GetBreaker("test"))
 	var result bson.M
 	err := m.FindOneAndDelete(context.Background(), &result, bson.M{})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "John", result["name"])
 	triggerBreaker(m)
 	assert.Equal(t, errDummy, m.FindOneAndDelete(context.Background(), &result, bson.D{}))
@@ -171,7 +171,7 @@ func TestModel_FindOneAndReplace(t *testing.T) {
 	err := m.FindOneAndReplace(context.Background(), &result, bson.D{}, bson.D{
 		{Key: "name", Value: "Mary"},
 	})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "John", result["name"])
 	triggerBreaker(m)
 	assert.Equal(t, errDummy, m.FindOneAndReplace(context.Background(), &result, bson.D{}, bson.D{
@@ -190,13 +190,12 @@ func TestModel_FindOneAndUpdate(t *testing.T) {
 	err := m.FindOneAndUpdate(context.Background(), &result, bson.D{}, bson.D{
 		{Key: "$set", Value: bson.D{{Key: "name", Value: "Mary"}}},
 	})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "John", result["name"])
 	triggerBreaker(m)
 	assert.Equal(t, errDummy, m.FindOneAndUpdate(context.Background(), &result, bson.D{}, bson.D{
 		{Key: "$set", Value: bson.D{{Key: "name", Value: "Mary"}}},
 	}))
-
 }
 
 func triggerBreaker(m *Model) {
@@ -226,12 +225,12 @@ func Test_mockMonClient_StartSession(t *testing.T) {
 		t.Fatalf("set deployment: %v", err)
 	}
 	client, err := mongo.Connect(opts)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	m := wrappedMonClient{
 		c: client,
 	}
 	_, err = m.StartSession()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func newTestModel(cli monClient, coll monCollection, brk breaker.Breaker) *Model {

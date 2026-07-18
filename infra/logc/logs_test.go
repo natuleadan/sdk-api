@@ -5,12 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"runtime"
-	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/natuleadan/sdk-api/infra/logx/logtest"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestAddGlobalFields(t *testing.T) {
@@ -32,21 +31,21 @@ func TestAddGlobalFields(t *testing.T) {
 func TestAlert(t *testing.T) {
 	buf := logtest.NewCollector(t)
 	Alert(context.Background(), "foo")
-	assert.True(t, strings.Contains(buf.String(), "foo"), buf.String())
+	assert.Contains(t, buf.String(), "foo", buf.String())
 }
 
 func TestError(t *testing.T) {
 	buf := logtest.NewCollector(t)
 	file, line := getFileLine()
 	Error(context.Background(), "foo")
-	assert.True(t, strings.Contains(buf.String(), fmt.Sprintf("%s:%d", file, line+1)))
+	assert.Contains(t, buf.String(), fmt.Sprintf("%s:%d", file, line+1))
 }
 
 func TestErrorf(t *testing.T) {
 	buf := logtest.NewCollector(t)
 	file, line := getFileLine()
 	Errorf(context.Background(), "foo %s", "bar")
-	assert.True(t, strings.Contains(buf.String(), fmt.Sprintf("%s:%d", file, line+1)))
+	assert.Contains(t, buf.String(), fmt.Sprintf("%s:%d", file, line+1))
 }
 
 func TestErrorfn(t *testing.T) {
@@ -55,35 +54,35 @@ func TestErrorfn(t *testing.T) {
 	Errorfn(context.Background(), func() any {
 		return fmt.Sprintf("foo %s", "bar")
 	})
-	assert.True(t, strings.Contains(buf.String(), fmt.Sprintf("%s:%d", file, line+1)))
+	assert.Contains(t, buf.String(), fmt.Sprintf("%s:%d", file, line+1))
 }
 
 func TestErrorv(t *testing.T) {
 	buf := logtest.NewCollector(t)
 	file, line := getFileLine()
 	Errorv(context.Background(), "foo")
-	assert.True(t, strings.Contains(buf.String(), fmt.Sprintf("%s:%d", file, line+1)))
+	assert.Contains(t, buf.String(), fmt.Sprintf("%s:%d", file, line+1))
 }
 
 func TestErrorw(t *testing.T) {
 	buf := logtest.NewCollector(t)
 	file, line := getFileLine()
 	Errorw(context.Background(), "foo", Field("a", "b"))
-	assert.True(t, strings.Contains(buf.String(), fmt.Sprintf("%s:%d", file, line+1)))
+	assert.Contains(t, buf.String(), fmt.Sprintf("%s:%d", file, line+1))
 }
 
 func TestInfo(t *testing.T) {
 	buf := logtest.NewCollector(t)
 	file, line := getFileLine()
 	Info(context.Background(), "foo")
-	assert.True(t, strings.Contains(buf.String(), fmt.Sprintf("%s:%d", file, line+1)))
+	assert.Contains(t, buf.String(), fmt.Sprintf("%s:%d", file, line+1))
 }
 
 func TestInfof(t *testing.T) {
 	buf := logtest.NewCollector(t)
 	file, line := getFileLine()
 	Infof(context.Background(), "foo %s", "bar")
-	assert.True(t, strings.Contains(buf.String(), fmt.Sprintf("%s:%d", file, line+1)))
+	assert.Contains(t, buf.String(), fmt.Sprintf("%s:%d", file, line+1))
 }
 
 func TestInfofn(t *testing.T) {
@@ -92,35 +91,35 @@ func TestInfofn(t *testing.T) {
 	Infofn(context.Background(), func() any {
 		return fmt.Sprintf("foo %s", "bar")
 	})
-	assert.True(t, strings.Contains(buf.String(), fmt.Sprintf("%s:%d", file, line+1)))
+	assert.Contains(t, buf.String(), fmt.Sprintf("%s:%d", file, line+1))
 }
 
 func TestInfov(t *testing.T) {
 	buf := logtest.NewCollector(t)
 	file, line := getFileLine()
 	Infov(context.Background(), "foo")
-	assert.True(t, strings.Contains(buf.String(), fmt.Sprintf("%s:%d", file, line+1)))
+	assert.Contains(t, buf.String(), fmt.Sprintf("%s:%d", file, line+1))
 }
 
 func TestInfow(t *testing.T) {
 	buf := logtest.NewCollector(t)
 	file, line := getFileLine()
 	Infow(context.Background(), "foo", Field("a", "b"))
-	assert.True(t, strings.Contains(buf.String(), fmt.Sprintf("%s:%d", file, line+1)))
+	assert.Contains(t, buf.String(), fmt.Sprintf("%s:%d", file, line+1))
 }
 
 func TestDebug(t *testing.T) {
 	buf := logtest.NewCollector(t)
 	file, line := getFileLine()
 	Debug(context.Background(), "foo")
-	assert.True(t, strings.Contains(buf.String(), fmt.Sprintf("%s:%d", file, line+1)))
+	assert.Contains(t, buf.String(), fmt.Sprintf("%s:%d", file, line+1))
 }
 
 func TestDebugf(t *testing.T) {
 	buf := logtest.NewCollector(t)
 	file, line := getFileLine()
 	Debugf(context.Background(), "foo %s", "bar")
-	assert.True(t, strings.Contains(buf.String(), fmt.Sprintf("%s:%d", file, line+1)))
+	assert.Contains(t, buf.String(), fmt.Sprintf("%s:%d", file, line+1))
 }
 
 func TestDebugfn(t *testing.T) {
@@ -129,21 +128,21 @@ func TestDebugfn(t *testing.T) {
 	Debugfn(context.Background(), func() any {
 		return fmt.Sprintf("foo %s", "bar")
 	})
-	assert.True(t, strings.Contains(buf.String(), fmt.Sprintf("%s:%d", file, line+1)))
+	assert.Contains(t, buf.String(), fmt.Sprintf("%s:%d", file, line+1))
 }
 
 func TestDebugv(t *testing.T) {
 	buf := logtest.NewCollector(t)
 	file, line := getFileLine()
 	Debugv(context.Background(), "foo")
-	assert.True(t, strings.Contains(buf.String(), fmt.Sprintf("%s:%d", file, line+1)))
+	assert.Contains(t, buf.String(), fmt.Sprintf("%s:%d", file, line+1))
 }
 
 func TestDebugw(t *testing.T) {
 	buf := logtest.NewCollector(t)
 	file, line := getFileLine()
 	Debugw(context.Background(), "foo", Field("a", "b"))
-	assert.True(t, strings.Contains(buf.String(), fmt.Sprintf("%s:%d", file, line+1)))
+	assert.Contains(t, buf.String(), fmt.Sprintf("%s:%d", file, line+1))
 }
 
 func TestMust(t *testing.T) {
@@ -165,14 +164,14 @@ func TestSlow(t *testing.T) {
 	buf := logtest.NewCollector(t)
 	file, line := getFileLine()
 	Slow(context.Background(), "foo")
-	assert.True(t, strings.Contains(buf.String(), fmt.Sprintf("%s:%d", file, line+1)), buf.String())
+	assert.Contains(t, buf.String(), fmt.Sprintf("%s:%d", file, line+1), buf.String())
 }
 
 func TestSlowf(t *testing.T) {
 	buf := logtest.NewCollector(t)
 	file, line := getFileLine()
 	Slowf(context.Background(), "foo %s", "bar")
-	assert.True(t, strings.Contains(buf.String(), fmt.Sprintf("%s:%d", file, line+1)), buf.String())
+	assert.Contains(t, buf.String(), fmt.Sprintf("%s:%d", file, line+1), buf.String())
 }
 
 func TestSlowfn(t *testing.T) {
@@ -181,21 +180,21 @@ func TestSlowfn(t *testing.T) {
 	Slowfn(context.Background(), func() any {
 		return fmt.Sprintf("foo %s", "bar")
 	})
-	assert.True(t, strings.Contains(buf.String(), fmt.Sprintf("%s:%d", file, line+1)), buf.String())
+	assert.Contains(t, buf.String(), fmt.Sprintf("%s:%d", file, line+1), buf.String())
 }
 
 func TestSlowv(t *testing.T) {
 	buf := logtest.NewCollector(t)
 	file, line := getFileLine()
 	Slowv(context.Background(), "foo")
-	assert.True(t, strings.Contains(buf.String(), fmt.Sprintf("%s:%d", file, line+1)), buf.String())
+	assert.Contains(t, buf.String(), fmt.Sprintf("%s:%d", file, line+1), buf.String())
 }
 
 func TestSloww(t *testing.T) {
 	buf := logtest.NewCollector(t)
 	file, line := getFileLine()
 	Sloww(context.Background(), "foo", Field("a", "b"))
-	assert.True(t, strings.Contains(buf.String(), fmt.Sprintf("%s:%d", file, line+1)), buf.String())
+	assert.Contains(t, buf.String(), fmt.Sprintf("%s:%d", file, line+1), buf.String())
 }
 
 func getFileLine() (string, int) {

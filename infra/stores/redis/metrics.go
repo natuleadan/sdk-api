@@ -3,9 +3,9 @@ package redis
 import (
 	"sync"
 
+	"github.com/natuleadan/sdk-api/infra/metric"
 	"github.com/prometheus/client_golang/prometheus"
 	red "github.com/redis/go-redis/v9"
-	"github.com/natuleadan/sdk-api/infra/metric"
 )
 
 const namespace = "redis_client"

@@ -44,7 +44,7 @@ func TestRingAdd(t *testing.T) {
 		}(i)
 	}
 	wg.Wait()
-	assert.Equal(t, 5050, len(ring.Take()))
+	assert.Len(t, ring.Take(), 5050)
 }
 
 func BenchmarkRingAdd(b *testing.B) {

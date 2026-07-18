@@ -24,7 +24,7 @@ func TestWithTimeout(t *testing.T) {
 }
 
 func TestWithoutTimeout(t *testing.T) {
-	assert.Nil(t, DoWithTimeout(func() error {
+	assert.NoError(t, DoWithTimeout(func() error {
 		return nil
 	}, time.Millisecond*50))
 }

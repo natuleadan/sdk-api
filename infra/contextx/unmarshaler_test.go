@@ -20,7 +20,7 @@ func TestUnmarshalContext(t *testing.T) {
 	var person Person
 	err := For(ctx, &person)
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "kevin", person.Name)
 	assert.Equal(t, 20, person.Age)
 }
@@ -37,7 +37,7 @@ func TestUnmarshalContextWithOptional(t *testing.T) {
 	var person Person
 	err := For(ctx, &person)
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "kevin", person.Name)
 	assert.Equal(t, 0, person.Age)
 }
@@ -56,5 +56,5 @@ func TestUnmarshalContextWithMissing(t *testing.T) {
 	var person Person
 	err := For(ctx, &person)
 
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }

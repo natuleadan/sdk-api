@@ -127,7 +127,7 @@ func TestCreateHttpHandler(t *testing.T) {
 
 	req, _ := http.NewRequestWithContext(context.Background(), "GET", srv.URL, nil)
 	resp, err := http.DefaultClient.Do(req)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	_ = resp.Body.Close()
 	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
 
@@ -136,7 +136,7 @@ func TestCreateHttpHandler(t *testing.T) {
 
 	req, _ = http.NewRequestWithContext(context.Background(), "GET", srv.URL, nil)
 	resp, err = http.DefaultClient.Do(req)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
 	content, _ := io.ReadAll(resp.Body)
 	assert.True(t, strings.HasPrefix(string(content), "Service Unavailable"))
@@ -145,7 +145,7 @@ func TestCreateHttpHandler(t *testing.T) {
 	hm.MarkReady()
 	req, _ = http.NewRequestWithContext(context.Background(), "GET", srv.URL, nil)
 	resp, err = http.DefaultClient.Do(req)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	_ = resp.Body.Close()
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }

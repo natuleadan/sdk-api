@@ -2,8 +2,8 @@ package logx
 
 import (
 	"io"
-	"path/filepath"
 	"os"
+	"path/filepath"
 )
 
 var fileSys realFileSystem

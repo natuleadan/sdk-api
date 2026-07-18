@@ -3,8 +3,8 @@ package redis
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/stringx"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestRedisConf(t *testing.T) {
@@ -64,10 +64,10 @@ func TestRedisConf(t *testing.T) {
 	for _, test := range tests {
 		t.Run(stringx.RandId(), func(t *testing.T) {
 			if test.ok {
-				assert.Nil(t, test.Validate())
+				assert.NoError(t, test.Validate())
 				assert.NotNil(t, test.NewRedis())
 			} else {
-				assert.NotNil(t, test.Validate())
+				assert.Error(t, test.Validate())
 			}
 		})
 	}
@@ -120,9 +120,9 @@ func TestRedisKeyConf(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			if test.ok {
-				assert.Nil(t, test.Validate())
+				assert.NoError(t, test.Validate())
 			} else {
-				assert.NotNil(t, test.Validate())
+				assert.Error(t, test.Validate())
 			}
 		})
 	}

@@ -9,7 +9,7 @@ import (
 
 func TestChain(t *testing.T) {
 	errDummy := errors.New("dummy")
-	assert.Nil(t, Chain(func() error {
+	assert.NoError(t, Chain(func() error {
 		return nil
 	}, func() error {
 		return nil

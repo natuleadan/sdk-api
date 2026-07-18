@@ -6,8 +6,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/lang"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestWorkerGroup(t *testing.T) {
@@ -23,5 +23,5 @@ func TestWorkerGroup(t *testing.T) {
 	}, runtime.NumCPU())
 	go group.Start()
 	wg.Wait()
-	assert.Equal(t, runtime.NumCPU(), len(m))
+	assert.Len(t, m, runtime.NumCPU())
 }

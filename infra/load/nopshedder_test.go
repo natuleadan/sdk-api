@@ -11,11 +11,11 @@ func TestNopShedder(t *testing.T) {
 	shedder := NewAdaptiveShedder()
 	for range 1000 {
 		p, err := shedder.Allow()
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		p.Fail()
 	}
 
 	p, err := shedder.Allow()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	p.Pass()
 }

@@ -19,8 +19,8 @@ func TestGzip(t *testing.T) {
 	bs := Gzip(buf.Bytes())
 	actual, err := Gunzip(bs)
 
-	assert.Nil(t, err)
-	assert.True(t, len(bs) < buf.Len())
+	assert.NoError(t, err)
+	assert.Less(t, len(bs), buf.Len())
 	assert.Equal(t, buf.Bytes(), actual)
 }
 

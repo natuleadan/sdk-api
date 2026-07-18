@@ -20,7 +20,7 @@ func TestMarshal(t *testing.T) {
 	}
 
 	m, err := Marshal(v)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "kevin", m["path"]["name"])
 	assert.Equal(t, "shanghai", m["json"]["address"])
 	assert.Equal(t, 20, m["json"]["age"].(int))
@@ -46,7 +46,7 @@ func TestMarshal_Anonymous(t *testing.T) {
 			},
 		}
 		m, err := Marshal(v)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, "kevin", m["json"]["name"])
 		assert.Equal(t, "shanghai", m["json"]["address"])
 		assert.Equal(t, 20, m["json"]["age"].(int))
@@ -63,7 +63,7 @@ func TestMarshal_Anonymous(t *testing.T) {
 			Age:     20,
 		}
 		m1, err1 := Marshal(v1)
-		assert.Nil(t, err1)
+		assert.NoError(t, err1)
 		assert.Equal(t, "kevin", m1["json"]["name"])
 		assert.Equal(t, "shanghai", m1["json"]["address"])
 		assert.Equal(t, 20, m1["json"]["age"].(int))
@@ -89,7 +89,7 @@ func TestMarshal_Anonymous(t *testing.T) {
 			},
 		}
 		m2, err2 := Marshal(v2)
-		assert.Nil(t, err2)
+		assert.NoError(t, err2)
 		assert.Equal(t, "kevin", m2["json"]["name"])
 		assert.Equal(t, "shanghai", m2["json"]["address"])
 		assert.Equal(t, 20, m2["json"]["age"].(int))
@@ -114,7 +114,7 @@ func TestMarshal_Anonymous(t *testing.T) {
 			},
 		}
 		m3, err3 := Marshal(v3)
-		assert.Nil(t, err3)
+		assert.NoError(t, err3)
 		assert.Equal(t, "kevin", m3["json"]["name"])
 		assert.Equal(t, "shanghai", m3["json"]["address"])
 		assert.Equal(t, 20, m3["json"]["age"].(int))
@@ -141,7 +141,7 @@ func TestMarshal_Anonymous(t *testing.T) {
 		}
 
 		_, err := Marshal(v)
-		assert.NotNil(t, err)
+		assert.Error(t, err)
 	})
 }
 
@@ -159,7 +159,7 @@ func TestMarshal_Ptr(t *testing.T) {
 	}
 
 	m, err := Marshal(v)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "kevin", m["path"]["name"])
 	assert.Equal(t, "shanghai", m["json"]["address"])
 	assert.Equal(t, 20, m["json"]["age"].(int))
@@ -167,7 +167,7 @@ func TestMarshal_Ptr(t *testing.T) {
 }
 
 func TestMarshal_OptionalPtr(t *testing.T) {
-	var val = 1
+	val := 1
 	v := struct {
 		Age *int `json:"age"`
 	}{
@@ -175,7 +175,7 @@ func TestMarshal_OptionalPtr(t *testing.T) {
 	}
 
 	m, err := Marshal(v)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, 1, *m["json"]["age"].(*int))
 }
 
@@ -185,7 +185,7 @@ func TestMarshal_OptionalPtrNil(t *testing.T) {
 	}{}
 
 	_, err := Marshal(v)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }
 
 func TestMarshal_BadOptions(t *testing.T) {
@@ -196,7 +196,7 @@ func TestMarshal_BadOptions(t *testing.T) {
 	}
 
 	_, err := Marshal(v)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }
 
 func TestMarshal_NotInOptions(t *testing.T) {
@@ -207,7 +207,7 @@ func TestMarshal_NotInOptions(t *testing.T) {
 	}
 
 	_, err := Marshal(v)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }
 
 func TestMarshal_NotInOptionsOptional(t *testing.T) {
@@ -216,7 +216,7 @@ func TestMarshal_NotInOptionsOptional(t *testing.T) {
 	}{}
 
 	_, err := Marshal(v)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func TestMarshal_NotInOptionsOptionalWrongValue(t *testing.T) {
@@ -227,7 +227,7 @@ func TestMarshal_NotInOptionsOptionalWrongValue(t *testing.T) {
 	}
 
 	_, err := Marshal(v)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }
 
 func TestMarshal_Nested(t *testing.T) {
@@ -247,7 +247,7 @@ func TestMarshal_Nested(t *testing.T) {
 	}
 
 	m, err := Marshal(v)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "kevin", m["json"]["name"])
 	assert.Equal(t, "China", m["json"]["address"].(address).Country)
 	assert.Equal(t, "Shanghai", m["json"]["address"].(address).City)
@@ -270,7 +270,7 @@ func TestMarshal_NestedPtr(t *testing.T) {
 	}
 
 	m, err := Marshal(v)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "kevin", m["json"]["name"])
 	assert.Equal(t, "China", m["json"]["address"].(*address).Country)
 	assert.Equal(t, "Shanghai", m["json"]["address"].(*address).City)
@@ -284,7 +284,7 @@ func TestMarshal_Slice(t *testing.T) {
 	}
 
 	m, err := Marshal(v)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.ElementsMatch(t, []string{"kevin", "wan"}, m["json"]["name"].([]string))
 }
 
@@ -296,7 +296,7 @@ func TestMarshal_SliceNil(t *testing.T) {
 	}
 
 	_, err := Marshal(v)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }
 
 func TestMarshal_Range(t *testing.T) {
@@ -329,7 +329,7 @@ func TestMarshal_Range(t *testing.T) {
 	}
 
 	m, err := Marshal(v)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, 1, m["json"]["int"].(int))
 	assert.Equal(t, int8(1), m["json"]["int8"].(int8))
 	assert.Equal(t, int16(2), m["json"]["int16"].(int16))
@@ -375,7 +375,7 @@ func TestMarshal_RangeOut(t *testing.T) {
 
 	for _, test := range tests {
 		_, err := Marshal(test)
-		assert.NotNil(t, err)
+		assert.Error(t, err)
 	}
 }
 
@@ -458,7 +458,7 @@ func TestMarshal_FromString(t *testing.T) {
 	}
 
 	m, err := Marshal(v)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "10", m["json"]["age"].(string))
 }
 
@@ -470,6 +470,6 @@ func TestMarshal_Array(t *testing.T) {
 	}
 
 	m, err := Marshal(v)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "[1]", m["json"]["h"].(string))
 }

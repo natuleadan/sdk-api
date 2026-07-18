@@ -137,7 +137,8 @@ func newCollection(collection *mongo.Collection, brk breaker.Breaker) Collection
 }
 
 func (c *decoratedCollection) Aggregate(ctx context.Context, pipeline any,
-	opts ...options.Lister[options.AggregateOptions]) (cur *mongo.Cursor, err error) {
+	opts ...options.Lister[options.AggregateOptions],
+) (cur *mongo.Cursor, err error) {
 	ctx, span := startSpan(ctx, aggregate)
 	defer func() {
 		endSpan(span, err)
@@ -157,7 +158,8 @@ func (c *decoratedCollection) Aggregate(ctx context.Context, pipeline any,
 }
 
 func (c *decoratedCollection) BulkWrite(ctx context.Context, models []mongo.WriteModel,
-	opts ...options.Lister[options.BulkWriteOptions]) (res *mongo.BulkWriteResult, err error) {
+	opts ...options.Lister[options.BulkWriteOptions],
+) (res *mongo.BulkWriteResult, err error) {
 	ctx, span := startSpan(ctx, bulkWrite)
 	defer func() {
 		endSpan(span, err)
@@ -181,7 +183,8 @@ func (c *decoratedCollection) Clone(opts ...options.Lister[options.CollectionOpt
 }
 
 func (c *decoratedCollection) CountDocuments(ctx context.Context, filter any,
-	opts ...options.Lister[options.CountOptions]) (count int64, err error) {
+	opts ...options.Lister[options.CountOptions],
+) (count int64, err error) {
 	ctx, span := startSpan(ctx, countDocuments)
 	defer func() {
 		endSpan(span, err)
@@ -205,7 +208,8 @@ func (c *decoratedCollection) Database() *mongo.Database {
 }
 
 func (c *decoratedCollection) DeleteMany(ctx context.Context, filter any,
-	opts ...options.Lister[options.DeleteManyOptions]) (res *mongo.DeleteResult, err error) {
+	opts ...options.Lister[options.DeleteManyOptions],
+) (res *mongo.DeleteResult, err error) {
 	ctx, span := startSpan(ctx, deleteMany)
 	defer func() {
 		endSpan(span, err)
@@ -225,7 +229,8 @@ func (c *decoratedCollection) DeleteMany(ctx context.Context, filter any,
 }
 
 func (c *decoratedCollection) DeleteOne(ctx context.Context, filter any,
-	opts ...options.Lister[options.DeleteOneOptions]) (res *mongo.DeleteResult, err error) {
+	opts ...options.Lister[options.DeleteOneOptions],
+) (res *mongo.DeleteResult, err error) {
 	ctx, span := startSpan(ctx, deleteOne)
 	defer func() {
 		endSpan(span, err)
@@ -245,7 +250,8 @@ func (c *decoratedCollection) DeleteOne(ctx context.Context, filter any,
 }
 
 func (c *decoratedCollection) Distinct(ctx context.Context, fieldName string, filter any,
-	opts ...options.Lister[options.DistinctOptions]) (res *mongo.DistinctResult, err error) {
+	opts ...options.Lister[options.DistinctOptions],
+) (res *mongo.DistinctResult, err error) {
 	ctx, span := startSpan(ctx, distinct)
 	defer func() {
 		endSpan(span, err)
@@ -270,7 +276,8 @@ func (c *decoratedCollection) Drop(ctx context.Context, opts ...options.Lister[o
 }
 
 func (c *decoratedCollection) EstimatedDocumentCount(ctx context.Context,
-	opts ...options.Lister[options.EstimatedDocumentCountOptions]) (val int64, err error) {
+	opts ...options.Lister[options.EstimatedDocumentCountOptions],
+) (val int64, err error) {
 	ctx, span := startSpan(ctx, estimatedDocumentCount)
 	defer func() {
 		endSpan(span, err)
@@ -290,7 +297,8 @@ func (c *decoratedCollection) EstimatedDocumentCount(ctx context.Context,
 }
 
 func (c *decoratedCollection) Find(ctx context.Context, filter any,
-	opts ...options.Lister[options.FindOptions]) (cur *mongo.Cursor, err error) {
+	opts ...options.Lister[options.FindOptions],
+) (cur *mongo.Cursor, err error) {
 	ctx, span := startSpan(ctx, find)
 	defer func() {
 		endSpan(span, err)
@@ -310,7 +318,8 @@ func (c *decoratedCollection) Find(ctx context.Context, filter any,
 }
 
 func (c *decoratedCollection) FindOne(ctx context.Context, filter any,
-	opts ...options.Lister[options.FindOneOptions]) (res *mongo.SingleResult, err error) {
+	opts ...options.Lister[options.FindOneOptions],
+) (res *mongo.SingleResult, err error) {
 	ctx, span := startSpan(ctx, findOne)
 	defer func() {
 		endSpan(span, err)
@@ -331,7 +340,8 @@ func (c *decoratedCollection) FindOne(ctx context.Context, filter any,
 }
 
 func (c *decoratedCollection) FindOneAndDelete(ctx context.Context, filter any,
-	opts ...options.Lister[options.FindOneAndDeleteOptions]) (res *mongo.SingleResult, err error) {
+	opts ...options.Lister[options.FindOneAndDeleteOptions],
+) (res *mongo.SingleResult, err error) {
 	ctx, span := startSpan(ctx, findOneAndDelete)
 	defer func() {
 		endSpan(span, err)
@@ -353,7 +363,8 @@ func (c *decoratedCollection) FindOneAndDelete(ctx context.Context, filter any,
 
 func (c *decoratedCollection) FindOneAndReplace(ctx context.Context, filter any,
 	replacement any, opts ...options.Lister[options.FindOneAndReplaceOptions]) (
-	res *mongo.SingleResult, err error) {
+	res *mongo.SingleResult, err error,
+) {
 	ctx, span := startSpan(ctx, findOneAndReplace)
 	defer func() {
 		endSpan(span, err)
@@ -374,7 +385,8 @@ func (c *decoratedCollection) FindOneAndReplace(ctx context.Context, filter any,
 }
 
 func (c *decoratedCollection) FindOneAndUpdate(ctx context.Context, filter, update any,
-	opts ...options.Lister[options.FindOneAndUpdateOptions]) (res *mongo.SingleResult, err error) {
+	opts ...options.Lister[options.FindOneAndUpdateOptions],
+) (res *mongo.SingleResult, err error) {
 	ctx, span := startSpan(ctx, findOneAndUpdate)
 	defer func() {
 		endSpan(span, err)
@@ -399,7 +411,8 @@ func (c *decoratedCollection) Indexes() mongo.IndexView {
 }
 
 func (c *decoratedCollection) InsertMany(ctx context.Context, documents []any,
-	opts ...options.Lister[options.InsertManyOptions]) (res *mongo.InsertManyResult, err error) {
+	opts ...options.Lister[options.InsertManyOptions],
+) (res *mongo.InsertManyResult, err error) {
 	ctx, span := startSpan(ctx, insertMany)
 	defer func() {
 		endSpan(span, err)
@@ -419,7 +432,8 @@ func (c *decoratedCollection) InsertMany(ctx context.Context, documents []any,
 }
 
 func (c *decoratedCollection) InsertOne(ctx context.Context, document any,
-	opts ...options.Lister[options.InsertOneOptions]) (res *mongo.InsertOneResult, err error) {
+	opts ...options.Lister[options.InsertOneOptions],
+) (res *mongo.InsertOneResult, err error) {
 	ctx, span := startSpan(ctx, insertOne)
 	defer func() {
 		endSpan(span, err)
@@ -439,7 +453,8 @@ func (c *decoratedCollection) InsertOne(ctx context.Context, document any,
 }
 
 func (c *decoratedCollection) ReplaceOne(ctx context.Context, filter, replacement any,
-	opts ...options.Lister[options.ReplaceOptions]) (res *mongo.UpdateResult, err error) {
+	opts ...options.Lister[options.ReplaceOptions],
+) (res *mongo.UpdateResult, err error) {
 	ctx, span := startSpan(ctx, replaceOne)
 	defer func() {
 		endSpan(span, err)
@@ -459,7 +474,8 @@ func (c *decoratedCollection) ReplaceOne(ctx context.Context, filter, replacemen
 }
 
 func (c *decoratedCollection) UpdateByID(ctx context.Context, id, update any,
-	opts ...options.Lister[options.UpdateOneOptions]) (res *mongo.UpdateResult, err error) {
+	opts ...options.Lister[options.UpdateOneOptions],
+) (res *mongo.UpdateResult, err error) {
 	ctx, span := startSpan(ctx, updateByID)
 	defer func() {
 		endSpan(span, err)
@@ -479,7 +495,8 @@ func (c *decoratedCollection) UpdateByID(ctx context.Context, id, update any,
 }
 
 func (c *decoratedCollection) UpdateMany(ctx context.Context, filter, update any,
-	opts ...options.Lister[options.UpdateManyOptions]) (res *mongo.UpdateResult, err error) {
+	opts ...options.Lister[options.UpdateManyOptions],
+) (res *mongo.UpdateResult, err error) {
 	ctx, span := startSpan(ctx, updateMany)
 	defer func() {
 		endSpan(span, err)
@@ -499,7 +516,8 @@ func (c *decoratedCollection) UpdateMany(ctx context.Context, filter, update any
 }
 
 func (c *decoratedCollection) UpdateOne(ctx context.Context, filter, update any,
-	opts ...options.Lister[options.UpdateOneOptions]) (res *mongo.UpdateResult, err error) {
+	opts ...options.Lister[options.UpdateOneOptions],
+) (res *mongo.UpdateResult, err error) {
 	ctx, span := startSpan(ctx, updateOne)
 	defer func() {
 		endSpan(span, err)
@@ -519,17 +537,20 @@ func (c *decoratedCollection) UpdateOne(ctx context.Context, filter, update any,
 }
 
 func (c *decoratedCollection) Watch(ctx context.Context, pipeline any, opts ...options.Lister[options.ChangeStreamOptions]) (
-	*mongo.ChangeStream, error) {
+	*mongo.ChangeStream, error,
+) {
 	return c.Collection.Watch(ctx, pipeline, opts...)
 }
 
 func (c *decoratedCollection) logDuration(ctx context.Context, method string,
-	startTime time.Duration, err error, docs ...any) {
+	startTime time.Duration, err error, docs ...any,
+) {
 	logDurationWithDocs(ctx, c.name, method, startTime, err, docs...)
 }
 
 func (c *decoratedCollection) logDurationSimple(ctx context.Context, method string,
-	startTime time.Duration, err error) {
+	startTime time.Duration, err error,
+) {
 	logDuration(ctx, c.name, method, startTime, err)
 }
 

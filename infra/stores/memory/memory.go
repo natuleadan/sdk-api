@@ -11,10 +11,10 @@ type Item struct {
 }
 
 type Memory struct {
-	mu       sync.Mutex
-	items    map[string]*Item
-	gcDone   chan struct{}
-	gcTick   time.Duration
+	mu     sync.Mutex
+	items  map[string]*Item
+	gcDone chan struct{}
+	gcTick time.Duration
 }
 
 func New(cleanupInterval time.Duration) *Memory {

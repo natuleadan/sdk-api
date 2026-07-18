@@ -38,7 +38,8 @@ func DoWithRetry(fn func() error, opts ...RetryOption) error {
 // and performs modification operations, it is best to lock them,
 // otherwise there may be data race issues
 func DoWithRetryCtx(ctx context.Context, fn func(ctx context.Context, retryCount int) error,
-	opts ...RetryOption) error {
+	opts ...RetryOption,
+) error {
 	return retry(ctx, func(errChan chan error, retryCount int) {
 		errChan <- fn(ctx, retryCount)
 	}, opts...)

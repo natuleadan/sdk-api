@@ -13,7 +13,7 @@ func TestCalcEntropy(t *testing.T) {
 	for i := range total {
 		m[i] = count
 	}
-	assert.True(t, CalcEntropy(m) > .99)
+	assert.Greater(t, CalcEntropy(m), .99)
 }
 
 func TestCalcEmptyEntropy(t *testing.T) {
@@ -27,7 +27,7 @@ func TestCalcDiffEntropy(t *testing.T) {
 	for i := range total {
 		m[i] = i
 	}
-	assert.True(t, CalcEntropy(m) < .99)
+	assert.Less(t, CalcEntropy(m), .99)
 }
 
 func TestCalcEntropySingleItem(t *testing.T) {

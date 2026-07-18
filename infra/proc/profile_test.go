@@ -1,11 +1,10 @@
 package proc
 
 import (
-	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/logx/logtest"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestProfile(t *testing.T) {
@@ -16,5 +15,5 @@ func TestProfile(t *testing.T) {
 	profiler.Stop()
 	// stop twice
 	profiler.Stop()
-	assert.True(t, strings.Contains(c.String(), ".pprof"))
+	assert.Contains(t, c.String(), ".pprof")
 }

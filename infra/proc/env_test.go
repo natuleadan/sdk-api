@@ -7,13 +7,13 @@ import (
 )
 
 func TestEnv(t *testing.T) {
-	assert.True(t, len(Env("any")) == 0)
+	assert.Empty(t, Env("any"))
 	envLock.RLock()
 	val, ok := envs["any"]
 	envLock.RUnlock()
-	assert.True(t, len(val) == 0)
+	assert.Empty(t, val)
 	assert.True(t, ok)
-	assert.True(t, len(Env("any")) == 0)
+	assert.Empty(t, Env("any"))
 }
 
 func TestEnvInt(t *testing.T) {

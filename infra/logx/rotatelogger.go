@@ -376,9 +376,7 @@ func (l *RotateLogger) rotate() error {
 }
 
 func (l *RotateLogger) startWorker() {
-
 	l.waitGroup.Go(func() {
-
 		for {
 			select {
 			case event := <-l.channel:

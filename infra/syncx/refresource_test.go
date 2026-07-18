@@ -14,9 +14,9 @@ func TestRefCleaner(t *testing.T) {
 
 	cleaner := NewRefResource(clean)
 	err := cleaner.Use()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	err = cleaner.Use()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	cleaner.Clean()
 	cleaner.Clean()
 	assert.Equal(t, 1, count)

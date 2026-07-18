@@ -1,8 +1,9 @@
 package collection
 
-import "maps"
-
-import "sync"
+import (
+	"maps"
+	"sync"
+)
 
 const (
 	copyThreshold = 1000

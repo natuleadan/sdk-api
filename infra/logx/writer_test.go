@@ -82,19 +82,19 @@ func TestConsoleWriter(t *testing.T) {
 	assert.Equal(t, "foo bar 6", val.Content)
 
 	w.(*concreteWriter).infoLog = hardToCloseWriter{}
-	assert.NotNil(t, w.Close())
+	assert.Error(t, w.Close())
 	w.(*concreteWriter).infoLog = easyToCloseWriter{}
 	w.(*concreteWriter).errorLog = hardToCloseWriter{}
-	assert.NotNil(t, w.Close())
+	assert.Error(t, w.Close())
 	w.(*concreteWriter).errorLog = easyToCloseWriter{}
 	w.(*concreteWriter).severeLog = hardToCloseWriter{}
-	assert.NotNil(t, w.Close())
+	assert.Error(t, w.Close())
 	w.(*concreteWriter).severeLog = easyToCloseWriter{}
 	w.(*concreteWriter).slowLog = hardToCloseWriter{}
-	assert.NotNil(t, w.Close())
+	assert.Error(t, w.Close())
 	w.(*concreteWriter).slowLog = easyToCloseWriter{}
 	w.(*concreteWriter).statLog = hardToCloseWriter{}
-	assert.NotNil(t, w.Close())
+	assert.Error(t, w.Close())
 	w.(*concreteWriter).statLog = easyToCloseWriter{}
 }
 

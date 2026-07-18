@@ -31,7 +31,7 @@ func TestFinish(t *testing.T) {
 	})
 
 	assert.Equal(t, uint32(10), atomic.LoadUint32(&total))
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func TestFinishWithPartialErrors(t *testing.T) {
@@ -67,7 +67,7 @@ func TestFinishWithPartialErrors(t *testing.T) {
 func TestFinishNone(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	assert.Nil(t, Finish())
+	assert.NoError(t, Finish())
 }
 
 func TestFinishVoidNone(t *testing.T) {
@@ -209,7 +209,7 @@ func TestPanics(t *testing.T) {
 			}, func(pipe <-chan int, writer Writer[int], cancel func(error)) {
 			})
 		})
-		assert.True(t, atomic.LoadInt32(&run) < tasks/2)
+		assert.Less(t, atomic.LoadInt32(&run), tasks/2)
 	})
 }
 
@@ -443,8 +443,8 @@ func TestMapReduceVoidWithDelay(t *testing.T) {
 			result = append(result, i)
 		}
 	})
-	assert.Nil(t, err)
-	assert.Equal(t, 2, len(result))
+	assert.NoError(t, err)
+	assert.Len(t, result, 2)
 	assert.Equal(t, 1, result[0])
 	assert.Equal(t, 0, result[1])
 }
@@ -520,7 +520,7 @@ func TestMapReduceVoidCancel(t *testing.T) {
 			result = append(result, i)
 		}
 	})
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	assert.Equal(t, "anything", err.Error())
 }
 
@@ -544,7 +544,7 @@ func TestMapReduceVoidCancelWithRemains(t *testing.T) {
 			result = append(result, item)
 		}
 	})
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	assert.Equal(t, "anything", err.Error())
 	assert.Equal(t, int32(1), done)
 }
@@ -626,7 +626,7 @@ func TestMapReduceWithContext(t *testing.T) {
 			result = append(result, i)
 		}
 	}, WithContext(ctx))
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	assert.Equal(t, context.DeadlineExceeded, err)
 }
 

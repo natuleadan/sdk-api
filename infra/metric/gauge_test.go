@@ -3,9 +3,9 @@ package metric
 import (
 	"testing"
 
+	"github.com/natuleadan/sdk-api/infra/proc"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
-	"github.com/natuleadan/sdk-api/infra/proc"
 )
 
 func TestNewGaugeVec(t *testing.T) {

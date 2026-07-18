@@ -3,10 +3,10 @@ package metric
 import (
 	"testing"
 
-	"github.com/prometheus/client_golang/prometheus/testutil"
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/proc"
 	"github.com/natuleadan/sdk-api/infra/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestNewCounterVec(t *testing.T) {

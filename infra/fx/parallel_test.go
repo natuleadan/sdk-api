@@ -36,7 +36,6 @@ func TestParallelErr(t *testing.T) {
 			time.Sleep(time.Millisecond * 100)
 			atomic.AddInt32(&count, 2)
 			return errors.New("failed to exec #2")
-
 		},
 		func() error {
 			time.Sleep(time.Millisecond * 100)
@@ -62,7 +61,6 @@ func TestParallelErrErrorNil(t *testing.T) {
 			time.Sleep(time.Millisecond * 100)
 			atomic.AddInt32(&count, 2)
 			return nil
-
 		},
 		func() error {
 			time.Sleep(time.Millisecond * 100)

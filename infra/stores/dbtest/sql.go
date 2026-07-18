@@ -3,8 +3,9 @@ package dbtest
 import (
 	"context"
 	"database/sql"
-	"github.com/natuleadan/sdk-api/infra/logx"
 	"testing"
+
+	"github.com/natuleadan/sdk-api/infra/logx"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
@@ -18,8 +19,8 @@ func RunTest(t *testing.T, fn func(db *sql.DB, mock sqlmock.Sqlmock)) {
 	}
 	defer func() {
 		if err := db.Close(); err != nil {
-		logx.Errorf("dbtest: close error: %v", err)
-	}
+			logx.Errorf("dbtest: close error: %v", err)
+		}
 	}()
 
 	fn(db, mock)

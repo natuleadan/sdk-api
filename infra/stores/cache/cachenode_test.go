@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/collection"
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/natuleadan/sdk-api/infra/mathx"
@@ -18,6 +17,7 @@ import (
 	"github.com/natuleadan/sdk-api/infra/stores/redis/redistest"
 	"github.com/natuleadan/sdk-api/infra/syncx"
 	"github.com/natuleadan/sdk-api/infra/timex"
+	"github.com/stretchr/testify/assert"
 )
 
 var errTestNotFound = errors.New("not found")
@@ -35,20 +35,20 @@ func TestCacheNode_DelCache(t *testing.T) {
 		store := redis.MustNewRedis(redis.RedisConf{Host: r.Addr(), Type: redis.ClusterType})
 
 		cn := cacheNode{
-			rds:            store,
+			rds: store,
 
 			unstableExpiry: mathx.NewUnstable(expiryDeviation),
 			stat:           NewStat("any"),
 			errNotFound:    errTestNotFound,
 		}
-		assert.Nil(t, cn.Del())
-		assert.Nil(t, cn.Del([]string{}...))
-		assert.Nil(t, cn.Del(make([]string, 0)...))
+		assert.NoError(t, cn.Del())
+		assert.NoError(t, cn.Del([]string{}...))
+		assert.NoError(t, cn.Del(make([]string, 0)...))
 		cn.Set("first", "one")
-		assert.Nil(t, cn.Del("first"))
+		assert.NoError(t, cn.Del("first"))
 		cn.Set("first", "one")
 		cn.Set("second", "two")
-		assert.Nil(t, cn.Del("first", "second"))
+		assert.NoError(t, cn.Del("first", "second"))
 	})
 
 	t.Run("del cache with errors", func(t *testing.T) {
@@ -82,31 +82,31 @@ func TestCacheNode_DelCacheWithErrors(t *testing.T) {
 	store.Type = redis.ClusterType
 
 	cn := cacheNode{
-		rds:            store,
-		
+		rds: store,
+
 		unstableExpiry: mathx.NewUnstable(expiryDeviation),
 		stat:           NewStat("any"),
 		errNotFound:    errTestNotFound,
 	}
-	assert.Nil(t, cn.Del("third", "fourth"))
+	assert.NoError(t, cn.Del("third", "fourth"))
 }
 
 func TestCacheNode_InvalidCache(t *testing.T) {
 	s, err := miniredis.Run()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer s.Close()
 
 	cn := cacheNode{
-		rds:            redis.MustNewRedis(redis.RedisConf{Host: s.Addr(), Type: redis.NodeType}),
-		
+		rds: redis.MustNewRedis(redis.RedisConf{Host: s.Addr(), Type: redis.NodeType}),
+
 		unstableExpiry: mathx.NewUnstable(expiryDeviation),
 		stat:           NewStat("any"),
 		errNotFound:    errTestNotFound,
 	}
 	s.Set("any", "value")
 	var str string
-	assert.NotNil(t, cn.Get("any", &str))
-	assert.Equal(t, "", str)
+	assert.Error(t, cn.Get("any", &str))
+	assert.Empty(t, str)
 	_, err = s.Get("any")
 	assert.Equal(t, miniredis.ErrKeyNotFound, err)
 }
@@ -121,7 +121,7 @@ func TestCacheNode_SetWithExpire(t *testing.T) {
 		stat:           NewStat("any"),
 		errNotFound:    errors.New("any"),
 	}
-	assert.NotNil(t, cn.SetWithExpire("key", make(chan int), time.Second))
+	assert.Error(t, cn.SetWithExpire("key", make(chan int), time.Second))
 }
 
 func TestCacheNode_Take(t *testing.T) {
@@ -134,11 +134,11 @@ func TestCacheNode_Take(t *testing.T) {
 		*v.(*string) = "value"
 		return nil
 	})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "value", str)
-	assert.Nil(t, cn.Get("any", &str))
+	assert.NoError(t, cn.Get("any", &str))
 	val, err := store.Get("any")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, `"value"`, val)
 }
 
@@ -175,7 +175,7 @@ func TestCacheNode_TakeNotFound(t *testing.T) {
 		assert.True(t, cn.IsNotFound(err))
 		assert.True(t, cn.IsNotFound(cn.Get("any", &str)))
 		val, err := store.Get("any")
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, `*`, val)
 
 		store.Set("any", "*")
@@ -287,11 +287,11 @@ func TestCacheNode_TakeWithExpire(t *testing.T) {
 		*v.(*string) = "value"
 		return nil
 	})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "value", str)
-	assert.Nil(t, cn.Get("any", &str))
+	assert.NoError(t, cn.Get("any", &str))
 	val, err := store.Get("any")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, `"value"`, val)
 }
 
@@ -324,8 +324,8 @@ func TestCacheValueWithBigInt(t *testing.T) {
 		value int64 = 323427211229009810
 	)
 
-	assert.Nil(t, cn.Set(key, value))
+	assert.NoError(t, cn.Set(key, value))
 	var val any
-	assert.Nil(t, cn.Get(key, &val))
+	assert.NoError(t, cn.Get(key, &val))
 	assert.Equal(t, strconv.FormatInt(value, 10), fmt.Sprintf("%v", val))
 }

@@ -50,7 +50,8 @@ type (
 
 // NewPeriodLimit returns a PeriodLimit with given parameters.
 func NewPeriodLimit(period, quota int, limitStore *redis.Redis, keyPrefix string,
-	opts ...PeriodOption) *PeriodLimit {
+	opts ...PeriodOption,
+) *PeriodLimit {
 	limiter := &PeriodLimit{
 		period:     period,
 		quota:      quota,

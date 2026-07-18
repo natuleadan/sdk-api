@@ -179,10 +179,10 @@ func TestGroup(t *testing.T) {
 			groups = append(groups, group)
 		})
 
-		assert.Equal(t, 2, len(groups))
+		assert.Len(t, groups, 2)
 		for _, group := range groups {
-			assert.Equal(t, 2, len(group))
-			assert.True(t, group[0]/10 == group[1]/10)
+			assert.Len(t, group, 2)
+			assert.Equal(t, group[0]/10, group[1]/10)
 		}
 	})
 }
@@ -334,7 +334,7 @@ func TestSort(t *testing.T) {
 			return a.(int) < b.(int)
 		}).ForEach(func(item any) {
 			next := item.(int)
-			assert.True(t, prev < next)
+			assert.Less(t, prev, next)
 			prev = next
 		})
 	})
@@ -350,7 +350,7 @@ func TestSplit(t *testing.T) {
 			chunk := item.([]any)
 			chunks = append(chunks, chunk)
 		})
-		assert.EqualValues(t, [][]any{
+		assert.Equal(t, [][]any{
 			{1, 2, 3, 4},
 			{5, 6, 7, 8},
 			{9, 10},

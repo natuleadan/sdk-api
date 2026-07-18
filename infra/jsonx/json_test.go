@@ -9,7 +9,7 @@ import (
 )
 
 func TestMarshal(t *testing.T) {
-	var v = struct {
+	v := struct {
 		Name string `json:"name"`
 		Age  int    `json:"age"`
 	}{
@@ -17,12 +17,12 @@ func TestMarshal(t *testing.T) {
 		Age:  30,
 	}
 	bs, err := Marshal(v)
-	assert.Nil(t, err)
-	assert.Equal(t, `{"name":"John","age":30}`, string(bs))
+	assert.NoError(t, err)
+	assert.JSONEq(t, `{"name":"John","age":30}`, string(bs))
 }
 
 func TestMarshalToString(t *testing.T) {
-	var v = struct {
+	v := struct {
 		Name string `json:"name"`
 		Age  int    `json:"age"`
 	}{
@@ -30,11 +30,11 @@ func TestMarshalToString(t *testing.T) {
 		Age:  30,
 	}
 	toString, err := MarshalToString(v)
-	assert.Nil(t, err)
-	assert.Equal(t, `{"name":"John","age":30}`, toString)
+	assert.NoError(t, err)
+	assert.JSONEq(t, `{"name":"John","age":30}`, toString)
 
 	_, err = MarshalToString(make(chan int))
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }
 
 func TestUnmarshal(t *testing.T) {
@@ -44,7 +44,7 @@ func TestUnmarshal(t *testing.T) {
 		Age  int    `json:"age"`
 	}
 	err := Unmarshal([]byte(s), &v)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "John", v.Name)
 	assert.Equal(t, 30, v.Age)
 }
@@ -56,7 +56,7 @@ func TestUnmarshalError(t *testing.T) {
 		Age  int    `json:"age"`
 	}
 	err := Unmarshal([]byte(s), &v)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }
 
 func TestUnmarshalFromString(t *testing.T) {
@@ -66,7 +66,7 @@ func TestUnmarshalFromString(t *testing.T) {
 		Age  int    `json:"age"`
 	}
 	err := UnmarshalFromString(s, &v)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "John", v.Name)
 	assert.Equal(t, 30, v.Age)
 }
@@ -78,7 +78,7 @@ func TestUnmarshalFromStringError(t *testing.T) {
 		Age  int    `json:"age"`
 	}
 	err := UnmarshalFromString(s, &v)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }
 
 func TestUnmarshalFromRead(t *testing.T) {
@@ -88,7 +88,7 @@ func TestUnmarshalFromRead(t *testing.T) {
 		Age  int    `json:"age"`
 	}
 	err := UnmarshalFromReader(strings.NewReader(s), &v)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "John", v.Name)
 	assert.Equal(t, 30, v.Age)
 }
@@ -100,7 +100,7 @@ func TestUnmarshalFromReaderError(t *testing.T) {
 		Age  int    `json:"age"`
 	}
 	err := UnmarshalFromReader(strings.NewReader(s), &v)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }
 
 func Test_doMarshalJson(t *testing.T) {

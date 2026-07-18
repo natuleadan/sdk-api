@@ -25,8 +25,8 @@ func TestTimeoutLimit(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			limit := NewTimeoutLimit(2)
-			assert.Nil(t, limit.Borrow(time.Millisecond*200))
-			assert.Nil(t, limit.Borrow(time.Millisecond*200))
+			assert.NoError(t, limit.Borrow(time.Millisecond*200))
+			assert.NoError(t, limit.Borrow(time.Millisecond*200))
 			var wait1, wait2, wait3 sync.WaitGroup
 			wait1.Add(1)
 			wait2.Add(1)
@@ -34,15 +34,15 @@ func TestTimeoutLimit(t *testing.T) {
 				wait1.Wait()
 				wait2.Done()
 				time.Sleep(test.interval)
-				assert.Nil(t, limit.Return())
+				assert.NoError(t, limit.Return())
 			})
 			wait1.Done()
 			wait2.Wait()
-			assert.Nil(t, limit.Borrow(time.Second))
+			assert.NoError(t, limit.Borrow(time.Second))
 			wait3.Wait()
 			assert.Equal(t, ErrTimeout, limit.Borrow(time.Millisecond*100))
-			assert.Nil(t, limit.Return())
-			assert.Nil(t, limit.Return())
+			assert.NoError(t, limit.Return())
+			assert.NoError(t, limit.Return())
 			assert.Equal(t, ErrLimitReturn, limit.Return())
 		})
 	}

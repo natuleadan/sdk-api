@@ -59,8 +59,8 @@ func TestTraceDebug(t *testing.T) {
 	l := WithContext(ctx)
 	SetLevel(DebugLevel)
 	l.WithDuration(time.Second).Debug(testlog)
-	assert.True(t, strings.Contains(w.String(), traceKey))
-	assert.True(t, strings.Contains(w.String(), spanKey))
+	assert.Contains(t, w.String(), traceKey)
+	assert.Contains(t, w.String(), spanKey)
 	w.Reset()
 	l.WithDuration(time.Second).Debugf(testlog)
 	validate(t, w.String(), true, true)
@@ -78,8 +78,8 @@ func TestTraceDebug(t *testing.T) {
 	w.Reset()
 	l.WithDuration(time.Second).Debugw(testlog, Field("foo", "bar"))
 	validate(t, w.String(), true, true)
-	assert.True(t, strings.Contains(w.String(), "foo"), w.String())
-	assert.True(t, strings.Contains(w.String(), "bar"), w.String())
+	assert.Contains(t, w.String(), "foo", w.String())
+	assert.Contains(t, w.String(), "bar", w.String())
 }
 
 func TestTraceError(t *testing.T) {
@@ -123,8 +123,8 @@ func TestTraceError(t *testing.T) {
 	w.Reset()
 	l.WithDuration(time.Second).Errorw(testlog, Field("basket", "ball"))
 	validate(t, w.String(), true, true)
-	assert.True(t, strings.Contains(w.String(), "basket"), w.String())
-	assert.True(t, strings.Contains(w.String(), "ball"), w.String())
+	assert.Contains(t, w.String(), "basket", w.String())
+	assert.Contains(t, w.String(), "ball", w.String())
 }
 
 func TestTraceInfo(t *testing.T) {
@@ -165,8 +165,8 @@ func TestTraceInfo(t *testing.T) {
 	w.Reset()
 	l.WithDuration(time.Second).Infow(testlog, Field("basket", "ball"))
 	validate(t, w.String(), true, true)
-	assert.True(t, strings.Contains(w.String(), "basket"), w.String())
-	assert.True(t, strings.Contains(w.String(), "ball"), w.String())
+	assert.Contains(t, w.String(), "basket", w.String())
+	assert.Contains(t, w.String(), "ball", w.String())
 }
 
 func TestTraceInfoConsole(t *testing.T) {
@@ -224,8 +224,8 @@ func TestTraceSlow(t *testing.T) {
 	l := WithContext(ctx)
 	SetLevel(InfoLevel)
 	l.WithDuration(time.Second).Slow(testlog)
-	assert.True(t, strings.Contains(w.String(), traceKey))
-	assert.True(t, strings.Contains(w.String(), spanKey))
+	assert.Contains(t, w.String(), traceKey)
+	assert.Contains(t, w.String(), spanKey)
 	w.Reset()
 	l.WithDuration(time.Second).Slowf(testlog)
 	validate(t, w.String(), true, true)
@@ -243,8 +243,8 @@ func TestTraceSlow(t *testing.T) {
 	w.Reset()
 	l.WithDuration(time.Second).Sloww(testlog, Field("basket", "ball"))
 	validate(t, w.String(), true, true)
-	assert.True(t, strings.Contains(w.String(), "basket"), w.String())
-	assert.True(t, strings.Contains(w.String(), "ball"), w.String())
+	assert.Contains(t, w.String(), "basket", w.String())
+	assert.Contains(t, w.String(), "ball", w.String())
 }
 
 func TestTraceWithoutContext(t *testing.T) {
@@ -280,7 +280,7 @@ func TestLogWithFields(t *testing.T) {
 	l.Info(testlog)
 
 	var val mockValue
-	assert.Nil(t, json.Unmarshal([]byte(w.String()), &val))
+	assert.NoError(t, json.Unmarshal([]byte(w.String()), &val))
 	assert.Equal(t, "bar", val.Foo)
 }
 
@@ -331,7 +331,7 @@ func TestLogWithDurationCopy(t *testing.T) {
 	log1 := WithContext(context.Background())
 	log2 := log1.WithDuration(time.Second)
 	assert.Empty(t, log1.(*richLogger).fields)
-	assert.Equal(t, 1, len(log2.(*richLogger).fields))
+	assert.Len(t, log2.(*richLogger).fields, 1)
 
 	var w mockWriter
 	old := writer.Swap(&w)
@@ -345,7 +345,7 @@ func TestLogWithFieldsCopy(t *testing.T) {
 	log2 := log1.WithFields(Field("foo", "bar"))
 	log3 := log1.WithFields()
 	assert.Empty(t, log1.(*richLogger).fields)
-	assert.Equal(t, 1, len(log2.(*richLogger).fields))
+	assert.Len(t, log2.(*richLogger).fields, 1)
 	assert.Equal(t, log1, log3)
 	assert.Empty(t, log3.(*richLogger).fields)
 
@@ -370,7 +370,7 @@ func TestLoggerWithFields(t *testing.T) {
 	l.Info(testlog)
 
 	var val mockValue
-	assert.Nil(t, json.Unmarshal([]byte(w.String()), &val))
+	assert.NoError(t, json.Unmarshal([]byte(w.String()), &val))
 	assert.Equal(t, "bar", val.Foo)
 }
 
@@ -415,8 +415,8 @@ func validateContentType(t *testing.T, body string, expectedType any) {
 	}
 
 	assert.IsType(t, expectedType, val.Content, body)
-	assert.Equal(t, true, len(val.Trace) > 0, body)
-	assert.Equal(t, true, len(val.Span) > 0, body)
+	assert.NotEmpty(t, val.Trace, body)
+	assert.NotEmpty(t, val.Span, body)
 }
 
 type mockValue struct {

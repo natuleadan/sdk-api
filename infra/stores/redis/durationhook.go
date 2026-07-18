@@ -8,12 +8,12 @@ import (
 	"strings"
 	"time"
 
-	red "github.com/redis/go-redis/v9"
 	"github.com/natuleadan/sdk-api/infra/breaker"
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/natuleadan/sdk-api/infra/mapping"
 	"github.com/natuleadan/sdk-api/infra/timex"
 	"github.com/natuleadan/sdk-api/infra/trace"
+	red "github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -27,8 +27,7 @@ var (
 	redisCmdsAttributeKey = attribute.Key("redis.cmds")
 )
 
-type durationHook struct {
-}
+type durationHook struct{}
 
 func (h durationHook) DialHook(next red.DialHook) red.DialHook {
 	return next

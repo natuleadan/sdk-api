@@ -50,8 +50,7 @@ func Test_validate(t *testing.T) {
 	}
 }
 
-type mockVal struct {
-}
+type mockVal struct{}
 
 func (m mockVal) Validate() error {
 	return errors.New("invalid value")

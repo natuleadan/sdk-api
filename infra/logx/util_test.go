@@ -12,14 +12,14 @@ import (
 func TestGetCaller(t *testing.T) {
 	_, file, _, _ := runtime.Caller(0)
 	assert.Contains(t, getCaller(1), filepath.Base(file))
-	assert.True(t, len(getCaller(1<<10)) == 0)
+	assert.Empty(t, getCaller(1<<10))
 }
 
 func TestGetTimestamp(t *testing.T) {
 	ts := getTimestamp()
 	tm, err := time.Parse(timeFormat, ts)
-	assert.Nil(t, err)
-	assert.True(t, time.Since(tm) < time.Minute)
+	assert.NoError(t, err)
+	assert.Less(t, time.Since(tm), time.Minute)
 }
 
 func TestPrettyCaller(t *testing.T) {

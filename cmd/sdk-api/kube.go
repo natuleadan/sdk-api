@@ -11,16 +11,16 @@ import (
 var tmplDeploy string
 
 type kubeConfig struct {
-	Name       string
-	Namespace  string
-	Image      string
-	Port       int
-	Replicas   int
-	ReqCPU     string
-	ReqMem     string
-	LimitCPU   string
-	LimitMem   string
-	Secret     string
+	Name      string
+	Namespace string
+	Image     string
+	Port      int
+	Replicas  int
+	ReqCPU    string
+	ReqMem    string
+	LimitCPU  string
+	LimitMem  string
+	Secret    string
 }
 
 func runKube(args []string) error {
@@ -38,8 +38,12 @@ func runKube(args []string) error {
 		i = parseKubeFlag(args, i, &cfg)
 	}
 
-	if cfg.Name == "" { return fmt.Errorf("--name is required") }
-	if cfg.Image == "" { return fmt.Errorf("--image is required") }
+	if cfg.Name == "" {
+		return fmt.Errorf("--name is required")
+	}
+	if cfg.Image == "" {
+		return fmt.Errorf("--image is required")
+	}
 
 	t := template.Must(template.New("deploy").Parse(tmplDeploy))
 	return t.Execute(os.Stdout, cfg)
@@ -48,19 +52,34 @@ func runKube(args []string) error {
 func parseKubeFlag(args []string, i int, cfg *kubeConfig) int {
 	switch args[i] {
 	case "--name":
-		if i+1 < len(args) { i++; cfg.Name = args[i] }
+		if i+1 < len(args) {
+			i++
+			cfg.Name = args[i]
+		}
 	case "--namespace":
-		if i+1 < len(args) { i++; cfg.Namespace = args[i] }
+		if i+1 < len(args) {
+			i++
+			cfg.Namespace = args[i]
+		}
 	case "--image":
-		if i+1 < len(args) { i++; cfg.Image = args[i] }
+		if i+1 < len(args) {
+			i++
+			cfg.Image = args[i]
+		}
 	case "--port":
-		if i+1 < len(args) { i++; if _, err := fmt.Sscanf(args[i], "%d", &cfg.Port); err != nil {
-			fmt.Fprintf(os.Stderr, "kube: parse port error: %v\n", err)
-		} }
+		if i+1 < len(args) {
+			i++
+			if _, err := fmt.Sscanf(args[i], "%d", &cfg.Port); err != nil {
+				fmt.Fprintf(os.Stderr, "kube: parse port error: %v\n", err)
+			}
+		}
 	case "--replicas":
-		if i+1 < len(args) { i++; if _, err := fmt.Sscanf(args[i], "%d", &cfg.Replicas); err != nil {
-			fmt.Fprintf(os.Stderr, "kube: parse replicas error: %v\n", err)
-		} }
+		if i+1 < len(args) {
+			i++
+			if _, err := fmt.Sscanf(args[i], "%d", &cfg.Replicas); err != nil {
+				fmt.Fprintf(os.Stderr, "kube: parse replicas error: %v\n", err)
+			}
+		}
 	}
 	return i
 }

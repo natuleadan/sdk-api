@@ -4,8 +4,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/fs"
+	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -57,21 +57,21 @@ last line
 
 func TestFirstLine(t *testing.T) {
 	filename, err := fs.TempFilenameWithText(longFirstLine)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer os.Remove(filename)
 
 	val, err := FirstLine(filename)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, longLine, val)
 }
 
 func TestFirstLineShort(t *testing.T) {
 	filename, err := fs.TempFilenameWithText(shortText)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer os.Remove(filename)
 
 	val, err := FirstLine(filename)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "first line", val)
 }
 
@@ -82,71 +82,71 @@ func TestFirstLineError(t *testing.T) {
 
 func TestFirstLineEmptyFile(t *testing.T) {
 	filename, err := fs.TempFilenameWithText(emptyContent)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer os.Remove(filename)
 
 	val, err := FirstLine(filename)
-	assert.Nil(t, err)
-	assert.Equal(t, "", val)
+	assert.NoError(t, err)
+	assert.Empty(t, val)
 }
 
 func TestFirstLineWithoutNewline(t *testing.T) {
 	filename, err := fs.TempFilenameWithText(longLine)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer os.Remove(filename)
 
 	val, err := FirstLine(filename)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, longLine, val)
 }
 
 func TestLastLine(t *testing.T) {
 	filename, err := fs.TempFilenameWithText(text)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer os.Remove(filename)
 
 	val, err := LastLine(filename)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, longLine, val)
 }
 
 func TestLastLineWithLastNewline(t *testing.T) {
 	filename, err := fs.TempFilenameWithText(textWithLastNewline)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer os.Remove(filename)
 
 	val, err := LastLine(filename)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, longLine, val)
 }
 
 func TestLastLineWithoutLastNewline(t *testing.T) {
 	filename, err := fs.TempFilenameWithText(longLine)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer os.Remove(filename)
 
 	val, err := LastLine(filename)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, longLine, val)
 }
 
 func TestLastLineShort(t *testing.T) {
 	filename, err := fs.TempFilenameWithText(shortText)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer os.Remove(filename)
 
 	val, err := LastLine(filename)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "last line", val)
 }
 
 func TestLastLineWithLastNewlineShort(t *testing.T) {
 	filename, err := fs.TempFilenameWithText(shortTextWithLastNewline)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer os.Remove(filename)
 
 	val, err := LastLine(filename)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "last line", val)
 }
 
@@ -157,12 +157,12 @@ func TestLastLineError(t *testing.T) {
 
 func TestLastLineEmptyFile(t *testing.T) {
 	filename, err := fs.TempFilenameWithText(emptyContent)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer os.Remove(filename)
 
 	val, err := LastLine(filename)
-	assert.Nil(t, err)
-	assert.Equal(t, "", val)
+	assert.NoError(t, err)
+	assert.Empty(t, val)
 }
 
 func TestFirstLineExactlyBufSize(t *testing.T) {
@@ -173,11 +173,11 @@ func TestFirstLineExactlyBufSize(t *testing.T) {
 	content[bufSize-1] = '\n' // Ensure there is a newline at the edge
 
 	filename, err := fs.TempFilenameWithText(string(content))
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer os.Remove(filename)
 
 	val, err := FirstLine(filename)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, string(content[:bufSize-1]), val)
 }
 
@@ -189,32 +189,32 @@ func TestLastLineExactlyBufSize(t *testing.T) {
 	content[bufSize-1] = '\n' // Ensure there is a newline at the edge
 
 	filename, err := fs.TempFilenameWithText(string(content))
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer os.Remove(filename)
 
 	val, err := LastLine(filename)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, string(content[:bufSize-1]), val)
 }
 
 func TestFirstLineLargeFile(t *testing.T) {
 	content := text + text + text + "\n" + "extra"
 	filename, err := fs.TempFilenameWithText(content)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer os.Remove(filename)
 
 	val, err := FirstLine(filename)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "first line", val)
 }
 
 func TestLastLineLargeFile(t *testing.T) {
 	content := text + text + text + "\n" + "extra"
 	filename, err := fs.TempFilenameWithText(content)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer os.Remove(filename)
 
 	val, err := LastLine(filename)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "extra", val)
 }

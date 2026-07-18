@@ -18,20 +18,20 @@ func TestAesEcb(t *testing.T) {
 		badKey2 = []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 	)
 	_, err := EcbEncrypt(badKey1, val)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	_, err = EcbEncrypt(badKey2, val)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	dst, err := EcbEncrypt(key, val)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	_, err = EcbDecrypt(badKey1, dst)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	_, err = EcbDecrypt(badKey2, dst)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	_, err = EcbDecrypt(key, val)
 	// not a multiple of block size
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	src, err := EcbDecrypt(key, dst)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, val, src)
 	block, err := aes.NewCipher(key)
 	assert.NoError(t, err)
@@ -63,6 +63,7 @@ func TestAesEcb(t *testing.T) {
 	_, err = EcbEncryptBase64("cTR0N3dDKkYtSmFOZFJnVWpYbjJyNXU4eC9BP0QK", "aGVsbG93b3JsZGxvbmcuLgo=")
 	assert.Error(t, err)
 }
+
 func TestAesEcbBase64(t *testing.T) {
 	const (
 		val     = "hello"
@@ -74,23 +75,23 @@ func TestAesEcbBase64(t *testing.T) {
 	b64Key := base64.StdEncoding.EncodeToString(key)
 	b64Val := base64.StdEncoding.EncodeToString([]byte(val))
 	_, err := EcbEncryptBase64(badKey1, val)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	_, err = EcbEncryptBase64(badKey2, val)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	_, err = EcbEncryptBase64(b64Key, val)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	dst, err := EcbEncryptBase64(b64Key, b64Val)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	_, err = EcbDecryptBase64(badKey1, dst)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	_, err = EcbDecryptBase64(badKey2, dst)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	_, err = EcbDecryptBase64(b64Key, val)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	src, err := EcbDecryptBase64(b64Key, dst)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	b, err := base64.StdEncoding.DecodeString(src)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, val, string(b))
 }
 
@@ -102,14 +103,18 @@ func TestPkcs5UnpaddingEmptyInput(t *testing.T) {
 func TestPkcs5UnpaddingMalformedPadding(t *testing.T) {
 	// Valid PKCS5 padding of 3: last 3 bytes should all be 0x03
 	// Here we corrupt one padding byte
-	malformed := []byte{0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41,
-		0x41, 0x41, 0x41, 0x41, 0x41, 0x02, 0x03, 0x03}
+	malformed := []byte{
+		0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41,
+		0x41, 0x41, 0x41, 0x41, 0x41, 0x02, 0x03, 0x03,
+	}
 	_, err := pkcs5Unpadding(malformed, 16)
 	assert.Equal(t, ErrPaddingSize, err)
 
 	// All padding bytes correct
-	valid := []byte{0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41,
-		0x41, 0x41, 0x41, 0x41, 0x41, 0x03, 0x03, 0x03}
+	valid := []byte{
+		0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41,
+		0x41, 0x41, 0x41, 0x41, 0x41, 0x03, 0x03, 0x03,
+	}
 	result, err := pkcs5Unpadding(valid, 16)
 	assert.NoError(t, err)
 	assert.Equal(t, valid[:13], result)

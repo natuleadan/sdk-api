@@ -67,7 +67,7 @@ func FuzzMapReduce(f *testing.F) {
 			assert.Panicsf(t, func() { fn() }, buf.String())
 		} else {
 			val, err := fn()
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 			assert.Equal(t, squareSum, val)
 		}
 	})

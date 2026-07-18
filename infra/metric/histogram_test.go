@@ -47,5 +47,5 @@ func TestHistogramObserve(t *testing.T) {
 `
 
 	err := testutil.CollectAndCompare(hv.histogram, strings.NewReader(metadata+val))
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }

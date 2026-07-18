@@ -42,7 +42,8 @@ type cacheNode struct {
 // errNotFound defines the error that returned on cache not found.
 // opts are the options that customize the cacheNode.
 func NewNode(rds *redis.Redis, barrier syncx.SingleFlight, st *Stat,
-	errNotFound error, opts ...Option) Cache {
+	errNotFound error, opts ...Option,
+) Cache {
 	o := newOptions(opts...)
 	return cacheNode{
 		rds:            rds,
@@ -119,7 +120,8 @@ func (c cacheNode) SetWithExpire(key string, val any, expire time.Duration) erro
 
 // SetWithExpireCtx sets the cache with key and v, using given expire.
 func (c cacheNode) SetWithExpireCtx(ctx context.Context, key string, val any,
-	expire time.Duration) error {
+	expire time.Duration,
+) error {
 	data, err := jsonx.Marshal(val)
 	if err != nil {
 		return err
@@ -142,7 +144,8 @@ func (c cacheNode) Take(val any, key string, query func(val any) error) error {
 // TakeCtx takes the result from cache first, if not found,
 // query from DB and set cache using c.expiry, then return the result.
 func (c cacheNode) TakeCtx(ctx context.Context, val any, key string,
-	query func(val any) error) error {
+	query func(val any) error,
+) error {
 	return c.doTake(ctx, val, key, query, func(v any) error {
 		return c.SetCtx(ctx, key, v)
 	})
@@ -151,14 +154,16 @@ func (c cacheNode) TakeCtx(ctx context.Context, val any, key string,
 // TakeWithExpire takes the result from cache first, if not found,
 // query from DB and set cache using given expire, then return the result.
 func (c cacheNode) TakeWithExpire(val any, key string, query func(val any,
-	expire time.Duration) error) error {
+	expire time.Duration) error,
+) error {
 	return c.TakeWithExpireCtx(context.Background(), val, key, query)
 }
 
 // TakeWithExpireCtx takes the result from cache first, if not found,
 // query from DB and set cache using given expire, then return the result.
 func (c cacheNode) TakeWithExpireCtx(ctx context.Context, val any, key string,
-	query func(val any, expire time.Duration) error) error {
+	query func(val any, expire time.Duration) error,
+) error {
 	expire := c.aroundDuration(c.expiry)
 	return c.doTake(ctx, val, key, func(v any) error {
 		return query(v, expire)
@@ -200,7 +205,8 @@ func (c cacheNode) doGetCache(ctx context.Context, key string, v any) error {
 }
 
 func (c cacheNode) doTake(ctx context.Context, v any, key string,
-	query func(v any) error, cacheVal func(v any) error) error {
+	query func(v any) error, cacheVal func(v any) error,
+) error {
 	logger := logx.WithContext(ctx)
 	val, fresh, err := c.barrier.DoEx(key, func() (any, error) {
 		if err := c.doGetCache(ctx, key, v); err != nil {

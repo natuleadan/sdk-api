@@ -9,6 +9,7 @@ func RegisterAccount(endpoints []string, user, pass string) {
 
 // RegisterTLS registers the CertFile/CertKeyFile/CACertFile to the given etcd.
 func RegisterTLS(endpoints []string, certFile, certKeyFile, caFile string,
-	insecureSkipVerify bool) error {
+	insecureSkipVerify bool,
+) error {
 	return internal.AddTLS(endpoints, certFile, certKeyFile, caFile, insecureSkipVerify)
 }

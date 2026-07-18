@@ -24,7 +24,7 @@ func TestChunkExecutor(t *testing.T) {
 	}
 
 	lock.Lock()
-	assert.True(t, len(values) > 0)
+	assert.NotEmpty(t, values)
 	// ignore last value
 	for i := 0; i < len(values); i++ {
 		assert.Equal(t, 10, values[i])
@@ -41,7 +41,7 @@ func TestChunkExecutorFlushInterval(t *testing.T) {
 
 	wait.Add(1)
 	executor := NewChunkExecutor(func(items []any) {
-		assert.Equal(t, size, len(items))
+		assert.Len(t, items, size)
 		wait.Done()
 	}, WithChunkBytes(caches), WithFlushInterval(time.Millisecond*100))
 
@@ -69,7 +69,7 @@ func TestChunkExecutorFlush(t *testing.T) {
 	var wait sync.WaitGroup
 	wait.Add(1)
 	be := NewChunkExecutor(func(items []any) {
-		assert.Equal(t, tasks, len(items))
+		assert.Len(t, items, tasks)
 		wait.Done()
 	}, WithChunkBytes(caches), WithFlushInterval(time.Minute))
 	for range tasks {

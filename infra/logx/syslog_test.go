@@ -3,7 +3,6 @@ package logx
 import (
 	"encoding/json"
 	"log"
-	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -19,7 +18,7 @@ func TestCollectSysLog(t *testing.T) {
 	content := getContent(captureOutput(func() {
 		log.Print(testlog)
 	}))
-	assert.True(t, strings.Contains(content, testlog))
+	assert.Contains(t, content, testlog)
 }
 
 func TestRedirector(t *testing.T) {

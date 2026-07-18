@@ -83,7 +83,11 @@ func runVercel(args []string) error {
 		if createErr != nil {
 			return fmt.Errorf("create output: %w", createErr)
 		}
-		defer func() { if cerr := f.Close(); cerr != nil { logx.Errorf("close output: %v", cerr) } }()
+		defer func() {
+			if cerr := f.Close(); cerr != nil {
+				logx.Errorf("close output: %v", cerr)
+			}
+		}()
 		out = f
 	}
 

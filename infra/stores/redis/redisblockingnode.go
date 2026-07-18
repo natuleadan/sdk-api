@@ -3,8 +3,8 @@ package redis
 import (
 	"fmt"
 
-	red "github.com/redis/go-redis/v9"
 	"github.com/natuleadan/sdk-api/infra/logx"
+	red "github.com/redis/go-redis/v9"
 )
 
 // ClosableNode interface represents a closable redis node.

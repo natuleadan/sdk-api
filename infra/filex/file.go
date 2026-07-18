@@ -2,9 +2,9 @@ package filex
 
 import (
 	"fmt"
-	"path/filepath"
 	"io"
 	"os"
+	"path/filepath"
 )
 
 const bufSize = 1024
@@ -15,7 +15,11 @@ func FirstLine(filename string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer func() { if err := file.Close(); err != nil { fmt.Fprintf(os.Stderr, "filex: close error: %v\n", err) } }()
+	defer func() {
+		if err := file.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "filex: close error: %v\n", err)
+		}
+	}()
 
 	return firstLine(file)
 }
@@ -26,7 +30,11 @@ func LastLine(filename string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer func() { if err := file.Close(); err != nil { fmt.Fprintf(os.Stderr, "filex: close error: %v\n", err) } }()
+	defer func() {
+		if err := file.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "filex: close error: %v\n", err)
+		}
+	}()
 
 	return lastLine(filename, file)
 }

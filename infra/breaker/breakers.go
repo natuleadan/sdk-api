@@ -33,7 +33,8 @@ func DoWithAcceptable(name string, req func() error, acceptable Acceptable) erro
 
 // DoWithAcceptableCtx calls Breaker.DoWithAcceptableCtx on the Breaker with given name.
 func DoWithAcceptableCtx(ctx context.Context, name string, req func() error,
-	acceptable Acceptable) error {
+	acceptable Acceptable,
+) error {
 	return do(name, func(b Breaker) error {
 		return b.DoWithAcceptableCtx(ctx, req, acceptable)
 	})
@@ -55,7 +56,8 @@ func DoWithFallbackCtx(ctx context.Context, name string, req func() error, fallb
 
 // DoWithFallbackAcceptable calls Breaker.DoWithFallbackAcceptable on the Breaker with given name.
 func DoWithFallbackAcceptable(name string, req func() error, fallback Fallback,
-	acceptable Acceptable) error {
+	acceptable Acceptable,
+) error {
 	return do(name, func(b Breaker) error {
 		return b.DoWithFallbackAcceptable(req, fallback, acceptable)
 	})
@@ -63,7 +65,8 @@ func DoWithFallbackAcceptable(name string, req func() error, fallback Fallback,
 
 // DoWithFallbackAcceptableCtx calls Breaker.DoWithFallbackAcceptableCtx on the Breaker with given name.
 func DoWithFallbackAcceptableCtx(ctx context.Context, name string, req func() error,
-	fallback Fallback, acceptable Acceptable) error {
+	fallback Fallback, acceptable Acceptable,
+) error {
 	return do(name, func(b Breaker) error {
 		return b.DoWithFallbackAcceptableCtx(ctx, req, fallback, acceptable)
 	})

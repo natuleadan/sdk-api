@@ -52,7 +52,8 @@ func (b nopBreaker) DoWithFallbackAcceptable(req func() error, _ Fallback, _ Acc
 }
 
 func (b nopBreaker) DoWithFallbackAcceptableCtx(_ context.Context, req func() error,
-	_ Fallback, _ Acceptable) error {
+	_ Fallback, _ Acceptable,
+) error {
 	return req()
 }
 

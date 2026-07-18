@@ -3,9 +3,9 @@ package service
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/natuleadan/sdk-api/internal/devserver"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestServiceConf(t *testing.T) {

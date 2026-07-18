@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/natuleadan/sdk-api/infra/stores/redis/redistest"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestRedisBitSet_New_Set_Test(t *testing.T) {
@@ -46,10 +46,10 @@ func TestRedisBitSet_Add(t *testing.T) {
 	store := redistest.CreateRedis(t)
 
 	filter := New(store, "test_key", 64)
-	assert.Nil(t, filter.Add([]byte("hello")))
-	assert.Nil(t, filter.Add([]byte("world")))
+	assert.NoError(t, filter.Add([]byte("hello")))
+	assert.NoError(t, filter.Add([]byte("world")))
 	ok, err := filter.Exists([]byte("hello"))
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.True(t, ok)
 }
 

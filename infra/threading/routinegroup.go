@@ -16,7 +16,6 @@ func NewRoutineGroup() *RoutineGroup {
 // Don't reference the variables from outside,
 // because outside variables can be changed by other goroutines
 func (g *RoutineGroup) Run(fn func()) {
-
 	g.waitGroup.Go(func() {
 		fn()
 	})

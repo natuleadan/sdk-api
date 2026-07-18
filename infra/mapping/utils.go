@@ -663,7 +663,8 @@ func usingDifferentKeys(key string, field reflect.StructField) bool {
 }
 
 func validateAndSetValue(kind reflect.Kind, value reflect.Value, str string,
-	opts *fieldOptionsWithContext) error {
+	opts *fieldOptionsWithContext,
+) error {
 	if !value.CanSet() {
 		return errValueNotSettable
 	}

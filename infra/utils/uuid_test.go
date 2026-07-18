@@ -7,5 +7,5 @@ import (
 )
 
 func TestUuid(t *testing.T) {
-	assert.Equal(t, 36, len(NewUuid()))
+	assert.Len(t, NewUuid(), 36)
 }

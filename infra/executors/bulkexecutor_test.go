@@ -24,7 +24,7 @@ func TestBulkExecutor(t *testing.T) {
 	}
 
 	lock.Lock()
-	assert.True(t, len(values) > 0)
+	assert.NotEmpty(t, values)
 	// ignore last value
 	for i := 0; i < len(values); i++ {
 		assert.Equal(t, 10, values[i])
@@ -41,7 +41,7 @@ func TestBulkExecutorFlushInterval(t *testing.T) {
 
 	wait.Add(1)
 	executor := NewBulkExecutor(func(items []any) {
-		assert.Equal(t, size, len(items))
+		assert.Len(t, items, size)
 		wait.Done()
 	}, WithBulkTasks(caches), WithBulkInterval(time.Millisecond*100))
 
@@ -68,7 +68,7 @@ func TestBulkExecutorFlush(t *testing.T) {
 	var wait sync.WaitGroup
 	wait.Add(1)
 	be := NewBulkExecutor(func(items []any) {
-		assert.Equal(t, tasks, len(items))
+		assert.Len(t, items, tasks)
 		wait.Done()
 	}, WithBulkTasks(caches), WithBulkInterval(time.Minute))
 	for range tasks {
@@ -89,12 +89,12 @@ func TestBulkExecutorFlushSlowTasks(t *testing.T) {
 		result = append(result, tasks...)
 	}, WithBulkTasks(1000))
 	for i := range total {
-		assert.Nil(t, exec.Add(i))
+		assert.NoError(t, exec.Add(i))
 	}
 
 	exec.Flush()
 	exec.Wait()
-	assert.Equal(t, total, len(result))
+	assert.Len(t, result, total)
 }
 
 func BenchmarkBulkExecutor(b *testing.B) {

@@ -171,7 +171,7 @@ func TestAdaptiveShedderShouldDrop(t *testing.T) {
 	shedder.avgFlying = 80
 	shedder.flying = 80
 	_, err := shedder.Allow()
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }
 
 func TestAdaptiveShedderStillHot(t *testing.T) {

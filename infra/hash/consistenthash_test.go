@@ -47,7 +47,7 @@ func TestConsistentHash(t *testing.T) {
 		mi[k] = v
 	}
 	entropy := mathx.CalcEntropy(mi)
-	assert.True(t, entropy > .95)
+	assert.Greater(t, entropy, .95)
 }
 
 func TestConsistentHashIncrementalTransfer(t *testing.T) {
@@ -90,7 +90,7 @@ func TestConsistentHashTransferOnFailure(t *testing.T) {
 	assert.True(t, ratioNotExists == 0, fmt.Sprintf("%d: %f", index, ratioNotExists))
 	index = 13
 	ratio := getTransferRatioOnFailure(t, index)
-	assert.True(t, ratio < 2.5/keySize, fmt.Sprintf("%d: %f", index, ratio))
+	assert.Less(t, ratio, 2.5/keySize, "%d: %f", index, ratio)
 }
 
 func TestConsistentHashLeastTransferOnFailure(t *testing.T) {
@@ -124,7 +124,7 @@ func TestConsistentHash_RemoveInterface(t *testing.T) {
 	node2 := newMockNode(key, 2)
 	ch.AddWithWeight(node1, 80)
 	ch.AddWithWeight(node2, 50)
-	assert.Equal(t, 1, len(ch.nodes))
+	assert.Len(t, ch.nodes, 1)
 	node, ok := ch.Get(1)
 	assert.True(t, ok)
 	assert.Equal(t, key, node.(*mockNode).addr)

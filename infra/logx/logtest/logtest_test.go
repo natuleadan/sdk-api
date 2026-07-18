@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/logx"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestCollector(t *testing.T) {

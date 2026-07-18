@@ -12,25 +12,25 @@ func TestNopBreaker(t *testing.T) {
 	b := NopBreaker()
 	assert.Equal(t, nopBreakerName, b.Name())
 	_, err := b.Allow()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	p, err := b.AllowCtx(context.Background())
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	p.Accept()
 	for range 1000 {
 		p, err := b.Allow()
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		p.Reject("any")
 	}
-	assert.Nil(t, b.Do(func() error {
+	assert.NoError(t, b.Do(func() error {
 		return nil
 	}))
-	assert.Nil(t, b.DoCtx(context.Background(), func() error {
+	assert.NoError(t, b.DoCtx(context.Background(), func() error {
 		return nil
 	}))
-	assert.Nil(t, b.DoWithAcceptable(func() error {
+	assert.NoError(t, b.DoWithAcceptable(func() error {
 		return nil
 	}, defaultAcceptable))
-	assert.Nil(t, b.DoWithAcceptableCtx(context.Background(), func() error {
+	assert.NoError(t, b.DoWithAcceptableCtx(context.Background(), func() error {
 		return nil
 	}, defaultAcceptable))
 	errDummy := errors.New("any")

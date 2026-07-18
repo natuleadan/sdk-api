@@ -102,7 +102,7 @@ func TestParseKeyAndOptionWithoutTag(t *testing.T) {
 	rte := reflect.TypeFor[Foo]()
 	field, _ := rte.FieldByName("Str")
 	key, options, err := parseKeyAndOptions(testTagName, field)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "Str", key)
 	assert.Nil(t, options)
 }
@@ -111,7 +111,7 @@ func TestParseKeyAndOptionWithTagWithoutOption(t *testing.T) {
 	rte := reflect.TypeFor[Foo]()
 	field, _ := rte.FieldByName("StrWithTag")
 	key, options, err := parseKeyAndOptions(testTagName, field)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "stringwithtag", key)
 	assert.Nil(t, options)
 }
@@ -120,7 +120,7 @@ func TestParseKeyAndOptionWithTagAndOption(t *testing.T) {
 	rte := reflect.TypeFor[Foo]()
 	field, _ := rte.FieldByName("StrWithTagAndOption")
 	key, options, err := parseKeyAndOptions(testTagName, field)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "stringwithtag", key)
 	assert.True(t, options.FromString)
 }
@@ -207,24 +207,24 @@ func TestParseSegments(t *testing.T) {
 func TestValidatePtrWithNonPtr(t *testing.T) {
 	var foo string
 	rve := reflect.ValueOf(foo)
-	assert.NotNil(t, ValidatePtr(rve))
+	assert.Error(t, ValidatePtr(rve))
 }
 
 func TestValidatePtrWithPtr(t *testing.T) {
 	var foo string
 	rve := reflect.ValueOf(&foo)
-	assert.Nil(t, ValidatePtr(rve))
+	assert.NoError(t, ValidatePtr(rve))
 }
 
 func TestValidatePtrWithNilPtr(t *testing.T) {
 	var foo *string
 	rve := reflect.ValueOf(foo)
-	assert.NotNil(t, ValidatePtr(rve))
+	assert.Error(t, ValidatePtr(rve))
 }
 
 func TestValidatePtrWithZeroValue(t *testing.T) {
 	e := reflect.Zero(reflect.TypeFor[string]())
-	assert.NotNil(t, ValidatePtr(e))
+	assert.Error(t, ValidatePtr(e))
 }
 
 func TestSetValueNotSettable(t *testing.T) {
@@ -240,9 +240,9 @@ func TestParseKeyAndOptionsErrors(t *testing.T) {
 	}
 
 	_, _, err := parseKeyAndOptions("key", reflect.TypeFor[Bar]().Field(0))
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	_, _, err = parseKeyAndOptions("key", reflect.TypeFor[Bar]().Field(1))
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }
 
 func TestSetValueFormatErrors(t *testing.T) {
@@ -284,7 +284,7 @@ func TestSetValueFormatErrors(t *testing.T) {
 		t.Run(test.kind.String(), func(t *testing.T) {
 			err := setValueFromString(test.kind, test.target, test.value)
 			assert.NotEqual(t, errValueNotSettable, err)
-			assert.NotNil(t, err)
+			assert.Error(t, err)
 		})
 	}
 }

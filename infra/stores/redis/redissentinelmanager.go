@@ -6,13 +6,13 @@ import (
 	"runtime"
 	"strings"
 
-	red "github.com/redis/go-redis/v9"
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/natuleadan/sdk-api/infra/syncx"
+	red "github.com/redis/go-redis/v9"
 )
 
 var (
-	sentinelManager = syncx.NewResourceManager()
+	sentinelManager  = syncx.NewResourceManager()
 	sentinelPoolSize = 10 * runtime.GOMAXPROCS(0)
 )
 

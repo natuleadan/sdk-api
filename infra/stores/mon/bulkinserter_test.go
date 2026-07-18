@@ -18,8 +18,8 @@ func TestBulkInserter_InsertAndFlush(t *testing.T) {
 	bulkInserter, err := NewBulkInserter(mockCollection, time.Second)
 	assert.NoError(t, err)
 	bulkInserter.SetResultHandler(func(result *mongo.InsertManyResult, err error) {
-		assert.Nil(t, err)
-		assert.Equal(t, 2, len(result.InsertedIDs))
+		assert.NoError(t, err)
+		assert.Len(t, result.InsertedIDs, 2)
 	})
 	doc := map[string]any{"name": "test"}
 	bulkInserter.Insert(doc)
@@ -80,7 +80,7 @@ func Test_dbInserter_Execute(t *testing.T) {
 			fields: fields{
 				collection: mockCollection,
 				resultHandler: func(result *mongo.InsertManyResult, err error) {
-					assert.NotNil(t, err)
+					assert.Error(t, err)
 				},
 			},
 			args: args{

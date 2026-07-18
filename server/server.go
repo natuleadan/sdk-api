@@ -3,7 +3,8 @@ package server
 
 import (
 	"context"
-	"regexp"
+	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -13,7 +14,9 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/recover"
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/natuleadan/sdk-api/infra/proc"
+	"github.com/natuleadan/sdk-api/runtime/errcode"
 	"github.com/natuleadan/sdk-api/server/middleware"
+	"github.com/samber/oops"
 )
 
 type RouteConfig struct {
@@ -54,6 +57,12 @@ type TelemetryConfig struct {
 	Endpoint string
 	Sampler  float64
 	Batcher  string
+
+	OtlpHeaders         map[string]string
+	OtlpHttpPath        string
+	OtlpHttpSecure      bool
+	TraceResponseHeader string
+	SkipPaths           []string
 }
 
 type SecurityConfig struct {
@@ -153,8 +162,15 @@ func setupGlobalMiddlewares(app *fiber.App, cfg Config, telemetry TelemetryConfi
 	}))
 	if telemetry.Enabled {
 		app.Use(middleware.Trace(middleware.TraceConfig{
-			Name: telemetry.Name, Endpoint: telemetry.Endpoint,
-			Sampler: telemetry.Sampler, Batcher: telemetry.Batcher,
+			Name:                telemetry.Name,
+			Endpoint:            telemetry.Endpoint,
+			Sampler:             telemetry.Sampler,
+			Batcher:             telemetry.Batcher,
+			OtlpHeaders:         telemetry.OtlpHeaders,
+			OtlpHttpPath:        telemetry.OtlpHttpPath,
+			OtlpHttpSecure:      telemetry.OtlpHttpSecure,
+			TraceResponseHeader: telemetry.TraceResponseHeader,
+			SkipPaths:           telemetry.SkipPaths,
 		}))
 	}
 	app.Get(cfg.MetricsPath, middleware.PrometheusHandler())
@@ -310,36 +326,65 @@ func (s *Server) registerShutdown() {
 
 type ErrorResponse struct {
 	Code    int    `json:"code"`
+	Error   string `json:"error,omitempty"`
 	Message string `json:"message"`
+}
+
+func oopsCodeToHTTP(codeStr string) int {
+	switch codeStr {
+	case errcode.ErrCodeNotFound:
+		return fiber.StatusNotFound
+	case errcode.ErrCodeValidation:
+		return fiber.StatusBadRequest
+	case errcode.ErrCodeUnauthorized:
+		return fiber.StatusUnauthorized
+	case errcode.ErrCodeForbidden:
+		return fiber.StatusForbidden
+	case errcode.ErrCodeRateLimited:
+		return fiber.StatusTooManyRequests
+	case errcode.ErrCodeTimeout:
+		return fiber.StatusGatewayTimeout
+	default:
+		return fiber.StatusInternalServerError
+	}
 }
 
 func errorHandler(c fiber.Ctx, err error) error {
 	code := fiber.StatusInternalServerError
-	if e, ok := err.(*fiber.Error); ok {
-		code = e.Code
+	errCode := errcode.ErrCodeInternal
+	message := "internal server error"
+
+	var fe *fiber.Error
+	if errors.As(err, &fe) {
+		code = fe.Code
+		message = fe.Message
 	}
-	message := sanitizeErrorMessage(err.Error(), code)
-	if code >= 500 {
+
+	var oo oops.OopsError
+	if errors.As(err, &oo) {
+		if c := oo.Code(); c != nil {
+			errCode = c.(string)
+			if code >= 500 {
+				code = oopsCodeToHTTP(errCode)
+			}
+		}
+		if p := oo.Public(); p != "" && code < 500 {
+			message = p
+		}
+		logx.Errorw("request error",
+			logx.Field("error", fmt.Sprintf("%+v", err)),
+		)
+	} else if code >= 500 {
 		logx.Errorf("internal error: %v", err)
 	}
+
+	if code >= 500 {
+		message = "internal server error"
+	}
+
 	return c.Status(code).JSON(ErrorResponse{
 		Code:    code,
+		Error:   errCode,
 		Message: message,
 	})
-}
-
-var (
-	reSanitizeIP      = regexp.MustCompile(`\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}`)
-	reSanitizeConnURL = regexp.MustCompile(`(postgres|mysql|nats|redis|mongodb)[+a-z]*://[^@\s]+@`)
-	reSanitizePath    = regexp.MustCompile(`(/[\w.-]+)+\.(go|yaml|json|pem|key|env|conf|toml|xml)`)
-)
-
-func sanitizeErrorMessage(msg string, code int) string {
-	msg = reSanitizeIP.ReplaceAllString(msg, "[redacted]")
-	msg = reSanitizeConnURL.ReplaceAllString(msg, "$1://[redacted]@")
-	msg = reSanitizePath.ReplaceAllString(msg, "[redacted]")
-	if code >= 500 {
-		return "internal server error"
-	}
-	return msg
 }

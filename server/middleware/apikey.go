@@ -1,3 +1,4 @@
+// Package middleware provides Fiber HTTP middlewares for auth, security, validation, rate limiting, and more.
 package middleware
 
 import (

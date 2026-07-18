@@ -10,15 +10,15 @@ import (
 )
 
 type Cache[T any] struct {
-	kv   nats.KeyValue
-	ttl  time.Duration
+	kv  nats.KeyValue
+	ttl time.Duration
 }
 
 func NewCache[T any](kv nats.KeyValue, ttl time.Duration) *Cache[T] {
 	return &Cache[T]{kv: kv, ttl: ttl}
 }
 
-func (c *Cache[T]) Get(ctx context.Context, key string) (*T, error) {
+func (c *Cache[T]) Get(_ context.Context, key string) (*T, error) {
 	entry, err := c.kv.Get(key)
 	if err != nil {
 		if err == nats.ErrKeyNotFound {
@@ -33,7 +33,7 @@ func (c *Cache[T]) Get(ctx context.Context, key string) (*T, error) {
 	return &val, nil
 }
 
-func (c *Cache[T]) Set(ctx context.Context, key string, val T) error {
+func (c *Cache[T]) Set(_ context.Context, key string, val T) error {
 	data, err := json.Marshal(val)
 	if err != nil {
 		return fmt.Errorf("events: cache marshal: %w", err)
@@ -45,7 +45,7 @@ func (c *Cache[T]) Set(ctx context.Context, key string, val T) error {
 	return nil
 }
 
-func (c *Cache[T]) Delete(ctx context.Context, key string) error {
+func (c *Cache[T]) Delete(_ context.Context, key string) error {
 	err := c.kv.Delete(key)
 	if err != nil && err != nats.ErrKeyNotFound {
 		return fmt.Errorf("events: cache delete: %w", err)

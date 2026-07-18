@@ -6,12 +6,12 @@ import (
 	"github.com/natuleadan/sdk-api/db"
 )
 
-func TestNewMySQLCRUDProvider_ImplementsInterface(t *testing.T) {
+func TestNewMySQLCRUDProvider_ImplementsInterface(_ *testing.T) {
 	// Verify the provider implements CRUDProvider interface at compile time
 	var _ CRUDProvider = (*mysqlCRUD[testModel])(nil)
 }
 
-func TestNewTursoCRUDProvider_ImplementsInterface(t *testing.T) {
+func TestNewTursoCRUDProvider_ImplementsInterface(_ *testing.T) {
 	var _ CRUDProvider = (*tursoCRUD[testModel])(nil)
 }
 
@@ -81,7 +81,7 @@ func TestNewCRUDProvider_NilHooks(t *testing.T) {
 	}
 }
 
-func TestMySQLCRUDProvider_AllMethodsExist(t *testing.T) {
+func TestMySQLCRUDProvider_AllMethodsExist(_ *testing.T) {
 	var p CRUDProvider = &mysqlCRUD[testModel]{}
 	_ = p.List
 	_ = p.Get

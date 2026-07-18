@@ -38,14 +38,14 @@ func TestDefaultMaxConns(t *testing.T) {
 			},
 			expected: 38,
 		},
-	{
-		name: "minimum floor of 1",
-		env: map[string]string{
-			"PG_SERVER_MAX_CONNS": "20",
-			"REPLICA_COUNT":       "20",
+		{
+			name: "minimum floor of 1",
+			env: map[string]string{
+				"PG_SERVER_MAX_CONNS": "20",
+				"REPLICA_COUNT":       "20",
+			},
+			expected: 1,
 		},
-		expected: 1,
-	},
 	}
 
 	for _, tt := range tests {

@@ -136,7 +136,7 @@ func registerCRUDCreate(app *fiber.App, base string, ov *CRUDOverrides, handlers
 	if isDisabled(ov, ov.Create) {
 		return nil
 	}
-	var handler = resolveHandler(handlers.Rest, ov.Create)
+	handler := resolveHandler(handlers.Rest, ov.Create)
 	if isOverridden(ov, ov.Create) {
 		if handler == nil {
 			return fmt.Errorf("crud create override: handler %q not found", ov.Create)
@@ -158,7 +158,7 @@ func registerCRUDUpdate(app *fiber.App, base string, ov *CRUDOverrides, handlers
 		return nil
 	}
 	idParam := buildIDParam(base)
-	var handler = resolveHandler(handlers.Rest, ov.Update)
+	handler := resolveHandler(handlers.Rest, ov.Update)
 	if isOverridden(ov, ov.Update) {
 		if handler == nil {
 			return fmt.Errorf("crud update override: handler %q not found", ov.Update)
@@ -180,7 +180,7 @@ func registerCRUDDelete(app *fiber.App, base string, ov *CRUDOverrides, handlers
 		return nil
 	}
 	idParam := buildIDParam(base)
-	var handler = resolveHandler(handlers.Rest, ov.Delete)
+	handler := resolveHandler(handlers.Rest, ov.Delete)
 	if isOverridden(ov, ov.Delete) {
 		if handler == nil {
 			return fmt.Errorf("crud delete override: handler %q not found", ov.Delete)

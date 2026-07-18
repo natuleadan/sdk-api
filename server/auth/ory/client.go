@@ -1,3 +1,4 @@
+// Package ory provides Ory Kratos authentication and Keto authorization client.
 package ory
 
 import (
@@ -95,7 +96,7 @@ func (c *Client) ValidateSession(ctx context.Context, token string) (*Session, e
 }
 
 // ValidateJWT validates a JWT signed by Ory Kratos using JWKS.
-func (c *Client) ValidateJWT(ctx context.Context, tokenString string, _ string) (jwt.MapClaims, error) {
+func (c *Client) ValidateJWT(_ context.Context, tokenString string, _ string) (jwt.MapClaims, error) {
 	parser := jwt.NewParser(
 		jwt.WithValidMethods([]string{"RS256"}),
 	)

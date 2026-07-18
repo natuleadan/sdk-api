@@ -10,8 +10,8 @@ import (
 )
 
 type Producer[T any] struct {
-	nc *nats.Conn
-	js nats.JetStreamContext
+	nc  *nats.Conn
+	js  nats.JetStreamContext
 	sub string
 }
 
@@ -38,7 +38,7 @@ func (p *Producer[T]) PublishWithID(msg T, id string, opts ...nats.PubOpt) error
 
 // PublishAndWait publishes a message and waits for a reply (NATS request-reply).
 // Returns the typed response or an error. Uses core NATS Request, not JetStream.
-func (p *Producer[T]) PublishAndWait(ctx context.Context, msg T, timeout time.Duration) (*Msg[T], error) {
+func (p *Producer[T]) PublishAndWait(ctx context.Context, msg T, _ time.Duration) (*Msg[T], error) {
 	data, err := json.Marshal(msg)
 	if err != nil {
 		return nil, fmt.Errorf("events: marshal: %w", err)
@@ -68,7 +68,7 @@ func (p *Producer[T]) PublishAndWait(ctx context.Context, msg T, timeout time.Du
 }
 
 // PublishAndWaitRaw publishes and waits for a raw byte reply.
-func (p *Producer[T]) PublishAndWaitRaw(ctx context.Context, data []byte, timeout time.Duration) (*nats.Msg, error) {
+func (p *Producer[T]) PublishAndWaitRaw(ctx context.Context, data []byte, _ time.Duration) (*nats.Msg, error) {
 	natsMsg := nats.NewMsg(p.sub)
 	natsMsg.Data = data
 

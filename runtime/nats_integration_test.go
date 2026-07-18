@@ -43,12 +43,11 @@ func TestIntegration_ExitWorker_Push(t *testing.T) {
 			MaxConcurrent: 2,
 		},
 	}, map[string]events.EventBroker{"default": conn}, map[string]ExitHandler{
-		"onMsg": func(ctx context.Context, msg []byte) ([]byte, error) {
+		"onMsg": func(_ context.Context, msg []byte) ([]byte, error) {
 			received.Add(1)
 			return nil, nil
 		},
 	}, nil)
-
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -96,12 +95,11 @@ func TestIntegration_ExitWorker_Reply(t *testing.T) {
 			Reply:         true,
 		},
 	}, map[string]events.EventBroker{"default": conn}, map[string]ExitHandler{
-		"onValidate": func(ctx context.Context, msg []byte) ([]byte, error) {
+		"onValidate": func(_ context.Context, msg []byte) ([]byte, error) {
 			processed.Add(1)
 			return []byte(`{"valid":true}`), nil
 		},
 	}, nil)
-
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -186,7 +184,7 @@ server:
   middleware:
     - path: "/*"
       apply: []
-`, natsURL), 0644)
+`, natsURL), 0o644)
 
 	svc, err := New(cfgPath)
 	if err != nil {
@@ -294,7 +292,7 @@ func TestIntegration_GracefulShutdown(t *testing.T) {
 			MaxConcurrent: 2,
 		},
 	}, map[string]events.EventBroker{"default": conn}, map[string]ExitHandler{
-		"onSlow": func(ctx context.Context, msg []byte) ([]byte, error) {
+		"onSlow": func(_ context.Context, msg []byte) ([]byte, error) {
 			inFlight.Add(1)
 			time.Sleep(500 * time.Millisecond)
 			inFlight.Add(-1)
@@ -363,11 +361,11 @@ func TestIntegration_CRUD_NATSPublish(t *testing.T) {
 	cfg := &ServiceConfig{
 		Entry: []EntryDef{
 			{
-				Type:        "crud",
-				Model:       "Product",
-				Resource:    "products",
-				DB:          "test",
-				Path:        "/products",
+				Type:         "crud",
+				Model:        "Product",
+				Resource:     "products",
+				DB:           "test",
+				Path:         "/products",
 				EventPublish: []EventPublishTarget{{Stream: streamName, Subject: streamName}},
 			},
 		},
@@ -437,7 +435,6 @@ func TestIntegration_ExitWorker_Pull(t *testing.T) {
 			return nil, nil
 		},
 	}, nil)
-
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -491,7 +488,6 @@ func TestIntegration_ExitWorker_HandlerErrorNak(t *testing.T) {
 			return nil, nil
 		},
 	}, nil)
-
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -561,7 +557,6 @@ func TestIntegration_MultiBroker(t *testing.T) {
 			return nil, nil
 		},
 	}, nil)
-
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}

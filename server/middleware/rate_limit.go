@@ -22,8 +22,8 @@ type cancellableLimiter interface {
 
 type xrateLimiter struct {
 	*xrate.Limiter
-	mu    sync.Mutex
-	owed  int
+	mu   sync.Mutex
+	owed int
 }
 
 func (l *xrateLimiter) Remaining() int {
@@ -57,20 +57,20 @@ func (l *redisLimiter) Remaining() int {
 func (l *redisLimiter) Cancel() {}
 
 const (
-	AlgorithmTokenBucket = "token_bucket"
+	AlgorithmTokenBucket   = "token_bucket"
 	AlgorithmSlidingWindow = "sliding_window"
 )
 
 type RateLimitConfig struct {
-	Enabled              bool              `json:"enabled" config:",optional"`
-	Global               *RateLimitEntry   `json:"global" config:",optional"`
-	PerIP                *RateLimitEntry   `json:"per_ip" config:",optional"`
-	Algorithm            string            `json:"algorithm" config:",default=sliding_window"`
-	TTL                  time.Duration     `json:"ttl" config:",optional"`
-	SkipFailedRequests   bool              `json:"skip_failed_requests" config:",optional"`
-	SkipSuccessfulRequests bool            `json:"skip_successful_requests" config:",optional"`
-	MaxFunc              func(c fiber.Ctx) int `json:"-" config:"-"`
-	RedisConn            *redis.Redis      `json:"-" config:"-"`
+	Enabled                bool                  `json:"enabled" config:",optional"`
+	Global                 *RateLimitEntry       `json:"global" config:",optional"`
+	PerIP                  *RateLimitEntry       `json:"per_ip" config:",optional"`
+	Algorithm              string                `json:"algorithm" config:",default=sliding_window"`
+	TTL                    time.Duration         `json:"ttl" config:",optional"`
+	SkipFailedRequests     bool                  `json:"skip_failed_requests" config:",optional"`
+	SkipSuccessfulRequests bool                  `json:"skip_successful_requests" config:",optional"`
+	MaxFunc                func(c fiber.Ctx) int `json:"-" config:"-"`
+	RedisConn              *redis.Redis          `json:"-" config:"-"`
 }
 
 type RateLimitEntry struct {
@@ -85,16 +85,16 @@ type rateLimitEntryState struct {
 }
 
 type rateLimiterStore struct {
-	mu       sync.Mutex
-	global   limiter
-	perIP    map[string]*rateLimitEntryState
-	perUser  map[string]*rateLimitEntryState
-	perKey   map[string]*rateLimitEntryState
-	rdb      *redis.Redis
-	alg      string
-	ttl      time.Duration
-	gcTick   time.Duration
-	gcDone   chan struct{}
+	mu      sync.Mutex
+	global  limiter
+	perIP   map[string]*rateLimitEntryState
+	perUser map[string]*rateLimitEntryState
+	perKey  map[string]*rateLimitEntryState
+	rdb     *redis.Redis
+	alg     string
+	ttl     time.Duration
+	gcTick  time.Duration
+	gcDone  chan struct{}
 }
 
 func newRateLimiterStore(alg string, ttl time.Duration, rdb ...*redis.Redis) *rateLimiterStore {

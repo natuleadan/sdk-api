@@ -110,7 +110,7 @@ func TestConsumePull(t *testing.T) {
 	cfg := DefaultConsumerConfig(name, name+"-c1")
 	cfg.Subject = name
 	err := ConsumePull[testEvent](ctx, conn.JS, cfg,
-		func(ctx context.Context, msg Msg[testEvent]) (AckAction, error) {
+		func(_ context.Context, msg Msg[testEvent]) (AckAction, error) {
 			received.Add(1)
 			return Ack, nil
 		})
@@ -141,7 +141,7 @@ func TestConsumePush(t *testing.T) {
 	cfg := DefaultConsumerConfig(name, name+"-c1")
 	cfg.Subject = name
 	err := ConsumePush[testEvent](ctx, conn.JS, cfg,
-		func(ctx context.Context, msg Msg[testEvent]) (AckAction, error) {
+		func(_ context.Context, msg Msg[testEvent]) (AckAction, error) {
 			received.Add(1)
 			return Ack, nil
 		})

@@ -1379,10 +1379,10 @@ func TestConvertRateLimit_GlobalOnly(t *testing.T) {
 
 func TestConvertRateLimit_AllFields(t *testing.T) {
 	cfg := convertRateLimit(&RateLimitConf{
-		Enabled: true,
+		Enabled:   true,
 		Algorithm: "token_bucket",
-		Global:   &RateLimitDef{RequestsPerSecond: 1000, Burst: 2000},
-		PerIP:    &RateLimitDef{RequestsPerSecond: 100, Burst: 200},
+		Global:    &RateLimitDef{RequestsPerSecond: 1000, Burst: 2000},
+		PerIP:     &RateLimitDef{RequestsPerSecond: 100, Burst: 200},
 	})
 	if cfg == nil {
 		t.Fatal("expected non-nil config")

@@ -209,7 +209,11 @@ func (t *MySQLTable[T]) List(ctx context.Context) ([]T, error) {
 	if err != nil {
 		return nil, fmt.Errorf("db: mysql list: %w", err)
 	}
-	defer func() { if err := rows.Close(); err != nil { fmt.Printf("close error: %v\n", err) } }()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			fmt.Printf("close error: %v\n", err)
+		}
+	}()
 	return t.scanRows(rows)
 }
 
@@ -231,7 +235,11 @@ func (t *MySQLTable[T]) ListScoped(ctx context.Context, tenantField string, tena
 	if err != nil {
 		return nil, fmt.Errorf("db: mysql list scoped: %w", err)
 	}
-	defer func() { if err := rows.Close(); err != nil { fmt.Printf("close error: %v\n", err) } }()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			fmt.Printf("close error: %v\n", err)
+		}
+	}()
 	return t.scanRows(rows)
 }
 
@@ -278,7 +286,11 @@ func (t *MySQLTable[T]) QueryKeyset(ctx context.Context, cursor string, size int
 	if err != nil {
 		return nil, "", fmt.Errorf("db: mysql keyset: %w", err)
 	}
-	defer func() { if err := rows.Close(); err != nil { fmt.Printf("close error: %v\n", err) } }()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			fmt.Printf("close error: %v\n", err)
+		}
+	}()
 
 	result, err := t.scanRows(rows)
 	if err != nil {

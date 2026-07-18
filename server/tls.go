@@ -51,8 +51,8 @@ func (s *Server) listenTLS() error {
 		}
 		logx.Infof("server listening on %s (HTTPS manual)", addr)
 		return s.app.Listen(addr, fiber.ListenConfig{
-			CertFile:     tlsCfg.Manual.CertFile,
-			CertKeyFile:  tlsCfg.Manual.KeyFile,
+			CertFile:      tlsCfg.Manual.CertFile,
+			CertKeyFile:   tlsCfg.Manual.KeyFile,
 			EnablePrefork: s.config.Prefork,
 		})
 	}

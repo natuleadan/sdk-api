@@ -9,8 +9,10 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
-var validate = validator.New()
-var validationModels = make(map[string]reflect.Type)
+var (
+	validate         = validator.New()
+	validationModels = make(map[string]reflect.Type)
+)
 
 func RegisterValidation(name string, input any) {
 	t := reflect.TypeOf(input)

@@ -12,12 +12,12 @@ import (
 )
 
 type ConnOptions struct {
-	Name            string
-	URL             string
-	MaxReconnects   int
-	ReconnectWait   time.Duration
-	Timeout         time.Duration
-	RetryOnFail     bool
+	Name          string
+	URL           string
+	MaxReconnects int
+	ReconnectWait time.Duration
+	Timeout       time.Duration
+	RetryOnFail   bool
 }
 
 type Conn struct {
@@ -82,8 +82,8 @@ func (c *Conn) PublishJSON(ctx context.Context, subject string, msg any) error {
 func (c *Conn) Subscribe(ctx context.Context, subject string, durable string, handler MessageHandler) (Subscription, error) {
 	sub, err := c.JS.Subscribe(subject, func(m *nats.Msg) {
 		if err := handler(ctx, &natsMessage{msg: m}); err != nil {
-		logx.Errorf("nats: handler error: %v", err)
-	}
+			logx.Errorf("nats: handler error: %v", err)
+		}
 	}, nats.Durable(durable), nats.ManualAck(), nats.MaxDeliver(5), nats.AckWait(30*time.Second), nats.DeliverAll())
 	if err != nil {
 		return nil, err
@@ -99,7 +99,7 @@ func (c *Conn) PullSubscribe(ctx context.Context, subject string, durable string
 	return &natsPullConsumer{sub: sub}, nil
 }
 
-func (c *Conn) Request(ctx context.Context, subject string, data []byte, timeout time.Duration) ([]byte, error) {
+func (c *Conn) Request(ctx context.Context, subject string, data []byte, _ time.Duration) ([]byte, error) {
 	msg, err := c.NC.RequestWithContext(ctx, subject, data)
 	if err != nil {
 		return nil, err
@@ -303,8 +303,8 @@ func (c *Conn) Drain() {
 func (c *Conn) Close() error {
 	if c.NC != nil {
 		if err := c.NC.Drain(); err != nil {
-		logx.Errorf("nats: drain error: %v", err)
-	}
+			logx.Errorf("nats: drain error: %v", err)
+		}
 		c.NC.Close()
 	}
 	return nil
@@ -336,17 +336,17 @@ type natsMessage struct {
 	msg *nats.Msg
 }
 
-func (m *natsMessage) Data() []byte                     { return m.msg.Data }
-func (m *natsMessage) Subject() string                  { return m.msg.Subject }
-func (m *natsMessage) Ack() error                       { return m.msg.Ack() }
+func (m *natsMessage) Data() []byte    { return m.msg.Data }
+func (m *natsMessage) Subject() string { return m.msg.Subject }
+func (m *natsMessage) Ack() error      { return m.msg.Ack() }
 func (m *natsMessage) Nak(delay ...time.Duration) error {
 	if len(delay) > 0 {
 		return m.msg.NakWithDelay(delay[0])
 	}
 	return m.msg.Nak()
 }
-func (m *natsMessage) Term() error                      { return m.msg.Term() }
-func (m *natsMessage) Respond(data []byte) error        { return m.msg.Respond(data) }
+func (m *natsMessage) Term() error               { return m.msg.Term() }
+func (m *natsMessage) Respond(data []byte) error { return m.msg.Respond(data) }
 
 type natsSubscription struct {
 	sub *nats.Subscription

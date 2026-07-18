@@ -40,29 +40,29 @@ var ErrNotFound = db.ErrNotFound
 // initializes databases, NATS connections, entry endpoints, and
 // optionally exit workers and cron jobs.
 type Service struct {
-	config        *ServiceConfig
-	srv           *server.Server
-	pools         map[string]any
-	kvConns       map[string]*redis.Redis
-	streamConns   map[string]events.EventBroker
-	natsConns     map[string]events.EventBroker
-	handlers      *EntryHandlers
-	hooks         map[string]any // model → EntryHooks[T]
-	tables        map[string]any // model → *db.Table[T] (set by MustRegister)
-	exitFuncs     map[string]ExitHandler
-	exitHooks     map[string]ExitHooks
-	exitMgr       *ExitWorkerManager
-	cronSched     *CronScheduler
-	cronFuncs     map[string]CronJobFunc
-	models        map[string]*db.TableInfo
-	safeClient    *middleware.SafeHTTPClient
-	jwtCfg        *middleware.JWTConfig
-	fgaClient     openfga.Checker
-	zitadelClient *zitadel.Client
-	oryClient      *ory.Client
-	authValidator  func(context.Context, *middleware.AuthContext, []string, []string) error
+	config          *ServiceConfig
+	srv             *server.Server
+	pools           map[string]any
+	kvConns         map[string]*redis.Redis
+	streamConns     map[string]events.EventBroker
+	natsConns       map[string]events.EventBroker
+	handlers        *EntryHandlers
+	hooks           map[string]any // model → EntryHooks[T]
+	tables          map[string]any // model → *db.Table[T] (set by MustRegister)
+	exitFuncs       map[string]ExitHandler
+	exitHooks       map[string]ExitHooks
+	exitMgr         *ExitWorkerManager
+	cronSched       *CronScheduler
+	cronFuncs       map[string]CronJobFunc
+	models          map[string]*db.TableInfo
+	safeClient      *middleware.SafeHTTPClient
+	jwtCfg          *middleware.JWTConfig
+	fgaClient       openfga.Checker
+	zitadelClient   *zitadel.Client
+	oryClient       *ory.Client
+	authValidator   func(context.Context, *middleware.AuthContext, []string, []string) error
 	apiKeyValidator func(ctx context.Context, key string) (*middleware.AuthContext, error)
-	rlMaxFunc      func(c fiber.Ctx) int
+	rlMaxFunc       func(c fiber.Ctx) int
 
 	stop context.CancelFunc
 }
@@ -165,8 +165,8 @@ func MySQLMustRegister[T any](svc *Service, name, poolName, tableName string, ho
 // The redisConf points to Dragonfly or Redis (NodeType or ClusterType).
 // If l1TTL > 0, an in-process L1 cache (collection.Cache) is added in front of L2 for sub-μs reads.
 func CachedCRUD[T any](svc *Service, name, poolName, tableName string,
-	kvName string, keyPrefix string, l2TTL time.Duration, l1TTL time.Duration) {
-
+	kvName string, keyPrefix string, l2TTL time.Duration, l1TTL time.Duration,
+) {
 	var l1 *collection.Cache
 	if l1TTL > 0 {
 		var err error
@@ -265,8 +265,8 @@ func (c *cachedCRUD[T]) Delete(fc fiber.Ctx, id string) error {
 // MySQLCachedCRUD registers a CRUD provider with L1+L2 cache using MySQL as DB backend.
 // Identical to CachedCRUD but uses *sql.DB and db.NewMySQLTable internally.
 func MySQLCachedCRUD[T any](svc *Service, name, poolName, tableName string,
-	kvName string, keyPrefix string, l2TTL time.Duration, l1TTL time.Duration) {
-
+	kvName string, keyPrefix string, l2TTL time.Duration, l1TTL time.Duration,
+) {
 	var l1 *collection.Cache
 	if l1TTL > 0 {
 		var err error
@@ -882,7 +882,6 @@ func (s *Service) initServer() {
 		})
 		logx.Infof("CSP report endpoint registered at %s", path)
 	}
-
 }
 
 func (s *Service) shutdown() {
@@ -1014,11 +1013,11 @@ func buildJWTCfg(auth *AuthConfig) *middleware.JWTConfig {
 		return nil
 	}
 	return &middleware.JWTConfig{
-		Secret:      auth.Secret,
-		PrevSecret:  auth.PrevSecret,
-		Algorithm:   auth.Algorithm,
-		Issuer:      auth.Issuer,
-		Audience:    auth.Audience,
+		Secret:     auth.Secret,
+		PrevSecret: auth.PrevSecret,
+		Algorithm:  auth.Algorithm,
+		Issuer:     auth.Issuer,
+		Audience:   auth.Audience,
 	}
 }
 
@@ -1293,13 +1292,13 @@ func convertRateLimit(cfg *RateLimitConf) *middleware.RateLimitConfig {
 		}
 	}
 	return &middleware.RateLimitConfig{
-		Enabled:              cfg.Enabled,
-		Algorithm:            cfg.Algorithm,
-		TTL:                  parseDurationDef(cfg.TTL),
-		SkipFailedRequests:   cfg.SkipFailedRequests,
+		Enabled:                cfg.Enabled,
+		Algorithm:              cfg.Algorithm,
+		TTL:                    parseDurationDef(cfg.TTL),
+		SkipFailedRequests:     cfg.SkipFailedRequests,
 		SkipSuccessfulRequests: cfg.SkipSuccessfulRequests,
-		Global:               global,
-		PerIP:                perIP,
+		Global:                 global,
+		PerIP:                  perIP,
 	}
 }
 
@@ -1360,8 +1359,8 @@ func convertTLS(cfg *TLSConf) *server.TLSConfig {
 // Writes go through to the backend. Reads check RAM first, then backend.
 type cachedStorage struct {
 	server.StorageBackend
-	l1       *collection.Cache
-	path     string // disk cache path (empty = no disk cache)
+	l1        *collection.Cache
+	path      string // disk cache path (empty = no disk cache)
 	presigner server.Presigner
 }
 
@@ -1379,7 +1378,7 @@ func newCachedStorage(backend server.StorageBackend, cfg *CacheConfig, ttl time.
 	}
 	if cfg.L2 == "disk" && cfg.L2Path != "" {
 		cs.path = cfg.L2Path
-		if err := os.MkdirAll(cs.path, 0750); err != nil {
+		if err := os.MkdirAll(cs.path, 0o750); err != nil {
 			return nil, fmt.Errorf("l2 cache dir: %w", err)
 		}
 	}
@@ -1399,7 +1398,11 @@ func (c *cachedStorage) Download(ctx context.Context, key string) (io.ReadCloser
 		fsys := os.DirFS(c.path)
 		f, err := fsys.Open(safeKey)
 		if err == nil {
-			defer func() { if cerr := f.Close(); cerr != nil { logx.Errorf("cachedStorage close: %v", cerr) } }()
+			defer func() {
+				if cerr := f.Close(); cerr != nil {
+					logx.Errorf("cachedStorage close: %v", cerr)
+				}
+			}()
 			data, rErr := io.ReadAll(f)
 			if rErr == nil {
 				if c.l1 != nil {
@@ -1413,7 +1416,11 @@ func (c *cachedStorage) Download(ctx context.Context, key string) (io.ReadCloser
 	if err != nil {
 		return nil, err
 	}
-	defer func() { if cerr := r.Close(); cerr != nil { logx.Errorf("cachedStorage close: %v", cerr) } }()
+	defer func() {
+		if cerr := r.Close(); cerr != nil {
+			logx.Errorf("cachedStorage close: %v", cerr)
+		}
+	}()
 	data, err := io.ReadAll(r)
 	if err != nil {
 		return nil, err
@@ -1424,7 +1431,7 @@ func (c *cachedStorage) Download(ctx context.Context, key string) (io.ReadCloser
 			c.l1.Set(key, data)
 		}
 		if c.path != "" {
-			if wErr := os.WriteFile(filepath.Join(c.path, sanitizeKey(key)), data, 0600); wErr != nil {
+			if wErr := os.WriteFile(filepath.Join(c.path, sanitizeKey(key)), data, 0o600); wErr != nil {
 				logx.Errorf("cachedStorage disk write: %v", wErr)
 			}
 		}

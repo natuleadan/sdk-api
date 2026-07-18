@@ -16,7 +16,7 @@ func TestCronScheduler_AddJob_Handler(t *testing.T) {
 		Schedule: "@every 1s",
 		Mode:     "handler",
 		Handler:  "onTest",
-	}, nil, func(ctx context.Context) error {
+	}, nil, func(_ context.Context) error {
 		called.Add(1)
 		return nil
 	})
@@ -38,14 +38,14 @@ func TestCronScheduler_AddJob_Duplicate(t *testing.T) {
 	s := NewCronScheduler()
 	err := s.AddJob(context.Background(), CronJob{
 		Name: "dup", Schedule: "@every 1s", Mode: "handler",
-	}, nil, func(ctx context.Context) error { return nil })
+	}, nil, func(_ context.Context) error { return nil })
 	if err != nil {
 		t.Fatalf("first AddJob: %v", err)
 	}
 
 	err = s.AddJob(context.Background(), CronJob{
 		Name: "dup", Schedule: "@every 1s", Mode: "handler",
-	}, nil, func(ctx context.Context) error { return nil })
+	}, nil, func(_ context.Context) error { return nil })
 	if err == nil {
 		t.Error("expected error for duplicate job")
 	}
@@ -58,7 +58,7 @@ func TestCronScheduler_AddAfterStart(t *testing.T) {
 
 	err := s.AddJob(context.Background(), CronJob{
 		Name: "late", Schedule: "@every 1s", Mode: "handler",
-	}, nil, func(ctx context.Context) error { return nil })
+	}, nil, func(_ context.Context) error { return nil })
 	if err == nil {
 		t.Error("expected error adding job after start")
 	}
@@ -115,7 +115,7 @@ func TestCronScheduler_AddAll(t *testing.T) {
 	}
 
 	handlers := map[string]CronJobFunc{
-		"tick": func(ctx context.Context) error {
+		"tick": func(_ context.Context) error {
 			called.Add(1)
 			return nil
 		},
@@ -143,7 +143,7 @@ func TestCronScheduler_StopWait(t *testing.T) {
 		Name:     "wait",
 		Schedule: "@every 1s",
 		Mode:     "handler",
-	}, nil, func(ctx context.Context) error {
+	}, nil, func(_ context.Context) error {
 		running.Add(1)
 		time.Sleep(300 * time.Millisecond)
 		running.Add(-1)
@@ -167,7 +167,7 @@ func TestService_WithCron(t *testing.T) {
 		config: &ServiceConfig{Name: "test", Port: 19060},
 	}
 
-	svc.WithCron("daily-report", func(ctx context.Context) error { return nil })
+	svc.WithCron("daily-report", func(_ context.Context) error { return nil })
 
 	if svc.cronFuncs["daily-report"] == nil {
 		t.Error("cron handler not registered")

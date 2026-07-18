@@ -21,8 +21,8 @@ type CronScheduler struct {
 
 func NewCronScheduler() *CronScheduler {
 	return &CronScheduler{
-		cron:  cron.New(),
-		jobs:  make(map[string]cron.EntryID),
+		cron: cron.New(),
+		jobs: make(map[string]cron.EntryID),
 	}
 }
 

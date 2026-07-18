@@ -10,11 +10,11 @@ import (
 )
 
 const (
-	TargetAuto     = "auto"
-	TargetVercel   = "vercel"
-	TargetDocker   = "docker"
-	TargetKube     = "kube"
-	TargetBare     = "bare-metal"
+	TargetAuto   = "auto"
+	TargetVercel = "vercel"
+	TargetDocker = "docker"
+	TargetKube   = "kube"
+	TargetBare   = "bare-metal"
 )
 
 var validTargets = map[string]bool{

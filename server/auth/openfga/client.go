@@ -1,3 +1,4 @@
+// Package openfga provides the OpenFGA authorization client.
 package openfga
 
 import (

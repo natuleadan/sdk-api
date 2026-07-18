@@ -19,7 +19,7 @@ func TestService_WithExit(t *testing.T) {
 		exitMgr:   NewExitWorkerManager(),
 	}
 
-	svc.WithExit("onOrderConfirmed", func(ctx context.Context, msg []byte) ([]byte, error) {
+	svc.WithExit("onOrderConfirmed", func(_ context.Context, msg []byte) ([]byte, error) {
 		return nil, nil
 	})
 
@@ -86,7 +86,7 @@ func TestExitWorkerManager_NoHandlers(t *testing.T) {
 
 func TestExitWorkerManager_Empty(t *testing.T) {
 	mgr := NewExitWorkerManager()
-	err := 	mgr.Start(context.Background(), nil, nil, nil, nil)
+	err := mgr.Start(context.Background(), nil, nil, nil, nil)
 	if err != nil {
 		t.Errorf("empty exit defs should not error: %v", err)
 	}
@@ -119,7 +119,7 @@ func TestExitWorkerManager_Start_NoNatsConnection(t *testing.T) {
 		{Name: "test", Subscribe: SubscribeDef{Stream: "s"}, Handler: "h"},
 	}
 	err := mgr.Start(context.Background(), exitDefs, map[string]events.EventBroker{}, map[string]ExitHandler{
-		"h": func(ctx context.Context, msg []byte) ([]byte, error) { return nil, nil },
+		"h": func(_ context.Context, msg []byte) ([]byte, error) { return nil, nil },
 	}, nil)
 	if err == nil {
 		t.Error("expected error for no NATS connection")

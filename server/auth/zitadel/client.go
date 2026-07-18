@@ -1,3 +1,4 @@
+// Package zitadel provides Zitadel OIDC authentication and JWKS-based JWT validation.
 package zitadel
 
 import (
@@ -51,7 +52,7 @@ func NewClient(cfg Config) *Client {
 }
 
 // ValidateToken validates a JWT token issued by Zitadel.
-func (c *Client) ValidateToken(ctx context.Context, tokenString string) (jwt.MapClaims, error) {
+func (c *Client) ValidateToken(_ context.Context, tokenString string) (jwt.MapClaims, error) {
 	parser := jwt.NewParser(
 		jwt.WithIssuer(c.issuer),
 		jwt.WithValidMethods([]string{"RS256", "RS384", "RS512"}),

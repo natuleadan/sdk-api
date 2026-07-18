@@ -1,3 +1,4 @@
+// Package server provides the Fiber HTTP server with built-in middleware, TLS, and security features.
 package server
 
 import (
@@ -148,7 +149,7 @@ func setupGlobalMiddlewares(app *fiber.App, cfg Config, telemetry TelemetryConfi
 	app.Use(recover.New(recover.Config{EnableStackTrace: cfg.RecoverStack}))
 	app.Use(middleware.HeaderSanitize())
 	app.Get(cfg.HealthPath, healthcheck.New(healthcheck.Config{
-		Probe: func(c fiber.Ctx) bool { return true },
+		Probe: func(_ fiber.Ctx) bool { return true },
 	}))
 	if telemetry.Enabled {
 		app.Use(middleware.Trace(middleware.TraceConfig{

@@ -66,7 +66,7 @@ func TestIntegration_KafkaBroker_PublishConsume(t *testing.T) {
 	var lastMsg []byte
 	done := make(chan struct{})
 
-	sub, err := b.Subscribe(context.Background(), topic, "it-"+topic, func(ctx context.Context, msg Message) error {
+	sub, err := b.Subscribe(context.Background(), topic, "it-"+topic, func(_ context.Context, msg Message) error {
 		received.Add(1)
 		lastMsg = msg.Data()
 		close(done)
@@ -114,7 +114,7 @@ func TestIntegration_KafkaBroker_MultipleMessages(t *testing.T) {
 	var received atomic.Int64
 	done := make(chan struct{})
 
-	sub, err := b.Subscribe(context.Background(), topic, "it-"+topic, func(ctx context.Context, msg Message) error {
+	sub, err := b.Subscribe(context.Background(), topic, "it-"+topic, func(_ context.Context, msg Message) error {
 		received.Add(1)
 		if received.Load() >= 3 {
 			close(done)

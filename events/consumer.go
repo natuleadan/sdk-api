@@ -1,3 +1,4 @@
+// Package events provides event streaming abstractions over NATS and Kafka.
 package events
 
 import (
@@ -13,7 +14,7 @@ import (
 type AckAction int
 
 const (
-	Ack    AckAction = iota
+	Ack AckAction = iota
 	Nak
 	NakDelay
 	Term
@@ -31,32 +32,32 @@ type Msg[T any] struct {
 type Handler[T any] func(ctx context.Context, msg Msg[T]) (AckAction, error)
 
 type ConsumerConfig struct {
-	Stream       string
-	Subject      string
-	Durable      string
-	QueueGroup   string
-	DeliverAll   bool
-	MaxDeliver   int
-	AckWait      time.Duration
-	BackOff      []time.Duration
-	PullBatch    int
-	PullMaxWait  time.Duration
-	NakDelay     time.Duration
-	Reply        bool // if true, handler returns data for msg.Respond()
+	Stream      string
+	Subject     string
+	Durable     string
+	QueueGroup  string
+	DeliverAll  bool
+	MaxDeliver  int
+	AckWait     time.Duration
+	BackOff     []time.Duration
+	PullBatch   int
+	PullMaxWait time.Duration
+	NakDelay    time.Duration
+	Reply       bool // if true, handler returns data for msg.Respond()
 }
 
 func DefaultConsumerConfig(stream, durable string) ConsumerConfig {
 	return ConsumerConfig{
-		Stream:       stream,
-		Subject:      stream,
-		Durable:      durable,
-		DeliverAll:   true,
-		MaxDeliver:   5,
-		AckWait:      30 * time.Second,
-		BackOff:      []time.Duration{1 * time.Second, 2 * time.Second, 5 * time.Second, 10 * time.Second, 30 * time.Second},
-		PullBatch:    10,
-		PullMaxWait:  5 * time.Second,
-		NakDelay:     5 * time.Second,
+		Stream:      stream,
+		Subject:     stream,
+		Durable:     durable,
+		DeliverAll:  true,
+		MaxDeliver:  5,
+		AckWait:     30 * time.Second,
+		BackOff:     []time.Duration{1 * time.Second, 2 * time.Second, 5 * time.Second, 10 * time.Second, 30 * time.Second},
+		PullBatch:   10,
+		PullMaxWait: 5 * time.Second,
+		NakDelay:    5 * time.Second,
 	}
 }
 
@@ -95,16 +96,20 @@ func ConsumePull[T any](ctx context.Context, js nats.JetStreamContext, cfg Consu
 	}
 
 	pullBatch := cfg.PullBatch
-	if pullBatch <= 0 { pullBatch = 10 }
+	if pullBatch <= 0 {
+		pullBatch = 10
+	}
 	pullMaxWait := cfg.PullMaxWait
-	if pullMaxWait <= 0 { pullMaxWait = 5 * time.Second }
+	if pullMaxWait <= 0 {
+		pullMaxWait = 5 * time.Second
+	}
 
 	go func() {
 		defer func() {
-		if err := sub.Unsubscribe(); err != nil {
-			logx.Errorf("events: unsubscribe error: %v", err)
-		}
-	}()
+			if err := sub.Unsubscribe(); err != nil {
+				logx.Errorf("events: unsubscribe error: %v", err)
+			}
+		}()
 		for {
 			msgs, err := sub.Fetch(pullBatch, nats.MaxWait(pullMaxWait))
 			if err != nil {
@@ -174,8 +179,8 @@ func processMsg[T any](ctx context.Context, m *nats.Msg, handler Handler[T], cfg
 	var data T
 	if err := json.Unmarshal(m.Data, &data); err != nil {
 		if err := m.Term(); err != nil {
-		logx.Errorf("events: term error: %v", err)
-	}
+			logx.Errorf("events: term error: %v", err)
+		}
 		return
 	}
 
@@ -191,31 +196,31 @@ func processMsg[T any](ctx context.Context, m *nats.Msg, handler Handler[T], cfg
 	action, err := handler(ctx, msg)
 	if err != nil {
 		if err := m.Nak(); err != nil {
-		logx.Errorf("events: nak error: %v", err)
-	}
+			logx.Errorf("events: nak error: %v", err)
+		}
 		return
 	}
 
 	switch action {
 	case Ack:
 		if err := m.Ack(); err != nil {
-		logx.Errorf("events: ack error: %v", err)
-	}
+			logx.Errorf("events: ack error: %v", err)
+		}
 	case Nak:
 		if err := m.Nak(); err != nil {
-		logx.Errorf("events: nak error: %v", err)
-	}
+			logx.Errorf("events: nak error: %v", err)
+		}
 	case NakDelay:
 		if err := m.NakWithDelay(getNakDelay(cfg)); err != nil {
-		logx.Errorf("events: nak delay error: %v", err)
-	}
+			logx.Errorf("events: nak delay error: %v", err)
+		}
 	case Term:
 		if err := m.Term(); err != nil {
-		logx.Errorf("events: term error: %v", err)
-	}
+			logx.Errorf("events: term error: %v", err)
+		}
 	default:
 		if err := m.Ack(); err != nil {
-		logx.Errorf("events: ack error: %v", err)
-	}
+			logx.Errorf("events: ack error: %v", err)
+		}
 	}
 }

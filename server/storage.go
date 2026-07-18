@@ -30,10 +30,10 @@ type Presigner interface {
 // ---- S3 ----
 
 type PoolConfig struct {
-	MaxIdleConns      int
+	MaxIdleConns        int
 	MaxIdleConnsPerHost int
-	MaxConnsPerHost   int
-	IdleTimeout       time.Duration
+	MaxConnsPerHost     int
+	IdleTimeout         time.Duration
 }
 
 type S3Config struct {
@@ -154,18 +154,18 @@ func NewLocalStorage(root string) (*LocalStorage, error) {
 	if err != nil {
 		return nil, fmt.Errorf("local storage path: %w", err)
 	}
-	if err := os.MkdirAll(abs, 0750); err != nil {
+	if err := os.MkdirAll(abs, 0o750); err != nil {
 		return nil, fmt.Errorf("local storage mkdir: %w", err)
 	}
 	return &LocalStorage{root: abs}, nil
 }
 
-func (l *LocalStorage) Upload(ctx context.Context, key string, reader io.Reader, _ int64, _ string) error {
+func (l *LocalStorage) Upload(_ context.Context, key string, reader io.Reader, _ int64, _ string) error {
 	// Sanitize key to prevent path traversal
 	key = sanitizeKey(key)
 	fullPath := filepath.Join(l.root, key)
 	dir := filepath.Dir(fullPath)
-	if err := os.MkdirAll(dir, 0750); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return fmt.Errorf("local upload mkdir: %w", err)
 	}
 
@@ -173,7 +173,11 @@ func (l *LocalStorage) Upload(ctx context.Context, key string, reader io.Reader,
 	if err != nil {
 		return fmt.Errorf("local upload create: %w", err)
 	}
-	defer func() { if err := f.Close(); err != nil { fmt.Fprintf(os.Stderr, "storage: close error: %v\n", err) } }()
+	defer func() {
+		if err := f.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "storage: close error: %v\n", err)
+		}
+	}()
 
 	if _, err := io.Copy(f, reader); err != nil {
 		return fmt.Errorf("local upload copy: %w", err)
@@ -181,7 +185,7 @@ func (l *LocalStorage) Upload(ctx context.Context, key string, reader io.Reader,
 	return nil
 }
 
-func (l *LocalStorage) Download(ctx context.Context, key string) (io.ReadCloser, error) {
+func (l *LocalStorage) Download(_ context.Context, key string) (io.ReadCloser, error) {
 	key = sanitizeKey(key)
 	fullPath := filepath.Join(l.root, key)
 	f, err := os.Open(filepath.Clean(fullPath))
@@ -194,7 +198,7 @@ func (l *LocalStorage) Download(ctx context.Context, key string) (io.ReadCloser,
 	return f, nil
 }
 
-func (l *LocalStorage) Delete(ctx context.Context, key string) error {
+func (l *LocalStorage) Delete(_ context.Context, key string) error {
 	key = sanitizeKey(key)
 	fullPath := filepath.Join(l.root, key)
 	return os.Remove(fullPath)

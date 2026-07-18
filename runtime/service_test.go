@@ -98,7 +98,7 @@ entry:
     path: /ping
     handler: ping
 `
-	os.WriteFile(yamlPath, []byte(content), 0644)
+	os.WriteFile(yamlPath, []byte(content), 0o644)
 
 	svc, err := New(yamlPath)
 	if err != nil {
@@ -148,7 +148,7 @@ entry:
     db: pg
     table: products
 `
-	os.WriteFile(yamlPath, []byte(content), 0644)
+	os.WriteFile(yamlPath, []byte(content), 0o644)
 
 	svc, err := New(yamlPath)
 	if err != nil {
@@ -198,7 +198,7 @@ entry:
     path: /webhooks/test
     handler: onWebhook
 `
-	os.WriteFile(yamlPath, []byte(content), 0644)
+	os.WriteFile(yamlPath, []byte(content), 0o644)
 
 	svc, err := New(yamlPath)
 	if err != nil {
@@ -278,7 +278,7 @@ entry:
     path: /status
     handler: status
 `
-	os.WriteFile(yamlPath, []byte(content), 0644)
+	os.WriteFile(yamlPath, []byte(content), 0o644)
 
 	svc, err := New(yamlPath)
 	if err != nil {

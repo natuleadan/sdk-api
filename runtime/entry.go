@@ -143,6 +143,9 @@ func registerAuthMiddleware(entry *EntryDef, driver string, jwtCfg *middleware.J
 
 	if hasJWT {
 		mws = appendJWTMiddleware(mws, entry, driver, jwtCfg, authValidator, fgaClient, oryClient, zitadelClient)
+		if entry.RequiresMFA {
+			mws = append(mws, middleware.MFARequired())
+		}
 	}
 
 	if hasAPIKey || hasJWT {

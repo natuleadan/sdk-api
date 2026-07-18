@@ -56,7 +56,9 @@ func NewTursoTableFrom[T any](db *sql.DB, tableName string, info *TableInfo) (*T
 	}
 	cols := make([]string, 0, len(info.Fields))
 	for _, f := range info.Fields {
-		if f.Skip { continue }
+		if f.Skip {
+			continue
+		}
 		cols = append(cols, f.Column)
 	}
 	return &TursoTable[T]{db: db, info: info, tableName: tableName, columns: cols}, nil
@@ -118,19 +120,32 @@ func (t *TursoTable[T]) buildColumnDef(f FieldInfo) string {
 	var parts []string
 	parts = append(parts, f.Column)
 
-	if f.Auto { parts = append(parts, "INTEGER PRIMARY KEY AUTOINCREMENT") }
+	if f.Auto {
+		parts = append(parts, "INTEGER PRIMARY KEY AUTOINCREMENT")
+	}
 	if !f.Auto {
 		switch f.FieldType.Kind() {
-		case reflect.Int, reflect.Int64: parts = append(parts, "INTEGER")
-		case reflect.Float64: parts = append(parts, "REAL")
-		case reflect.String: parts = append(parts, "TEXT")
-		case reflect.Bool: parts = append(parts, "INTEGER")
-		default: parts = append(parts, "TEXT")
+		case reflect.Int, reflect.Int64:
+			parts = append(parts, "INTEGER")
+		case reflect.Float64:
+			parts = append(parts, "REAL")
+		case reflect.String:
+			parts = append(parts, "TEXT")
+		case reflect.Bool:
+			parts = append(parts, "INTEGER")
+		default:
+			parts = append(parts, "TEXT")
 		}
-		if f.Required { parts = append(parts, "NOT NULL") }
-		if f.Default != "" { parts = append(parts, "DEFAULT "+f.Default) }
+		if f.Required {
+			parts = append(parts, "NOT NULL")
+		}
+		if f.Default != "" {
+			parts = append(parts, "DEFAULT "+f.Default)
+		}
 	}
-	if f.Primary && !f.Auto { parts = append(parts, "PRIMARY KEY") }
+	if f.Primary && !f.Auto {
+		parts = append(parts, "PRIMARY KEY")
+	}
 	return strings.Join(parts, " ")
 }
 
@@ -161,10 +176,14 @@ func (t *TursoTable[T]) scanRows(rows *sql.Rows) ([]T, error) {
 		ptrs := make([]any, 0, len(t.columns))
 		for _, col := range t.columns {
 			fi := t.columnField(col)
-			if fi == nil { ptrs = append(ptrs, new(any)); continue }
+			if fi == nil {
+				ptrs = append(ptrs, new(any))
+				continue
+			}
 			fv := v.FieldByName(fi.GoName)
 			if !fv.IsValid() || !fv.CanInterface() {
-				ptrs = append(ptrs, new(any)); continue
+				ptrs = append(ptrs, new(any))
+				continue
 			}
 			ptrs = append(ptrs, fv.Addr().Interface())
 		}
@@ -178,7 +197,9 @@ func (t *TursoTable[T]) scanRows(rows *sql.Rows) ([]T, error) {
 
 func (t *TursoTable[T]) columnField(column string) *FieldInfo {
 	for i, f := range t.info.Fields {
-		if f.Column == column { return &t.info.Fields[i] }
+		if f.Column == column {
+			return &t.info.Fields[i]
+		}
 	}
 	return nil
 }
@@ -194,8 +215,14 @@ func (t *TursoTable[T]) List(ctx context.Context) ([]T, error) {
 	b.WriteString(t.info.PrimaryKey)
 	query := b.String()
 	rows, err := t.db.QueryContext(ctx, query)
-	if err != nil { return nil, fmt.Errorf("db: turso list: %w", err) }
-	defer func() { if err := rows.Close(); err != nil { fmt.Printf("close error: %v\n", err) } }()
+	if err != nil {
+		return nil, fmt.Errorf("db: turso list: %w", err)
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			fmt.Printf("close error: %v\n", err)
+		}
+	}()
 	return t.scanRows(rows)
 }
 
@@ -242,7 +269,11 @@ func (t *TursoTable[T]) QueryKeyset(ctx context.Context, cursor string, size int
 	if err != nil {
 		return nil, "", fmt.Errorf("db: turso keyset: %w", err)
 	}
-	defer func() { if err := rows.Close(); err != nil { fmt.Printf("close error: %v\n", err) } }()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			fmt.Printf("close error: %v\n", err)
+		}
+	}()
 
 	result, err := t.scanRows(rows)
 	if err != nil {
@@ -280,7 +311,9 @@ func (t *TursoTable[T]) Get(ctx context.Context, id any) (*T, error) {
 	row := t.db.QueryRowContext(ctx, query, id)
 	var entity T
 	if err := t.scanRow(row, &entity); err != nil {
-		if err == sql.ErrNoRows { return nil, ErrNotFound }
+		if err == sql.ErrNoRows {
+			return nil, ErrNotFound
+		}
 		return nil, fmt.Errorf("db: turso get: %w", err)
 	}
 	return &entity, nil
@@ -291,10 +324,16 @@ func (t *TursoTable[T]) Create(ctx context.Context, entity *T) error {
 	var cols []string
 	var vals []any
 	for _, f := range t.info.Fields {
-		if f.Skip || f.Auto { continue }
+		if f.Skip || f.Auto {
+			continue
+		}
 		fv := v.FieldByName(f.GoName)
-		if !fv.IsValid() { continue }
-		if f.Default != "" && fv.IsZero() { continue }
+		if !fv.IsValid() {
+			continue
+		}
+		if f.Default != "" && fv.IsZero() {
+			continue
+		}
 		cols = append(cols, f.Column)
 		vals = append(vals, fv.Interface())
 	}
@@ -310,17 +349,23 @@ func (t *TursoTable[T]) Create(ctx context.Context, entity *T) error {
 	b.WriteString(")")
 	query := b.String()
 	res, err := t.db.ExecContext(ctx, query, vals...)
-	if err != nil { return fmt.Errorf("db: turso create: %w", err) }
+	if err != nil {
+		return fmt.Errorf("db: turso create: %w", err)
+	}
 
 	id, err := res.LastInsertId()
-	if err != nil { return fmt.Errorf("db: turso lastid: %w", err) }
+	if err != nil {
+		return fmt.Errorf("db: turso lastid: %w", err)
+	}
 
 	v.FieldByName(t.info.Fields[0].GoName).SetInt(id)
 	return nil
 }
 
 func (t *TursoTable[T]) Update(ctx context.Context, id any, patch map[string]any) (*T, error) {
-	if len(patch) == 0 { return nil, fmt.Errorf("db: turso update: no fields") }
+	if len(patch) == 0 {
+		return nil, fmt.Errorf("db: turso update: no fields")
+	}
 	var sets []string
 	var args []any
 	for col, val := range patch {
@@ -342,7 +387,9 @@ func (t *TursoTable[T]) Update(ctx context.Context, id any, patch map[string]any
 	row := t.db.QueryRowContext(ctx, query, args...)
 	var entity T
 	if err := t.scanRow(row, &entity); err != nil {
-		if err == sql.ErrNoRows { return nil, ErrNotFound }
+		if err == sql.ErrNoRows {
+			return nil, ErrNotFound
+		}
 		return nil, fmt.Errorf("db: turso update: %w", err)
 	}
 	return &entity, nil
@@ -350,9 +397,13 @@ func (t *TursoTable[T]) Update(ctx context.Context, id any, patch map[string]any
 
 func (t *TursoTable[T]) Delete(ctx context.Context, id any) error {
 	res, err := t.db.ExecContext(ctx, fmt.Sprintf("DELETE FROM %s WHERE %s = ?", t.tableName, t.info.PrimaryKey), id)
-	if err != nil { return fmt.Errorf("db: turso delete: %w", err) }
+	if err != nil {
+		return fmt.Errorf("db: turso delete: %w", err)
+	}
 	n, _ := res.RowsAffected()
-	if n == 0 { return ErrNotFound }
+	if n == 0 {
+		return ErrNotFound
+	}
 	return nil
 }
 
@@ -372,7 +423,9 @@ func (t *TursoTable[T]) ListScoped(ctx context.Context, tenantField string, tena
 	b.WriteString(" = ? ORDER BY ")
 	b.WriteString(t.info.PrimaryKey)
 	rows, err := t.db.QueryContext(ctx, b.String(), tenantID)
-	if err != nil { return nil, fmt.Errorf("db: turso list scoped: %w", err) }
+	if err != nil {
+		return nil, fmt.Errorf("db: turso list scoped: %w", err)
+	}
 	defer func() { _ = rows.Close() }()
 	return t.scanRows(rows)
 }
@@ -396,7 +449,9 @@ func (t *TursoTable[T]) GetScoped(ctx context.Context, id any, tenantField strin
 	row := t.db.QueryRowContext(ctx, b.String(), id, tenantID)
 	var entity T
 	if err := t.scanRow(row, &entity); err != nil {
-		if err == sql.ErrNoRows { return nil, ErrNotFound }
+		if err == sql.ErrNoRows {
+			return nil, ErrNotFound
+		}
 		return nil, fmt.Errorf("db: turso get scoped: %w", err)
 	}
 	return &entity, nil
@@ -419,7 +474,9 @@ func (t *TursoTable[T]) UpdateScoped(ctx context.Context, id any, patch map[stri
 	if f == nil {
 		return nil, fmt.Errorf("db: turso update scoped: invalid column %q", tenantField)
 	}
-	if len(patch) == 0 { return nil, fmt.Errorf("db: turso update scoped: no fields") }
+	if len(patch) == 0 {
+		return nil, fmt.Errorf("db: turso update scoped: no fields")
+	}
 	var sets []string
 	var args []any
 	for col, val := range patch {
@@ -439,9 +496,13 @@ func (t *TursoTable[T]) UpdateScoped(ctx context.Context, id any, patch map[stri
 	b.WriteString(f.Column)
 	b.WriteString(" = ?")
 	res, err := t.db.ExecContext(ctx, b.String(), args...)
-	if err != nil { return nil, fmt.Errorf("db: turso update scoped: %w", err) }
+	if err != nil {
+		return nil, fmt.Errorf("db: turso update scoped: %w", err)
+	}
 	n, _ := res.RowsAffected()
-	if n == 0 { return nil, ErrNotFound }
+	if n == 0 {
+		return nil, ErrNotFound
+	}
 	return t.GetScoped(ctx, id, tenantField, tenantID)
 }
 
@@ -460,9 +521,13 @@ func (t *TursoTable[T]) DeleteScoped(ctx context.Context, id any, tenantField st
 	b.WriteString(f.Column)
 	b.WriteString(" = ?")
 	res, err := t.db.ExecContext(ctx, b.String(), id, tenantID)
-	if err != nil { return fmt.Errorf("db: turso delete scoped: %w", err) }
+	if err != nil {
+		return fmt.Errorf("db: turso delete scoped: %w", err)
+	}
 	n, _ := res.RowsAffected()
-	if n == 0 { return ErrNotFound }
+	if n == 0 {
+		return ErrNotFound
+	}
 	return nil
 }
 

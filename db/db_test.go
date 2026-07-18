@@ -1,3 +1,4 @@
+// Package db provides database table abstractions and ORM-like CRUD operations.
 package db
 
 import (
@@ -351,8 +352,8 @@ func TestTableQueryKeyset(t *testing.T) {
 }
 
 type testUpsertModel struct {
-	ID    int64  `db:"id,primary,auto"`
-	Name  string `db:"name,unique"`
+	ID    int64   `db:"id,primary,auto"`
+	Name  string  `db:"name,unique"`
 	Price float64 `db:"price"`
 }
 
@@ -450,4 +451,3 @@ func TestValidColumnInvalid(t *testing.T) {
 		t.Error("expected error for SQL injection attempt")
 	}
 }
-

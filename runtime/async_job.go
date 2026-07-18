@@ -1,3 +1,4 @@
+// Package runtime provides the service orchestrator.
 package runtime
 
 import (
@@ -12,13 +13,14 @@ import (
 // AsyncHandler is a function that processes an async job.
 // body contains the raw request body from the POST.
 // job holds the job state — mutate job.Result before returning.
-type AsyncHandler func(body []byte, job *JobState) error
-
-// AsyncJobManager coordinates async job creation, processing, and status retrieval.
-type AsyncJobManager struct {
-	store     JobStore
-	processor AsyncHandler
-}
+type (
+	AsyncHandler func(body []byte, job *JobState) error
+	// AsyncJobManager coordinates async job creation, processing, and status retrieval.
+	AsyncJobManager struct {
+		store     JobStore
+		processor AsyncHandler
+	}
+)
 
 // NewAsyncJobManager creates a new manager with the given store and processor.
 func NewAsyncJobManager(store JobStore, processor AsyncHandler) *AsyncJobManager {
@@ -43,7 +45,6 @@ func (m *AsyncJobManager) HandleSubmit() fiber.Handler {
 		js := m.store.Create(id)
 		status := js.Status
 		body := append([]byte{}, c.Body()...) // copy: safe for goroutine
-
 		if m.processor != nil {
 			go func() {
 				m.store.Update(id, JobProcessing, nil, "")
@@ -54,7 +55,6 @@ func (m *AsyncJobManager) HandleSubmit() fiber.Handler {
 				}
 			}()
 		}
-
 		return c.Status(202).JSON(fiber.Map{
 			"job_id":     id,
 			"status":     status,

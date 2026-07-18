@@ -40,14 +40,14 @@ type PullConsumer interface {
 type StorageType int
 
 const (
-	FileStorage   StorageType = iota
+	FileStorage StorageType = iota
 	MemoryStorage
 )
 
 type CompressionType int
 
 const (
-	S2Compression  CompressionType = iota
+	S2Compression CompressionType = iota
 	NoCompression
 )
 

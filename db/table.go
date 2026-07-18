@@ -6,11 +6,19 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/natuleadan/sdk-api/infra/logx"
 )
+
+func logSlowQuery(operation string, start time.Time, tableName string) {
+	duration := time.Since(start)
+	if duration > 100*time.Millisecond {
+		logx.Infof("slow query (%v): %s on %s", duration, operation, tableName)
+	}
+}
 
 type Table[T any] struct {
 	pool      *pgxpool.Pool
@@ -64,6 +72,7 @@ func Col(col string, val any) ColumnValue {
 }
 
 func (t *Table[T]) List(ctx context.Context) ([]T, error) {
+	defer logSlowQuery("List", time.Now(), t.tableName)
 	query := fmt.Sprintf("SELECT %s FROM %s ORDER BY %s",
 		t.columnsList(), t.tableName, t.info.PrimaryKey)
 	rows, err := t.pool.Query(ctx, query)
@@ -87,6 +96,7 @@ func (t *Table[T]) ListScoped(ctx context.Context, tenantField string, tenantID 
 }
 
 func (t *Table[T]) Get(ctx context.Context, id any) (*T, error) {
+	defer logSlowQuery("Get", time.Now(), t.tableName)
 	query := fmt.Sprintf("SELECT %s FROM %s WHERE %s = $1",
 		t.columnsList(), t.tableName, t.info.PrimaryKey)
 	rows, err := t.pool.Query(ctx, query, id)
@@ -128,6 +138,7 @@ func (t *Table[T]) GetScoped(ctx context.Context, id any, tenantField string, te
 }
 
 func (t *Table[T]) FindBy(ctx context.Context, column string, value any) (*T, error) {
+	defer logSlowQuery("FindBy", time.Now(), t.tableName)
 	if _, err := t.validColumn(column); err != nil {
 		return nil, err
 	}
@@ -149,6 +160,7 @@ func (t *Table[T]) FindBy(ctx context.Context, column string, value any) (*T, er
 }
 
 func (t *Table[T]) Create(ctx context.Context, entity *T) error {
+	defer logSlowQuery("Create", time.Now(), t.tableName)
 	v := reflect.ValueOf(entity).Elem()
 
 	var cols []string
@@ -211,6 +223,7 @@ func (t *Table[T]) CreateScoped(ctx context.Context, entity *T, tenantField stri
 }
 
 func (t *Table[T]) Update(ctx context.Context, id any, patch map[string]any) (*T, error) {
+	defer logSlowQuery("Update", time.Now(), t.tableName)
 	if len(patch) == 0 {
 		return nil, fmt.Errorf("db: update: no fields")
 	}
@@ -298,6 +311,7 @@ func (t *Table[T]) UpdateScoped(ctx context.Context, id any, patch map[string]an
 }
 
 func (t *Table[T]) Delete(ctx context.Context, id any) error {
+	defer logSlowQuery("Delete", time.Now(), t.tableName)
 	query := fmt.Sprintf("DELETE FROM %s WHERE %s = $1", t.tableName, t.info.PrimaryKey)
 	tag, err := t.pool.Exec(ctx, query, id)
 	if err != nil {
@@ -488,6 +502,7 @@ func (t *Table[T]) ExecRaw(ctx context.Context, sql string, args ...any) (int64,
 }
 
 func (t *Table[T]) QueryPaginated(ctx context.Context, page, size int, orderBy string) ([]T, int64, error) {
+	defer logSlowQuery("QueryPaginated", time.Now(), t.tableName)
 	if page < 1 {
 		page = 1
 	}
@@ -522,6 +537,7 @@ func (t *Table[T]) QueryPaginated(ctx context.Context, page, size int, orderBy s
 }
 
 func (t *Table[T]) QueryKeyset(ctx context.Context, cursor string, size int, orderBy string, where map[string]any) ([]T, string, error) {
+	defer logSlowQuery("QueryKeyset", time.Now(), t.tableName)
 	if size < 1 {
 		size = 10
 	}
@@ -594,6 +610,7 @@ func (t *Table[T]) QueryKeyset(ctx context.Context, cursor string, size int, ord
 }
 
 func (t *Table[T]) Upsert(ctx context.Context, entity *T, conflictColumn string) error {
+	defer logSlowQuery("Upsert", time.Now(), t.tableName)
 	if _, err := t.validColumn(conflictColumn); err != nil {
 		return err
 	}
@@ -647,6 +664,7 @@ func (t *Table[T]) Upsert(ctx context.Context, entity *T, conflictColumn string)
 }
 
 func (t *Table[T]) QueryWhere(ctx context.Context, where map[string]any, orderBy string, limit, offset int) ([]T, error) {
+	defer logSlowQuery("QueryWhere", time.Now(), t.tableName)
 	if orderBy == "" {
 		orderBy = t.info.PrimaryKey
 	} else if _, err := t.validColumn(orderBy); err != nil {

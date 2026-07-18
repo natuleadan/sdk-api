@@ -18,272 +18,455 @@ import (
 // ---- Top-level ----
 
 type DeployConfig struct {
+	// Target is a constant.
 	Target string `json:"target" config:",default=auto"`
 }
 
 type ServiceConfig struct {
-	Name         string                `json:"name"`
-	Port         int                   `json:"port" config:",default=8080"`
-	Deploy       *DeployConfig         `json:"deploy" config:",optional"`
-	Server       ServerConf            `json:"server" config:",optional"`
-	Databases    []DBConfig            `json:"databases" config:",optional"`
-	KV           []KVConfig            `json:"kv" config:",optional"`
-	Stream       []StreamConfig        `json:"stream" config:",optional"`
-	Entry        []EntryDef            `json:"entry" config:",optional"`
-	Exit         []ExitWorker          `json:"exit" config:",optional"`
-	Cron         []CronJob             `json:"cron" config:",optional"`
-	Auth         *AuthConfig           `json:"auth" config:",optional"`
+	// Name is a constant.
+	Name string `json:"name"`
+	// Port is a constant.
+	Port int `json:"port" config:",default=8080"`
+	// Deploy is a constant.
+	Deploy *DeployConfig `json:"deploy" config:",optional"`
+	// Server is a constant.
+	Server ServerConf `json:"server" config:",optional"`
+	// Databases is a constant.
+	Databases []DBConfig `json:"databases" config:",optional"`
+	// KV is a constant.
+	KV []KVConfig `json:"kv" config:",optional"`
+	// Stream is a constant.
+	Stream []StreamConfig `json:"stream" config:",optional"`
+	// Entry is a constant.
+	Entry []EntryDef `json:"entry" config:",optional"`
+	// Exit is a constant.
+	Exit []ExitWorker `json:"exit" config:",optional"`
+	// Cron is a constant.
+	Cron []CronJob `json:"cron" config:",optional"`
+	// Auth is a constant.
+	Auth *AuthConfig `json:"auth" config:",optional"`
 }
 
 type AuthConfig struct {
-	Enabled      bool              `json:"enabled" config:",optional"`
-	Driver       string            `json:"driver" config:",default=none"` // none | manual | openfga-zitadel | ory
-	Secret       string            `json:"secret" config:",optional"`
-	PrevSecret   string            `json:"prev_secret" config:",optional"`
-	Algorithm    string            `json:"algorithm" config:",default=HS256"`
-	ContextKey   string            `json:"context_key" config:",default=claims"`
-	Issuer       string            `json:"issuer" config:",optional"`
-	Audience     string            `json:"audience" config:",optional"`
-	Expiry       int               `json:"expiry" config:",default=900"` // JWT TTL in seconds (default 15 min)
-	ZitadelURL   string            `json:"zitadel_url" config:",optional"`
-	OpenFGAURL   string            `json:"openfga_url" config:",optional"`
-	OpenFGAStore string            `json:"openfga_store" config:",optional"`
-	KratosURL    string            `json:"kratos_url" config:",optional"`
-	KetoURL      string            `json:"keto_url" config:",optional"`
-	Refresh      *RefreshConfig    `json:"refresh" config:",optional"`
-	Cookie       *AuthCookieConfig `json:"cookie" config:",optional"`
+	// Enabled is a constant.
+	Enabled bool `json:"enabled" config:",optional"`
+	// Driver is a constant.
+	Driver string `json:"driver" config:",default=none"` // none | manual | openfga-zitadel | ory
+	// Secret is a constant.
+	Secret string `json:"secret" config:",optional"`
+	// PrevSecret is a constant.
+	PrevSecret string `json:"prev_secret" config:",optional"`
+	// Algorithm is a constant.
+	Algorithm string `json:"algorithm" config:",default=HS256"`
+	// ContextKey is a constant.
+	ContextKey string `json:"context_key" config:",default=claims"`
+	// Issuer is a constant.
+	Issuer string `json:"issuer" config:",optional"`
+	// Audience is a constant.
+	Audience string `json:"audience" config:",optional"`
+	// Expiry is a constant.
+	Expiry int `json:"expiry" config:",default=900"` // JWT TTL in seconds (default 15 min)
+	// ZitadelURL is a constant.
+	ZitadelURL string `json:"zitadel_url" config:",optional"`
+	// OpenFGAURL is a constant.
+	OpenFGAURL string `json:"openfga_url" config:",optional"`
+	// OpenFGAStore is a constant.
+	OpenFGAStore string `json:"openfga_store" config:",optional"`
+	// KratosURL is a constant.
+	KratosURL string `json:"kratos_url" config:",optional"`
+	// KetoURL is a constant.
+	KetoURL string `json:"keto_url" config:",optional"`
+	// Refresh is a constant.
+	Refresh *RefreshConfig `json:"refresh" config:",optional"`
+	// Cookie is a constant.
+	Cookie *AuthCookieConfig `json:"cookie" config:",optional"`
 }
 
 type RefreshConfig struct {
-	Enabled          bool   `json:"enabled" config:",default=false"`
-	TTL              int    `json:"ttl" config:",default=604800"`       // 7 days in seconds
-	Endpoint         string `json:"endpoint" config:",default=/auth/refresh"`
-	Secret           string `json:"secret" config:",optional"`          // separate from auth.secret
-	ZitadelTokenURL  string `json:"zitadel_token_url" config:",optional"`
-	ZitadelClientID  string `json:"zitadel_client_id" config:",optional"`
+	// Enabled is a constant.
+	Enabled bool `json:"enabled" config:",default=false"`
+	// TTL is a constant.
+	TTL int `json:"ttl" config:",default=604800"` // 7 days in seconds
+	// Endpoint is a constant.
+	Endpoint string `json:"endpoint" config:",default=/auth/refresh"`
+	// Secret is a constant.
+	Secret string `json:"secret" config:",optional"` // separate from auth.secret
+	// ZitadelTokenURL is a constant.
+	ZitadelTokenURL string `json:"zitadel_token_url" config:",optional"`
+	// ZitadelClientID is a constant.
+	ZitadelClientID string `json:"zitadel_client_id" config:",optional"`
+	// KratosRefreshURL is a constant.
 	KratosRefreshURL string `json:"kratos_refresh_url" config:",optional"`
 }
 
 type AuthCookieConfig struct {
-	AccessTokenName  string `json:"access_token_name" config:",default=token"`
+	// AccessTokenName is a constant.
+	AccessTokenName string `json:"access_token_name" config:",default=token"`
+	// RefreshTokenName is a constant.
 	RefreshTokenName string `json:"refresh_token_name" config:",default=refresh_token"`
-	Domain           string `json:"domain" config:",optional"`
-	Path             string `json:"path" config:",default=/"`
-	HTTPOnly         bool   `json:"http_only" config:",default=true"`
-	Secure           bool   `json:"secure" config:",default=true"`
-	SameSite         string `json:"same_site" config:",default=Strict"`
+	// Domain is a constant.
+	Domain string `json:"domain" config:",optional"`
+	// Path is a constant.
+	Path string `json:"path" config:",default=/"`
+	// HTTPOnly is a constant.
+	HTTPOnly bool `json:"http_only" config:",default=true"`
+	// Secure is a constant.
+	Secure bool `json:"secure" config:",default=true"`
+	// SameSite is a constant.
+	SameSite string `json:"same_site" config:",default=Strict"`
 }
 
 // ---- Server ----
 
 type ServerConf struct {
-	Host            string               `json:"host" config:",default=0.0.0.0"`
-	Prefork         bool                 `json:"prefork" config:",optional"`
-	BodyLimit       int                  `json:"body_limit" config:",default=4194304"`
-	Timeout         string               `json:"timeout" config:",default=30s"`
-	MaxConns        int                  `json:"max_conns" config:",default=1000"`
-	MaxBytes        int                  `json:"max_bytes" config:",default=4194304"`
-	MetricsPath     string               `json:"metrics_path" config:",default=/metrics"`
-	HealthPath      string               `json:"health_path" config:",default=/health"`
-	ShutdownTimeout string               `json:"shutdown_timeout" config:",default=10s"`
-	RecoverStack    bool                 `json:"recover_stack" config:",default=true"`
-	APIPrefix       string               `json:"api_prefix" config:",default=/api/v1"`
-	CORS            *CORSConf            `json:"cors" config:",optional"`
-	Middleware      []RouteMW            `json:"middleware" config:",optional"`
-	Static          []StaticDef          `json:"static" config:",optional"`
-	OpenAPI         *OpenAPIConf         `json:"openapi" config:",optional"`
+	// Host is a constant.
+	Host string `json:"host" config:",default=0.0.0.0"`
+	// Prefork is a constant.
+	Prefork bool `json:"prefork" config:",optional"`
+	// BodyLimit is a constant.
+	BodyLimit int `json:"body_limit" config:",default=4194304"`
+	// Timeout is a constant.
+	Timeout string `json:"timeout" config:",default=30s"`
+	// MaxConns is a constant.
+	MaxConns int `json:"max_conns" config:",default=1000"`
+	// MaxBytes is a constant.
+	MaxBytes int `json:"max_bytes" config:",default=4194304"`
+	// MetricsPath is a constant.
+	MetricsPath string `json:"metrics_path" config:",default=/metrics"`
+	// HealthPath is a constant.
+	HealthPath string `json:"health_path" config:",default=/health"`
+	// ShutdownTimeout is a constant.
+	ShutdownTimeout string `json:"shutdown_timeout" config:",default=10s"`
+	// RecoverStack is a constant.
+	RecoverStack bool `json:"recover_stack" config:",default=true"`
+	// APIPrefix is a constant.
+	APIPrefix string `json:"api_prefix" config:",default=/api/v1"`
+	// CORS is a constant.
+	CORS *CORSConf `json:"cors" config:",optional"`
+	// Middleware is a constant.
+	Middleware []RouteMW `json:"middleware" config:",optional"`
+	// Static is a constant.
+	Static []StaticDef `json:"static" config:",optional"`
+	// OpenAPI is a constant.
+	OpenAPI *OpenAPIConf `json:"openapi" config:",optional"`
+	// SecurityHeaders is a constant.
 	SecurityHeaders *SecurityHeadersConf `json:"security_headers" config:",optional"`
-	CSRF            *CSRFConf            `json:"csrf" config:",optional"`
-	RateLimit       *RateLimitConf       `json:"rate_limit" config:",optional"`
-	TLS             *TLSConf             `json:"tls" config:",optional"`
-	SSRF            *SSRFConf            `json:"ssrf" config:",optional"`
-	Cookies         *CookieConf          `json:"cookies" config:",optional"`
-	Security        *SecurityDef         `json:"security" config:",optional"`
-	Logger          bool                 `json:"logger" config:",default=true"`
-	LoadShedding    bool                 `json:"load_shedding" config:",default=true"`
-	Breaker         bool                 `json:"breaker" config:",default=true"`
+	// CSRF is a constant.
+	CSRF *CSRFConf `json:"csrf" config:",optional"`
+	// RateLimit is a constant.
+	RateLimit *RateLimitConf `json:"rate_limit" config:",optional"`
+	// TLS is a constant.
+	TLS *TLSConf `json:"tls" config:",optional"`
+	// SSRF is a constant.
+	SSRF *SSRFConf `json:"ssrf" config:",optional"`
+	// Cookies is a constant.
+	Cookies *CookieConf `json:"cookies" config:",optional"`
+	// Security is a constant.
+	Security *SecurityDef `json:"security" config:",optional"`
+	// SlowQueryThreshold is a constant.
+	SlowQueryThreshold string `json:"slow_query_threshold" config:",default=100ms"`
+	// Logger is a constant.
+	Logger bool `json:"logger" config:",default=true"`
+	// LoadShedding is a constant.
+	LoadShedding bool `json:"load_shedding" config:",default=true"`
+	// Breaker is a constant.
+	Breaker bool `json:"breaker" config:",default=true"`
 }
 
 type SecurityDef struct {
+	// ContentSecurity is a constant.
 	ContentSecurity *ContentSecurityDef `json:"content_security" config:",optional"`
-	Cryption        *CryptionDef        `json:"cryption" config:",optional"`
-	EncryptCookie   *EncryptCookieDef   `json:"encrypt_cookie" config:",optional"`
+	// Cryption is a constant.
+	Cryption *CryptionDef `json:"cryption" config:",optional"`
+	// EncryptCookie is a constant.
+	EncryptCookie *EncryptCookieDef `json:"encrypt_cookie" config:",optional"`
 }
 
 type ContentSecurityDef struct {
-	Enabled   bool   `json:"enabled" config:",optional"`
-	Strict    bool   `json:"strict" config:",optional"`
+	// Enabled is a constant.
+	Enabled bool `json:"enabled" config:",optional"`
+	// Strict is a constant.
+	Strict bool `json:"strict" config:",optional"`
+	// PublicKey is a constant.
 	PublicKey string `json:"public_key"`
 }
 
 type CryptionDef struct {
-	Enabled bool   `json:"enabled" config:",optional"`
-	Key     string `json:"key"`
+	// Enabled is a constant.
+	Enabled bool `json:"enabled" config:",optional"`
+	// Key is a constant.
+	Key string `json:"key"`
 }
 
 type EncryptCookieDef struct {
-	Enabled bool     `json:"enabled" config:",optional"`
-	Key     string   `json:"key"`                       // required when enabled
-	Except  []string `json:"except" config:",optional"` // cookie names to skip
+	// Enabled is a constant.
+	Enabled bool `json:"enabled" config:",optional"`
+	// Key is a constant.
+	Key string `json:"key"` // required when enabled
+	// Except is a constant.
+	Except []string `json:"except" config:",optional"` // cookie names to skip
 }
 
 type CookieConf struct {
+	// SameSite is a constant.
 	SameSite string `json:"same_site" config:",optional"` // Strict, Lax, None
-	Secure   bool   `json:"secure" config:",optional"`
+	// Secure is a constant.
+	Secure bool `json:"secure" config:",optional"`
 }
 
 type KVConfig struct {
-	Name   string `json:"name"`
+	// Name is a constant.
+	Name string `json:"name"`
+	// Driver is a constant.
 	Driver string `json:"driver" config:",default=redis"`
-	URL    string `json:"url"`
+	// URL is a constant.
+	URL string `json:"url"`
 }
 
 type StreamConfig struct {
-	Name            string   `json:"name"`
-	Driver          string   `json:"driver" config:",default=nats"`
-	URL             string   `json:"url" config:",optional"`
-	Brokers         []string `json:"brokers" config:",optional"`
-	ConsumerGroup   string   `json:"consumer_group" config:",optional"`
-	MaxReconnects   int      `json:"max_reconnects" config:",optional"`
-	ReconnectWait   string   `json:"reconnect_wait" config:",optional"`
-	Timeout         string   `json:"timeout" config:",optional"`
-	RetryOnFail     bool     `json:"retry_on_fail" config:",optional"`
-	Streams         []StreamDef `json:"streams" config:",optional"`
+	// Name is a constant.
+	Name string `json:"name"`
+	// Driver is a constant.
+	Driver string `json:"driver" config:",default=nats"`
+	// URL is a constant.
+	URL string `json:"url" config:",optional"`
+	// Brokers is a constant.
+	Brokers []string `json:"brokers" config:",optional"`
+	// ConsumerGroup is a constant.
+	ConsumerGroup string `json:"consumer_group" config:",optional"`
+	// MaxReconnects is a constant.
+	MaxReconnects int `json:"max_reconnects" config:",optional"`
+	// ReconnectWait is a constant.
+	ReconnectWait string `json:"reconnect_wait" config:",optional"`
+	// Timeout is a constant.
+	Timeout string `json:"timeout" config:",optional"`
+	// RetryOnFail is a constant.
+	RetryOnFail bool `json:"retry_on_fail" config:",optional"`
+	// Streams is a constant.
+	Streams []StreamDef `json:"streams" config:",optional"`
 }
 
 type RateLimitConf struct {
-	Enabled              bool              `json:"enabled" config:",optional"`
-	KV                   string            `json:"kv" config:",optional"`  // references kv[].name
-	Algorithm            string            `json:"algorithm" config:",default=sliding_window"`
-	TTL                  string            `json:"ttl" config:",optional"`
-	Global               *RateLimitDef     `json:"global" config:",optional"`
-	PerIP                *RateLimitDef     `json:"per_ip" config:",optional"`
-	PerUser              *RateLimitDef     `json:"per_user" config:",optional"`
-	PerKey               *RateLimitDef     `json:"per_key" config:",optional"`
-	SkipFailedRequests   bool              `json:"skip_failed_requests" config:",optional"`
-	SkipSuccessfulRequests bool            `json:"skip_successful_requests" config:",optional"`
+	// Enabled is a constant.
+	Enabled bool `json:"enabled" config:",optional"`
+	// KV is a constant.
+	KV string `json:"kv" config:",optional"` // references kv[].name
+	// Algorithm is a constant.
+	Algorithm string `json:"algorithm" config:",default=sliding_window"`
+	// TTL is a constant.
+	TTL string `json:"ttl" config:",optional"`
+	// Global is a constant.
+	Global *RateLimitDef `json:"global" config:",optional"`
+	// PerIP is a constant.
+	PerIP *RateLimitDef `json:"per_ip" config:",optional"`
+	// PerUser is a constant.
+	PerUser *RateLimitDef `json:"per_user" config:",optional"`
+	// PerKey is a constant.
+	PerKey *RateLimitDef `json:"per_key" config:",optional"`
+	// SkipFailedRequests is a constant.
+	SkipFailedRequests bool `json:"skip_failed_requests" config:",optional"`
+	// SkipSuccessfulRequests is a constant.
+	SkipSuccessfulRequests bool `json:"skip_successful_requests" config:",optional"`
 }
 
 type RateLimitDef struct {
-	RequestsPerSecond int    `json:"requests_per_second"`
-	Burst             int    `json:"burst"`
-	TTL               string `json:"ttl" config:",optional"`
+	// RequestsPerSecond is a constant.
+	RequestsPerSecond int `json:"requests_per_second"`
+	// Burst is a constant.
+	Burst int `json:"burst"`
+	// TTL is a constant.
+	TTL string `json:"ttl" config:",optional"`
 }
 
 type SSRFConf struct {
-	Enabled       bool     `json:"enabled" config:",optional"`
-	BlockPrivate  bool     `json:"block_private" config:",optional"`
-	BlockLoopback bool     `json:"block_loopback" config:",optional"`
-	BlockMetadata bool     `json:"block_metadata" config:",optional"`
-	AllowedHosts  []string `json:"allowed_hosts" config:",optional"`
+	// Enabled is a constant.
+	Enabled bool `json:"enabled" config:",optional"`
+	// BlockPrivate is a constant.
+	BlockPrivate bool `json:"block_private" config:",optional"`
+	// BlockLoopback is a constant.
+	BlockLoopback bool `json:"block_loopback" config:",optional"`
+	// BlockMetadata is a constant.
+	BlockMetadata bool `json:"block_metadata" config:",optional"`
+	// AllowedHosts is a constant.
+	AllowedHosts []string `json:"allowed_hosts" config:",optional"`
 }
 
 type TLSConf struct {
-	Enabled      bool         `json:"enabled"`
-	Manual       *ManualTLS   `json:"manual" config:",optional"`
-	Autocert     *AutocertTLS `json:"autocert" config:",optional"`
-	MinVersion   string       `json:"min_version" config:",optional"`
-	MaxVersion   string       `json:"max_version" config:",optional"`
-	CurvePrefs   []string     `json:"curve_preferences" config:",optional"`
-	CipherSuites []string     `json:"cipher_suites" config:",optional"`
-	RedirectHTTP bool         `json:"redirect_http" config:",optional"`
-	RedirectPort int          `json:"redirect_port" config:",optional"`
+	// Enabled is a constant.
+	Enabled bool `json:"enabled"`
+	// Manual is a constant.
+	Manual *ManualTLS `json:"manual" config:",optional"`
+	// Autocert is a constant.
+	Autocert *AutocertTLS `json:"autocert" config:",optional"`
+	// MinVersion is a constant.
+	MinVersion string `json:"min_version" config:",optional"`
+	// MaxVersion is a constant.
+	MaxVersion string `json:"max_version" config:",optional"`
+	// CurvePrefs is a constant.
+	CurvePrefs []string `json:"curve_preferences" config:",optional"`
+	// CipherSuites is a constant.
+	CipherSuites []string `json:"cipher_suites" config:",optional"`
+	// RedirectHTTP is a constant.
+	RedirectHTTP bool `json:"redirect_http" config:",optional"`
+	// RedirectPort is a constant.
+	RedirectPort int `json:"redirect_port" config:",optional"`
 }
 
 type ManualTLS struct {
+	// CertFile is a constant.
 	CertFile string `json:"cert_file"`
-	KeyFile  string `json:"key_file"`
+	// KeyFile is a constant.
+	KeyFile string `json:"key_file"`
 }
 
 type AutocertTLS struct {
-	Domains  []string `json:"domains"`
-	Email    string   `json:"email"`
-	CacheDir string   `json:"cache_dir" config:",optional"`
+	// Domains is a constant.
+	Domains []string `json:"domains"`
+	// Email is a constant.
+	Email string `json:"email"`
+	// CacheDir is a constant.
+	CacheDir string `json:"cache_dir" config:",optional"`
 }
 
 type SecurityHeadersConf struct {
-	FrameOptions      string    `json:"frame_options" config:",optional"`
-	ReferrerPolicy    string    `json:"referrer_policy" config:",optional"`
-	PermissionsPolicy string    `json:"permissions_policy" config:",optional"`
-	HSTS              bool      `json:"hsts" config:",optional"`
-	HSTSMaxAge        int       `json:"hsts_max_age" config:",optional"`
-	HSTSIncludeSubs   bool      `json:"hsts_include_subdomains" config:",optional"`
-	CSP               string    `json:"csp" config:",optional"`
-	CSPConfig         *CSPConf  `json:"csp_config" config:",optional"` // programmatic CSP builder
-	COOP              string    `json:"coop" config:",optional"`
-	COEP              string    `json:"coep" config:",optional"`
-	CORP              string    `json:"corp" config:",optional"`
-	CacheControl      string    `json:"cache_control" config:",optional"`
-	CSPReportPath     string    `json:"csp_report_path" config:",optional"`
+	// FrameOptions is a constant.
+	FrameOptions string `json:"frame_options" config:",optional"`
+	// ReferrerPolicy is a constant.
+	ReferrerPolicy string `json:"referrer_policy" config:",optional"`
+	// PermissionsPolicy is a constant.
+	PermissionsPolicy string `json:"permissions_policy" config:",optional"`
+	// HSTS is a constant.
+	HSTS bool `json:"hsts" config:",optional"`
+	// HSTSMaxAge is a constant.
+	HSTSMaxAge int `json:"hsts_max_age" config:",optional"`
+	// HSTSIncludeSubs is a constant.
+	HSTSIncludeSubs bool `json:"hsts_include_subdomains" config:",optional"`
+	// CSP is a constant.
+	CSP string `json:"csp" config:",optional"`
+	// CSPConfig is a constant.
+	CSPConfig *CSPConf `json:"csp_config" config:",optional"` // programmatic CSP builder
+	// COOP is a constant.
+	COOP string `json:"coop" config:",optional"`
+	// COEP is a constant.
+	COEP string `json:"coep" config:",optional"`
+	// CORP is a constant.
+	CORP string `json:"corp" config:",optional"`
+	// CacheControl is a constant.
+	CacheControl string `json:"cache_control" config:",optional"`
+	// CSPReportPath is a constant.
+	CSPReportPath string `json:"csp_report_path" config:",optional"`
 }
 
 type CSPConf struct {
-	Level              string   `json:"level" config:",default=basic"`
-	DefaultSrc         []string `json:"default_src" config:",optional"`
-	ScriptSrc          []string `json:"script_src" config:",optional"`
-	StyleSrc           []string `json:"style_src" config:",optional"`
-	ImgSrc             []string `json:"img_src" config:",optional"`
-	ConnectSrc         []string `json:"connect_src" config:",optional"`
-	FontSrc            []string `json:"font_src" config:",optional"`
-	FrameSrc           []string `json:"frame_src" config:",optional"`
-	FrameAncestors     []string `json:"frame_ancestors" config:",optional"`
-	ObjectSrc          []string `json:"object_src" config:",optional"`
-	BaseURI            []string `json:"base_uri" config:",optional"`
-	FormAction         []string `json:"form_action" config:",optional"`
-	UpgradeInsecureReq bool     `json:"upgrade_insecure_requests" config:",optional"`
+	// Level is a constant.
+	Level string `json:"level" config:",default=basic"`
+	// DefaultSrc is a constant.
+	DefaultSrc []string `json:"default_src" config:",optional"`
+	// ScriptSrc is a constant.
+	ScriptSrc []string `json:"script_src" config:",optional"`
+	// StyleSrc is a constant.
+	StyleSrc []string `json:"style_src" config:",optional"`
+	// ImgSrc is a constant.
+	ImgSrc []string `json:"img_src" config:",optional"`
+	// ConnectSrc is a constant.
+	ConnectSrc []string `json:"connect_src" config:",optional"`
+	// FontSrc is a constant.
+	FontSrc []string `json:"font_src" config:",optional"`
+	// FrameSrc is a constant.
+	FrameSrc []string `json:"frame_src" config:",optional"`
+	// FrameAncestors is a constant.
+	FrameAncestors []string `json:"frame_ancestors" config:",optional"`
+	// ObjectSrc is a constant.
+	ObjectSrc []string `json:"object_src" config:",optional"`
+	// BaseURI is a constant.
+	BaseURI []string `json:"base_uri" config:",optional"`
+	// FormAction is a constant.
+	FormAction []string `json:"form_action" config:",optional"`
+	// UpgradeInsecureReq is a constant.
+	UpgradeInsecureReq bool `json:"upgrade_insecure_requests" config:",optional"`
 }
 
 type CSRFConf struct {
-	Enabled      bool     `json:"enabled" config:",optional"`
-	CookieName   string   `json:"cookie_name" config:",optional"`
-	HeaderName   string   `json:"header_name" config:",optional"`
-	SameSite     string   `json:"same_site" config:",optional"`
-	Secure       bool     `json:"secure" config:",optional"`
+	// Enabled is a constant.
+	Enabled bool `json:"enabled" config:",optional"`
+	// CookieName is a constant.
+	CookieName string `json:"cookie_name" config:",optional"`
+	// HeaderName is a constant.
+	HeaderName string `json:"header_name" config:",optional"`
+	// SameSite is a constant.
+	SameSite string `json:"same_site" config:",optional"`
+	// Secure is a constant.
+	Secure bool `json:"secure" config:",optional"`
+	// ExcludePaths is a constant.
 	ExcludePaths []string `json:"exclude_paths" config:",optional"`
-	JSONCheck    bool     `json:"json_check" config:",optional"`
+	// JSONCheck is a constant.
+	JSONCheck bool `json:"json_check" config:",optional"`
 }
 
 type RouteMW struct {
-	Path  string   `json:"path"`
+	// Path is a constant.
+	Path string `json:"path"`
+	// Apply is a constant.
 	Apply []string `json:"apply"`
 }
 
 type CORSConf struct {
-	Origins     []string `json:"origins" config:",optional"`
-	Methods     []string `json:"methods" config:",optional"`
-	Headers     []string `json:"headers" config:",optional"`
-	Credentials bool     `json:"credentials" config:",optional"`
-	MaxAge      int      `json:"max_age" config:",default=300"`
+	// Origins is a constant.
+	Origins []string `json:"origins" config:",optional"`
+	// Methods is a constant.
+	Methods []string `json:"methods" config:",optional"`
+	// Headers is a constant.
+	Headers []string `json:"headers" config:",optional"`
+	// Credentials is a constant.
+	Credentials bool `json:"credentials" config:",optional"`
+	// MaxAge is a constant.
+	MaxAge int `json:"max_age" config:",default=300"`
 }
 
 type StaticDef struct {
+	// Prefix is a constant.
 	Prefix string `json:"prefix"`
-	Dir    string `json:"dir"`
+	// Dir is a constant.
+	Dir string `json:"dir"`
 }
 
 type OpenAPIConf struct {
-	Enabled  bool   `json:"enabled" config:",optional"`
-	Version  string `json:"version" config:",default=1.0.0"`
+	// Enabled is a constant.
+	Enabled bool `json:"enabled" config:",optional"`
+	// Version is a constant.
+	Version string `json:"version" config:",default=1.0.0"`
+	// SpecPath is a constant.
 	SpecPath string `json:"spec_path" config:",default=/openapi.json"`
+	// DocsPath is a constant.
 	DocsPath string `json:"docs_path" config:",default=/docs"`
-	Theme    string `json:"theme" config:",default=moon"`
-	DarkMode bool   `json:"dark_mode" config:",default=true"`
+	// Theme is a constant.
+	Theme string `json:"theme" config:",default=moon"`
+	// DarkMode is a constant.
+	DarkMode bool `json:"dark_mode" config:",default=true"`
 }
 
 // ---- Database ----
 
 type DBConfig struct {
-	Name     string     `json:"name"`
-	Driver   string     `json:"driver" config:",default=postgres"`
-	URL      string     `json:"url"`
-	Database string     `json:"database" config:",optional"`
-	Pool     *PoolConf  `json:"pool" config:",optional"`
-	Turso    *TursoConf `json:"turso" config:",optional"`
+	// Name is a constant.
+	Name string `json:"name"`
+	// Driver is a constant.
+	Driver string `json:"driver" config:",default=postgres"`
+	// URL is a constant.
+	URL string `json:"url"`
+	// Database is a constant.
+	Database string `json:"database" config:",optional"`
+	// Pool is a constant.
+	Pool *PoolConf `json:"pool" config:",optional"`
+	// Turso is a constant.
+	Turso *TursoConf `json:"turso" config:",optional"`
 }
 
 type TursoConf struct {
-	Mode        string `json:"mode" config:",default=local"`         // local | remote
-	BusyTimeout int    `json:"busy_timeout" config:",default=30000"` // ms, 0 = no wait
+	// Mode is a constant.
+	Mode string `json:"mode" config:",default=local"` // local | remote
+	// BusyTimeout is a constant.
+	BusyTimeout int `json:"busy_timeout" config:",default=30000"` // ms, 0 = no wait
 }
 
 func (t *TursoConf) Validate() error {
@@ -297,12 +480,18 @@ func (t *TursoConf) Validate() error {
 }
 
 type PoolConf struct {
-	MaxConns          int32  `json:"max_conns" config:",default=10"`
-	MinConns          int32  `json:"min_conns" config:",default=2"`
-	MaxConnLifetime   string `json:"max_conn_lifetime" config:",optional"`
-	MaxConnIdleTime   string `json:"max_conn_idle_time" config:",optional"`
+	// MaxConns is a constant.
+	MaxConns int32 `json:"max_conns" config:",default=10"`
+	// MinConns is a constant.
+	MinConns int32 `json:"min_conns" config:",default=2"`
+	// MaxConnLifetime is a constant.
+	MaxConnLifetime string `json:"max_conn_lifetime" config:",optional"`
+	// MaxConnIdleTime is a constant.
+	MaxConnIdleTime string `json:"max_conn_idle_time" config:",optional"`
+	// HealthCheckPeriod is a constant.
 	HealthCheckPeriod string `json:"health_check_period" config:",optional"`
-	ReservedConns     int32  `json:"reserved_conns" config:",default=10"`
+	// ReservedConns is a constant.
+	ReservedConns int32 `json:"reserved_conns" config:",default=10"`
 }
 
 func (d *DBConfig) Validate() error {
@@ -350,16 +539,26 @@ func (d *DBConfig) Validate() error {
 // ---- Event Streams (NATS + Kafka) ----
 
 type EventStreamConnConf struct {
-	Name          string      `json:"name"`
-	Driver        string      `json:"driver"` // nats, kafka
-	URL           string      `json:"url" config:",optional"`
-	Brokers       []string    `json:"brokers" config:",optional"`
-	ConsumerGroup string      `json:"consumer_group" config:",optional"`
-	MaxReconnects int         `json:"max_reconnects" config:",optional"`
-	ReconnectWait string      `json:"reconnect_wait" config:",optional"`
-	Timeout       string      `json:"timeout" config:",optional"`
-	RetryOnFail   bool        `json:"retry_on_fail" config:",optional"`
-	Streams       []StreamDef `json:"streams" config:",optional"`
+	// Name is a constant.
+	Name string `json:"name"`
+	// Driver is a constant.
+	Driver string `json:"driver"` // nats, kafka
+	// URL is a constant.
+	URL string `json:"url" config:",optional"`
+	// Brokers is a constant.
+	Brokers []string `json:"brokers" config:",optional"`
+	// ConsumerGroup is a constant.
+	ConsumerGroup string `json:"consumer_group" config:",optional"`
+	// MaxReconnects is a constant.
+	MaxReconnects int `json:"max_reconnects" config:",optional"`
+	// ReconnectWait is a constant.
+	ReconnectWait string `json:"reconnect_wait" config:",optional"`
+	// Timeout is a constant.
+	Timeout string `json:"timeout" config:",optional"`
+	// RetryOnFail is a constant.
+	RetryOnFail bool `json:"retry_on_fail" config:",optional"`
+	// Streams is a constant.
+	Streams []StreamDef `json:"streams" config:",optional"`
 }
 
 func (e *EventStreamConnConf) Validate() error {
@@ -397,32 +596,51 @@ func (e *EventStreamConnConf) Validate() error {
 }
 
 type StreamDef struct {
-	Name        string `json:"name"`
-	MaxAge      string `json:"max_age" config:",optional"`
-	MaxBytes    int64  `json:"max_bytes" config:",optional"`
-	Storage     string `json:"storage" config:",default=file"`
+	// Name is a constant.
+	Name string `json:"name"`
+	// MaxAge is a constant.
+	MaxAge string `json:"max_age" config:",optional"`
+	// MaxBytes is a constant.
+	MaxBytes int64 `json:"max_bytes" config:",optional"`
+	// Storage is a constant.
+	Storage string `json:"storage" config:",default=file"`
+	// Compression is a constant.
 	Compression string `json:"compression" config:",default=s2"`
 }
 
 // ---- Entry Endpoints ----
 
 type EntryDef struct {
-	Type        string   `json:"type"` // crud, rest, webhook, websocket, sse, file
-	Method      string   `json:"method" config:",optional"`
-	Path        string   `json:"path" config:",optional"`
-	Handler     string   `json:"handler" config:",optional"`
-	AuthModes   []string `json:"auth_modes" config:",optional"` // ["jwt"], ["apikey"], ["jwt","apikey"]
-	JWTFrom     string   `json:"jwt_from" config:",optional"`   // per-entry: "header:Authorization", "cookie:token", "query:token"
-	Roles       []string `json:"roles" config:",optional"`
+	// Type is a constant.
+	Type string `json:"type"` // crud, rest, webhook, websocket, sse, file
+	// Method is a constant.
+	Method string `json:"method" config:",optional"`
+	// Path is a constant.
+	Path string `json:"path" config:",optional"`
+	// Handler is a constant.
+	Handler string `json:"handler" config:",optional"`
+	// AuthModes is a constant.
+	AuthModes []string `json:"auth_modes" config:",optional"` // ["jwt"], ["apikey"], ["jwt","apikey"]
+	// JWTFrom is a constant.
+	JWTFrom string `json:"jwt_from" config:",optional"` // per-entry: "header:Authorization", "cookie:token", "query:token"
+	// Roles is a constant.
+	Roles []string `json:"roles" config:",optional"`
+	// Permissions is a constant.
 	Permissions []string `json:"permissions" config:",optional"`
-	DB          string   `json:"db" config:",optional"` // references database name
-	TenantScope string   `json:"tenant_scope" config:",optional"` // JWT claim for tenant ID (e.g. "org_id")
-	TenantField string   `json:"tenant_field" config:",optional"` // DB column for tenant filter (e.g. "tenant_id")
+	// DB is a constant.
+	DB string `json:"db" config:",optional"` // references database name
+	// TenantScope is a constant.
+	TenantScope string `json:"tenant_scope" config:",optional"` // JWT claim for tenant ID (e.g. "org_id")
+	// TenantField is a constant.
+	TenantField string `json:"tenant_field" config:",optional"` // DB column for tenant filter (e.g. "tenant_id")
 
 	// CRUD
-	Model     string         `json:"model" config:",optional"`
-	Table     string         `json:"table" config:",optional"`
-	Resource  string         `json:"resource" config:",optional"`
+	Model string `json:"model" config:",optional"`
+	// Table is a constant.
+	Table string `json:"table" config:",optional"`
+	// Resource is a constant.
+	Resource string `json:"resource" config:",optional"`
+	// Overrides is a constant.
 	Overrides *CRUDOverrides `json:"overrides" config:",optional"`
 
 	// Event stream selection
@@ -432,19 +650,30 @@ type EntryDef struct {
 	EventPublish []EventPublishTarget `json:"event_publish" config:",optional"`
 
 	// File
-	AllowedTypes []string    `json:"allowed_types" config:",optional"`
-	MaxSize      string      `json:"max_size" config:",optional"`
-	MaxFiles     int         `json:"max_files" config:",optional"`
-	MagicBytes   bool        `json:"magic_bytes" config:",optional"`
-	Storage      *StorageDef `json:"storage" config:",optional"`
+	AllowedTypes []string `json:"allowed_types" config:",optional"`
+	// MaxSize is a constant.
+	MaxSize string `json:"max_size" config:",optional"`
+	// MaxFiles is a constant.
+	MaxFiles int `json:"max_files" config:",optional"`
+	// MagicBytes is a constant.
+	MagicBytes bool `json:"magic_bytes" config:",optional"`
+	// Storage is a constant.
+	Storage *StorageDef `json:"storage" config:",optional"`
 
 	// Security per-entry overrides
-	CSRF             *bool             `json:"csrf" config:",optional"`       // false = skip CSRF for this entry
-	RateLimit        *RateLimitDef     `json:"rate_limit" config:",optional"` // per-entry rate limit (pre-auth)
-	RateLimitPerUser *RateLimitDef     `json:"rate_limit_per_user" config:",optional"` // per-entry per-user rate limit (post-auth)
-	RateLimitPerKey  *RateLimitDef     `json:"rate_limit_per_key" config:",optional"`  // per-entry per-key rate limit (post-auth)
-	PerRoleLimits    map[string]*RateLimitDef `json:"rate_limit_per_role" config:",optional"` // per-role rate limits
-	Cache            string            `json:"cache" config:",optional"`       // references kv[].name for CRUD cache
+	CSRF *bool `json:"csrf" config:",optional"` // false = skip CSRF for this entry
+	// RequiresMFA is a constant.
+	RequiresMFA bool `json:"requires_mfa" config:",optional"` // true = MFA must be verified
+	// RateLimit is a constant.
+	RateLimit *RateLimitDef `json:"rate_limit" config:",optional"` // per-entry rate limit (pre-auth)
+	// RateLimitPerUser is a constant.
+	RateLimitPerUser *RateLimitDef `json:"rate_limit_per_user" config:",optional"` // per-entry per-user rate limit (post-auth)
+	// RateLimitPerKey is a constant.
+	RateLimitPerKey *RateLimitDef `json:"rate_limit_per_key" config:",optional"` // per-entry per-key rate limit (post-auth)
+	// PerRoleLimits is a constant.
+	PerRoleLimits map[string]*RateLimitDef `json:"rate_limit_per_role" config:",optional"` // per-role rate limits
+	// Cache is a constant.
+	Cache string `json:"cache" config:",optional"` // references kv[].name for CRUD cache
 
 	// Validation
 	ValidationModel string `json:"validate" config:",optional"` // validation model name
@@ -456,23 +685,34 @@ type EntryDef struct {
 	APIPrefix string `json:"api_key_prefix" config:",optional"`
 
 	// Pagination (CRUD only)
-	PageSize    int      `json:"page_size" config:",optional"`     // default 10, also min
-	MaxPageSize int      `json:"max_page_size" config:",optional"` // default 100, also max
-	Pagination  string   `json:"pagination" config:",optional"`    // "offset" | "keyset"
-	Sortable    []string `json:"sortable" config:",optional"`      // allowed sort columns
+	PageSize int `json:"page_size" config:",optional"` // default 10, also min
+	// MaxPageSize is a constant.
+	MaxPageSize int `json:"max_page_size" config:",optional"` // default 100, also max
+	// Pagination is a constant.
+	Pagination string `json:"pagination" config:",optional"` // "offset" | "keyset"
+	// Sortable is a constant.
+	Sortable []string `json:"sortable" config:",optional"` // allowed sort columns
 }
 
 type CRUDOverrides struct {
-	List   string `json:"list" config:",optional"`
-	Get    string `json:"get" config:",optional"`
+	// List is a constant.
+	List string `json:"list" config:",optional"`
+	// Get is a constant.
+	Get string `json:"get" config:",optional"`
+	// Create is a constant.
 	Create string `json:"create" config:",optional"`
+	// Update is a constant.
 	Update string `json:"update" config:",optional"`
+	// Delete is a constant.
 	Delete string `json:"delete" config:",optional"`
 }
 
 type EventPublishTarget struct {
-	Stream      string `json:"stream"`
-	Subject     string `json:"subject" config:",optional"`
+	// Stream is a constant.
+	Stream string `json:"stream"`
+	// Subject is a constant.
+	Subject string `json:"subject" config:",optional"`
+	// EventStream is a constant.
 	EventStream string `json:"event_stream" config:",optional"` // broker name; empty = all brokers
 }
 
@@ -482,32 +722,52 @@ func hasAuth(entry *EntryDef, mode string) bool {
 }
 
 type PoolConfig struct {
-	MaxIdleConns    int    `json:"max_idle_conns" config:",default=200"`
-	MaxIdlePerHost  int    `json:"max_idle_conns_per_host" config:",default=100"`
-	MaxConnsPerHost int    `json:"max_conns_per_host" config:",default=250"`
-	IdleTimeout     string `json:"idle_timeout" config:",default=90s"`
+	// MaxIdleConns is a constant.
+	MaxIdleConns int `json:"max_idle_conns" config:",default=200"`
+	// MaxIdlePerHost is a constant.
+	MaxIdlePerHost int `json:"max_idle_conns_per_host" config:",default=100"`
+	// MaxConnsPerHost is a constant.
+	MaxConnsPerHost int `json:"max_conns_per_host" config:",default=250"`
+	// IdleTimeout is a constant.
+	IdleTimeout string `json:"idle_timeout" config:",default=90s"`
 }
 
 type CacheConfig struct {
-	L1     string `json:"l1" config:",default=ram"` // ram | none
-	L1TTL  string `json:"l1_ttl" config:",default=5m"`
-	L1Size int    `json:"l1_size" config:",default=10000"`
-	L2     string `json:"l2" config:",optional"` // disk | none
+	// L1 is a constant.
+	L1 string `json:"l1" config:",default=ram"` // ram | none
+	// L1TTL is a constant.
+	L1TTL string `json:"l1_ttl" config:",default=5m"`
+	// L1Size is a constant.
+	L1Size int `json:"l1_size" config:",default=10000"`
+	// L2 is a constant.
+	L2 string `json:"l2" config:",optional"` // disk | none
+	// L2Path is a constant.
 	L2Path string `json:"l2_path" config:",optional"`
 }
 
 type StorageDef struct {
-	Mode       string       `json:"mode"` // s3, local
-	Bucket     string       `json:"bucket" config:",optional"`
-	Path       string       `json:"path" config:",optional"`
-	Region     string       `json:"region" config:",optional"`
-	Endpoint   string       `json:"endpoint" config:",optional"`
-	AccessKey  string       `json:"access_key" config:",optional"`
-	SecretKey  string       `json:"secret_key" config:",optional"`
-	Presign    bool         `json:"presign" config:",optional"`
-	PresignTTL string       `json:"presign_ttl" config:",default=5m"`
-	Pool       *PoolConfig  `json:"pool" config:",optional"`
-	Cache      *CacheConfig `json:"cache" config:",optional"`
+	// Mode is a constant.
+	Mode string `json:"mode"` // s3, local
+	// Bucket is a constant.
+	Bucket string `json:"bucket" config:",optional"`
+	// Path is a constant.
+	Path string `json:"path" config:",optional"`
+	// Region is a constant.
+	Region string `json:"region" config:",optional"`
+	// Endpoint is a constant.
+	Endpoint string `json:"endpoint" config:",optional"`
+	// AccessKey is a constant.
+	AccessKey string `json:"access_key" config:",optional"`
+	// SecretKey is a constant.
+	SecretKey string `json:"secret_key" config:",optional"`
+	// Presign is a constant.
+	Presign bool `json:"presign" config:",optional"`
+	// PresignTTL is a constant.
+	PresignTTL string `json:"presign_ttl" config:",default=5m"`
+	// Pool is a constant.
+	Pool *PoolConfig `json:"pool" config:",optional"`
+	// Cache is a constant.
+	Cache *CacheConfig `json:"cache" config:",optional"`
 }
 
 func (e *EntryDef) Validate() error {
@@ -645,22 +905,36 @@ func (e *EntryDef) validateGraphQL() error {
 // ---- Exit Workers ----
 
 type ExitWorker struct {
-	Name          string       `json:"name"`
-	Subscribe     SubscribeDef `json:"subscribe"`
-	Handler       string       `json:"handler"`
-	MaxConcurrent int          `json:"max_concurrent" config:",default=1"`
-	DB            string       `json:"db" config:",optional"`
-	Reply         bool         `json:"reply" config:",optional"`
-	ReplyTimeout  string       `json:"reply_timeout" config:",default=30s"`
-	PullBatch     int          `json:"pull_batch" config:",optional"`
-	PullMaxWait   string       `json:"pull_max_wait" config:",optional"`
-	ConsumerMode  string       `json:"consumer_mode" config:",optional"` // push or pull
-	EventStream   string       `json:"event_stream" config:",optional"`  // broker name
+	// Name is a constant.
+	Name string `json:"name"`
+	// Subscribe is a constant.
+	Subscribe SubscribeDef `json:"subscribe"`
+	// Handler is a constant.
+	Handler string `json:"handler"`
+	// MaxConcurrent is a constant.
+	MaxConcurrent int `json:"max_concurrent" config:",default=1"`
+	// DB is a constant.
+	DB string `json:"db" config:",optional"`
+	// Reply is a constant.
+	Reply bool `json:"reply" config:",optional"`
+	// ReplyTimeout is a constant.
+	ReplyTimeout string `json:"reply_timeout" config:",default=30s"`
+	// PullBatch is a constant.
+	PullBatch int `json:"pull_batch" config:",optional"`
+	// PullMaxWait is a constant.
+	PullMaxWait string `json:"pull_max_wait" config:",optional"`
+	// ConsumerMode is a constant.
+	ConsumerMode string `json:"consumer_mode" config:",optional"` // push or pull
+	// EventStream is a constant.
+	EventStream string `json:"event_stream" config:",optional"` // broker name
 }
 
 type SubscribeDef struct {
-	Stream  string `json:"stream"`
+	// Stream is a constant.
+	Stream string `json:"stream"`
+	// Subject is a constant.
 	Subject string `json:"subject" config:",optional"`
+	// Durable is a constant.
 	Durable string `json:"durable" config:",optional"`
 }
 
@@ -692,15 +966,22 @@ func (e *ExitWorker) Validate() error {
 // ---- Cron ----
 
 type CronJob struct {
-	Name     string       `json:"name"`
-	Schedule string       `json:"schedule"`
-	Mode     string       `json:"mode" config:",default=nats"` // nats, handler, internal
-	Publish  *CronPublish `json:"publish" config:",optional"`
-	Handler  string       `json:"handler" config:",optional"`
+	// Name is a constant.
+	Name string `json:"name"`
+	// Schedule is a constant.
+	Schedule string `json:"schedule"`
+	// Mode is a constant.
+	Mode string `json:"mode" config:",default=nats"` // nats, handler, internal
+	// Publish is a constant.
+	Publish *CronPublish `json:"publish" config:",optional"`
+	// Handler is a constant.
+	Handler string `json:"handler" config:",optional"`
 }
 
 type CronPublish struct {
-	Stream  string `json:"stream"`
+	// Stream is a constant.
+	Stream string `json:"stream"`
+	// Subject is a constant.
 	Subject string `json:"subject" config:",optional"`
 }
 

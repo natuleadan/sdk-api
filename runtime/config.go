@@ -45,6 +45,8 @@ type ServiceConfig struct {
 	Cron []CronJob `json:"cron" config:",optional"`
 	// Auth is a constant.
 	Auth *AuthConfig `json:"auth" config:",optional"`
+	// Log is a constant.
+	Log *logx.LogConf `json:"log" config:",optional"`
 }
 
 type AuthConfig struct {
@@ -171,6 +173,28 @@ type ServerConf struct {
 	LoadShedding bool `json:"load_shedding" config:",default=true"`
 	// Breaker is a constant.
 	Breaker bool `json:"breaker" config:",default=true"`
+	// Telemetry is a constant.
+	Telemetry *TelemetryConf `json:"telemetry" config:",optional"`
+}
+
+type TelemetryConf struct {
+	Enabled bool   `json:"enabled" config:",optional"`
+	Name    string `json:"name" config:",optional"`
+	// Endpoint is the OTLP receiver address (e.g. "localhost:4317").
+	Endpoint string  `json:"endpoint" config:",optional"`
+	Sampler  float64 `json:"sampler" config:",default=1.0"`
+	// Batcher is the exporter type: otlpgrpc | otlphttp | zipkin | file.
+	Batcher string `json:"batcher" config:",default=otlpgrpc"`
+	// OtlpHeaders are additional headers sent with OTLP export requests.
+	OtlpHeaders map[string]string `json:"otlp_headers" config:",optional"`
+	// OtlpHttpPath is the URL path for OTLP HTTP transport (e.g. "/v1/traces").
+	OtlpHttpPath string `json:"otlp_http_path" config:",optional"`
+	// OtlpHttpSecure enables TLS for OTLP HTTP transport.
+	OtlpHttpSecure bool `json:"otlp_http_secure" config:",optional"`
+	// TraceResponseHeader sets a response header exposing the trace ID (e.g. "X-Trace-Id").
+	TraceResponseHeader string `json:"trace_response_header" config:",optional"`
+	// SkipPaths are request paths that should not be traced.
+	SkipPaths []string `json:"skip_paths" config:",optional"`
 }
 
 type SecurityDef struct {
@@ -447,6 +471,13 @@ type OpenAPIConf struct {
 
 // ---- Database ----
 
+type SlowQueryConf struct {
+	// Enabled enables slow query logging for this database.
+	Enabled bool `json:"enabled" config:",optional"`
+	// Threshold is the duration after which a query is considered slow (e.g. "200ms", "1s").
+	Threshold string `json:"threshold" config:",default=100ms"`
+}
+
 type DBConfig struct {
 	// Name is a constant.
 	Name string `json:"name"`
@@ -460,6 +491,8 @@ type DBConfig struct {
 	Pool *PoolConf `json:"pool" config:",optional"`
 	// Turso is a constant.
 	Turso *TursoConf `json:"turso" config:",optional"`
+	// SlowQuery is a constant.
+	SlowQuery *SlowQueryConf `json:"slow_query" config:",optional"`
 }
 
 type TursoConf struct {

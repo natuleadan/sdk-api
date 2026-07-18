@@ -2,10 +2,11 @@ package runtime
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/gofiber/contrib/v3/websocket"
 	"github.com/gofiber/fiber/v3"
+
+	"github.com/natuleadan/sdk-api/runtime/errcode"
 )
 
 // EntryHooks defines lifecycle callbacks for entry endpoints (HTTP).
@@ -73,12 +74,12 @@ func WrapTransformHandler[T any](handler func(fiber.Ctx) error, hooks EntryHooks
 		method := c.Method()
 		if method != "GET" && method != "DELETE" && len(c.Body()) > 0 {
 			if err := c.Bind().Body(&input); err != nil {
-				return fiber.NewError(fiber.StatusBadRequest, fmt.Sprintf("invalid body: %v", err))
+				return errcode.ErrValidation("body", "bind", err)
 			}
 		}
 		transformed, err := hooks.BeforeTransform(c.Context(), input)
 		if err != nil {
-			return fiber.NewError(fiber.StatusBadRequest, err.Error())
+			return errcode.ErrValidation("transform", "rejected", err)
 		}
 		c.Locals("transformed", transformed)
 

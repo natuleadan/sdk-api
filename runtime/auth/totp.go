@@ -56,6 +56,15 @@ func padBase32(s string) string {
 	return s
 }
 
+// GenerateTOTPCode generates the current TOTP code for a given secret.
+func GenerateTOTPCode(secret string) string {
+	key, err := base32.StdEncoding.DecodeString(padBase32(secret))
+	if err != nil || len(key) == 0 {
+		return ""
+	}
+	return hotp(key, time.Now().Unix()/30)
+}
+
 // hotp implements RFC 4226 HOTP with SHA-256, 6 digits.
 func hotp(key []byte, counter int64) string {
 	buf := make([]byte, 8)

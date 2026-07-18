@@ -21,6 +21,9 @@ import (
 	"github.com/natuleadan/sdk-api/server/auth/ory"
 	"github.com/natuleadan/sdk-api/server/auth/zitadel"
 	"golang.org/x/time/rate"
+
+	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 func testRequest(ctx context.Context, method, path string, body io.Reader) *http.Request {
@@ -828,6 +831,87 @@ func TestTrace(t *testing.T) {
 	app := fiber.New()
 	app.Use(Trace(TraceConfig{}))
 	app.Get("/test", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	req := testRequest(context.Background(), "GET", "/test", nil)
+	resp, _ := app.Test(req)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
+func TestTraceResponseHeader(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Use(Trace(TraceConfig{
+		TraceResponseHeader: "X-Trace-Id",
+	}))
+	app.Get("/test", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	req := testRequest(context.Background(), "GET", "/test", nil)
+	resp, _ := app.Test(req)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+	traceID := resp.Header.Get("X-Trace-Id")
+	if traceID == "" {
+		t.Error("expected X-Trace-Id header to be set")
+	}
+	if len(traceID) != 32 {
+		t.Errorf("expected trace ID length 32, got %d", len(traceID))
+	}
+}
+
+func TestTraceSkipPath(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Use(Trace(TraceConfig{
+		SkipPaths: []string{"/health"},
+	}))
+	app.Get("/health", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	req := testRequest(context.Background(), "GET", "/health", nil)
+	resp, _ := app.Test(req)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
+func TestTraceCustomAttributes(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Use(Trace(TraceConfig{
+		CustomAttributes: func(c fiber.Ctx) []attribute.KeyValue {
+			return []attribute.KeyValue{
+				attribute.String("custom", "value"),
+			}
+		},
+	}))
+	app.Get("/test", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	req := testRequest(context.Background(), "GET", "/test", nil)
+	resp, _ := app.Test(req)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
+func TestTracePropagatesContext(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	app.Use(Trace(TraceConfig{}))
+	app.Get("/test", func(c fiber.Ctx) error {
+		spanCtx := oteltrace.SpanContextFromContext(c.Context())
+		if !spanCtx.IsValid() {
+			t.Error("expected span context to be valid after middleware")
+		}
 		return c.SendString("ok")
 	})
 

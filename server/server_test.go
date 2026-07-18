@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"io"
 	"net/http"
 	"testing"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/natuleadan/sdk-api/infra/logx"
+	"github.com/natuleadan/sdk-api/runtime/errcode"
 	"golang.org/x/crypto/acme/autocert"
 )
 
@@ -297,52 +299,116 @@ func TestErrorHandler_LeavesClientErrors(t *testing.T) {
 	}
 }
 
-func TestSanitizeErrorMessage_4xxWithIP(t *testing.T) {
-	msg := sanitizeErrorMessage("dial tcp 10.0.0.5:5432: timeout", 400)
-	if msg != "dial tcp [redacted]:5432: timeout" {
-		t.Errorf("expected IP redacted, got %q", msg)
+func TestOopsErrorHandler_4xxWithCode(t *testing.T) {
+	logx.Disable()
+	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, nil)
+	app.app.Get("/unauthorized", func(_ fiber.Ctx) error {
+		return errcode.ErrUnauthorized("missing token")
+	})
+
+	req := testRequest("/unauthorized")
+	resp, _ := app.app.Test(req)
+
+	body, _ := io.ReadAll(resp.Body)
+	var errResp ErrorResponse
+	json.Unmarshal(body, &errResp)
+	if errResp.Code != 401 {
+		t.Errorf("expected code 401, got %d", errResp.Code)
+	}
+	if errResp.Error != errcode.ErrCodeUnauthorized {
+		t.Errorf("expected error code %q, got %q", errcode.ErrCodeUnauthorized, errResp.Error)
+	}
+	if errResp.Message != "missing token" {
+		t.Errorf("expected message %q, got %q", "missing token", errResp.Message)
 	}
 }
 
-func TestSanitizeErrorMessage_4xxWithConnString(t *testing.T) {
-	msg := sanitizeErrorMessage("connection to postgres://admin:pass@db:5432/mydb failed", 400)
-	if msg != "connection to postgres://[redacted]@db:5432/mydb failed" {
-		t.Errorf("expected conn string redacted, got %q", msg)
-	}
+func TestOopsErrorHandler_5xxWithCode(t *testing.T) {
+	logx.Disable()
+	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, nil)
+	app.app.Get("/db-error", func(_ fiber.Ctx) error {
+		return errcode.ErrDBQuery("select", "users", fmt.Errorf("connection refused"))
+	})
 
-	msg = sanitizeErrorMessage("nats://user:secret@nats:4222: connection refused", 400)
-	if msg != "nats://[redacted]@nats:4222: connection refused" {
-		t.Errorf("expected nats conn string redacted, got %q", msg)
-	}
-}
+	req := testRequest("/db-error")
+	resp, _ := app.app.Test(req)
 
-func TestSanitizeErrorMessage_4xxWithFilePath(t *testing.T) {
-	msg := sanitizeErrorMessage("config not found at /etc/sdk-api/service.yaml", 400)
-	if msg != "config not found at [redacted]" {
-		t.Errorf("expected file path redacted, got %q", msg)
+	body, _ := io.ReadAll(resp.Body)
+	var errResp ErrorResponse
+	json.Unmarshal(body, &errResp)
+	if errResp.Code != 500 {
+		t.Errorf("expected code 500, got %d", errResp.Code)
 	}
-}
-
-func TestSanitizeErrorMessage_4xxNormal(t *testing.T) {
-	msg := sanitizeErrorMessage("invalid email format", 400)
-	if msg != "invalid email format" {
-		t.Errorf("expected message unchanged, got %q", msg)
+	if errResp.Error != errcode.ErrCodeDBQuery {
+		t.Errorf("expected error code %q, got %q", errcode.ErrCodeDBQuery, errResp.Error)
 	}
-
-	msg = sanitizeErrorMessage("product name is required", 422)
-	if msg != "product name is required" {
-		t.Errorf("expected message unchanged, got %q", msg)
+	if errResp.Message != "internal server error" {
+		t.Errorf("expected 'internal server error', got %q", errResp.Message)
 	}
 }
 
-func TestSanitizeErrorMessage_5xxAlways(t *testing.T) {
-	msg := sanitizeErrorMessage("dial tcp 10.0.0.5:5432: timeout", 500)
-	if msg != "internal server error" {
-		t.Errorf("expected internal server error for 5xx, got %q", msg)
-	}
+func TestOopsErrorHandler_404WithCode(t *testing.T) {
+	logx.Disable()
+	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, nil)
+	app.app.Get("/not-found", func(_ fiber.Ctx) error {
+		return errcode.ErrNotFound("product", "abc-123")
+	})
 
-	msg = sanitizeErrorMessage("something went wrong", 503)
-	if msg != "internal server error" {
-		t.Errorf("expected internal server error for 5xx, got %q", msg)
+	req := testRequest("/not-found")
+	resp, _ := app.app.Test(req)
+
+	body, _ := io.ReadAll(resp.Body)
+	var errResp ErrorResponse
+	json.Unmarshal(body, &errResp)
+	if errResp.Code != 404 {
+		t.Errorf("expected code 404, got %d", errResp.Code)
+	}
+	if errResp.Error != errcode.ErrCodeNotFound {
+		t.Errorf("expected error code %q, got %q", errcode.ErrCodeNotFound, errResp.Error)
+	}
+	if errResp.Message != "resource not found" {
+		t.Errorf("expected 'resource not found', got %q", errResp.Message)
+	}
+}
+
+func TestOopsErrorHandler_FallbackToFiberError(t *testing.T) {
+	logx.Disable()
+	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, nil)
+	app.app.Get("/fiber-err", func(_ fiber.Ctx) error {
+		return fiber.NewError(fiber.StatusUnprocessableEntity, "invalid input")
+	})
+
+	req := testRequest("/fiber-err")
+	resp, _ := app.app.Test(req)
+
+	body, _ := io.ReadAll(resp.Body)
+	var errResp ErrorResponse
+	json.Unmarshal(body, &errResp)
+	if errResp.Code != 422 {
+		t.Errorf("expected code 422, got %d", errResp.Code)
+	}
+	if errResp.Message != "invalid input" {
+		t.Errorf("expected message 'invalid input', got %q", errResp.Message)
+	}
+}
+
+func TestOopsErrorHandler_RateLimited(t *testing.T) {
+	logx.Disable()
+	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, nil)
+	app.app.Get("/rate-limited", func(_ fiber.Ctx) error {
+		return errcode.ErrRateLimited(5)
+	})
+
+	req := testRequest("/rate-limited")
+	resp, _ := app.app.Test(req)
+
+	body, _ := io.ReadAll(resp.Body)
+	var errResp ErrorResponse
+	json.Unmarshal(body, &errResp)
+	if resp.StatusCode != 429 {
+		t.Errorf("expected status 429, got %d", resp.StatusCode)
+	}
+	if errResp.Error != errcode.ErrCodeRateLimited {
+		t.Errorf("expected error code %q, got %q", errcode.ErrCodeRateLimited, errResp.Error)
 	}
 }

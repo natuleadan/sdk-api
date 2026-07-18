@@ -7,6 +7,7 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 
+	"github.com/natuleadan/sdk-api/runtime/errcode"
 	"github.com/natuleadan/sdk-api/server/auth/openfga"
 )
 
@@ -97,10 +98,10 @@ func checkOpenFGARelation(c fiber.Ctx, cfg OpenFGAConfig, user string) error {
 		Object:   object,
 	})
 	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "authorization check failed")
+		return errcode.ErrInternal(err)
 	}
 	if !allowed {
-		return fiber.NewError(fiber.StatusForbidden, "access denied")
+		return errcode.ErrForbidden(cfg.Relation)
 	}
 	return nil
 }

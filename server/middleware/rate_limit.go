@@ -8,6 +8,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/natuleadan/sdk-api/infra/limit"
 	"github.com/natuleadan/sdk-api/infra/stores/redis"
+	"github.com/natuleadan/sdk-api/runtime/errcode"
 	xrate "golang.org/x/time/rate"
 )
 
@@ -321,6 +322,7 @@ func rateLimitResponse(c fiber.Ctx) error {
 	c.Set("Retry-After", "1")
 	return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
 		"code":    429,
+		"error":   errcode.ErrCodeRateLimited,
 		"message": "rate limit exceeded",
 	})
 }

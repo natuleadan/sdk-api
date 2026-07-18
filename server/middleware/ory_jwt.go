@@ -37,6 +37,12 @@ func JWTWithOry(cfg JWTConfig, oClient *ory.Client) fiber.Handler {
 
 		c.Locals(cfg.ContextKey, claims)
 		injectAuth(c, buildAuthContext(claims, rawToken))
+		if cfg.TokenBlacklist != nil && cfg.TokenBlacklist(rawToken) {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"code":    401,
+				"message": "token revoked",
+			})
+		}
 		return c.Next()
 	}
 }

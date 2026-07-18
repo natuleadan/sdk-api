@@ -17,13 +17,14 @@ import (
 var ErrInvalidKey = errors.New("invalid private key")
 
 type JWTConfig struct {
-	Secret      string
-	PrevSecret  string
-	ContextKey  string
-	TokenLookup string
-	Algorithm   string
-	Issuer      string
-	Audience    string
+	Secret         string
+	PrevSecret     string
+	ContextKey     string
+	TokenLookup    string
+	Algorithm      string
+	Issuer         string
+	Audience       string
+	TokenBlacklist func(rawToken string) bool
 }
 
 func DefaultJWTConfig() JWTConfig {
@@ -83,6 +84,12 @@ func JWT(cfg JWTConfig) fiber.Handler {
 
 		c.Locals(cfg.ContextKey, claims)
 		injectAuth(c, buildAuthContext(claims, rawToken))
+		if cfg.TokenBlacklist != nil && cfg.TokenBlacklist(rawToken) {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"code":    401,
+				"message": "token revoked",
+			})
+		}
 		return c.Next()
 	}
 }
@@ -137,14 +144,25 @@ func parseRSAPublicKey(pemBytes []byte) *rsa.PublicKey {
 		return nil
 	}
 	key, err := x509.ParsePKIXPublicKey(block.Bytes)
-	if err != nil {
+	if err == nil {
+		pub, ok := key.(*rsa.PublicKey)
+		if ok {
+			return pub
+		}
 		return nil
 	}
-	pub, ok := key.(*rsa.PublicKey)
+	priv, err2 := x509.ParsePKCS8PrivateKey(block.Bytes)
+	if err2 != nil {
+		priv, err2 = x509.ParsePKCS1PrivateKey(block.Bytes)
+	}
+	if err2 != nil {
+		return nil
+	}
+	pub, ok := priv.(*rsa.PrivateKey)
 	if !ok {
 		return nil
 	}
-	return pub
+	return &pub.PublicKey
 }
 
 func parseECDSAPublicKey(pemBytes []byte) *ecdsa.PublicKey {
@@ -153,14 +171,25 @@ func parseECDSAPublicKey(pemBytes []byte) *ecdsa.PublicKey {
 		return nil
 	}
 	key, err := x509.ParsePKIXPublicKey(block.Bytes)
-	if err != nil {
+	if err == nil {
+		pub, ok := key.(*ecdsa.PublicKey)
+		if ok {
+			return pub
+		}
 		return nil
 	}
-	pub, ok := key.(*ecdsa.PublicKey)
+	priv, err2 := x509.ParsePKCS8PrivateKey(block.Bytes)
+	if err2 != nil {
+		priv, err2 = x509.ParseECPrivateKey(block.Bytes)
+	}
+	if err2 != nil {
+		return nil
+	}
+	pub, ok := priv.(*ecdsa.PrivateKey)
 	if !ok {
 		return nil
 	}
-	return pub
+	return &pub.PublicKey
 }
 
 func parseRSAPrivateKey(pemBytes []byte) any {

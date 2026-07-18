@@ -210,7 +210,7 @@ func TestPanics(t *testing.T) {
 			}, func(pipe <-chan int, writer Writer[int], cancel func(error)) {
 			})
 		})
-		assert.Less(t, atomic.LoadInt32(&run), tasks/2)
+		assert.Less(t, atomic.LoadInt32(&run), int32(tasks/2))
 	})
 }
 

@@ -153,9 +153,9 @@ func TestAddDuplicate(t *testing.T) {
 	err := tree.Add("/a/b", 1)
 	require.NoError(t, err)
 	err = tree.Add("/a/b", 2)
-	assert.ErrorIs(t, errDupItem, err)
+	assert.ErrorContains(t, err, "duplicated item")
 	err = tree.Add("/a/b/", 2)
-	assert.ErrorIs(t, errDupItem, err)
+	assert.ErrorContains(t, err, "duplicated item")
 }
 
 func TestPlain(t *testing.T) {
@@ -171,7 +171,7 @@ func TestPlain(t *testing.T) {
 func TestSearchWithDoubleSlashes(t *testing.T) {
 	tree := NewTree()
 	err := tree.Add("//a", 1)
-	assert.ErrorIs(t, errDupSlash, err)
+	assert.ErrorContains(t, err, "duplicated slash")
 }
 
 func TestSearchInvalidRoute(t *testing.T) {

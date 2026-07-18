@@ -31,7 +31,7 @@ func TestUnstable_AroundIntLarge(t *testing.T) {
 	unstable := NewUnstable(5)
 	for range 1000 {
 		val := unstable.AroundInt(target)
-		assert.LessOrEqual(t, 0, val)
+		assert.LessOrEqual(t, int64(0), val)
 		assert.LessOrEqual(t, val, 2*target)
 	}
 }

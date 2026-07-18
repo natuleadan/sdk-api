@@ -1,6 +1,11 @@
 package middleware
 
 import (
+	"crypto/ecdsa"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
+	"errors"
 	"slices"
 	"strings"
 	"time"
@@ -8,6 +13,8 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/golang-jwt/jwt/v5"
 )
+
+var ErrInvalidKey = errors.New("invalid private key")
 
 type JWTConfig struct {
 	Secret      string
@@ -106,11 +113,84 @@ func containsString(slice []string, target string) bool {
 
 type jwtParser struct {
 	secret    []byte
+	rsaPub    *rsa.PublicKey
+	ecdsaPub  *ecdsa.PublicKey
 	algorithm string
 }
 
 func newParser(cfg JWTConfig) *jwtParser {
-	return &jwtParser{secret: []byte(cfg.Secret), algorithm: cfg.Algorithm}
+	p := &jwtParser{algorithm: cfg.Algorithm}
+	switch {
+	case strings.HasPrefix(cfg.Algorithm, "HS"):
+		p.secret = []byte(cfg.Secret)
+	case strings.HasPrefix(cfg.Algorithm, "RS"):
+		p.rsaPub = parseRSAPublicKey([]byte(cfg.Secret))
+	case strings.HasPrefix(cfg.Algorithm, "ES"):
+		p.ecdsaPub = parseECDSAPublicKey([]byte(cfg.Secret))
+	}
+	return p
+}
+
+func parseRSAPublicKey(pemBytes []byte) *rsa.PublicKey {
+	block, _ := pem.Decode(pemBytes)
+	if block == nil {
+		return nil
+	}
+	key, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return nil
+	}
+	pub, ok := key.(*rsa.PublicKey)
+	if !ok {
+		return nil
+	}
+	return pub
+}
+
+func parseECDSAPublicKey(pemBytes []byte) *ecdsa.PublicKey {
+	block, _ := pem.Decode(pemBytes)
+	if block == nil {
+		return nil
+	}
+	key, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return nil
+	}
+	pub, ok := key.(*ecdsa.PublicKey)
+	if !ok {
+		return nil
+	}
+	return pub
+}
+
+func parseRSAPrivateKey(pemBytes []byte) any {
+	block, _ := pem.Decode(pemBytes)
+	if block == nil {
+		return nil
+	}
+	key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	if err != nil {
+		key, err = x509.ParsePKCS1PrivateKey(block.Bytes)
+	}
+	if err != nil {
+		return nil
+	}
+	return key
+}
+
+func parseECDSAPrivateKey(pemBytes []byte) any {
+	block, _ := pem.Decode(pemBytes)
+	if block == nil {
+		return nil
+	}
+	key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	if err != nil {
+		key, err = x509.ParseECPrivateKey(block.Bytes)
+	}
+	if err != nil {
+		return nil
+	}
+	return key
 }
 
 func (p *jwtParser) parse(tokenStr string) (jwt.MapClaims, error) {
@@ -118,10 +198,30 @@ func (p *jwtParser) parse(tokenStr string) (jwt.MapClaims, error) {
 		if token.Method.Alg() != p.algorithm {
 			return nil, jwt.ErrSignatureInvalid
 		}
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, jwt.ErrSignatureInvalid
+		switch {
+		case strings.HasPrefix(p.algorithm, "HS"):
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, jwt.ErrSignatureInvalid
+			}
+			return p.secret, nil
+		case strings.HasPrefix(p.algorithm, "RS"):
+			if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+				return nil, jwt.ErrSignatureInvalid
+			}
+			if p.rsaPub == nil {
+				return nil, jwt.ErrSignatureInvalid
+			}
+			return p.rsaPub, nil
+		case strings.HasPrefix(p.algorithm, "ES"):
+			if _, ok := token.Method.(*jwt.SigningMethodECDSA); !ok {
+				return nil, jwt.ErrSignatureInvalid
+			}
+			if p.ecdsaPub == nil {
+				return nil, jwt.ErrSignatureInvalid
+			}
+			return p.ecdsaPub, nil
 		}
-		return p.secret, nil
+		return nil, jwt.ErrSignatureInvalid
 	})
 	if err != nil {
 		return nil, err
@@ -161,7 +261,8 @@ func extractToken(c fiber.Ctx, lookup string) (token, raw string) {
 }
 
 // SignToken creates and signs a JWT using the given secret and algorithm.
-// Supported algorithms: HS256, HS384, HS512.
+// Supported algorithms: HS256, HS384, HS512, RS256, RS384, RS512, ES256, ES384, ES512.
+// For RS* and ES*, secret must be a PEM-encoded private key.
 func SignToken(secret string, algorithm string, claims map[string]any) (string, error) {
 	var method jwt.SigningMethod
 	switch algorithm {
@@ -169,11 +270,38 @@ func SignToken(secret string, algorithm string, claims map[string]any) (string, 
 		method = jwt.SigningMethodHS384
 	case "HS512":
 		method = jwt.SigningMethodHS512
+	case "RS256":
+		method = jwt.SigningMethodRS256
+	case "RS384":
+		method = jwt.SigningMethodRS384
+	case "RS512":
+		method = jwt.SigningMethodRS512
+	case "ES256":
+		method = jwt.SigningMethodES256
+	case "ES384":
+		method = jwt.SigningMethodES384
+	case "ES512":
+		method = jwt.SigningMethodES512
 	default:
 		method = jwt.SigningMethodHS256
 	}
 	tok := jwt.NewWithClaims(method, jwt.MapClaims(claims))
-	signed, err := tok.SignedString([]byte(secret))
+	var key any
+	switch {
+	case strings.HasPrefix(algorithm, "HS"):
+		key = []byte(secret)
+	case strings.HasPrefix(algorithm, "RS"):
+		key = parseRSAPrivateKey([]byte(secret))
+		if key == nil {
+			return "", ErrInvalidKey
+		}
+	case strings.HasPrefix(algorithm, "ES"):
+		key = parseECDSAPrivateKey([]byte(secret))
+		if key == nil {
+			return "", ErrInvalidKey
+		}
+	}
+	signed, err := tok.SignedString(key)
 	if err != nil {
 		return "", err
 	}

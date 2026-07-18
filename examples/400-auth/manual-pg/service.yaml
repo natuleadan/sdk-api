@@ -37,6 +37,12 @@ server:
       script_src: ["'self'"]
       style_src: ["'self'"]
       img_src: ["'self'", "data:"]
+  cors:
+    origins: ["*"]
+    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"]
+    headers: ["Content-Type", "Authorization", "X-CSRF-Token", "X-Debug"]
+    credentials: true
+    max_age: 3600
   rate_limit:
     enabled: true
     kv: cache-main
@@ -81,6 +87,67 @@ entry:
     method: POST
     path: /signup
     handler: signupHandler
+    rate_limit_per_user:
+      requests_per_second: 2
+      burst: 4
+
+  - type: rest
+    method: POST
+    path: /auth/forgot-password
+    handler: forgotPasswordHandler
+
+  - type: rest
+    method: POST
+    path: /auth/reset-password
+    handler: resetPasswordHandler
+
+  - type: rest
+    method: GET
+    path: /auth/verify-email
+    handler: verifyEmailHandler
+
+  - type: rest
+    method: POST
+    path: /auth/mfa/enable
+    handler: mfaEnableHandler
+    auth_modes: [jwt]
+
+  - type: rest
+    method: POST
+    path: /auth/mfa/verify
+    handler: mfaVerifyHandler
+    auth_modes: [jwt]
+
+  - type: rest
+    method: GET
+    path: /mfa-protected
+    handler: mfaProtectedHandler
+    auth_modes: [jwt]
+    requires_mfa: true
+
+  - type: rest
+    method: POST
+    path: /auth/change-password
+    handler: changePasswordHandler
+    auth_modes: [jwt]
+
+  - type: rest
+    method: POST
+    path: /auth/revoke
+    handler: revokeTokenHandler
+    auth_modes: [jwt]
+
+  - type: rest
+    method: GET
+    path: /blacklist-protected
+    handler: blacklistProtectedHandler
+    auth_modes: [jwt]
+
+  - type: rest
+    method: POST
+    path: /no-csrf
+    handler: noCSRFHandler
+    csrf: false
 
   - type: rest
     method: GET
@@ -255,5 +322,6 @@ entry:
     model: TenantProduct
     resource: tenant-products
     auth_modes: [jwt]
+    db: primary
     tenant_scope: org_id
     tenant_field: tenant_id

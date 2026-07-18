@@ -7,7 +7,7 @@ RUN CGO_ENABLED=0 go build -o /svc .
 RUN CGO_ENABLED=0 go test -c -o /tester .
 
 FROM alpine:latest
-RUN apk add --no-cache wrk ca-certificates curl
+RUN apk add --no-cache wrk ca-certificates curl openssl
 WORKDIR /app
 COPY --from=builder /svc /app/svc
 COPY --from=builder /tester /app/tester

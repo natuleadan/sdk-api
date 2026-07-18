@@ -14,6 +14,13 @@ done
 
 echo "=== starting service ==="
 export DOCKER_TEST=1
+
+if [ -z "$JWT_SECRET" ]; then
+	JWT_SECRET=$(openssl genrsa 2048 2>/dev/null | openssl pkcs8 -topk8 -nocrypt 2>/dev/null)
+	export JWT_SECRET
+fi
+export OLD_JWT_SECRET="${OLD_JWT_SECRET:-$JWT_SECRET}"
+
 /app/svc &
 SVC_PID=$!
 for i in $(seq 1 30); do

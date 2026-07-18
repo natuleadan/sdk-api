@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	_ "embed"
 	"encoding/hex"
@@ -26,17 +27,25 @@ import (
 var serviceYAML []byte
 
 type TenantProduct struct {
-	ID       string  `db:"id,primary"`
-	Name     string  `db:"name"`
-	Price    float64 `db:"price"`
-	TenantID string  `db:"tenant_id"`
+	ID       string  `db:"id,primary,auto" json:"id"`
+	Name     string  `db:"name" json:"name"`
+	Price    float64 `db:"price" json:"price"`
+	TenantID string  `db:"tenant_id" json:"tenant_id"`
 }
 
 var (
-	jwtSecret  = envOrDefault("JWT_SECRET", "dev-secret-hs256-change-in-prod")
-	authExpiry = envIntOrDefault("AUTH_EXPIRY", 900)
-	seedPass   = envOrDefault("SEED_PASSWORD", "pass123")
+	jwtSecret = envOrDefault("JWT_SECRET", "dev-secret-hs256-change-in-prod")
+	authExpiry   = envIntOrDefault("AUTH_EXPIRY", 900)
+	seedPass     = envOrDefault("SEED_PASSWORD", "pass123")
 )
+
+func tokenHash(raw string) string {
+	h := sha256.Sum256([]byte(raw))
+	return hex.EncodeToString(h[:])
+}
+
+const lockoutThreshold = 5
+const lockoutDuration = 15 * time.Minute
 
 func envOrDefault(key, def string) string {
 	if v := os.Getenv(key); v != "" {
@@ -54,6 +63,37 @@ func envIntOrDefault(key string, def int) int {
 	return def
 }
 
+const extraTablesSQL = `
+CREATE TABLE IF NOT EXISTS failed_logins (
+    username TEXT PRIMARY KEY,
+    attempts INT DEFAULT 1,
+    last_attempt TIMESTAMPTZ DEFAULT now(),
+    locked_until TIMESTAMPTZ
+);
+CREATE TABLE IF NOT EXISTS revoked_tokens (
+    token_hash TEXT PRIMARY KEY,
+    revoked_at TIMESTAMPTZ DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS mfa_secrets (
+    user_id TEXT PRIMARY KEY,
+    secret TEXT NOT NULL,
+    enabled BOOLEAN DEFAULT false,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS email_verifications (
+    user_id TEXT PRIMARY KEY,
+    token TEXT NOT NULL,
+    verified BOOLEAN DEFAULT false,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    expires_at TIMESTAMPTZ NOT NULL
+);
+CREATE TABLE IF NOT EXISTS password_resets (
+    user_id TEXT PRIMARY KEY,
+    token TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    expires_at TIMESTAMPTZ NOT NULL
+);`
+
 func main() {
 	svc, err := runtime.NewFromYAML(serviceYAML)
 	if err != nil {
@@ -67,8 +107,6 @@ func main() {
 
 	ctx := context.Background()
 
-	// init pool with retry + schema + seed
-	// p is inferred as *pgxpool.Pool from db.NewPool — no pgxpool import needed
 	var pool any
 	hashKey := func(raw string) string {
 		h := sha256.Sum256([]byte(raw))
@@ -113,7 +151,11 @@ CREATE TABLE IF NOT EXISTS audit_log (
 			err = se
 			goto next
 		}
-		// seed users
+		if _, se := p.Exec(ctx, extraTablesSQL); se != nil {
+			p.Close()
+			err = se
+			goto next
+		}
 		for _, u := range []struct{ id, name, pass, role string }{
 			{"user-viewer", "viewer", seedPass, "viewer"},
 			{"user-editor", "editor", seedPass, "editor"},
@@ -124,7 +166,6 @@ CREATE TABLE IF NOT EXISTS audit_log (
 				`INSERT INTO users (id, username, password_hash, role) VALUES ($1,$2,$3,$4) ON CONFLICT (id) DO NOTHING`,
 				u.id, u.name, h, u.role)
 		}
-		// seed api keys
 		for _, k := range []struct{ id, label, key, role string }{
 			{"key-viewer", "viewer-key", "sk-viewer_abc123", "viewer"},
 			{"key-editor", "editor-key", "sk-editor_abc123", "editor"},
@@ -134,7 +175,6 @@ CREATE TABLE IF NOT EXISTS audit_log (
 				`INSERT INTO api_keys (id, label, key_hash, role) VALUES ($1,$2,$3,$4) ON CONFLICT (id) DO NOTHING`,
 				k.id, k.label, hashKey(k.key), k.role)
 		}
-		// seed tenant products
 		for _, tp := range []TenantProduct{
 			{"tp-alfa-1", "Alfa One", 10.0, "org-alfa"},
 			{"tp-alfa-2", "Alfa Two", 20.0, "org-alfa"},
@@ -168,7 +208,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
 	svc.WithAPIKeyValidator(func(ctx context.Context, key string) (*middleware.AuthContext, error) {
 		h := sha256.Sum256([]byte(key))
 		keyHash := hex.EncodeToString(h[:])
-		pgPool := svc.PoolPGTyped("default")
+		pgPool := svc.PoolPGTyped("primary")
 		var id, role string
 		var enabled bool
 		if err := pgPool.QueryRow(ctx,
@@ -193,6 +233,14 @@ CREATE TABLE IF NOT EXISTS audit_log (
 
 	svc.WithRest("loginHandler", func(c *runtime.RestCtx) error { return handleLogin(c) })
 	svc.WithRest("signupHandler", func(c *runtime.RestCtx) error { return handleSignup(c) })
+	svc.WithRest("forgotPasswordHandler", func(c *runtime.RestCtx) error { return handleForgotPassword(c) })
+	svc.WithRest("resetPasswordHandler", func(c *runtime.RestCtx) error { return handleResetPassword(c) })
+	svc.WithRest("verifyEmailHandler", func(c *runtime.RestCtx) error { return handleVerifyEmail(c) })
+	svc.WithRest("mfaEnableHandler", func(c *runtime.RestCtx) error { return handleMFAEnable(c) })
+	svc.WithRest("mfaVerifyHandler", func(c *runtime.RestCtx) error { return handleMFAVerify(c) })
+	svc.WithRest("mfaProtectedHandler", func(c *runtime.RestCtx) error { return c.JSON(runtime.Map{"data": "sensitive-data"}) })
+	svc.WithRest("changePasswordHandler", func(c *runtime.RestCtx) error { return handleChangePassword(c) })
+	svc.WithRest("noCSRFHandler", func(c *runtime.RestCtx) error { return c.JSON(runtime.Map{"status": "no-csrf"}) })
 	svc.WithRest("profileHandler", func(c *runtime.RestCtx) error { return handleProfile(c) })
 	svc.WithRest("listProducts", func(c *runtime.RestCtx) error { return store.list(c) })
 	svc.WithRest("createProduct", func(c *runtime.RestCtx) error { return store.create(c) })
@@ -200,6 +248,21 @@ CREATE TABLE IF NOT EXISTS audit_log (
 	svc.WithRest("updateProduct", func(c *runtime.RestCtx) error { return store.update(c) })
 	svc.WithRest("deleteProduct", func(c *runtime.RestCtx) error { return store.delete(c) })
 	svc.WithRest("hardDeleteProduct", func(c *runtime.RestCtx) error { return store.hardDelete(c) })
+	svc.WithJWTBlacklist(func(rawToken string) bool {
+		pool := svc.PoolPGTyped("primary")
+		if pool == nil {
+			return false
+		}
+		hash := tokenHash(rawToken)
+		var exists bool
+		_ = pool.QueryRow(context.Background(),
+			`SELECT EXISTS(SELECT 1 FROM revoked_tokens WHERE token_hash = $1)`, hash).Scan(&exists)
+		return exists
+	})
+	svc.WithRest("revokeTokenHandler", func(c *runtime.RestCtx) error { return handleRevokeToken(c) })
+	svc.WithRest("blacklistProtectedHandler", func(c *runtime.RestCtx) error {
+		return c.JSON(runtime.Map{"data": "sensitive"})
+	})
 	svc.WithRest("setVisibility", func(c *runtime.RestCtx) error { return store.setVisibility(c) })
 	svc.WithRest("getAuditLog", func(c *runtime.RestCtx) error { return store.getAuditLog(c) })
 	svc.WithRest("listUsers", func(c *runtime.RestCtx) error { return handleListUsers(c) })
@@ -213,7 +276,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
 	svc.WithRest("maxFuncLimited", func(c *runtime.RestCtx) error { return c.JSON(runtime.Map{"status": "ok"}) })
 
 	svc.WithCRUDFactory("TenantProduct", func() runtime.CRUDProvider {
-		pgPool := svc.PoolPGTyped("default")
+		pgPool := svc.PoolPGTyped("primary")
 		table, tErr := db.NewTable[TenantProduct](pgPool, "tenant_products")
 		if tErr != nil {
 			log.Fatalf("tenant table: %v", tErr)
@@ -224,10 +287,10 @@ CREATE TABLE IF NOT EXISTS audit_log (
 	log.Fatal(svc.Run())
 }
 
-func validateJWT(_ context.Context, auth *middleware.AuthContext, requiredRoles, requiredPermissions []string) error {
+func validateJWT(_ context.Context, a *middleware.AuthContext, requiredRoles, requiredPermissions []string) error {
 	if len(requiredRoles) > 0 {
 		allowed := false
-		for _, r := range auth.Roles {
+		for _, r := range a.Roles {
 			for _, req := range requiredRoles {
 				if r == req || roleInherits(r, req) {
 					allowed = true
@@ -244,7 +307,7 @@ func validateJWT(_ context.Context, auth *middleware.AuthContext, requiredRoles,
 	}
 	if len(requiredPermissions) > 0 {
 		allowed := false
-		for _, p := range auth.Permissions {
+		for _, p := range a.Permissions {
 			for _, req := range requiredPermissions {
 				if p == req {
 					allowed = true
@@ -284,6 +347,51 @@ func roleInherits(userRole, requiredRole string) bool {
 	return false
 }
 
+func checkPasswordStrength(password string) error {
+	if len(password) < 8 {
+		return errors.New("password must be at least 8 characters")
+	}
+	var hasUpper, hasLower, hasDigit bool
+	for _, ch := range password {
+		switch {
+		case ch >= 'A' && ch <= 'Z':
+			hasUpper = true
+		case ch >= 'a' && ch <= 'z':
+			hasLower = true
+		case ch >= '0' && ch <= '9':
+			hasDigit = true
+		}
+	}
+	if !hasUpper {
+		return errors.New("password must contain an uppercase letter")
+	}
+	if !hasLower {
+		return errors.New("password must contain a lowercase letter")
+	}
+	if !hasDigit {
+		return errors.New("password must contain a digit")
+	}
+	return nil
+}
+
+func generateToken() string {
+	b := make([]byte, 32)
+	rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+func handleRevokeToken(c *runtime.RestCtx) error {
+	a := getAuth(c)
+	if a == nil || a.RawToken == "" {
+		return c.Status(401).JSON(runtime.Map{"code": 401, "message": "unauthorized"})
+	}
+	hash := tokenHash(a.RawToken)
+	pool := c.PoolPG("primary")
+	_, _ = pool.Exec(c.Context(),
+		`INSERT INTO revoked_tokens (token_hash, revoked_at) VALUES ($1, now()) ON CONFLICT (token_hash) DO NOTHING`, hash)
+	return c.JSON(runtime.Map{"status": "revoked"})
+}
+
 func handleLogin(c *runtime.RestCtx) error {
 	var body struct {
 		Username string `json:"username"`
@@ -292,17 +400,49 @@ func handleLogin(c *runtime.RestCtx) error {
 	if err := c.Bind(&body); err != nil {
 		return c.Status(400).JSON(runtime.Map{"code": 400, "message": "invalid body"})
 	}
-	pool := c.PoolPG("default")
+	pool := c.PoolPG("primary")
+
+	var attempts int
+	var lockedUntil *time.Time
+	_ = pool.QueryRow(c.Context(),
+		`SELECT attempts, locked_until FROM failed_logins WHERE username = $1`, body.Username).
+		Scan(&attempts, &lockedUntil)
+	if lockedUntil != nil && time.Now().Before(*lockedUntil) {
+		return c.Status(429).JSON(runtime.Map{"code": 429, "message": "account locked due to too many failed attempts"})
+	}
+
 	var userID, passwordHash, role string
 	err := pool.QueryRow(c.Context(),
 		`SELECT id, password_hash, role FROM users WHERE username = $1`, body.Username).
 		Scan(&userID, &passwordHash, &role)
 	if err != nil {
+		_, _ = pool.Exec(c.Context(), `
+INSERT INTO failed_logins (username, attempts, last_attempt, locked_until)
+VALUES ($1, 1, now(), NULL)
+ON CONFLICT (username) DO UPDATE SET
+    attempts = failed_logins.attempts + 1,
+    last_attempt = now(),
+    locked_until = CASE
+        WHEN failed_logins.attempts + 1 >= $2 THEN now() + $3::interval
+        ELSE NULL
+    END`, body.Username, lockoutThreshold, fmt.Sprintf("%d minutes", int(lockoutDuration.Minutes())))
 		return c.Status(401).JSON(runtime.Map{"code": 401, "message": "invalid credentials"})
 	}
 	if !auth.VerifyPassword(passwordHash, body.Password) {
+		_, _ = pool.Exec(c.Context(), `
+INSERT INTO failed_logins (username, attempts, last_attempt, locked_until)
+VALUES ($1, 1, now(), NULL)
+ON CONFLICT (username) DO UPDATE SET
+    attempts = failed_logins.attempts + 1,
+    last_attempt = now(),
+    locked_until = CASE
+        WHEN failed_logins.attempts + 1 >= $2 THEN now() + $3::interval
+        ELSE NULL
+    END`, body.Username, lockoutThreshold, fmt.Sprintf("%d minutes", int(lockoutDuration.Minutes())))
 		return c.Status(401).JSON(runtime.Map{"code": 401, "message": "invalid credentials"})
 	}
+	_, _ = pool.Exec(c.Context(), `DELETE FROM failed_logins WHERE username = $1`, body.Username)
+
 	var permissions []string
 	if role == "admin" {
 		permissions = []string{"users:manage"}
@@ -312,6 +452,12 @@ func handleLogin(c *runtime.RestCtx) error {
 		orgID = "org-beta"
 	}
 	claims := middleware.DefaultClaims(userID, orgID, []string{role}, permissions, authExpiry)
+	var mfaEnabled bool
+	_ = pool.QueryRow(c.Context(),
+		`SELECT enabled FROM mfa_secrets WHERE user_id = $1`, userID).Scan(&mfaEnabled)
+	if mfaEnabled {
+		claims["mfa"] = false
+	}
 	signed, err := middleware.SignToken(jwtSecret, "HS256", claims)
 	if err != nil {
 		return c.Status(500).JSON(runtime.Map{"code": 500, "message": "token generation failed"})
@@ -332,6 +478,9 @@ func handleSignup(c *runtime.RestCtx) error {
 	if body.Username == "" || body.Password == "" {
 		return c.Status(400).JSON(runtime.Map{"code": 400, "message": "username and password required"})
 	}
+	if err := checkPasswordStrength(body.Password); err != nil {
+		return c.Status(400).JSON(runtime.Map{"code": 400, "message": err.Error()})
+	}
 	if body.Role == "" {
 		body.Role = "viewer"
 	}
@@ -339,7 +488,7 @@ func handleSignup(c *runtime.RestCtx) error {
 	if !slices.Contains(allowedRoles, body.Role) {
 		return c.Status(400).JSON(runtime.Map{"code": 400, "message": "invalid role (use viewer, editor, or admin)"})
 	}
-	pool := c.PoolPG("default")
+	pool := c.PoolPG("primary")
 	userID := "user-" + body.Username
 	hash, err := auth.HashPassword(body.Password)
 	if err != nil {
@@ -351,25 +500,188 @@ func handleSignup(c *runtime.RestCtx) error {
 	if err != nil {
 		return c.Status(500).JSON(runtime.Map{"code": 500, "message": err.Error()})
 	}
+
+	token := generateToken()
+	_, _ = pool.Exec(c.Context(),
+		`INSERT INTO email_verifications (user_id, token, verified, created_at, expires_at)
+		 VALUES ($1,$2,false,now(),now()+interval '24 hours')
+		 ON CONFLICT (user_id) DO UPDATE SET token=$2, verified=false, created_at=now(), expires_at=now()+interval '24 hours'`,
+		userID, token)
+	log.Printf("[EMAIL] Verify: http://localhost:23400/api/v1/auth/verify-email?token=%s", token)
+
 	return c.Status(201).JSON(runtime.Map{"status": "created", "username": body.Username, "role": body.Role})
 }
 
-func handleProfile(c *runtime.RestCtx) error {
-	auth := getAuth(c)
-	if auth == nil {
+func handleForgotPassword(c *runtime.RestCtx) error {
+	var body struct {
+		Username string `json:"username"`
+	}
+	if err := c.Bind(&body); err != nil {
+		return c.Status(400).JSON(runtime.Map{"code": 400, "message": "invalid body"})
+	}
+	pool := c.PoolPG("primary")
+	token := generateToken()
+	_, _ = pool.Exec(c.Context(),
+		`INSERT INTO password_resets (user_id, token, created_at, expires_at)
+		 VALUES ($1,$2,now(),now()+interval '1 hour')
+		 ON CONFLICT (user_id) DO UPDATE SET token=$2, created_at=now(), expires_at=now()+interval '1 hour'`,
+		"user-"+body.Username, token)
+	log.Printf("[EMAIL] Reset: http://localhost:23400/api/v1/auth/reset-password?token=%s", token)
+	return c.JSON(runtime.Map{"status": "reset_link_sent"})
+}
+
+func handleResetPassword(c *runtime.RestCtx) error {
+	var body struct {
+		Token    string `json:"token"`
+		Password string `json:"password"`
+	}
+	if err := c.Bind(&body); err != nil {
+		return c.Status(400).JSON(runtime.Map{"code": 400, "message": "invalid body"})
+	}
+	if err := checkPasswordStrength(body.Password); err != nil {
+		return c.Status(400).JSON(runtime.Map{"code": 400, "message": err.Error()})
+	}
+	pool := c.PoolPG("primary")
+	var userID string
+	var expiresAt time.Time
+	err := pool.QueryRow(c.Context(),
+		`SELECT user_id, expires_at FROM password_resets WHERE token = $1`, body.Token).
+		Scan(&userID, &expiresAt)
+	if err != nil {
+		return c.Status(400).JSON(runtime.Map{"code": 400, "message": "invalid or expired token"})
+	}
+	if time.Now().After(expiresAt) {
+		return c.Status(400).JSON(runtime.Map{"code": 400, "message": "token expired"})
+	}
+	hash, _ := auth.HashPassword(body.Password)
+	_, _ = pool.Exec(c.Context(), `UPDATE users SET password_hash = $1 WHERE id = $2`, hash, userID)
+	_, _ = pool.Exec(c.Context(), `DELETE FROM password_resets WHERE user_id = $1`, userID)
+	return c.JSON(runtime.Map{"status": "password_updated"})
+}
+
+func handleVerifyEmail(c *runtime.RestCtx) error {
+	token := c.Query("token")
+	if token == "" {
+		var body struct {
+			Token string `json:"token"`
+		}
+		if err := c.Bind(&body); err == nil && body.Token != "" {
+			token = body.Token
+		}
+	}
+	if token == "" {
+		return c.Status(400).JSON(runtime.Map{"code": 400, "message": "token required"})
+	}
+	pool := c.PoolPG("primary")
+	var userID string
+	var expiresAt time.Time
+	err := pool.QueryRow(c.Context(),
+		`SELECT user_id, expires_at FROM email_verifications WHERE token = $1 AND verified = false`, token).
+		Scan(&userID, &expiresAt)
+	if err != nil {
+		return c.Status(400).JSON(runtime.Map{"code": 400, "message": "invalid or expired token"})
+	}
+	if time.Now().After(expiresAt) {
+		return c.Status(400).JSON(runtime.Map{"code": 400, "message": "token expired"})
+	}
+	_, _ = pool.Exec(c.Context(), `UPDATE email_verifications SET verified = true WHERE user_id = $1`, userID)
+	return c.JSON(runtime.Map{"status": "email_verified"})
+}
+
+func handleChangePassword(c *runtime.RestCtx) error {
+	var body struct {
+		OldPassword string `json:"old_password"`
+		NewPassword string `json:"new_password"`
+	}
+	if err := c.Bind(&body); err != nil {
+		return c.Status(400).JSON(runtime.Map{"code": 400, "message": "invalid body"})
+	}
+	if err := checkPasswordStrength(body.NewPassword); err != nil {
+		return c.Status(400).JSON(runtime.Map{"code": 400, "message": err.Error()})
+	}
+	pool := c.PoolPG("primary")
+	a := getAuth(c)
+	var hash string
+	err := pool.QueryRow(c.Context(), `SELECT password_hash FROM users WHERE id = $1`, a.UserID).Scan(&hash)
+	if err != nil {
+		return c.Status(500).JSON(runtime.Map{"code": 500, "message": "internal error"})
+	}
+	if !auth.VerifyPassword(hash, body.OldPassword) {
+		return c.Status(403).JSON(runtime.Map{"code": 403, "message": "wrong password"})
+	}
+	newHash, _ := auth.HashPassword(body.NewPassword)
+	_, _ = pool.Exec(c.Context(), `UPDATE users SET password_hash = $1 WHERE id = $2`, newHash, a.UserID)
+	return c.JSON(runtime.Map{"status": "password_changed"})
+}
+
+func handleMFAEnable(c *runtime.RestCtx) error {
+	a := getAuth(c)
+	if a == nil {
 		return c.Status(401).JSON(runtime.Map{"code": 401, "message": "unauthorized"})
 	}
-	pool := c.PoolPG("default")
+	pool := c.PoolPG("primary")
+	secret, err := auth.GenerateTOTPSecret()
+	if err != nil {
+		return c.Status(500).JSON(runtime.Map{"code": 500, "message": "internal error"})
+	}
+	uri := auth.GenerateTOTPURI(secret, "400-auth", a.UserID)
+	_, _ = pool.Exec(c.Context(),
+		`INSERT INTO mfa_secrets (user_id, secret, enabled, created_at)
+		 VALUES ($1,$2,false,now())
+		 ON CONFLICT (user_id) DO UPDATE SET secret=$2, enabled=false, created_at=now()`,
+		a.UserID, secret)
+	return c.JSON(runtime.Map{"secret": secret, "uri": uri})
+}
+
+func handleMFAVerify(c *runtime.RestCtx) error {
+	a := getAuth(c)
+	if a == nil {
+		return c.Status(401).JSON(runtime.Map{"code": 401, "message": "unauthorized"})
+	}
+	var body struct {
+		Code string `json:"code"`
+	}
+	if err := c.Bind(&body); err != nil {
+		return c.Status(400).JSON(runtime.Map{"code": 400, "message": "invalid body"})
+	}
+	pool := c.PoolPG("primary")
+	var secret string
+	err := pool.QueryRow(c.Context(),
+		`SELECT secret FROM mfa_secrets WHERE user_id = $1`, a.UserID).Scan(&secret)
+	if err != nil {
+		return c.Status(400).JSON(runtime.Map{"code": 400, "message": "MFA not enabled"})
+	}
+	if !auth.ValidateTOTP(secret, body.Code) {
+		return c.Status(401).JSON(runtime.Map{"code": 401, "message": "invalid code"})
+	}
+	_, _ = pool.Exec(c.Context(),
+		`UPDATE mfa_secrets SET enabled = true WHERE user_id = $1`, a.UserID)
+
+	claims := middleware.DefaultClaims(a.UserID, a.OrgID, a.Roles, a.Permissions, authExpiry)
+	claims["mfa"] = true
+	signed, err := middleware.SignToken(jwtSecret, "HS256", claims)
+	if err != nil {
+		return c.Status(500).JSON(runtime.Map{"code": 500, "message": "token generation failed"})
+	}
+	return c.JSON(runtime.Map{"token": signed, "mfa": true})
+}
+
+func handleProfile(c *runtime.RestCtx) error {
+	a := getAuth(c)
+	if a == nil {
+		return c.Status(401).JSON(runtime.Map{"code": 401, "message": "unauthorized"})
+	}
+	pool := c.PoolPG("primary")
 	var username, role string
-	err := pool.QueryRow(c.Context(), `SELECT username, role FROM users WHERE id = $1`, auth.UserID).Scan(&username, &role)
+	err := pool.QueryRow(c.Context(), `SELECT username, role FROM users WHERE id = $1`, a.UserID).Scan(&username, &role)
 	if err != nil {
 		return c.Status(404).JSON(runtime.Map{"code": 404, "message": "user not found"})
 	}
-	return c.JSON(runtime.Map{"username": username, "role": role, "user_id": auth.UserID})
+	return c.JSON(runtime.Map{"username": username, "role": role, "user_id": a.UserID})
 }
 
 func handleListUsers(c *runtime.RestCtx) error {
-	pool := c.PoolPG("default")
+	pool := c.PoolPG("primary")
 	rows, err := pool.Query(c.Context(), `SELECT id, username, role FROM users ORDER BY username`)
 	if err != nil {
 		return c.Status(500).JSON(runtime.Map{"code": 500, "message": err.Error()})
@@ -402,15 +714,15 @@ func handleListUsers(c *runtime.RestCtx) error {
 }
 
 func handleDeleteUser(c *runtime.RestCtx) error {
-	auth := getAuth(c)
-	if auth == nil {
+	a := getAuth(c)
+	if a == nil {
 		return c.Status(401).JSON(runtime.Map{"code": 401, "message": "unauthorized"})
 	}
 	id := c.Params("id")
-	if id == auth.UserID {
+	if id == a.UserID {
 		return c.Status(403).JSON(runtime.Map{"code": 403, "message": "cannot delete yourself"})
 	}
-	pool := c.PoolPG("default")
+	pool := c.PoolPG("primary")
 	_, err := pool.Exec(c.Context(), `DELETE FROM users WHERE id = $1`, id)
 	if err != nil {
 		return c.Status(500).JSON(runtime.Map{"code": 500, "message": err.Error()})
@@ -419,12 +731,12 @@ func handleDeleteUser(c *runtime.RestCtx) error {
 }
 
 func handleSetUserRole(c *runtime.RestCtx) error {
-	auth := getAuth(c)
-	if auth == nil {
+	a := getAuth(c)
+	if a == nil {
 		return c.Status(401).JSON(runtime.Map{"code": 401, "message": "unauthorized"})
 	}
 	id := c.Params("id")
-	if id == auth.UserID {
+	if id == a.UserID {
 		return c.Status(403).JSON(runtime.Map{"code": 403, "message": "cannot change your own role"})
 	}
 	var body struct {
@@ -437,7 +749,7 @@ func handleSetUserRole(c *runtime.RestCtx) error {
 	if !slices.Contains(allowedRoles, body.Role) {
 		return c.Status(400).JSON(runtime.Map{"code": 400, "message": "invalid role (use viewer, editor, admin)"})
 	}
-	pool := c.PoolPG("default")
+	pool := c.PoolPG("primary")
 	_, err := pool.Exec(c.Context(), `UPDATE users SET role = $1 WHERE id = $2`, body.Role, id)
 	if err != nil {
 		return c.Status(500).JSON(runtime.Map{"code": 500, "message": err.Error()})
@@ -467,11 +779,11 @@ func (s *productStore) auth(c *runtime.RestCtx) *middleware.AuthContext {
 	return nil
 }
 
-func (s *productStore) hasRole(auth *middleware.AuthContext, role string) bool {
-	if auth == nil {
+func (s *productStore) hasRole(a *middleware.AuthContext, role string) bool {
+	if a == nil {
 		return false
 	}
-	for _, r := range auth.Roles {
+	for _, r := range a.Roles {
 		if r == role || roleInherits(r, role) {
 			return true
 		}
@@ -480,8 +792,8 @@ func (s *productStore) hasRole(auth *middleware.AuthContext, role string) bool {
 }
 
 func (s *productStore) list(c *runtime.RestCtx) error {
-	auth := s.auth(c)
-	pool := c.PoolPG("default")
+	a := s.auth(c)
+	pool := c.PoolPG("primary")
 	rows, err := pool.Query(c.Context(),
 		`SELECT id, name, description, price, visibility, created_by, deleted_at, updated_at
 		 FROM products ORDER BY updated_at DESC`)
@@ -509,7 +821,7 @@ func (s *productStore) list(c *runtime.RestCtx) error {
 		}
 		p.Price = fmt.Sprintf("%.2f", price)
 		p.UpdatedAt = updatedAt.Format(time.RFC3339)
-		if p.Visibility == "confidential" && !s.hasRole(auth, "admin") {
+		if p.Visibility == "confidential" && !s.hasRole(a, "admin") {
 			p.Description = "[restricted]"
 		}
 		products = append(products, p)
@@ -521,9 +833,9 @@ func (s *productStore) list(c *runtime.RestCtx) error {
 }
 
 func (s *productStore) get(c *runtime.RestCtx) error {
-	auth := s.auth(c)
+	a := s.auth(c)
 	id := c.Params("id")
-	pool := c.PoolPG("default")
+	pool := c.PoolPG("primary")
 	var idOut, name, description, visibility, createdBy string
 	var price float64
 	var deletedAt *time.Time
@@ -535,7 +847,7 @@ func (s *productStore) get(c *runtime.RestCtx) error {
 	if err != nil {
 		return c.Status(404).JSON(runtime.Map{"code": 404, "message": err.Error()})
 	}
-	if visibility == "confidential" && !s.hasRole(auth, "admin") {
+	if visibility == "confidential" && !s.hasRole(a, "admin") {
 		description = "[restricted]"
 	}
 	return c.JSON(runtime.Map{
@@ -550,8 +862,8 @@ func (s *productStore) get(c *runtime.RestCtx) error {
 }
 
 func (s *productStore) create(c *runtime.RestCtx) error {
-	auth := s.auth(c)
-	if !s.hasRole(auth, "editor") {
+	a := s.auth(c)
+	if !s.hasRole(a, "editor") {
 		return c.Status(403).JSON(runtime.Map{"code": 403, "message": "forbidden"})
 	}
 	var body struct {
@@ -565,21 +877,21 @@ func (s *productStore) create(c *runtime.RestCtx) error {
 	if body.Name == "" {
 		return c.Status(400).JSON(runtime.Map{"code": 400, "message": "name required"})
 	}
-	pool := c.PoolPG("default")
+	pool := c.PoolPG("primary")
 	var id string
 	err := pool.QueryRow(c.Context(),
 		`INSERT INTO products (name, description, price, created_by) VALUES ($1,$2,$3,$4) RETURNING id`,
-		body.Name, body.Description, body.Price, auth.UserID).Scan(&id)
+		body.Name, body.Description, body.Price, a.UserID).Scan(&id)
 	if err != nil {
 		return c.Status(500).JSON(runtime.Map{"code": 500, "message": err.Error()})
 	}
-	s.logAudit(c, id, "create", auth.UserID, nil, runtime.Map{"name": body.Name, "price": body.Price})
+	s.logAudit(c, id, "create", a.UserID, nil, runtime.Map{"name": body.Name, "price": body.Price})
 	return c.Status(201).JSON(runtime.Map{"id": id})
 }
 
 func (s *productStore) update(c *runtime.RestCtx) error {
-	auth := s.auth(c)
-	if !s.hasRole(auth, "editor") {
+	a := s.auth(c)
+	if !s.hasRole(a, "editor") {
 		return c.Status(403).JSON(runtime.Map{"code": 403, "message": "forbidden"})
 	}
 	id := c.Params("id")
@@ -615,49 +927,49 @@ func (s *productStore) update(c *runtime.RestCtx) error {
 	fields = append(fields, "updated_at = now()")
 	args = append(args, id)
 	q := fmt.Sprintf(`UPDATE products SET %s WHERE id = $%d AND deleted_at IS NULL`, strings.Join(fields, ", "), argIdx)
-	pool := c.PoolPG("default")
+	pool := c.PoolPG("primary")
 	_, err := pool.Exec(c.Context(), q, args...)
 	if err != nil {
 		return c.Status(500).JSON(runtime.Map{"code": 500, "message": err.Error()})
 	}
-	s.logAudit(c, id, "update", auth.UserID, nil, nil)
+	s.logAudit(c, id, "update", a.UserID, nil, nil)
 	return c.JSON(runtime.Map{"status": "updated"})
 }
 
 func (s *productStore) delete(c *runtime.RestCtx) error {
-	auth := s.auth(c)
-	if !s.hasRole(auth, "editor") {
+	a := s.auth(c)
+	if !s.hasRole(a, "editor") {
 		return c.Status(403).JSON(runtime.Map{"code": 403, "message": "forbidden"})
 	}
 	id := c.Params("id")
-	pool := c.PoolPG("default")
+	pool := c.PoolPG("primary")
 	_, err := pool.Exec(c.Context(),
 		`UPDATE products SET deleted_at = now(), updated_at = now() WHERE id = $1 AND deleted_at IS NULL`, id)
 	if err != nil {
 		return c.Status(500).JSON(runtime.Map{"code": 500, "message": err.Error()})
 	}
-	s.logAudit(c, id, "soft_delete", auth.UserID, nil, nil)
+	s.logAudit(c, id, "soft_delete", a.UserID, nil, nil)
 	return c.JSON(runtime.Map{"status": "deleted"})
 }
 
 func (s *productStore) hardDelete(c *runtime.RestCtx) error {
-	auth := s.auth(c)
-	if !s.hasRole(auth, "admin") {
+	a := s.auth(c)
+	if !s.hasRole(a, "admin") {
 		return c.Status(403).JSON(runtime.Map{"code": 403, "message": "forbidden"})
 	}
 	id := c.Params("id")
-	pool := c.PoolPG("default")
+	pool := c.PoolPG("primary")
 	_, err := pool.Exec(c.Context(), `DELETE FROM products WHERE id = $1`, id)
 	if err != nil {
 		return c.Status(500).JSON(runtime.Map{"code": 500, "message": err.Error()})
 	}
-	s.logAudit(c, id, "hard_delete", auth.UserID, nil, nil)
+	s.logAudit(c, id, "hard_delete", a.UserID, nil, nil)
 	return c.JSON(runtime.Map{"status": "hard_deleted"})
 }
 
 func (s *productStore) setVisibility(c *runtime.RestCtx) error {
-	auth := s.auth(c)
-	if !s.hasRole(auth, "admin") {
+	a := s.auth(c)
+	if !s.hasRole(a, "admin") {
 		return c.Status(403).JSON(runtime.Map{"code": 403, "message": "forbidden"})
 	}
 	id := c.Params("id")
@@ -671,7 +983,7 @@ func (s *productStore) setVisibility(c *runtime.RestCtx) error {
 	if !slices.Contains(allowed, body.Visibility) {
 		return c.Status(400).JSON(runtime.Map{"code": 400, "message": "visibility must be public, internal, or confidential"})
 	}
-	pool := c.PoolPG("default")
+	pool := c.PoolPG("primary")
 	var oldVis string
 	_ = pool.QueryRow(c.Context(), `SELECT visibility FROM products WHERE id = $1`, id).Scan(&oldVis)
 	_, err := pool.Exec(c.Context(),
@@ -679,18 +991,18 @@ func (s *productStore) setVisibility(c *runtime.RestCtx) error {
 	if err != nil {
 		return c.Status(500).JSON(runtime.Map{"code": 500, "message": err.Error()})
 	}
-	s.logAudit(c, id, "set_visibility", auth.UserID,
+	s.logAudit(c, id, "set_visibility", a.UserID,
 		runtime.Map{"visibility": oldVis}, runtime.Map{"visibility": body.Visibility})
 	return c.JSON(runtime.Map{"status": "visibility_updated"})
 }
 
 func (s *productStore) getAuditLog(c *runtime.RestCtx) error {
-	auth := s.auth(c)
-	if !s.hasRole(auth, "admin") {
+	a := s.auth(c)
+	if !s.hasRole(a, "admin") {
 		return c.Status(403).JSON(runtime.Map{"code": 403, "message": "forbidden"})
 	}
 	id := c.Params("id")
-	pool := c.PoolPG("default")
+	pool := c.PoolPG("primary")
 	rows, err := pool.Query(c.Context(),
 		`SELECT id, product_id, action, changed_by, old_value, new_value, created_at
 		 FROM audit_log WHERE product_id = $1 ORDER BY created_at DESC`, id)
@@ -739,7 +1051,7 @@ func (s *productStore) getAuditLog(c *runtime.RestCtx) error {
 func (s *productStore) logAudit(c *runtime.RestCtx, productID, action, changedBy string, oldVal, newVal any) {
 	oldJSON := marshalJSON(oldVal)
 	newJSON := marshalJSON(newVal)
-	pool := c.PoolPG("default")
+	pool := c.PoolPG("primary")
 	_, _ = pool.Exec(c.Context(),
 		`INSERT INTO audit_log (product_id, action, changed_by, old_value, new_value) VALUES ($1,$2,$3,$4,$5)`,
 		productID, action, changedBy, oldJSON, newJSON)

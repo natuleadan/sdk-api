@@ -1,34 +1,31 @@
-# If you prefer the allow list template instead of the deny list, see community template:
-# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
-#
-# Binaries for programs and plugins
+# Binaries
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
-
-# Test binary, built with `go test -c`
 *.test
-
-# Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
-# Dependency directories (remove the comment below to include it)
-# vendor/
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
 
-# Go workspace file
+# Environment
+.env
+
+# Go workspace
 go.work
 go.work.sum
-
-# env file
-.env
 
 # CLI binary
 nla-go
 /sdk-api
 
-# Example compiled binaries (benchmarks)
+# Example binaries — build artifacts from examples/*/
 examples/*/healthz
 examples/*/svc
 examples/*/mongo-bench
@@ -39,6 +36,10 @@ examples/*/file-upload
 examples/*/url-link-nats
 examples/*/url-link-base
 examples/*/nla-*-amd64
+examples/*/auth-none-monolith
+examples/*/auth-ory-monolith
+examples/*/auth-openfga-zitadel-monolith
+examples/*/auth-manual-monolith
 examples/auth-*/*/auth-*
 examples/auth-*/*/product-service
 examples/auth-*/*/products-service
@@ -47,18 +48,9 @@ examples/auth-*/*/order-service-fga
 examples/auth-*/*/product-service-fga
 examples/auth-*/*/doc-service-ory
 examples/auth-*/*/report-service-ory
-examples/*/auth-none-monolith
-examples/*/auth-ory-monolith
-examples/*/auth-openfga-zitadel-monolith
-examples/*/auth-manual-monolith
 examples/300-file-storage/*/300-file-storage-*
-examples/200-url-shortener/kv-dragonfly/201-kv-only
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-.DS_Store
-/examples/_deprecated
+examples/200-url-shortener/*/201-*-*
 examples/400-auth/*/auth-*
+
+# Deprecated examples
+/examples/_deprecated

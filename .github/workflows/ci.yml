@@ -6,15 +6,237 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: write
+
 jobs:
+  commit-lint:
+    name: Conventional Commits
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Validate conventional commits with scope
+        run: |
+          git log --format='%s' origin/main..HEAD | while IFS= read -r msg; do
+            echo "$msg" | grep -qE '^Merge ' && continue
+            if ! echo "$msg" | grep -qE '^(feat|fix|docs|refactor|test|chore|ci|perf|style|build|revert)\([^)]+\): '; then
+              echo "❌ Each commit must use format: type(scope): description"
+              echo "   Example: feat(api): add pagination to list endpoint"
+              echo "   Got:     $msg"
+              exit 1
+            fi
+          done
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go mod tidy check
+        run: |
+          go mod tidy
+          if ! test -z "$(git status --porcelain)"; then
+            echo "Please run 'go mod tidy' before committing"
+            git diff --exit-code
+          fi
+
+      - name: Check ThirdPartyNotices.txt is up to date
+        run: |
+          bash .github/scripts/generate-third-party.sh
+          if ! git diff --exit-code ThirdPartyNotices.txt; then
+            echo "❌ ThirdPartyNotices.txt is out of date. Run 'make third-party' and commit the result."
+            exit 1
+          fi
+
   test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build
+        run: go build ./...
+
+      - name: Test (unit)
+        run: |
+          go test -race -coverprofile=coverage.txt -covermode=atomic \
+            ./db/... ./server/... ./cmd/sdk-api/...
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v7
+        with:
+          files: ./coverage.txt
+          flags: unittests
+          name: sdk-api-codecov
+          fail_ci_if_error: false
+
+      - name: Coverage threshold
+        run: make test-coverage
+
+  build-examples:
+    name: Build Examples
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build all examples
+        run: |
+          for ex in examples/*/; do
+            echo "Building $ex..."
+            (cd "$ex" && go mod tidy && go build ./...)
+          done
+
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: dev
+          POSTGRES_PASSWORD: devpass
+          POSTGRES_DB: postgres
+        ports:
+          - 15432:5432
+        options: >-
+          --health-cmd "pg_isready -U dev"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 10
+
+      kafka:
+        image: apache/kafka:latest
+        ports:
+          - 9092:9092
+        env:
+          KAFKA_PROCESS_ROLES: broker,controller
+          KAFKA_NODE_ID: 1
+          KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+          KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+          KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+          KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+          KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+          CLUSTER_ID: sdk-api-ci-cluster
+        options: >-
+          --health-cmd "bash -c 'printf \"\" > /dev/tcp/localhost/9092 2>/dev/null'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Start NATS with JetStream
+        run: |
+          docker run -d --name nats \
+            -p 14222:4222 \
+            nats:2.10-alpine \
+            --jetstream
+          for i in $(seq 1 10); do
+            docker logs nats 2>&1 | grep -q "Server is ready" && break
+            sleep 1
+          done
+
+      - name: Test runtime + events + db (with PG + NATS + Kafka)
+        env:
+          DATABASE_URL: "postgres://dev:devpass@localhost:15432/postgres?sslmode=disable"
+          NATS_URL: "nats://localhost:14222"
+          KAFKA_URL: "localhost:9092"
+        run: go test -race -v -count=1 ./runtime/... ./events/... ./db/...
+
+  release:
+    name: Release
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [lint, test, build-examples, integration]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
         with:
-          go-version: "1.26"
-      - run: go mod tidy
-      - run: go vet ./...
-      - run: golangci-lint run ./... --timeout=5m
-      - run: make test-coverage
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Determine version
+        id: version
+        run: |
+          LATEST=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          IFS='.' read -r MAJOR MINOR PATCH <<< "${LATEST#v}"
+          if [ "$LATEST" = "v0.0.0" ]; then
+            TAG="v0.0.1"
+            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+            echo "First release: $TAG"
+            exit 0
+          fi
+          COMMITS=$(git log "$LATEST..HEAD" --format="%s%b" 2>/dev/null || true)
+          if [ -z "$COMMITS" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "No new commits since $LATEST — skipping release"
+            exit 0
+          fi
+          if echo "$COMMITS" | grep -qE '^.*?\([^)]*\)?!:|^BREAKING[ -]CHANGE:'; then
+            TAG="v$((MAJOR+1)).0.0"
+          elif echo "$COMMITS" | grep -q '^feat'; then
+            TAG="v$MAJOR.$((MINOR+1)).0"
+          elif echo "$COMMITS" | grep -qE '^fix|^perf'; then
+            TAG="v$MAJOR.$MINOR.$((PATCH+1))"
+          else
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "No functional changes — skipping release"
+            exit 0
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Releasing: $TAG"
+
+      - name: Tag and push
+        if: steps.version.outputs.skip != 'true'
+        run: |
+          git tag "${{ steps.version.outputs.tag }}"
+          git push origin "${{ steps.version.outputs.tag }}"
+
+      - name: Run GoReleaser
+        if: steps.version.outputs.skip != 'true'
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -117,8 +117,12 @@ The `EventBroker` abstraction allows switching between NATS and Kafka without co
 type EventBroker interface {
     Name() string
     Publish(ctx context.Context, subject string, data []byte) error
+    PublishJSON(ctx context.Context, subject string, msg any) error
     Subscribe(ctx context.Context, subject string, durable string, handler MessageHandler) (Subscription, error)
+    PullSubscribe(ctx context.Context, subject string, durable string) (PullConsumer, error)
+    Request(ctx context.Context, subject string, data []byte, timeout time.Duration) ([]byte, error)
     EnsureStream(cfg StreamConfig) error
+    EnsureStreams(configs ...StreamConfig) error
     Close() error
 }
 ```
@@ -128,7 +132,12 @@ Access a broker by name:
 ```go
 broker := svc.NATS("default")
 broker.Publish(ctx, "orders.created", data)
+
+// Or publish typed structs directly (no manual serialization):
+broker.PublishJSON(ctx, "orders.created", Order{ID: "123", Total: 99.50})
 ```
+
+`PublishJSON` marshals the value with `goccy/go-json` and publishes the result. It is available on all EventBroker implementations (NATS and Kafka).
 
 ## Cron Publish
 

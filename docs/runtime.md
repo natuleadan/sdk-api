@@ -42,7 +42,8 @@ svc.RegisterModel("Product", (*Product)(nil))
 svc.Pool("pg-main")              // any — returns the pool by name
 svc.PoolPG("pg-main")            // *pgxpool.Pool — typed access
 svc.PoolPGTyped("pg-main")       // *pgxpool.Pool — returns nil if not a pgx pool
-svc.NATS("primary")              // events.EventBroker — event broker
+svc.NATS("primary")              // events.EventBroker — event broker by stream name
+svc.Stream("primary")            // events.EventBroker — same as NATS, returns broker by stream name
 svc.SafeHTTPClient()             // *middleware.SafeHTTPClient — SSRF-protected HTTP client
 svc.KV("cache-main")             // *redis.Redis — KV store by name (from kv: YAML section)
 svc.App()                        // *fiber.App — raw Fiber access
@@ -77,17 +78,20 @@ NewFromYAML(content) ────────────┘    │
                                        ├─ validateConfig*()       ← databases, entries, exits, cron
                                        ├─ applyEnvOverrides()     ← resolves PORT env
                                        │
-                                  → Run()
-                                      1. initDatabases()        — connect PG/Turso/MySQL/Mongo pools
-                                      2. initEventStreams()     — connect NATS/Kafka + create streams
-                                      3. initSSRF()             — SafeHTTPClient (if configured)
-                                      4. initServer()           — Fiber HTTP + middlewares + TLS + security + CSRF + rate limit
-                                      5. RegisterEntries()      — register all entry routes (9 types)
-                                      6. Static files
-                                      7. registerDocs()         — OpenAPI + Scalar UI
-                                      8. initExit()             — start all event workers
-                                      9. initCron()             — start cron scheduler
-                                      → HTTP server starts
+                                   → Run()
+                                       1. validateConfigDeploy() — check deploy.target rules
+                                       2. validateAuthConfig()   — check auth driver config
+                                       3. initDatabases()        — connect PG/Turso/MySQL/Mongo pools (dedup by URL)
+                                       4. initKvConns()          — lazy-init Redis/Dragonfly connections
+                                       5. initStreamConns()      — connect NATS/Kafka + create streams
+                                       6. initSSRF()             — SafeHTTPClient (if configured)
+                                       7. initServer()           — Fiber HTTP + middlewares + TLS + security + CSRF + rate limit
+                                       8. registerEntryRoutes()  — register all entry routes (9 types)
+                                       9. serveStaticFiles()
+                                      10. registerDocs()         — OpenAPI + Scalar UI
+                                      11. startExitWorkers()     — start all event workers (NATS/Kafka consumers)
+                                      12. startCron()            — start cron scheduler
+                                       → HTTP server starts
 ```
 
 All steps are optional. No databases? Skip `databases:` in YAML. No HTTP? Only define `exit:` and `cron:`.
@@ -177,15 +181,19 @@ Returns `nil` if SSRF protection is not configured in YAML (`server.ssrf.enabled
 
 ## Graceful Shutdown
 
-On SIGINT/SIGTERM:
+On SIGINT/SIGTERM, two paths run concurrently:
 
+**Service shutdown** (`svc.Shutdown()`):
 1. Stop cron scheduler (waits for running jobs)
 2. Drain exit workers (waits for in-flight handlers, 5s timeout)
 3. Drain all event broker connections
 4. Close all DB pools
-5. Stop HTTP server
 
-No manual cleanup needed.
+**HTTP server shutdown** (runs concurrently via a separate signal listener):
+- Fiber server stops accepting new requests
+- Waits for in-flight requests to complete (up to `server.shutdown_timeout`)
+
+Both paths must finish before the process exits. No manual cleanup needed.
 
 ## RegisterModel
 
@@ -233,17 +241,16 @@ type ExitHooks interface {
 
 ### WrapTransformHandler
 
-Wraps a REST handler with `BeforeTransform`/`AfterTransform` hooks:
+Wraps a REST handler with `BeforeTransform`/`AfterTransform` hooks. The wrapped handler takes `fiber.Ctx` (the hooks are applied before and after the handler runs):
 
 ```go
-svc.WithRest("convert", runtime.WrapTransformHandler(
-    func(c *runtime.RestCtx) error {
-        input := c.Locals("transformed").(MyModel)
-        return c.JSON(fiber.Map{"name": input.Name})
-    },
-    &MyHooks{},
-))
+svc.WithRest("convert", func(c *runtime.RestCtx) error {
+    input, _ := runtime.GetTransformed[MyModel](c)
+    return c.JSON(runtime.Map{"name": input.Name})
+})
 ```
+
+Note: `WrapTransformHandler` returns `func(fiber.Ctx) error` and the hooks apply transforms on `c.Locals("transformed")`. For new projects, use `GetTransformed[T](c)` in the handler directly.
 
 ## RestCtx API
 
@@ -267,7 +274,10 @@ func(c *runtime.RestCtx) error {
     c.StatusCode()           // int — response status code
     c.Path()                 // string — request path
     c.ResponseBody()         // string — response body as string
+    c.Redirect(url, code)    // error — HTTP redirect (default 302, or pass 301/308)
     c.SetCookie(cookie)      // set *fiber.Cookie (Name, Value, Path, HTTPOnly, Secure, SameSite, MaxAge)
+    c.PoolPG(name)           // *pgxpool.Pool — database pool by database name
+    c.PoolSQL(name)          // *sql.DB — MySQL/Turso pool by database name
 }
 ```
 
@@ -305,12 +315,33 @@ Four implementations:
 - `NewTursoCRUDProvider[T](table, hooks)` — Turso
 - `NewMongoCRUDProvider(model, lookupField)` — MongoDB
 
-### CachedCRUD
+### WithCRUDFactory
 
-`CachedCRUD[T any](svc *Service, name, poolName, tableName string, kvName string, keyPrefix string, l2TTL, l1TTL time.Duration)` — PostgreSQL CRUD with a two-level cache (L1 RAM, L2 Redis). The `kvName` references a name from the `kv:` YAML section.
+Preferred registration pattern for lazy-init CRUD tables. The factory function is called once during `Run()`, avoiding the nil-pool problem before startup:
 
 ```go
-crud := runtime.CachedCRUD[Product](svc, "cachedProducts", "pg-main", "products", "cache-main", "product:", 5*time.Minute, 30*time.Second)
+svc.WithCRUDFactory("Product", func() runtime.CRUDProvider {
+    return runtime.NewCRUDProvider(table, nil)
+})
+```
+
+### MustRegister
+
+Shortcut to create a table + provider + factory in one call:
+
+```go
+runtime.MustRegister[Product](svc, "Product", "pg-main", "products", nil)
+runtime.MySQLMustRegister[Order](svc, "Order", "mysql-main", "orders", nil)
+runtime.TursoMustRegister[Item](svc, "Item", "turso-main", "items", nil)
+runtime.MongoMustRegister(svc, "Profile", "mongo-main", "profiles", "profiles", "user_id")
+```
+
+### CachedCRUD
+
+`CachedCRUD[T any](svc *Service, name, poolName, tableName string, kvName string, keyPrefix string, l2TTL, l1TTL time.Duration)` — PostgreSQL CRUD with a two-level cache (L1 RAM, L2 Redis). The `kvName` references a name from the `kv:` YAML section. Registers the provider internally via `WithCRUDFactory` — no return value.
+
+```go
+runtime.CachedCRUD[Product](svc, "cachedProducts", "pg-main", "products", "cache-main", "product:", 5*time.Minute, 30*time.Second)
 ```
 
 ### MySQLCachedCRUD
@@ -318,7 +349,7 @@ crud := runtime.CachedCRUD[Product](svc, "cachedProducts", "pg-main", "products"
 `MySQLCachedCRUD[T any](svc *Service, name, poolName, tableName string, kvName string, keyPrefix string, l2TTL, l1TTL time.Duration)` — MySQL CRUD with the same two-level cache pattern.
 
 ```go
-crud := runtime.MySQLCachedCRUD[Order](svc, "cachedOrders", "mysql-main", "orders", "cache-main", "order:", 5*time.Minute, 30*time.Second)
+runtime.MySQLCachedCRUD[Order](svc, "cachedOrders", "mysql-main", "orders", "cache-main", "order:", 5*time.Minute, 30*time.Second)
 ```
 
 ## Pool helpers
@@ -400,6 +431,85 @@ storage:
 ```
 
 First request hits S3, a goroutine populates the cache. Subsequent requests served from RAM (~50x faster). L2 disk provides persistence across restarts.
+
+## Auth validators
+
+### WithAuthValidator
+
+Registers the JWT auth callback for `driver: manual`. The function receives the auth context from the token, the entry's required roles, and the entry's required permissions:
+
+```go
+svc.WithAuthValidator(func(ctx context.Context, auth *middleware.AuthContext, roles, permissions []string) error {
+    if len(roles) > 0 {
+        // Check that auth.Roles satisfies at least one required role
+    }
+    if len(permissions) > 0 {
+        // Check that auth.Permissions satisfies at least one required permission
+    }
+    return nil
+})
+```
+
+The `permissions` slice comes from `entry[].permissions` in YAML. See `examples/400-auth/manual-pg` for a complete implementation.
+
+### WithAPIKeyValidator
+
+Registers the API key validation callback for `driver: manual`:
+
+```go
+svc.WithAPIKeyValidator(func(ctx context.Context, key string) (*middleware.AuthContext, error) {
+    // Look up key in DB, return auth context or error
+    return &middleware.AuthContext{UserID: "user", Roles: []string{"viewer"}}, nil
+})
+```
+
+The returned `AuthContext` must include at least `UserID` and `Roles`. The function receives the raw key value (already stripped of any configured prefix).
+
+### TOTP Helpers
+
+The `runtime/auth` package provides TOTP (Time-based One-Time Password) utilities for MFA:
+
+| Function | Description |
+|----------|-------------|
+| `GenerateTOTPSecret()` | Generates a random base32 secret (160 bits). Returns `(string, error)` |
+| `ValidateTOTP(secret, code string) bool` | Validates a 6-digit code against the secret. Checks ±1 time step for clock drift |
+| `GenerateTOTPURI(secret, issuer, accountName string) string` | Builds an `otpauth://` URI for authenticator apps |
+| `GenerateTOTPCode(secret string) string` | Generates the current TOTP code for testing |
+
+All functions use stdlib only (no external dependencies). See `examples/400-auth/manual-pg` for MFA enable/verify endpoints.
+
+## Rate limit
+
+### WithRateLimitMaxFunc
+
+Registers a dynamic rate limit resolver that can override per-entry rate limits at runtime:
+
+```go
+svc.WithRateLimitMaxFunc(func(c *runtime.RestCtx) int {
+    if c.Get("X-Debug") == "true" {
+        return 5 // override RequestsPerSecond and Burst to 5
+    }
+    return 0 // use static YAML config
+})
+```
+
+When the function returns > 0, both `requests_per_second` and `burst` are set to the returned value, overriding the YAML configuration. See `examples/400-auth/manual-pg` for a working example.
+
+### WithJWTBlacklist
+
+Registers a callback that checks if a JWT has been revoked. Called after JWT validation succeeds, before the request is processed. Works with all auth drivers: manual, ory, openfga-zitadel. Return `true` to reject the token (401):
+
+```go
+svc.WithJWTBlacklist(func(rawToken string) bool {
+    pool := svc.PoolPGTyped("primary")
+    hash := sha256Hex(rawToken)
+    var exists bool
+    pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM revoked_tokens WHERE token_hash=$1)`, hash).Scan(&exists)
+    return exists
+})
+```
+
+The callback receives the raw token string (e.g. `"Bearer eyJ..."`). See `examples/400-auth/manual-pg` for a complete revoke + blacklist implementation.
 
 ### Presigned URLs
 

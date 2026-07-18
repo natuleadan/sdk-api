@@ -704,7 +704,146 @@ Example `service.docker.yaml` uses Docker hostnames (`postgres:5432`, `nats:4222
 
 ---
 
-## 20. Graceful Shutdown
+## 20. Auth: Manual JWT + API Keys
+
+Full authentication example with JWT, API keys, role hierarchy, rate limits, CSRF, and security headers.
+
+**Example:** `examples/400-auth/manual-pg` — 103 integration tests, Dockerized.
+
+**YAML:**
+```yaml
+auth:
+  enabled: true
+  driver: manual
+  secret: "${JWT_SECRET}"
+  algorithm: HS256
+  expiry: 900
+  cookie:
+    access_token_name: token
+    http_only: true
+    secure: false
+    same_site: Lax
+  refresh:
+    enabled: true
+
+server:
+  csrf:
+    enabled: true
+    json_check: true
+  security_headers:
+    frame_options: DENY
+    referrer_policy: no-referrer
+    csp_config:
+      level: basic
+      default_src: ["'self'"]
+
+entry:
+  - type: rest
+    method: POST
+    path: /login
+    handler: loginHandler
+
+  - type: rest
+    method: GET
+    path: /profile
+    handler: profileHandler
+    auth_modes: [jwt]
+
+  - type: rest
+    method: GET
+    path: /cookie/profile
+    handler: profileHandler
+    auth_modes: [jwt]
+    jwt_from: "cookie:token"
+
+  - type: rest
+    method: GET
+    path: /products
+    handler: listProducts
+    auth_modes: [jwt, apikey]
+    api_key_prefix: "sk-"
+
+  - type: rest
+    method: DELETE
+    path: /admin/products/:id/hard
+    handler: hardDeleteProduct
+    auth_modes: [jwt]
+    roles: ["admin"]
+
+  - type: rest
+    method: GET
+    path: /admin/users
+    handler: listUsers
+    auth_modes: [jwt]
+    roles: ["admin"]
+    permissions: ["users:manage"]
+
+  - type: rest
+    method: POST
+    path: /rate-limited
+    handler: rateLimitedHandler
+    auth_modes: [jwt, apikey]
+    api_key_prefix: "sk-"
+    rate_limit:
+      requests_per_second: 10
+      burst: 20
+    rate_limit_per_user:
+      requests_per_second: 5
+      burst: 10
+    rate_limit_per_role:
+      admin:
+        requests_per_second: 5
+        burst: 10
+      viewer:
+        requests_per_second: 1
+        burst: 2
+```
+
+**Key features demonstrated:**
+- JWT login with bcrypt password hashing (`auth.HashPassword`, `auth.VerifyPassword`)
+- API keys with SHA-256 hashing and prefix validation (`api_key_prefix: "sk-"`)
+- Cookie-based JWT (`jwt_from: "cookie:token"`)
+- Role hierarchy (viewer → editor → admin) with inheritance
+- Permissions (`entry[].permissions`) separate from roles
+- Token refresh auto-wire (`auth.refresh.enabled: true`)
+- Rate limiting per-user, per-key, per-role
+- Dynamic rate limit override (`WithRateLimitMaxFunc`)
+- CSRF with JSON check (`json_check: true`)
+- Security headers (X-Frame-Options, CSP, Referrer-Policy)
+- Encrypted cookies (`encrypt_cookie`)
+- Soft delete + audit log
+- Stateless JWT behavior (valid after user deletion)
+- MFA with TOTP (`/auth/mfa/enable`, `/auth/mfa/verify`, `requires_mfa: true`)
+- Token blacklist with revoke endpoint (`svc.WithJWTBlacklist()`)
+- Account lockout after 5 failed login attempts (DB-persisted)
+- Password strength validation (8+ chars, upper, lower, digit)
+- Email verification flow (token-based, mock)
+- Password reset flow (forgot/reset with expiry)
+
+**Go:**
+```go
+svc.WithAuthValidator(func(ctx context.Context, auth *middleware.AuthContext, roles, permissions []string) error {
+    // Check roles with inheritance
+    if len(roles) > 0 { /* check auth.Roles */ }
+    // Check permissions separately
+    if len(permissions) > 0 { /* check auth.Permissions */ }
+    return nil
+})
+
+svc.WithAPIKeyValidator(func(ctx context.Context, key string) (*middleware.AuthContext, error) {
+    // Look up key hash in DB
+    return &middleware.AuthContext{UserID: id, Roles: []string{role}}, nil
+})
+
+svc.WithRateLimitMaxFunc(func(c fiber.Ctx) int {
+    if c.Get("X-Debug") == "true" { return 5 }
+    return 0
+})
+```
+
+---
+
+## 21. Graceful Shutdown
 
 The runtime handles shutdown automatically on SIGINT/SIGTERM:
 

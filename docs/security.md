@@ -352,7 +352,7 @@ docker compose -f docker-compose.test.yml up -d openfga zitadel
 
 ### Mode: ory
 
-Uses **Ory Kratos** for identity and **Ory Keto** for authorization. The middleware validates sessions via Kratos `/sessions/whoami` and checks permissions via Keto `/relation-tuples/check`:
+Uses **Ory Kratos** for identity and **Ory Keto** for authorization. The middleware validates JWT tokens using Kratos's public JWKS endpoint (RS256) and checks permissions via Keto `/relation-tuples/check`:
 
 ```go
 oryClient.KetoCheck(ctx, ory.KetoCheckRequest{
@@ -466,6 +466,7 @@ server:
     header_name: X-CSRF-Token
     same_site: Strict
     secure: true
+    json_check: true              # Skip CSRF for JSON requests (safe via SOP)
     exclude_paths:
       - /webhooks/*
 ```
@@ -477,6 +478,8 @@ server:
 2. Frontend reads cookie, sends it as `X-CSRF-Token` header on mutating requests
 3. Server compares cookie vs header — 403 on mismatch
 
+When `json_check: true`, requests with `Content-Type: application/json` skip CSRF validation entirely (browser Same-Origin Policy protects JSON). Recommended for API-only backends.
+
 Per-entry exclusion: `entry[].csrf: false`.
 </details>
 
@@ -487,6 +490,7 @@ server:
   rate_limit:
     enabled: true
     kv: cache-main   # references kv[].name
+    algorithm: token_bucket         # token_bucket | sliding_window (default)
     global:
       requests_per_second: 1000
       burst: 2000
@@ -496,6 +500,11 @@ server:
     per_user:
       requests_per_second: 100
       burst: 150
+    per_key:
+      requests_per_second: 500
+      burst: 1000
+    skip_failed_requests: false      # Don't consume rate limit on error responses
+    skip_successful_requests: false  # Don't consume rate limit on success responses
 ```
 
 ### Dimensions
@@ -505,6 +514,54 @@ server:
 | Global | — | Whole server |
 | Per-IP | Client IP | Single IP address |
 | Per-User | JWT `sub` claim | Authenticated user |
+| Per-Key | API key value | Single API key |
+
+### Skip flags
+
+When `skip_failed_requests: true`, rate limit tokens are not consumed for HTTP responses >= 400.
+When `skip_successful_requests: true`, tokens are not consumed for HTTP responses < 400.
+Useful for pricing or abuse detection where you only want to count successful operations.
+
+### Dynamic override (WithRateLimitMaxFunc)
+
+At runtime, register a callback that can override per-entry rate limits dynamically:
+
+```go
+svc.WithRateLimitMaxFunc(func(c fiber.Ctx) int {
+    if c.Get("X-Debug") == "true" {
+        return 5 // override both RequestsPerSecond and Burst
+    }
+    return 0 // use static YAML config
+})
+```
+
+When the function returns > 0, both `requests_per_second` and `burst` are set to the returned value for that request. See `examples/400-auth/manual-pg`.
+
+### Post-auth rate limits (per-entry)
+
+In addition to server-level limits, entries can define per-user, per-key, and per-role rate limits that run after authentication:
+
+```yaml
+entry:
+  - type: rest
+    path: /api/v1/expensive-report
+    rate_limit:                       # Pre-auth: checked before authentication
+      requests_per_second: 1
+      burst: 2
+    rate_limit_per_user:              # Post-auth: per authenticated user
+      requests_per_second: 5
+      burst: 10
+    rate_limit_per_key:               # Post-auth: per API key
+      requests_per_second: 10
+      burst: 20
+    rate_limit_per_role:              # Post-auth: per role
+      admin:
+        requests_per_second: 10
+        burst: 20
+      viewer:
+        requests_per_second: 1
+        burst: 2
+```
 
 ### Headers
 
@@ -515,17 +572,6 @@ HTTP/1.1 429 Too Many Requests
 Retry-After: 1
 X-RateLimit-Limit: 1000
 X-RateLimit-Remaining: 0
-```
-
-### Per-entry override
-
-```yaml
-entry:
-  - type: rest
-    path: /api/v1/expensive-report
-    rate_limit:
-      requests_per_second: 1
-      burst: 2
 ```
 
 ## TLS
@@ -643,13 +689,25 @@ safeName := runtime.SanitizeFilename(originalName)
 
 ## Error Sanitization
 
-Internal server errors (500+) return a generic message:
+All errors pass through a sanitizer that redacts sensitive infrastructure details:
+
+- **IP addresses** — `dial tcp 10.0.0.5:5432: timeout` → `dial tcp [redacted]:5432: timeout`
+- **Connection strings** — `postgres://admin:pass@host/db` → `postgres://[redacted]@host/db`
+- **File paths** — `/etc/sdk-api/service.yaml` → `[redacted]`
+
+Internal server errors (500+) return a generic message after redaction:
 
 ```json
 {"code": 500, "message": "internal server error"}
 ```
 
-The real error is logged server-side via `logx.Errorf`. Client errors (400-499) pass through as-is.
+Client errors (400-499) preserve the error message but with sensitive data redacted:
+
+```json
+{"code": 400, "message": "dial tcp [redacted]:5432: timeout"}
+```
+
+The real error with full context is logged server-side via `logx.Errorf`. CRLF injection prevention is applied before the sanitizer.
 
 ## CRLF Protection
 
@@ -719,6 +777,88 @@ Add to `.github/workflows/ci.yml`:
     gosec -quiet ./...
 ```
 
+## Tenant Scoping
+
+For multi-tenant applications, CRUD entries support automatic data isolation via `tenant_scope` + `tenant_field`:
+
+```yaml
+entry:
+  - type: crud
+    model: Product
+    resource: products
+    auth_modes: [jwt]
+    tenant_scope: org_id        # JWT claim containing the tenant ID
+    tenant_field: tenant_id     # DB column to filter on
+```
+
+When `tenant_field` is set, the SDK injects a middleware that extracts the tenant ID from the JWT claim specified in `tenant_scope` (defaults to `org_id`). All CRUD operations automatically include a `WHERE tenant_field = <tenant_id>` clause:
+
+| Operation | SQL |
+|-----------|-----|
+| List | `SELECT * FROM products WHERE tenant_id = $1 ORDER BY id` |
+| Get | `SELECT * FROM products WHERE id = $1 AND tenant_id = $2` |
+| Create | Injects `tenant_id` from JWT into the row (client-side `tenant_id` values are ignored) |
+| Update | `UPDATE products SET ... WHERE id = $1 AND tenant_id = $2` |
+| Delete | `DELETE FROM products WHERE id = $1 AND tenant_id = $2` |
+
+Tenant scoping is supported for PostgreSQL, MySQL, Turso, and MongoDB providers. See `examples/400-auth/manual-pg` for a complete demo with cross-tenant isolation tests.
+
+## MFA / TOTP
+
+Multi-factor authentication via Time-based One-Time Passwords (TOTP) is supported through the `runtime/auth` package (stdlib only, no external dependencies):
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /auth/mfa/enable` | Generates a TOTP secret and returns `otpauth://` URI for authenticator apps |
+| `POST /auth/mfa/verify` | Validates a 6-digit code, returns a new JWT with `mfa: true` claim |
+
+Configure per-entry: `entry[].requires_mfa: true` rejects requests that lack `mfa: true` in JWT claims.
+
+The JWT middleware checks the `mfa` claim via `MFARequired()` middleware. After successful MFA verification, the new JWT contains `mfa: true`, granting access to MFA-protected endpoints. See `examples/400-auth/manual-pg` for a complete MFA enable/verify/required flow.
+
+## Token Revocation / Blacklist
+
+JWT tokens can be revoked via `svc.WithJWTBlacklist()`. The callback receives the raw token string and returns `true` if the token should be rejected:
+
+```go
+svc.WithJWTBlacklist(func(rawToken string) bool {
+    pool := svc.PoolPGTyped("primary")
+    hash := sha256Hex(rawToken)
+    var exists bool
+    pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM revoked_tokens WHERE token_hash=$1)`, hash).Scan(&exists)
+    return exists
+})
+```
+
+The blacklist check runs after JWT validation in all auth drivers (manual, ory, openfga-zitadel). Token hash is stored via a revoke endpoint (`POST /auth/revoke`). See `examples/400-auth/manual-pg` for the complete implementation with `withBlacklist` wrapper.
+
+## Account Lockout
+
+After 5 consecutive failed login attempts, the account is locked for 15 minutes. Lockout is tracked in the `failed_logins` table and reset after a successful login. See `examples/400-auth/manual-pg` for the implementation.
+
+## Password Strength
+
+Signup validates passwords with:
+- Minimum 8 characters
+- At least one uppercase letter
+- At least one lowercase letter
+- At least one digit
+
+See `examples/400-auth/manual-pg` `checkPasswordStrength()`.
+
+## Email Verification
+
+New users receive a verification token logged to console (mock — no actual email sent). Verify via `GET /auth/verify-email?token=...`. See `examples/400-auth/manual-pg`.
+
+## Password Reset
+
+Three-step flow:
+1. `POST /auth/forgot-password` — generates a reset token, logs URL to console
+2. `POST /auth/reset-password` — consumes the token, updates password hash
+3. Tokens expire after 1 hour
+
+See `examples/400-auth/manual-pg`.
+
 ## Summary of default security posture
 
 | Attack vector | Protected? | Since |
@@ -738,3 +878,10 @@ Add to `.github/workflows/ci.yml`:
 | **JWT forgery** | ✅ **(Algorithm pinning)** | v0.5+ |
 | **Role escalation** | ✅ **(OpenFGA / Ory Keto / manual validator)** | v0.5+ |
 | **API key leakage** | ✅ **(Scoped API keys + OpenFGA)** | v0.5+ |
+| **Cross-tenant access** | ✅ **(Tenant scoping)** | v0.6+ |
+| **Token revocation** | ✅ **(Blacklist callback)** | v0.6+ |
+| **MFA / TOTP** | ✅ **(TOTP middleware)** | v0.6+ |
+| **Account lockout** | ✅ **(Failed login tracking)** | v0.6+ |
+| **Password strength** | ✅ **(Signup validation)** | v0.6+ |
+| **Email verification** | ✅ **(Token-based mock)** | v0.6+ |
+| **Password reset** | ✅ **(Token with expiry)** | v0.6+ |

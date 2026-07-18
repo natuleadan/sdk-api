@@ -168,12 +168,64 @@ Run benchmarks inside Docker with wrk. Running benchmarks on host + Docker data 
 | OpenAPI without models | OpenAPI auto-generation requires `RegisterModel`. Without it, paths are generated but schemas are empty. |
 | Cron with seconds | `robfig/cron` uses 5-field expressions. `"0 6 * * *"` works, `"*/10 * * * * *"` (6 fields) does NOT. |
 | Service config validation | `LoadConfig` validates that `entry[].db` references exist in `databases:`. If using no databases, reference is skipped. |
-| `svc.Pool()` before `svc.Run()` | `svc.Pool()` returns nil until `initDatabases()` completes inside `Run()`. Use `sync.Once` + lazy access to create the table on the first HTTP request instead. See `examples/auth-none-monolith/main.go` for the pattern. |
+| `svc.Pool()` before `svc.Run()` | `svc.Pool()` returns nil until `initDatabases()` completes inside `Run()`. Use `WithCRUDFactory()` (preferred, avoids nil pool) or `sync.Once` + lazy init. See `examples/400-auth/manual-pg` for the factory pattern. |
 | CRUD path conflict with REST path | CRUD registers `GET /:id` which catches any sub-path like `/posts-fast`. Place custom REST endpoints on a different base path (e.g., `/debug/items` instead of `/posts/list`). |
+| Error messages with IPs/conn strings | Error sanitizer redacts IPs (`10.0.0.5` → `[redacted]`), connection URLs, and file paths from all error responses. 5xx returns `"internal server error"`. |
+| Multi-tenant CRUD | Use `tenant_scope` + `tenant_field` on CRUD entries. The SDK automatically injects `WHERE tenant_field = <org_id>` on all queries. Client-supplied `tenant_id` values are ignored on create — the JWT claim takes precedence. |
 
 ## Error Handling
 
-All errors must be handled explicitly. Silent ignores (`_ = funcCall()`, `_, _ = funcCall()`) are prohibited.
+All errors must use the `errcode` package to return structured errors with machine-readable codes and user-safe messages.
+
+### Error codes
+
+| Code | HTTP Status | When |
+|------|-------------|------|
+| `ERR_NOT_FOUND` | 404 | Resource not found |
+| `ERR_VALIDATION` | 400 | Invalid input |
+| `ERR_UNAUTHORIZED` | 401 | Missing or invalid credentials |
+| `ERR_FORBIDDEN` | 403 | Insufficient permissions |
+| `ERR_RATE_LIMITED` | 429 | Rate limit exceeded |
+| `ERR_TIMEOUT` | 504 | Operation timed out |
+| `ERR_DB_QUERY` | 500 | Database query failure |
+| `ERR_DB_CONNECTION` | 500 | Database connection failure |
+| `ERR_NATS` | 500 | NATS messaging failure |
+| `ERR_INTERNAL` | 500 | Unexpected internal error |
+
+### Return structured errors
+
+```go
+import "github.com/natuleadan/sdk-api/runtime/errcode"
+
+// Inside a handler or middleware:
+return errcode.ErrNotFound("product", id)
+return errcode.ErrValidation("email", "required", input.Email)
+return errcode.ErrUnauthorized("invalid token")
+return errcode.ErrDBQuery("select", "users", err)
+return errcode.ErrRateLimited(5)
+```
+
+### Response format
+
+```json
+// 4xx — descriptive message
+{"code": 401, "error": "ERR_UNAUTHORIZED", "message": "invalid token"}
+
+// 5xx — safe message, details in logs
+{"code": 500, "error": "ERR_DB_QUERY", "message": "Database operation failed"}
+```
+
+### Log output
+
+Errors are logged automatically by the error handler with full stack traces
+and attributes via `logx.Errorw`. Do NOT log before returning the error.
+
+### Panic recovery
+
+Panics in handlers are caught by the `recover` middleware. Panics in background
+goroutines should use `crypto/rand` failures log via `logx.Errorf`.
+
+### Error handling rules
 
 | Pattern | Allowed? | Alternative |
 |---------|----------|-------------|
@@ -182,11 +234,9 @@ All errors must be handled explicitly. Silent ignores (`_ = funcCall()`, `_, _ =
 | `if _, err := funcCall(); err != nil { return }` | ✅ | — |
 | `if err := funcCall(); err != nil { logx.Errorf(...) }` | ✅ | — |
 
-- **HTTP handlers**: return the error to Fiber's error handler
-- **Background goroutines**: log via `logx.Errorf` — cannot propagate
+- **HTTP handlers**: return the error (using `errcode.*`) to Fiber's error handler
+- **Background goroutines**: log via `logx.Errorf` — errors cannot propagate
 - **NATS message processing**: log via `logx.Errorf`, then Nak or Ack appropriately
-- **Interface implementations**: if the interface requires unused params, use the param name (not `_`) and document why
-- **`crypto/rand` failures**: log via `logx.Errorf` — extremely rare but should not silently produce zero bytes
 
 ## Deployment
 
@@ -250,3 +300,16 @@ The project enforces these rules via `golangci-lint`:
 | Complexity < 15 | `gocyclo` | Functions must be testable and maintainable |
 | No deprecated APIs | `staticcheck` SA1019 | Prevent build breaks on dependency upgrades |
 | Custom context keys | `staticcheck` SA1029 | Prevent key collisions across packages |
+
+### Linter removals
+
+Two linters were evaluated against go-zero's philosophy and intentionally removed:
+
+**`wrapcheck`** — requires all errors from external packages to be wrapped with `%w`.
+Removed because go-zero does not enforce error wrapping. The SDK uses structured logging
+via `logx` and trace IDs for debugging. `errorx.Wrap()` remains available as an optional
+utility for user code.
+
+**`revive`** — enforces naming conventions and documentation comments on exported symbols.
+Removed because all issues were style-only (`exported X should have comment or be unexported`).
+Comments on exported symbols remain a best practice but are not enforced by CI.

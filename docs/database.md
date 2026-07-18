@@ -33,9 +33,9 @@ Multiple databases = multiple entries in the `databases:` array. Each is referen
 
 ## Drivers
 
-| Driver | Connection | Table Type | CRUD Provider |
-|--------|-----------|------------|---------------|
-| `postgres` / `pg` | `*pgxpool.Pool` | `db.Table[T]` | `NewCRUDProvider[T]` |
+| Driver (required) | Connection | Table Type | CRUD Provider |
+|-------------------|-----------|------------|---------------|
+| `postgres` / `pg` (default) | `*pgxpool.Pool` | `db.Table[T]` | `NewCRUDProvider[T]` |
 | `mysql` | `*sql.DB` | `db.MySQLTable[T]` | `NewMySQLCRUDProvider[T]` |
 | `turso` | `*sql.DB` | `db.TursoTable[T]` | `NewTursoCRUDProvider[T]` |
 | `mongo` | `string` (URI) | — | `NewMongoCRUDProvider` |
@@ -113,7 +113,7 @@ databases:
 runtime.MongoMustRegister(svc, "Product", "mongo-main", "mydb", "products", "_id")
 ```
 
-Pool config is set via YAML (`pool.max_conns` → `maxPoolSize`, `min_conns` → `maxConnecting`):
+Pool config is set via YAML (`pool.max_conns` → `maxPoolSize`, `maxConnecting` = `max_conns / 10`, capped at 10):
 ```yaml
 databases:
   - driver: mongo

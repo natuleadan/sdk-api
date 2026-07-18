@@ -204,4 +204,5 @@ curl http://localhost:8080/health
 - **WebSocket/SSE** — Add `type: websocket` or `type: sse` entries
 - **File upload** — Add `type: file` entries with S3 storage, pool config, cache, and presigned URLs. See `examples/300-file-storage/` for 5 complete variants
 - **Cron jobs** — Add `cron:` entries for scheduled tasks
+- **Auth & security** — Add `auth:` block with JWT, API keys, roles, permissions, CSRF, and security headers. See `examples/400-auth/manual-pg/` for a complete manual auth example with 85 integration tests
 - **Multi-mode deployment** — Use `--mode entry` (HTTP) vs `--mode exit` (workers)

@@ -102,8 +102,10 @@ server:
 
 - Token generated on `GET`/`HEAD`/`OPTIONS` responses, set as non-HttpOnly cookie
 - Validated on `POST`/`PUT`/`PATCH`/`DELETE` by comparing cookie vs header
+- `json_check: true` skips CSRF for `Content-Type: application/json` (safe via browser SOP)
 - Returns `403` on mismatch
 - Per-entry override: `entry[].csrf: false`
+- MFA: `entry[].requires_mfa: true` requires `mfa: true` in JWT claims
 
 ## Rate Limiting
 
@@ -125,11 +127,14 @@ server:
       burst: 150
 ```
 
-- Uses token bucket algorithm
+- Two algorithms: `token_bucket` (classic) and `sliding_window` (default, smoother)
 - `kv` references a named KV store from `kv[]` config
 - Returns `429 Too Many Requests` + `Retry-After` header
 - Returns `X-RateLimit-Limit` and `X-RateLimit-Remaining` headers
-- Per-entry override: `entry[].rate_limit`
+- Server-level dimensions: `global`, `per_ip`, `per_user`, `per_key`
+- Per-entry overrides (post-auth): `entry[].rate_limit_per_user`, `entry[].rate_limit_per_key`, `entry[].rate_limit_per_role`
+- Skip flags: `skip_failed_requests: true` / `skip_successful_requests: true` — don't consume tokens on error/success
+- Dynamic override: `svc.WithRateLimitMaxFunc(fn)` — runtime callback to override limits
 
 ## TLS
 
@@ -205,7 +210,7 @@ When `cors` is omitted, CORS defaults to same-origin only (secure default).
 | `APIKey()` | `apikey.go` | `entry[].auth_modes` includes `apikey` | API key detection + OpenFGA validation (replaces JWT) |
 | `Recover()` | Fiber built-in | Always-on | Panic recovery → 500 JSON |
 | `Prometheus()` | `prometheus.go` | Always-on | In-process metrics collector |
-| `Trace()` | `trace.go` | `telemetry.enabled: true` | OpenTelemetry tracing |
+| `Trace()` | `trace.go` | `server.telemetry.*` | OpenTelemetry tracing with span creation, traceparent propagation, X-Trace-Id header |
 | `Timeout()` | `timeout.go` | `entry[].timeout` (per-entry) | Per-request deadline |
 | `MaxConns()` | `maxconns.go` | Always-on | Concurrency limiter (semaphore) |
 | `MaxBytes()` | `maxbytes.go` | Always-on | Body size limiter |
@@ -215,6 +220,26 @@ When `cors` is omitted, CORS defaults to same-origin only (secure default).
 | `Cryption()` | `cryption.go` | `server.security.cryption.enabled` | AES-GCM body decryption |
 | `EncryptCookie()` | Fiber built-in | `server.security.encrypt_cookie.enabled` | AES-256-GCM cookie value encryption |
 | `SSE()` | `server/middleware/sse.go` | — | Sets SSE headers (Content-Type, Cache-Control, Connection) |
+| `ValidateInput()` | `validate.go` | `entry[].validate` | go-playground/validator struct validation. Parses body, validates against registered model, returns 422 with field-level errors |
+| `MFARequired()` | `server/middleware/mfa.go` | `entry[].requires_mfa: true` | Checks `mfa: true` in JWT claims. Rejects with 401 if missing or false |
+
+## Error Response
+
+All errors return a structured JSON response:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `code` | int | HTTP status code |
+| `error` | string | Machine-readable error code (`ERR_NOT_FOUND`, `ERR_VALIDATION`, etc.) |
+| `message` | string | Human-readable message (descriptive for 4xx, `"internal server error"` for 5xx) |
+
+```json
+// 4xx example
+{"code": 404, "error": "ERR_NOT_FOUND", "message": "product not found"}
+
+// 5xx example
+{"code": 500, "error": "ERR_DB_QUERY", "message": "internal server error"}
+```
 
 ## Server-level Gates
 

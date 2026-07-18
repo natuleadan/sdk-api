@@ -9,6 +9,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/natuleadan/sdk-api/events"
+	"github.com/natuleadan/sdk-api/runtime/errcode"
 )
 
 func registerCRUD(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, mws []fiber.Handler) error {
@@ -235,7 +236,7 @@ func parseListParams(c fiber.Ctx, pageSize, maxPageSize int, sortable []string, 
 		sort = "id"
 	}
 	if len(sortable) > 0 && !slices.Contains(sortable, sort) {
-		return ListParams{}, fiber.NewError(400, fmt.Sprintf("invalid sort column %q, allowed: %v", sort, sortable))
+		return ListParams{}, errcode.ErrValidation("sort", "invalid", sort)
 	}
 
 	page := max(fiber.Query[int](c, "page", 1), 1)

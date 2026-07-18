@@ -10,6 +10,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/natuleadan/sdk-api/events"
 	"github.com/natuleadan/sdk-api/infra/logx"
+	"github.com/natuleadan/sdk-api/runtime/errcode"
 )
 
 func registerFile(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, mws []fiber.Handler) error {
@@ -42,27 +43,27 @@ func fileValidator(entry *EntryDef) func(fiber.Ctx) error {
 	return func(c fiber.Ctx) error {
 		contentType := string(c.Request().Header.ContentType())
 		if len(entry.AllowedTypes) > 0 && !isContentTypeAllowed(contentType, entry.AllowedTypes) {
-			return fiber.NewError(415, fmt.Sprintf("content-type %q not allowed", contentType))
+			return errcode.ErrStatus(415, "content-type not allowed")
 		}
 
 		if entry.MaxSize != "" {
 			maxBytes := parseMaxSize(entry.MaxSize)
 			if maxBytes > 0 && len(c.Body()) > maxBytes {
-				return fiber.NewError(413, "request body too large")
+				return errcode.ErrStatus(413, "request body too large")
 			}
 		}
 
 		if entry.MaxFiles > 0 {
 			form, formErr := c.MultipartForm()
 			if formErr == nil && len(form.File) > entry.MaxFiles {
-				return fiber.NewError(413, "too many files")
+				return errcode.ErrStatus(413, "too many files")
 			}
 		}
 
 		if entry.MagicBytes && len(c.Body()) > 512 {
 			detected := http.DetectContentType(c.Body())
 			if !isContentTypeAllowed(detected, entry.AllowedTypes) {
-				return fiber.NewError(415, fmt.Sprintf("file content type %q does not match allowed types", detected))
+				return errcode.ErrStatus(415, "content-type not allowed")
 			}
 		}
 

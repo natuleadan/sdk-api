@@ -57,6 +57,7 @@ type Service struct {
 	models          map[string]*db.TableInfo
 	safeClient      *middleware.SafeHTTPClient
 	jwtCfg          *middleware.JWTConfig
+	jwtBlacklistFn  func(rawToken string) bool
 	fgaClient       openfga.Checker
 	zitadelClient   *zitadel.Client
 	oryClient       *ory.Client
@@ -500,6 +501,15 @@ func (s *Service) WithRateLimitMaxFunc(fn func(c *RestCtx) int) *Service {
 	return s
 }
 
+// WithJWTBlacklist registers a callback that checks if a raw JWT is blacklisted.
+// Called after JWT validation succeeds, before the request is processed.
+// Works with all auth drivers: manual, ory, openfga-zitadel.
+// Return true to reject the token (401).
+func (s *Service) WithJWTBlacklist(fn func(rawToken string) bool) *Service {
+	s.jwtBlacklistFn = fn
+	return s
+}
+
 // RegisterValidation registers a validation model by name for input validation.
 // Usage: svc.RegisterValidation("CreateProduct", CreateProductInput{}).
 func (s *Service) RegisterValidation(name string, model any) *Service {
@@ -628,6 +638,10 @@ func (s *Service) RunWithContext(ctx context.Context) error {
 	ctx, cancel = context.WithCancel(ctx)
 	s.stop = cancel
 
+	if err := s.initLogger(); err != nil {
+		return fmt.Errorf("log init: %w", err)
+	}
+
 	if err := validateConfigDeploy(s.config); err != nil {
 		return fmt.Errorf("deploy validation: %w", err)
 	}
@@ -714,6 +728,17 @@ func (s *Service) validateEntryAuthConfig(entry *EntryDef, driver string) error 
 	return nil
 }
 
+func (s *Service) initLogger() error {
+	cfg := s.config.Log
+	if cfg == nil {
+		return nil
+	}
+	if cfg.ServiceName == "" {
+		cfg.ServiceName = s.config.Name
+	}
+	return logx.SetUp(*cfg)
+}
+
 func (s *Service) initDatabases(ctx context.Context) error {
 	if len(s.config.Databases) == 0 {
 		return nil
@@ -723,6 +748,16 @@ func (s *Service) initDatabases(ctx context.Context) error {
 		return fmt.Errorf("databases: %w", err)
 	}
 	s.pools = pools
+
+	for _, dbCfg := range s.config.Databases {
+		if dbCfg.SlowQuery != nil && dbCfg.SlowQuery.Enabled {
+			d, err := time.ParseDuration(dbCfg.SlowQuery.Threshold)
+			if err == nil && d > 0 {
+				db.SetSlowThreshold(d)
+				break
+			}
+		}
+	}
 	return nil
 }
 
@@ -863,9 +898,12 @@ func (s *Service) initServer() {
 		Breaker:         sc.Breaker,
 	}
 
-	s.srv = server.New(srvCfg, server.TelemetryConfig{}, securityConfig(sc), corsCfg)
+	s.srv = server.New(srvCfg, convertTelemetry(sc.Telemetry), securityConfig(sc), corsCfg)
 
 	s.jwtCfg = buildJWTCfg(s.config.Auth)
+	if s.jwtBlacklistFn != nil {
+		s.jwtCfg.TokenBlacklist = s.jwtBlacklistFn
+	}
 
 	auth := s.config.Auth
 	if auth != nil && auth.Enabled && auth.Driver != "none" {
@@ -1353,6 +1391,24 @@ func convertTLS(cfg *TLSConf) *server.TLSConfig {
 		}
 	}
 	return tlsCfg
+}
+
+func convertTelemetry(cfg *TelemetryConf) server.TelemetryConfig {
+	if cfg == nil || !cfg.Enabled {
+		return server.TelemetryConfig{}
+	}
+	return server.TelemetryConfig{
+		Enabled:             cfg.Enabled,
+		Name:                cfg.Name,
+		Endpoint:            cfg.Endpoint,
+		Sampler:             cfg.Sampler,
+		Batcher:             cfg.Batcher,
+		OtlpHeaders:         cfg.OtlpHeaders,
+		OtlpHttpPath:        cfg.OtlpHttpPath,
+		OtlpHttpSecure:      cfg.OtlpHttpSecure,
+		TraceResponseHeader: cfg.TraceResponseHeader,
+		SkipPaths:           cfg.SkipPaths,
+	}
 }
 
 // cachedStorage wraps a StorageBackend with an optional L1 RAM cache.

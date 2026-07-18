@@ -8,6 +8,7 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/natuleadan/sdk-api/infra/logx"
+	"github.com/natuleadan/sdk-api/runtime/errcode"
 )
 
 // AsyncHandler is a function that processes an async job.
@@ -69,7 +70,7 @@ func (m *AsyncJobManager) HandleStatus() fiber.Handler {
 		id := c.Params("job_id")
 		js, ok := m.store.Get(id)
 		if !ok {
-			return fiber.NewError(404, "job not found")
+			return errcode.ErrNotFound("job", id)
 		}
 		return c.JSON(js)
 	}

@@ -13,9 +13,18 @@ import (
 	"github.com/natuleadan/sdk-api/infra/logx"
 )
 
+var slowThreshold time.Duration
+
+func SetSlowThreshold(d time.Duration) {
+	slowThreshold = d
+}
+
 func logSlowQuery(operation string, start time.Time, tableName string) {
+	if slowThreshold == 0 {
+		return
+	}
 	duration := time.Since(start)
-	if duration > 100*time.Millisecond {
+	if duration > slowThreshold {
 		logx.Infof("slow query (%v): %s on %s", duration, operation, tableName)
 	}
 }

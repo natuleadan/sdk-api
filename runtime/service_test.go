@@ -13,6 +13,8 @@ import (
 	"github.com/gofiber/contrib/v3/websocket"
 	"github.com/gofiber/fiber/v3"
 	"github.com/natuleadan/sdk-api/events"
+
+	"github.com/natuleadan/sdk-api/infra/logx"
 )
 
 func TestNew_LoadsConfig(t *testing.T) {
@@ -333,5 +335,38 @@ func TestTableFor(t *testing.T) {
 	_, err = TableFor[map[string]any](pools, "sql", "test")
 	if err == nil {
 		t.Error("expected error for non-pgx pool")
+	}
+}
+
+func TestInitLogger_NilConfig(t *testing.T) {
+	logx.Disable()
+	cfg := &ServiceConfig{Name: "test-svc"}
+	s, err := newFromConfig(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.initLogger(); err != nil {
+		t.Errorf("expected nil error for nil Log config, got %v", err)
+	}
+}
+
+func TestInitLogger_WithConfig(t *testing.T) {
+	logx.Disable()
+	cfg := &ServiceConfig{
+		Name: "my-app",
+		Log: &logx.LogConf{
+			Level:    "error",
+			Encoding: "plain",
+		},
+	}
+	s, err := newFromConfig(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.initLogger(); err != nil {
+		t.Errorf("expected nil error, got %v", err)
+	}
+	if cfg.Log.ServiceName != "my-app" {
+		t.Errorf("expected ServiceName to be filled from Name, got %q", cfg.Log.ServiceName)
 	}
 }

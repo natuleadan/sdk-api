@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -107,5 +108,45 @@ func TestInitPostgres_InvalidURL(t *testing.T) {
 		t.Log("postgres connection unexpectedly succeeded (no real PG)")
 	} else {
 		t.Logf("expected error: %v", err)
+	}
+}
+
+func TestCheckPoolHealth_UnknownType(t *testing.T) {
+	h := CheckPoolHealth("test", "unknown", "string value")
+	if h.Status != "unknown" {
+		t.Errorf("expected status 'unknown' for string pool, got %q", h.Status)
+	}
+	if h.Name != "test" {
+		t.Errorf("expected name 'test', got %q", h.Name)
+	}
+}
+
+func TestCheckPoolHealth_Postgres(t *testing.T) {
+	pool, err := pgxpool.New(context.Background(), "postgres://localhost:5432/test?pool_max_conns=5")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+
+	h := CheckPoolHealth("pg", "postgres", pool)
+	if h.Name != "pg" {
+		t.Errorf("expected name 'pg', got %q", h.Name)
+	}
+	if h.MaxConns != 5 {
+		t.Errorf("expected MaxConns 5, got %d", h.MaxConns)
+	}
+	if h.Status != "healthy" {
+		t.Errorf("expected status 'healthy', got %q", h.Status)
+	}
+}
+
+func TestCheckPoolHealth_SQL(t *testing.T) {
+	var sqldb sql.DB
+	h := CheckPoolHealth("mysql", "mysql", &sqldb)
+	if h.Name != "mysql" {
+		t.Errorf("expected name 'mysql', got %q", h.Name)
+	}
+	if h.Status != "healthy" {
+		t.Errorf("expected status 'healthy', got %q", h.Status)
 	}
 }

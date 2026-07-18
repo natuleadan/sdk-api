@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -28,7 +29,7 @@ func TestBatchErrorNilFromFunc(t *testing.T) {
 		var be BatchError
 		return be.Err()
 	}()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestBatchErrorOneError(t *testing.T) {

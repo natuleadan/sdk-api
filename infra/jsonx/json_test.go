@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMarshal(t *testing.T) {
@@ -17,7 +18,7 @@ func TestMarshal(t *testing.T) {
 		Age:  30,
 	}
 	bs, err := Marshal(v)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.JSONEq(t, `{"name":"John","age":30}`, string(bs))
 }
 
@@ -30,11 +31,11 @@ func TestMarshalToString(t *testing.T) {
 		Age:  30,
 	}
 	toString, err := MarshalToString(v)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.JSONEq(t, `{"name":"John","age":30}`, toString)
 
 	_, err = MarshalToString(make(chan int))
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestUnmarshal(t *testing.T) {
@@ -44,7 +45,7 @@ func TestUnmarshal(t *testing.T) {
 		Age  int    `json:"age"`
 	}
 	err := Unmarshal([]byte(s), &v)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "John", v.Name)
 	assert.Equal(t, 30, v.Age)
 }
@@ -56,7 +57,7 @@ func TestUnmarshalError(t *testing.T) {
 		Age  int    `json:"age"`
 	}
 	err := Unmarshal([]byte(s), &v)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestUnmarshalFromString(t *testing.T) {
@@ -66,7 +67,7 @@ func TestUnmarshalFromString(t *testing.T) {
 		Age  int    `json:"age"`
 	}
 	err := UnmarshalFromString(s, &v)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "John", v.Name)
 	assert.Equal(t, 30, v.Age)
 }
@@ -78,7 +79,7 @@ func TestUnmarshalFromStringError(t *testing.T) {
 		Age  int    `json:"age"`
 	}
 	err := UnmarshalFromString(s, &v)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestUnmarshalFromRead(t *testing.T) {
@@ -88,7 +89,7 @@ func TestUnmarshalFromRead(t *testing.T) {
 		Age  int    `json:"age"`
 	}
 	err := UnmarshalFromReader(strings.NewReader(s), &v)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "John", v.Name)
 	assert.Equal(t, 30, v.Age)
 }
@@ -100,7 +101,7 @@ func TestUnmarshalFromReaderError(t *testing.T) {
 		Age  int    `json:"age"`
 	}
 	err := UnmarshalFromReader(strings.NewReader(s), &v)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func Test_doMarshalJson(t *testing.T) {

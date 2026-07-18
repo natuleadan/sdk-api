@@ -6,19 +6,20 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNopBreaker(t *testing.T) {
 	b := NopBreaker()
 	assert.Equal(t, nopBreakerName, b.Name())
 	_, err := b.Allow()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	p, err := b.AllowCtx(context.Background())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	p.Accept()
 	for range 1000 {
 		p, err := b.Allow()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		p.Reject("any")
 	}
 	assert.NoError(t, b.Do(func() error {

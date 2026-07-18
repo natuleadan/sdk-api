@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestUnmarshalBytes(t *testing.T) {
@@ -101,7 +102,7 @@ func TestUnmarshalBytesFloat(t *testing.T) {
 	content := []byte(`{"Age": 1.5}`)
 
 	assert.NoError(t, UnmarshalJsonBytes(content, &c))
-	assert.Equal(t, float32(1.5), c.Age)
+	assert.InDelta(t, float64(1.5), float64(c.Age), 0.01)
 }
 
 func TestUnmarshalBytesMustInOptional(t *testing.T) {
@@ -633,7 +634,7 @@ func TestUnmarshalStructOptional(t *testing.T) {
 	content := []byte(`{"Name": "kevin"}`)
 
 	err := UnmarshalJsonBytes(content, &c)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "kevin", c.Name)
 }
 
@@ -647,7 +648,7 @@ func TestUnmarshalStructLowerCase(t *testing.T) {
 	content := []byte(`{"Name": "kevin", "etcd": {"Key": "the key"}}`)
 
 	err := UnmarshalJsonBytes(content, &c)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "kevin", c.Name)
 	assert.Equal(t, "the key", c.Etcd.Key)
 }
@@ -845,7 +846,7 @@ func TestUnmarshalWithZeroValues(t *testing.T) {
 	ast := assert.New(t)
 	ast.NoError(UnmarshalJsonReader(reader, &in))
 	ast.False(in.False)
-	ast.Equal(0, in.Int)
+	ast.InDelta(0, in.Int, 0.01)
 	ast.Empty(in.String)
 }
 
@@ -877,7 +878,7 @@ func TestUnmarshalMap(t *testing.T) {
 		}
 
 		err := UnmarshalJsonMap(m, &v)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Empty(t, v.Any)
 	})
 
@@ -888,7 +889,7 @@ func TestUnmarshalMap(t *testing.T) {
 		}
 
 		err := UnmarshalJsonMap(m, &v)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("empty map and valid", func(t *testing.T) {
@@ -900,7 +901,7 @@ func TestUnmarshalMap(t *testing.T) {
 		err := UnmarshalJsonMap(m, &v, WithCanonicalKeyFunc(func(s string) string {
 			return s
 		}))
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Empty(t, v.Any)
 	})
 
@@ -913,7 +914,7 @@ func TestUnmarshalMap(t *testing.T) {
 		}
 
 		err := UnmarshalJsonMap(m, &v)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "foo", v.Any)
 	})
 }

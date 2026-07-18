@@ -6,6 +6,7 @@ import (
 	"testing/iotest"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestScanner(t *testing.T) {
@@ -18,7 +19,7 @@ func TestScanner(t *testing.T) {
 	var lines []string
 	for scanner.Scan() {
 		line, err := scanner.Line()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		lines = append(lines, line)
 	}
 	assert.Equal(t, []string{"1", "2", "3", "4"}, lines)

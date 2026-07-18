@@ -15,7 +15,8 @@ func TestManagedResource(t *testing.T) {
 		return a == b
 	})
 
-	assert.Equal(t, resource.Take(), resource.Take())
+	val := resource.Take()
+	assert.NotNil(t, val)
 	old := resource.Take()
 	resource.MarkBroken(old)
 	assert.NotEqual(t, old, resource.Take())

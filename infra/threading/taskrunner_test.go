@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTaskRunner_Schedule(t *testing.T) {
@@ -37,7 +38,7 @@ func TestTaskRunner_ScheduleImmediately(t *testing.T) {
 			time.Sleep(time.Millisecond * 100)
 		})
 		if i < cpus {
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		} else {
 			assert.ErrorIs(t, err, ErrTaskRunnerBusy)
 		}

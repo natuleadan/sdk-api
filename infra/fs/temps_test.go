@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTempFileWithText(t *testing.T) {
@@ -22,7 +22,7 @@ func TestTempFileWithText(t *testing.T) {
 	defer os.Remove(f.Name())
 
 	bs, err := io.ReadAll(f)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	if len(bs) != 4 {
 		t.Error("TempFileWithText returned wrong file size")
 	}
@@ -42,7 +42,7 @@ func TestTempFilenameWithText(t *testing.T) {
 	defer os.Remove(f)
 
 	bs, err := os.ReadFile(f)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	if len(bs) != 4 {
 		t.Error("TempFilenameWithText returned wrong file size")
 	}

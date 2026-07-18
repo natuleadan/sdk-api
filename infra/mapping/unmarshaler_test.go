@@ -15,6 +15,7 @@ import (
 	"github.com/natuleadan/sdk-api/infra/jsonx"
 	"github.com/natuleadan/sdk-api/infra/stringx"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // because json.Number doesn't support strconv.ParseUint(...),
@@ -208,10 +209,10 @@ func TestUnmarshalDurationUnexpectedError(t *testing.T) {
 	content := "{\"duration\": 1}"
 	m := map[string]any{}
 	err := jsonx.Unmarshal([]byte(content), &m)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	var in inner
 	err = UnmarshalKey(m, &in)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "expect string")
 }
 
@@ -292,8 +293,8 @@ func TestUnmarshalInt(t *testing.T) {
 	var in inner
 	ast := assert.New(t)
 	if ast.NoError(UnmarshalKey(m, &in)) {
-		ast.Equal(1, in.Int)
-		ast.Equal(2, in.IntFromStr)
+		ast.InDelta(1, in.Int, 0.01)
+		ast.InDelta(2, in.IntFromStr, 0.01)
 		ast.Equal(int8(3), in.Int8)
 		ast.Equal(int8(4), in.Int8FromStr)
 		ast.Equal(int16(5), in.Int16)
@@ -303,7 +304,7 @@ func TestUnmarshalInt(t *testing.T) {
 		ast.Equal(int64(9), in.Int64)
 		ast.Equal(int64(10), in.Int64FromStr)
 		ast.Equal(int64(11), in.DefaultInt)
-		ast.Equal(6, in.IntOptDef)
+		ast.InDelta(6, in.IntOptDef, 0.01)
 	}
 }
 
@@ -1333,13 +1334,13 @@ func TestUnmarshalFloat(t *testing.T) {
 	var in inner
 	ast := assert.New(t)
 	if ast.NoError(UnmarshalKey(m, &in)) {
-		ast.Equal(float32(1.5), in.Float32)
-		ast.Equal(float32(2.5), in.Float32Str)
-		ast.Equal(float32(2.6), in.Float32Num)
-		ast.Equal(3.5, in.Float64)
-		ast.Equal(4.5, in.Float64Str)
-		ast.Equal(4.6, in.Float64Num)
-		ast.Equal(float32(5.5), in.DefaultFloat)
+		ast.InDelta(float64(1.5), float64(in.Float32), 0.01)
+		ast.InDelta(float64(2.5), float64(in.Float32Str), 0.01)
+		ast.InDelta(float64(2.6), float64(in.Float32Num), 0.01)
+		ast.InDelta(3.5, in.Float64, 0.01)
+		ast.InDelta(4.5, in.Float64Str, 0.01)
+		ast.InDelta(4.6, in.Float64Num, 0.01)
+		ast.InDelta(float64(5.5), float64(in.DefaultFloat), 0.01)
 	}
 }
 
@@ -2336,7 +2337,7 @@ func TestUnmarshalWithStringIgnored(t *testing.T) {
 	if ast.NoError(um.Unmarshal(m, &in)) {
 		ast.True(in.True)
 		ast.False(in.False)
-		ast.Equal(1, in.Int)
+		ast.InDelta(1, in.Int, 0.01)
 		ast.Equal(int8(3), in.Int8)
 		ast.Equal(int16(5), in.Int16)
 		ast.Equal(int32(7), in.Int32)
@@ -2346,8 +2347,8 @@ func TestUnmarshalWithStringIgnored(t *testing.T) {
 		ast.Equal(uint16(5), in.Uint16)
 		ast.Equal(uint32(7), in.Uint32)
 		ast.Equal(uint64(9), in.Uint64)
-		ast.Equal(float32(1.5), in.Float32)
-		ast.Equal(3.5, in.Float64)
+		ast.InDelta(float64(1.5), float64(in.Float32), 0.01)
+		ast.InDelta(3.5, in.Float64, 0.01)
 	}
 }
 
@@ -2727,7 +2728,7 @@ func TestUnmarshalWithIntOptionsCorrect(t *testing.T) {
 	ast := assert.New(t)
 	if ast.NoError(UnmarshalKey(m, &in)) {
 		ast.Equal("first", in.Value)
-		ast.Equal(2, in.Number)
+		ast.InDelta(2, in.Number, 0.01)
 	}
 }
 
@@ -3644,7 +3645,7 @@ func TestUnmarshalZeroValues(t *testing.T) {
 	ast := assert.New(t)
 	if ast.NoError(UnmarshalKey(m, &in)) {
 		ast.False(in.False)
-		ast.Equal(0, in.Int)
+		ast.InDelta(0, in.Int, 0.01)
 		ast.Empty(in.String)
 	}
 }
@@ -3665,7 +3666,7 @@ func TestUnmarshalUsingDifferentKeys(t *testing.T) {
 	ast := assert.New(t)
 	if ast.NoError(UnmarshalKey(m, &in)) {
 		ast.False(in.False)
-		ast.Equal(9, in.Int)
+		ast.InDelta(9, in.Int, 0.01)
 		ast.Empty(in.String)
 	}
 }
@@ -3699,7 +3700,7 @@ func TestUnmarshalNumberRangeInt(t *testing.T) {
 	var in inner
 	ast := assert.New(t)
 	if ast.NoError(UnmarshalKey(m, &in)) {
-		ast.Equal(10, in.Value1)
+		ast.InDelta(10, in.Value1, 0.01)
 		ast.Equal(int8(1), in.Value2)
 		ast.Equal(int16(2), in.Value3)
 		ast.Equal(int32(4), in.Value4)
@@ -3767,9 +3768,9 @@ func TestUnmarshalNumberRangeIntLeftExclude(t *testing.T) {
 		ast.Equal(uint(2), in.Value3)
 		ast.Equal(uint32(4), in.Value4)
 		ast.Equal(uint64(5), in.Value5)
-		ast.Equal(2, in.Value9)
-		ast.Equal(4, in.Value10)
-		ast.Equal(5, in.Value11)
+		ast.InDelta(2, in.Value9, 0.01)
+		ast.InDelta(4, in.Value10, 0.01)
+		ast.InDelta(5, in.Value11, 0.01)
 	}
 }
 
@@ -3797,9 +3798,9 @@ func TestUnmarshalNumberRangeIntRightExclude(t *testing.T) {
 		ast.Equal(uint(1), in.Value2)
 		ast.Equal(uint8(2), in.Value3)
 		ast.Equal(uint16(4), in.Value4)
-		ast.Equal(1, in.Value8)
-		ast.Equal(2, in.Value9)
-		ast.Equal(4, in.Value10)
+		ast.InDelta(1, in.Value8, 0.01)
+		ast.InDelta(2, in.Value9, 0.01)
+		ast.InDelta(4, in.Value10, 0.01)
 	}
 }
 
@@ -3820,10 +3821,10 @@ func TestUnmarshalNumberRangeIntExclude(t *testing.T) {
 	var in inner
 	ast := assert.New(t)
 	if ast.NoError(UnmarshalKey(m, &in)) {
-		ast.Equal(2, in.Value3)
-		ast.Equal(4, in.Value4)
-		ast.Equal(2, in.Value9)
-		ast.Equal(4, in.Value10)
+		ast.InDelta(2, in.Value3, 0.01)
+		ast.InDelta(4, in.Value4, 0.01)
+		ast.InDelta(2, in.Value9, 0.01)
+		ast.InDelta(4, in.Value10, 0.01)
 	}
 }
 
@@ -3908,14 +3909,14 @@ func TestUnmarshalNumberRangeFloat(t *testing.T) {
 	var in inner
 	ast := assert.New(t)
 	if ast.NoError(UnmarshalKey(m, &in)) {
-		ast.Equal(float32(1), in.Value2)
-		ast.Equal(float32(2), in.Value3)
-		ast.Equal(float64(4), in.Value4)
-		ast.Equal(float64(5), in.Value5)
-		ast.Equal(float64(1), in.Value8)
-		ast.Equal(float64(2), in.Value9)
-		ast.Equal(float64(4), in.Value10)
-		ast.Equal(float64(5), in.Value11)
+		ast.InDelta(float64(1), float64(in.Value2), 0.01)
+		ast.InDelta(float64(2), float64(in.Value3), 0.01)
+		ast.InDelta(4, in.Value4, 0.01)
+		ast.InDelta(5, in.Value5, 0.01)
+		ast.InDelta(1, in.Value8, 0.01)
+		ast.InDelta(2, in.Value9, 0.01)
+		ast.InDelta(4, in.Value10, 0.01)
+		ast.InDelta(5, in.Value11, 0.01)
 	}
 }
 
@@ -3940,12 +3941,12 @@ func TestUnmarshalNumberRangeFloatLeftExclude(t *testing.T) {
 	var in inner
 	ast := assert.New(t)
 	if ast.NoError(UnmarshalKey(m, &in)) {
-		ast.Equal(float64(2), in.Value3)
-		ast.Equal(float64(4), in.Value4)
-		ast.Equal(float64(5), in.Value5)
-		ast.Equal(float64(2), in.Value9)
-		ast.Equal(float64(4), in.Value10)
-		ast.Equal(float64(5), in.Value11)
+		ast.InDelta(2, in.Value3, 0.01)
+		ast.InDelta(4, in.Value4, 0.01)
+		ast.InDelta(5, in.Value5, 0.01)
+		ast.InDelta(2, in.Value9, 0.01)
+		ast.InDelta(4, in.Value10, 0.01)
+		ast.InDelta(5, in.Value11, 0.01)
 	}
 }
 
@@ -3970,12 +3971,12 @@ func TestUnmarshalNumberRangeFloatRightExclude(t *testing.T) {
 	var in inner
 	ast := assert.New(t)
 	if ast.NoError(UnmarshalKey(m, &in)) {
-		ast.Equal(float64(1), in.Value2)
-		ast.Equal(float64(2), in.Value3)
-		ast.Equal(float64(4), in.Value4)
-		ast.Equal(float64(1), in.Value8)
-		ast.Equal(float64(2), in.Value9)
-		ast.Equal(float64(4), in.Value10)
+		ast.InDelta(1, in.Value2, 0.01)
+		ast.InDelta(2, in.Value3, 0.01)
+		ast.InDelta(4, in.Value4, 0.01)
+		ast.InDelta(1, in.Value8, 0.01)
+		ast.InDelta(2, in.Value9, 0.01)
+		ast.InDelta(4, in.Value10, 0.01)
 	}
 }
 
@@ -3996,10 +3997,10 @@ func TestUnmarshalNumberRangeFloatExclude(t *testing.T) {
 	var in inner
 	ast := assert.New(t)
 	if ast.NoError(UnmarshalKey(m, &in)) {
-		ast.Equal(float64(2), in.Value3)
-		ast.Equal(float64(4), in.Value4)
-		ast.Equal(float64(2), in.Value9)
-		ast.Equal(float64(4), in.Value10)
+		ast.InDelta(2, in.Value3, 0.01)
+		ast.InDelta(4, in.Value4, 0.01)
+		ast.InDelta(2, in.Value9, 0.01)
+		ast.InDelta(4, in.Value10, 0.01)
 	}
 }
 
@@ -4604,7 +4605,7 @@ func TestUnmarshalValuer(t *testing.T) {
 	unmarshaler := NewUnmarshaler(jsonTagKey)
 	var foo string
 	err := unmarshaler.UnmarshalValuer(nil, foo)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestUnmarshal_EnvString(t *testing.T) {
@@ -4940,7 +4941,7 @@ func TestUnmarshalJsonReaderMultiArray(t *testing.T) {
 			C: []byte("11122344wsss"),
 		}
 		bytes, err := jsonx.Marshal(marshal)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		payload := string(bytes)
 		reader := strings.NewReader(payload)
 		if assert.NoError(t, UnmarshalJsonReader(reader, &res)) {
@@ -5554,13 +5555,13 @@ func TestFillDefaultUnmarshal(t *testing.T) {
 	t.Run("nil", func(t *testing.T) {
 		type St struct{}
 		err := fillDefaultUnmarshal.Unmarshal(map[string]any{}, St{})
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("not nil", func(t *testing.T) {
 		type St struct{}
 		err := fillDefaultUnmarshal.Unmarshal(map[string]any{}, &St{})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("default", func(t *testing.T) {
@@ -5570,7 +5571,7 @@ func TestFillDefaultUnmarshal(t *testing.T) {
 		}
 		var st St
 		err := fillDefaultUnmarshal.Unmarshal(map[string]any{}, &st)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "a", st.A)
 	})
 
@@ -5584,7 +5585,7 @@ func TestFillDefaultUnmarshal(t *testing.T) {
 
 		var st St
 		err := fillDefaultUnmarshal.Unmarshal(map[string]any{}, &st)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "a", st.A)
 		assert.Equal(t, "c", st.C)
 	})
@@ -5595,7 +5596,7 @@ func TestFillDefaultUnmarshal(t *testing.T) {
 			B string `json:",optional=!A"`
 		}
 		err := fillDefaultUnmarshal.Unmarshal(map[string]any{}, &st)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("has value", func(t *testing.T) {
@@ -5607,7 +5608,7 @@ func TestFillDefaultUnmarshal(t *testing.T) {
 			A: "b",
 		}
 		err := fillDefaultUnmarshal.Unmarshal(map[string]any{}, &st)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("handling struct", func(t *testing.T) {
@@ -5625,7 +5626,7 @@ func TestFillDefaultUnmarshal(t *testing.T) {
 		}
 		var st2 St2
 		err := fillDefaultUnmarshal.Unmarshal(map[string]any{}, &st2)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "a", st2.A)
 		assert.Equal(t, "a", st2.St1.A)
 		assert.Nil(t, st2.St3)
@@ -5700,7 +5701,7 @@ func TestUnmarshaler_Unmarshal(t *testing.T) {
 		var i int
 		unmarshaler := NewUnmarshaler(jsonTagKey)
 		err := unmarshaler.UnmarshalValuer(nil, &i)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("slice element missing error", func(t *testing.T) {
@@ -5713,7 +5714,7 @@ func TestUnmarshaler_Unmarshal(t *testing.T) {
 		content := []byte(`{"s": [{"name": "foo"}]}`)
 		var s inner
 		err := UnmarshalJsonBytes(content, &s)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "s[0].age")
 	})
 
@@ -5727,7 +5728,7 @@ func TestUnmarshaler_Unmarshal(t *testing.T) {
 		content := []byte(`{"s": {"a":{"name": "foo"}}}`)
 		var s inner
 		err := UnmarshalJsonBytes(content, &s)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "s[a].age")
 	})
 }
@@ -5743,7 +5744,7 @@ func TestUnmarshalerProcessFieldPrimitiveWithJSONNumber(t *testing.T) {
 		m := NewUnmarshaler("field")
 		err := m.processFieldPrimitiveWithJSONNumber(fieldType, value.Elem(), v,
 			&fieldOptionsWithContext{}, "field")
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, `type mismatch for field "field", expect "string", actual "number"`, err.Error())
 	})
 
@@ -5756,7 +5757,7 @@ func TestUnmarshalerProcessFieldPrimitiveWithJSONNumber(t *testing.T) {
 		m := NewUnmarshaler("field")
 		err := m.processFieldPrimitiveWithJSONNumber(fieldType, value.Elem(), v,
 			&fieldOptionsWithContext{}, "field")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 }
 

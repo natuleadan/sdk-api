@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGzip(t *testing.T) {
@@ -19,7 +20,7 @@ func TestGzip(t *testing.T) {
 	bs := Gzip(buf.Bytes())
 	actual, err := Gunzip(bs)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Less(t, len(bs), buf.Len())
 	assert.Equal(t, buf.Bytes(), actual)
 }

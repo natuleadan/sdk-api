@@ -10,11 +10,12 @@ import (
 	"github.com/natuleadan/sdk-api/infra/iox"
 	"github.com/natuleadan/sdk-api/infra/lang"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestEnterToContinue(t *testing.T) {
 	restore, err := iox.RedirectInOut()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer restore()
 
 	var wg sync.WaitGroup
@@ -43,7 +44,7 @@ func TestEnterToContinue(t *testing.T) {
 
 func TestReadLine(t *testing.T) {
 	r, w, err := os.Pipe()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	ow := os.Stdout
 	os.Stdout = w
 	or := os.Stdin

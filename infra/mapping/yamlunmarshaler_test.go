@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"k8s.io/utils/io"
 )
 
@@ -689,7 +690,7 @@ func TestUnmarshalYamlStructOptional(t *testing.T) {
 	content := []byte(`Name: kevin`)
 
 	err := UnmarshalYamlBytes(content, &c)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "kevin", c.Name)
 }
 
@@ -705,7 +706,7 @@ etcd:
   Key: the key`)
 
 	err := UnmarshalYamlBytes(content, &c)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "kevin", c.Name)
 	assert.Equal(t, "the key", c.Etcd.Key)
 }
@@ -908,7 +909,7 @@ string: ""`)
 	ast := assert.New(t)
 	ast.NoError(UnmarshalYamlBytes(content, &in))
 	ast.False(in.False)
-	ast.Equal(0, in.Int)
+	ast.InDelta(0, in.Int, 0.01)
 	ast.Empty(in.String)
 }
 
@@ -920,7 +921,7 @@ func TestUnmarshalYamlBytesError(t *testing.T) {
 	}
 
 	err := UnmarshalYamlBytes([]byte(payload), &v)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Len(t, v.Any, 1)
 	assert.Equal(t, "cdef", v.Any[0])
 }
@@ -932,7 +933,7 @@ func TestUnmarshalYamlReaderError(t *testing.T) {
 
 	reader := strings.NewReader(`abcd: cdef`)
 	err := UnmarshalYamlReader(reader, &v)
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	reader = strings.NewReader("foo")
 	assert.Error(t, UnmarshalYamlReader(reader, &v))
@@ -944,7 +945,7 @@ func TestUnmarshalYamlBadReader(t *testing.T) {
 	}
 
 	err := UnmarshalYamlReader(new(badReader), &v)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestUnmarshalYamlMapBool(t *testing.T) {

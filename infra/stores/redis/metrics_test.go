@@ -14,6 +14,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	red "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRedisMetric(t *testing.T) {
@@ -30,10 +31,10 @@ func TestRedisMetric(t *testing.T) {
 	url := "http://127.0.0.1:6060/metrics"
 	req, _ := http.NewRequestWithContext(context.Background(), "GET", url, nil)
 	resp, err := http.DefaultClient.Do(req)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer resp.Body.Close()
 	s, err := io.ReadAll(resp.Body)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	content := string(s)
 	assert.Contains(t, content, "redis_client_requests_duration_ms_sum{command=\"test-cmd\"} 8\n")
 	assert.Contains(t, content, "redis_client_requests_duration_ms_count{command=\"test-cmd\"} 1\n")
@@ -128,5 +129,5 @@ func Test_newCollector(t *testing.T) {
 `
 
 	err := testutil.CollectAndCompare(c, strings.NewReader(val))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }

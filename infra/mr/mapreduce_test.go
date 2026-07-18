@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 )
 
@@ -31,7 +32,7 @@ func TestFinish(t *testing.T) {
 	})
 
 	assert.Equal(t, uint32(10), atomic.LoadUint32(&total))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestFinishWithPartialErrors(t *testing.T) {
@@ -443,7 +444,7 @@ func TestMapReduceVoidWithDelay(t *testing.T) {
 			result = append(result, i)
 		}
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Len(t, result, 2)
 	assert.Equal(t, 1, result[0])
 	assert.Equal(t, 0, result[1])
@@ -520,7 +521,7 @@ func TestMapReduceVoidCancel(t *testing.T) {
 			result = append(result, i)
 		}
 	})
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, "anything", err.Error())
 }
 
@@ -544,7 +545,7 @@ func TestMapReduceVoidCancelWithRemains(t *testing.T) {
 			result = append(result, item)
 		}
 	})
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, "anything", err.Error())
 	assert.Equal(t, int32(1), done)
 }
@@ -564,7 +565,7 @@ func TestMapReduceWithoutReducerWrite(t *testing.T) {
 		// not calling writer.Write(...), should not panic
 	})
 	assert.Equal(t, ErrReduceNoOutput, err)
-	assert.Equal(t, 0, res)
+	assert.InDelta(t, 0, res, 0.01)
 }
 
 func TestMapReduceVoidPanicInReducer(t *testing.T) {
@@ -626,7 +627,7 @@ func TestMapReduceWithContext(t *testing.T) {
 			result = append(result, i)
 		}
 	}, WithContext(ctx))
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, context.DeadlineExceeded, err)
 }
 

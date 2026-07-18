@@ -39,7 +39,7 @@ func TestCounterIncr(t *testing.T) {
 	cv.Inc("/Users", "500")
 	cv.Inc("/Users", "500")
 	r := testutil.ToFloat64(cv.counter)
-	assert.Equal(t, float64(2), r)
+	assert.InDelta(t, float64(2), r, 0.01)
 }
 
 func TestCounterAdd(t *testing.T) {
@@ -56,7 +56,7 @@ func TestCounterAdd(t *testing.T) {
 	cv.Add(11, "/Users", "500")
 	cv.Add(22, "/Users", "500")
 	r := testutil.ToFloat64(cv.counter)
-	assert.Equal(t, float64(33), r)
+	assert.InDelta(t, float64(33), r, 0.01)
 }
 
 func startAgent() {

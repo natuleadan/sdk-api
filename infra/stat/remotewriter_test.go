@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/h2non/gock.v1"
 )
 
@@ -16,7 +16,7 @@ func TestRemoteWriter(t *testing.T) {
 	err := writer.Write(&StatReport{
 		Name: "bar",
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestRemoteWriterFail(t *testing.T) {
@@ -27,7 +27,7 @@ func TestRemoteWriterFail(t *testing.T) {
 	err := writer.Write(&StatReport{
 		Name: "bar",
 	})
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestRemoteWriterError(t *testing.T) {
@@ -38,5 +38,5 @@ func TestRemoteWriterError(t *testing.T) {
 	err := writer.Write(&StatReport{
 		Name: "bar",
 	})
-	assert.Error(t, err)
+	require.Error(t, err)
 }

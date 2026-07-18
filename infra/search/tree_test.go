@@ -7,6 +7,7 @@ import (
 
 	"github.com/natuleadan/sdk-api/infra/stringx"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type mockedRoute struct {
@@ -150,7 +151,7 @@ func TestStrictSearchSibling(t *testing.T) {
 func TestAddDuplicate(t *testing.T) {
 	tree := NewTree()
 	err := tree.Add("/a/b", 1)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	err = tree.Add("/a/b", 2)
 	assert.ErrorIs(t, errDupItem, err)
 	err = tree.Add("/a/b/", 2)
@@ -160,9 +161,9 @@ func TestAddDuplicate(t *testing.T) {
 func TestPlain(t *testing.T) {
 	tree := NewTree()
 	err := tree.Add("/a/b", 1)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	err = tree.Add("/a/c", 2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	_, ok := tree.Search("/a/d")
 	assert.False(t, ok)
 }

@@ -112,7 +112,7 @@ func TestRollingWindowReduce(t *testing.T) {
 			r.Reduce(func(b *Bucket[float64]) {
 				result += b.Sum
 			})
-			assert.Equal(t, test.expect, result)
+			assert.InDelta(t, float64(test.expect), float64(result), 0.01)
 		})
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const sleepInterval = time.Millisecond * 10
@@ -19,7 +20,7 @@ func TestElapsedTimer_Elapsed(t *testing.T) {
 	timer := NewElapsedTimer()
 	time.Sleep(sleepInterval)
 	duration, err := time.ParseDuration(timer.Elapsed())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.GreaterOrEqual(t, duration, sleepInterval)
 }
 
@@ -27,7 +28,7 @@ func TestElapsedTimer_ElapsedMs(t *testing.T) {
 	timer := NewElapsedTimer()
 	time.Sleep(sleepInterval)
 	duration, err := time.ParseDuration(timer.ElapsedMs())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.GreaterOrEqual(t, duration, sleepInterval)
 }
 

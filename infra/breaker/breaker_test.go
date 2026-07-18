@@ -9,6 +9,7 @@ import (
 
 	"github.com/natuleadan/sdk-api/infra/stat"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func init() {
@@ -20,14 +21,14 @@ func TestCircuitBreaker_Allow(t *testing.T) {
 		b := NewBreaker()
 		assert.NotEmpty(t, b.Name())
 		_, err := b.Allow()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("allow with ctx", func(t *testing.T) {
 		b := NewBreaker()
 		assert.NotEmpty(t, b.Name())
 		_, err := b.AllowCtx(context.Background())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("allow with ctx timeout", func(t *testing.T) {
@@ -50,7 +51,7 @@ func TestCircuitBreaker_Allow(t *testing.T) {
 			assert.ErrorIs(t, err, context.Canceled)
 		}
 		_, err := b.AllowCtx(context.Background())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 }
 
@@ -61,7 +62,7 @@ func TestCircuitBreaker_Do(t *testing.T) {
 		err := b.Do(func() error {
 			return nil
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("do with ctx", func(t *testing.T) {
@@ -70,7 +71,7 @@ func TestCircuitBreaker_Do(t *testing.T) {
 		err := b.DoCtx(context.Background(), func() error {
 			return nil
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("do with ctx timeout", func(t *testing.T) {
@@ -111,7 +112,7 @@ func TestCircuitBreaker_DoWithAcceptable(t *testing.T) {
 		}, func(err error) bool {
 			return true
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("doWithAcceptable with ctx", func(t *testing.T) {
@@ -122,7 +123,7 @@ func TestCircuitBreaker_DoWithAcceptable(t *testing.T) {
 		}, func(err error) bool {
 			return true
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("doWithAcceptable with ctx timeout", func(t *testing.T) {
@@ -169,7 +170,7 @@ func TestCircuitBreaker_DoWithFallback(t *testing.T) {
 		}, func(err error) error {
 			return err
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("doWithFallback with ctx", func(t *testing.T) {
@@ -180,7 +181,7 @@ func TestCircuitBreaker_DoWithFallback(t *testing.T) {
 		}, func(err error) error {
 			return err
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("doWithFallback with ctx timeout", func(t *testing.T) {
@@ -229,7 +230,7 @@ func TestCircuitBreaker_DoWithFallbackAcceptable(t *testing.T) {
 		}, func(err error) bool {
 			return true
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("doWithFallbackAcceptable with ctx", func(t *testing.T) {
@@ -242,7 +243,7 @@ func TestCircuitBreaker_DoWithFallbackAcceptable(t *testing.T) {
 		}, func(err error) bool {
 			return true
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("doWithFallbackAcceptable with ctx timeout", func(t *testing.T) {

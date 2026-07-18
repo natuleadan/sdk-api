@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParallel(t *testing.T) {
@@ -45,7 +46,7 @@ func TestParallelErr(t *testing.T) {
 	)
 
 	assert.Equal(t, int32(6), count)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.ErrorContains(t, err, "failed to exec #1", "failed to exec #2")
 }
 
@@ -70,5 +71,5 @@ func TestParallelErrErrorNil(t *testing.T) {
 	)
 
 	assert.Equal(t, int32(6), count)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }

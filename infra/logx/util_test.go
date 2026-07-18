@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetCaller(t *testing.T) {
@@ -18,7 +19,7 @@ func TestGetCaller(t *testing.T) {
 func TestGetTimestamp(t *testing.T) {
 	ts := getTimestamp()
 	tm, err := time.Parse(timeFormat, ts)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Less(t, time.Since(tm), time.Minute)
 }
 

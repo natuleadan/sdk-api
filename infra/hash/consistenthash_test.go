@@ -87,7 +87,7 @@ func TestConsistentHashIncrementalTransfer(t *testing.T) {
 func TestConsistentHashTransferOnFailure(t *testing.T) {
 	index := 41
 	ratioNotExists := getTransferRatioOnFailure(t, index)
-	assert.True(t, ratioNotExists == 0, fmt.Sprintf("%d: %f", index, ratioNotExists))
+	assert.InEpsilon(t, float64(0), float64(ratioNotExists), 0.01)
 	index = 13
 	ratio := getTransferRatioOnFailure(t, index)
 	assert.Less(t, ratio, 2.5/keySize, "%d: %f", index, ratio)

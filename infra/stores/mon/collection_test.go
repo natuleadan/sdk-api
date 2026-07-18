@@ -10,6 +10,7 @@ import (
 	"github.com/natuleadan/sdk-api/infra/stringx"
 	"github.com/natuleadan/sdk-api/infra/timex"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -76,7 +77,7 @@ func TestCollection_Aggregate(t *testing.T) {
 	mockCollection.EXPECT().Aggregate(gomock.Any(), gomock.Any(), gomock.Any()).Return(&mongo.Cursor{}, nil)
 	c := newTestCollection(mockCollection, breaker.GetBreaker("localhost"))
 	_, err := c.Aggregate(context.Background(), []any{}, options.Aggregate())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestCollection_BulkWrite(t *testing.T) {
@@ -88,7 +89,7 @@ func TestCollection_BulkWrite(t *testing.T) {
 	_, err := c.BulkWrite(context.Background(), []mongo.WriteModel{
 		mongo.NewInsertOneModel().SetDocument(bson.D{{Key: "foo", Value: 1}}),
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	c.brk = new(dropBreaker)
 	_, err = c.BulkWrite(context.Background(), []mongo.WriteModel{
 		mongo.NewInsertOneModel().SetDocument(bson.D{{Key: "foo", Value: 1}}),
@@ -103,7 +104,7 @@ func TestCollection_CountDocuments(t *testing.T) {
 	mockCollection.EXPECT().CountDocuments(gomock.Any(), gomock.Any(), gomock.Any()).Return(int64(0), nil)
 	c := newTestCollection(mockCollection, breaker.GetBreaker("localhost"))
 	res, err := c.CountDocuments(context.Background(), bson.D{})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, int64(0), res)
 	c.brk = new(dropBreaker)
 	_, err = c.CountDocuments(context.Background(), bson.D{{Key: "foo", Value: 1}})
@@ -117,7 +118,7 @@ func TestDecoratedCollection_DeleteMany(t *testing.T) {
 	mockCollection.EXPECT().DeleteMany(gomock.Any(), gomock.Any(), gomock.Any()).Return(&mongo.DeleteResult{}, nil)
 	c := newTestCollection(mockCollection, breaker.GetBreaker("localhost"))
 	_, err := c.DeleteMany(context.Background(), bson.D{})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	c.brk = new(dropBreaker)
 	_, err = c.DeleteMany(context.Background(), bson.D{{Key: "foo", Value: 1}})
 	assert.Equal(t, errDummy, err)
@@ -130,7 +131,7 @@ func TestCollection_Distinct(t *testing.T) {
 	mockCollection.EXPECT().Distinct(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(&mongo.DistinctResult{})
 	c := newTestCollection(mockCollection, breaker.GetBreaker("localhost"))
 	_, err := c.Distinct(context.Background(), "foo", bson.D{})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	c.brk = new(dropBreaker)
 	_, err = c.Distinct(context.Background(), "foo", bson.D{{Key: "foo", Value: 1}})
 	assert.Equal(t, errDummy, err)
@@ -143,7 +144,7 @@ func TestCollection_EstimatedDocumentCount(t *testing.T) {
 	mockCollection.EXPECT().EstimatedDocumentCount(gomock.Any(), gomock.Any()).Return(int64(0), nil)
 	c := newTestCollection(mockCollection, breaker.GetBreaker("localhost"))
 	_, err := c.EstimatedDocumentCount(context.Background())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	c.brk = new(dropBreaker)
 	_, err = c.EstimatedDocumentCount(context.Background())
 	assert.Equal(t, errDummy, err)
@@ -157,7 +158,7 @@ func TestCollection_Find(t *testing.T) {
 	c := newTestCollection(mockCollection, breaker.GetBreaker("localhost"))
 	filter := bson.D{{Key: "x", Value: 1}}
 	_, err := c.Find(context.Background(), filter, options.Find())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	c.brk = new(dropBreaker)
 	_, err = c.Find(context.Background(), filter, options.Find())
 	assert.Equal(t, errDummy, err)
@@ -239,7 +240,7 @@ func TestCollection_InsertOne(t *testing.T) {
 	mockCollection.EXPECT().InsertOne(gomock.Any(), gomock.Any(), gomock.Any()).Return(&mongo.InsertOneResult{}, nil)
 	c := newTestCollection(mockCollection, breaker.GetBreaker("localhost"))
 	res, err := c.InsertOne(context.Background(), bson.D{{Key: "foo", Value: "bar"}})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, res)
 	c.brk = new(dropBreaker)
 	_, err = c.InsertOne(context.Background(), bson.D{{Key: "foo", Value: "bar"}})
@@ -256,7 +257,7 @@ func TestCollection_InsertMany(t *testing.T) {
 		bson.D{{Key: "foo", Value: "bar"}},
 		bson.D{{Key: "foo", Value: "baz"}},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	c.brk = new(dropBreaker)
 	_, err = c.InsertMany(context.Background(), []any{bson.D{{Key: "foo", Value: "bar"}}})
 	assert.Equal(t, errDummy, err)
@@ -269,7 +270,7 @@ func TestCollection_DeleteOne(t *testing.T) {
 	mockCollection.EXPECT().DeleteOne(gomock.Any(), gomock.Any(), gomock.Any()).Return(&mongo.DeleteResult{}, nil)
 	c := newTestCollection(mockCollection, breaker.GetBreaker("localhost"))
 	_, err := c.DeleteOne(context.Background(), bson.D{{Key: "foo", Value: "bar"}})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	c.brk = new(dropBreaker)
 	_, err = c.DeleteOne(context.Background(), bson.D{{Key: "foo", Value: "bar"}})
 	assert.Equal(t, errDummy, err)
@@ -282,7 +283,7 @@ func TestCollection_DeleteMany(t *testing.T) {
 	mockCollection.EXPECT().DeleteMany(gomock.Any(), gomock.Any(), gomock.Any()).Return(&mongo.DeleteResult{}, nil)
 	c := newTestCollection(mockCollection, breaker.GetBreaker("localhost"))
 	_, err := c.DeleteMany(context.Background(), bson.D{{Key: "foo", Value: "bar"}})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	c.brk = new(dropBreaker)
 	_, err = c.DeleteMany(context.Background(), bson.D{{Key: "foo", Value: "bar"}})
 	assert.Equal(t, errDummy, err)
@@ -297,7 +298,7 @@ func TestCollection_ReplaceOne(t *testing.T) {
 	_, err := c.ReplaceOne(context.Background(), bson.D{{Key: "foo", Value: "bar"}},
 		bson.D{{Key: "foo", Value: "baz"}},
 	)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	c.brk = new(dropBreaker)
 	_, err = c.ReplaceOne(context.Background(), bson.D{{Key: "foo", Value: "bar"}},
 		bson.D{{Key: "foo", Value: "baz"}})
@@ -312,7 +313,7 @@ func TestCollection_UpdateOne(t *testing.T) {
 	c := newTestCollection(mockCollection, breaker.GetBreaker("localhost"))
 	_, err := c.UpdateOne(context.Background(), bson.D{{Key: "foo", Value: "bar"}},
 		bson.D{{Key: "$set", Value: bson.D{{Key: "baz", Value: "qux"}}}})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	c.brk = new(dropBreaker)
 	_, err = c.UpdateOne(context.Background(), bson.D{{Key: "foo", Value: "bar"}},
 		bson.D{{Key: "$set", Value: bson.D{{Key: "baz", Value: "qux"}}}})
@@ -327,7 +328,7 @@ func TestCollection_UpdateByID(t *testing.T) {
 	c := newTestCollection(mockCollection, breaker.GetBreaker("localhost"))
 	_, err := c.UpdateByID(context.Background(), bson.NewObjectID(),
 		bson.D{{Key: "$set", Value: bson.D{{Key: "baz", Value: "qux"}}}})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	c.brk = new(dropBreaker)
 	_, err = c.UpdateByID(context.Background(), bson.NewObjectID(),
 		bson.D{{Key: "$set", Value: bson.D{{Key: "baz", Value: "qux"}}}})
@@ -342,7 +343,7 @@ func TestCollection_UpdateMany(t *testing.T) {
 	c := newTestCollection(mockCollection, breaker.GetBreaker("localhost"))
 	_, err := c.UpdateMany(context.Background(), bson.D{{Key: "foo", Value: "bar"}},
 		bson.D{{Key: "$set", Value: bson.D{{Key: "baz", Value: "qux"}}}})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	c.brk = new(dropBreaker)
 	_, err = c.UpdateMany(context.Background(), bson.D{{Key: "foo", Value: "bar"}},
 		bson.D{{Key: "$set", Value: bson.D{{Key: "baz", Value: "qux"}}}})
@@ -356,7 +357,7 @@ func TestCollection_Watch(t *testing.T) {
 	mockCollection.EXPECT().Watch(gomock.Any(), gomock.Any(), gomock.Any()).Return(&mongo.ChangeStream{}, nil)
 	c := newTestCollection(mockCollection, breaker.GetBreaker("localhost"))
 	_, err := c.Watch(context.Background(), bson.D{{Key: "foo", Value: "bar"}})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestCollection_Clone(t *testing.T) {
@@ -386,7 +387,7 @@ func TestCollection_Drop(t *testing.T) {
 	mockCollection.EXPECT().Drop(gomock.Any()).Return(nil)
 	c := newTestCollection(mockCollection, breaker.GetBreaker("localhost"))
 	err := c.Drop(context.Background())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestCollection_Indexes(t *testing.T) {

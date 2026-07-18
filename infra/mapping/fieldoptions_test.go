@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type Bar struct {
@@ -17,7 +18,7 @@ func TestFieldOptionOptionalDep(t *testing.T) {
 		val, opt, err := parseKeyAndOptions(jsonTagKey, field)
 		assert.Equal(t, "val", val)
 		assert.Nil(t, opt)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}
 
 	// check nil working

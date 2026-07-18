@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRunningInUserNS(t *testing.T) {
@@ -16,25 +17,25 @@ func TestCgroups(t *testing.T) {
 	// test cgroup legacy(v1) & hybrid
 	if !isCgroup2UnifiedMode() {
 		cg, err := currentCgroupV1()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		_, err = cg.effectiveCpus()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		_, err = cg.cpuQuota()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		_, err = cg.cpuUsage()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}
 
 	// test cgroup v2
 	if isCgroup2UnifiedMode() {
 		cg, err := currentCgroupV2()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		_, err = cg.effectiveCpus()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		_, err = cg.cpuQuota()
-		assert.Error(t, err)
+		require.Error(t, err)
 		_, err = cg.cpuUsage()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}
 }
 

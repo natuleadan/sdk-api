@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestStableRunner(t *testing.T) {
@@ -34,7 +35,7 @@ func TestStableRunner(t *testing.T) {
 	for i := range size {
 		var err error
 		values[i], err = runner.Get()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		time.Sleep(time.Millisecond)
 	}
 
@@ -69,7 +70,7 @@ func FuzzStableRunner(f *testing.F) {
 		for i := 0; i < int(n); i++ {
 			var err error
 			values[i], err = runner.Get()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
 
 		runner.Wait()

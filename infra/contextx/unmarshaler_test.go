@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestUnmarshalContext(t *testing.T) {
@@ -20,7 +21,7 @@ func TestUnmarshalContext(t *testing.T) {
 	var person Person
 	err := For(ctx, &person)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "kevin", person.Name)
 	assert.Equal(t, 20, person.Age)
 }
@@ -37,7 +38,7 @@ func TestUnmarshalContextWithOptional(t *testing.T) {
 	var person Person
 	err := For(ctx, &person)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "kevin", person.Name)
 	assert.Equal(t, 0, person.Age)
 }
@@ -56,5 +57,5 @@ func TestUnmarshalContextWithMissing(t *testing.T) {
 	var person Person
 	err := For(ctx, &person)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 }

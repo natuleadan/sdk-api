@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -17,7 +18,7 @@ import (
 
 func TestPeerFromContext(t *testing.T) {
 	addrs, err := net.InterfaceAddrs()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotEmpty(t, addrs)
 	tests := []struct {
 		name  string

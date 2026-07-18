@@ -12,6 +12,7 @@ import (
 	"github.com/natuleadan/sdk-api/infra/stores/mon"
 	"github.com/natuleadan/sdk-api/infra/stores/redis"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.uber.org/mock/gomock"
@@ -19,7 +20,7 @@ import (
 
 func TestMustNewModel(t *testing.T) {
 	s, err := miniredis.Run()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	original := logx.ExitOnFatal.True()
 	logx.ExitOnFatal.Set(false)
 	defer logx.ExitOnFatal.Set(original)
@@ -39,7 +40,7 @@ func TestMustNewModel(t *testing.T) {
 
 func TestMustNewNodeModel(t *testing.T) {
 	s, err := miniredis.Run()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	original := logx.ExitOnFatal.True()
 	logx.ExitOnFatal.Set(false)
 	defer logx.ExitOnFatal.Set(original)
@@ -51,7 +52,7 @@ func TestMustNewNodeModel(t *testing.T) {
 
 func TestNewModel(t *testing.T) {
 	s, err := miniredis.Run()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	_, err = NewModel("foo", "db", "coll", cache.CacheConf{
 		cache.NodeConf{
 			RedisConf: redis.RedisConf{
@@ -61,23 +62,23 @@ func TestNewModel(t *testing.T) {
 			Weight: 100,
 		},
 	})
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestNewNodeModel(t *testing.T) {
 	_, err := NewNodeModel("foo", "db", "coll", nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestNewModelWithCache(t *testing.T) {
 	_, err := NewModelWithCache("foo", "db", "coll", nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func Test_newModel(t *testing.T) {
 	mon.Inject("mongodb://localhost:27018", &mongo.Client{})
 	model, err := newModel("mongodb://localhost:27018", "db", "collection", nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, model)
 }
 
@@ -102,13 +103,13 @@ func TestModel_DeleteOne(t *testing.T) {
 	m := createModel(t, mockCollection)
 	assert.NoError(t, m.cache.Set("foo", "bar"))
 	val, err := m.DeleteOne(context.Background(), "foo", bson.D{{Key: "foo", Value: "bar"}})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, int64(1), val)
 	var v string
 	assert.True(t, m.cache.IsNotFound(m.cache.Get("foo", &v)))
 	mockCollection.EXPECT().DeleteOne(gomock.Any(), gomock.Any(), gomock.Any()).Return(&mongo.DeleteResult{}, errMocked)
 	_, err = m.DeleteOne(context.Background(), "foo", bson.D{{Key: "foo", Value: "bar"}})
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	m.cache = mockedCache{m.cache}
 	mockCollection.EXPECT().DeleteOne(gomock.Any(), gomock.Any(), gomock.Any()).Return(&mongo.DeleteResult{}, nil)
@@ -122,9 +123,9 @@ func TestModel_DeleteOneNoCache(t *testing.T) {
 	mockCollection := mon.NewMockCollection(ctrl)
 	mockCollection.EXPECT().DeleteOne(gomock.Any(), gomock.Any(), gomock.Any()).Return(&mongo.DeleteResult{DeletedCount: 1}, nil)
 	m := createModel(t, mockCollection)
-	assert.NoError(t, m.cache.Set("foo", "bar"))
+	require.NoError(t, m.cache.Set("foo", "bar"))
 	val, err := m.DeleteOneNoCache(context.Background(), bson.D{{Key: "foo", Value: "bar"}})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, int64(1), val)
 	var v string
 	assert.NoError(t, m.cache.Get("foo", &v))
@@ -140,7 +141,7 @@ func TestModel_FindOne(t *testing.T) {
 	var v struct {
 		Foo string `bson:"foo"`
 	}
-	assert.NoError(t, m.FindOne(context.Background(), "foo", &v, bson.D{}))
+	require.NoError(t, m.FindOne(context.Background(), "foo", &v, bson.D{}))
 	assert.Equal(t, "bar", v.Foo)
 	assert.NoError(t, m.cache.Set("foo", "bar"))
 }
@@ -155,7 +156,7 @@ func TestModel_FindOneNoCache(t *testing.T) {
 	v := struct {
 		Foo string `bson:"foo"`
 	}{}
-	assert.NoError(t, m.FindOneNoCache(context.Background(), &v, bson.D{}))
+	require.NoError(t, m.FindOneNoCache(context.Background(), &v, bson.D{}))
 	assert.Equal(t, "bar", v.Foo)
 }
 
@@ -307,7 +308,7 @@ func TestModel_InsertOne(t *testing.T) {
 	resp, err := m.InsertOne(context.Background(), "foo", bson.D{
 		{Key: "name", Value: "Mary"},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, resp)
 	var v string
 	assert.True(t, m.cache.IsNotFound(m.cache.Get("foo", &v)))
@@ -315,7 +316,7 @@ func TestModel_InsertOne(t *testing.T) {
 	_, err = m.InsertOne(context.Background(), "foo", bson.D{
 		{Key: "name", Value: "Mary"},
 	})
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	m.cache = mockedCache{m.cache}
 	mockCollection.EXPECT().InsertOne(gomock.Any(), gomock.Any(), gomock.Any()).Return(&mongo.InsertOneResult{}, nil)
@@ -334,7 +335,7 @@ func TestModel_InsertOneNoCache(t *testing.T) {
 	resp, err := m.InsertOneNoCache(context.Background(), bson.D{
 		{Key: "name", Value: "Mary"},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, resp)
 }
 
@@ -348,7 +349,7 @@ func TestModel_ReplaceOne(t *testing.T) {
 	resp, err := m.ReplaceOne(context.Background(), "foo", bson.D{}, bson.D{
 		{Key: "foo", Value: "baz"},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, resp)
 	var v string
 	assert.True(t, m.cache.IsNotFound(m.cache.Get("foo", &v)))
@@ -356,7 +357,7 @@ func TestModel_ReplaceOne(t *testing.T) {
 	_, err = m.ReplaceOne(context.Background(), "foo", bson.D{}, bson.D{
 		{Key: "foo", Value: "baz"},
 	})
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	m.cache = mockedCache{m.cache}
 	mockCollection.EXPECT().ReplaceOne(gomock.Any(), gomock.Any(), gomock.Any()).Return(&mongo.UpdateResult{}, nil)
@@ -375,7 +376,7 @@ func TestModel_ReplaceOneNoCache(t *testing.T) {
 	resp, err := m.ReplaceOneNoCache(context.Background(), bson.D{}, bson.D{
 		{Key: "foo", Value: "baz"},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, resp)
 }
 
@@ -384,7 +385,7 @@ func TestModel_SetCache(t *testing.T) {
 	defer ctrl.Finish()
 	mockCollection := mon.NewMockCollection(ctrl)
 	m := createModel(t, mockCollection)
-	assert.NoError(t, m.SetCache("foo", "bar"))
+	require.NoError(t, m.SetCache("foo", "bar"))
 	var v string
 	assert.NoError(t, m.GetCache("foo", &v))
 	assert.Equal(t, "bar", v)
@@ -400,7 +401,7 @@ func TestModel_UpdateByID(t *testing.T) {
 	resp, err := m.UpdateByID(context.Background(), "foo", bson.D{}, bson.D{
 		{Key: "$set", Value: bson.D{{Key: "foo", Value: "baz"}}},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, resp)
 	var v string
 	assert.True(t, m.cache.IsNotFound(m.cache.Get("foo", &v)))
@@ -408,7 +409,7 @@ func TestModel_UpdateByID(t *testing.T) {
 	_, err = m.UpdateByID(context.Background(), "foo", bson.D{}, bson.D{
 		{Key: "$set", Value: bson.D{{Key: "foo", Value: "baz"}}},
 	})
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	m.cache = mockedCache{m.cache}
 	mockCollection.EXPECT().UpdateByID(gomock.Any(), gomock.Any(), gomock.Any()).Return(&mongo.UpdateResult{}, nil)
@@ -427,7 +428,7 @@ func TestModel_UpdateByIDNoCache(t *testing.T) {
 	resp, err := m.UpdateByIDNoCache(context.Background(), bson.D{}, bson.D{
 		{Key: "$set", Value: bson.D{{Key: "foo", Value: "baz"}}},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, resp)
 }
 
@@ -442,7 +443,7 @@ func TestModel_UpdateMany(t *testing.T) {
 	resp, err := m.UpdateMany(context.Background(), []string{"foo", "bar"}, bson.D{}, bson.D{
 		{Key: "$set", Value: bson.D{{Key: "foo", Value: "baz"}}},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, resp)
 	var v string
 	assert.True(t, m.cache.IsNotFound(m.cache.Get("foo", &v)))
@@ -451,7 +452,7 @@ func TestModel_UpdateMany(t *testing.T) {
 	_, err = m.UpdateMany(context.Background(), []string{"foo", "bar"}, bson.D{}, bson.D{
 		{Key: "$set", Value: bson.D{{Key: "foo", Value: "baz"}}},
 	})
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	m.cache = mockedCache{m.cache}
 	mockCollection.EXPECT().UpdateMany(gomock.Any(), gomock.Any(), gomock.Any()).Return(&mongo.UpdateResult{}, nil)
@@ -470,7 +471,7 @@ func TestModel_UpdateManyNoCache(t *testing.T) {
 	resp, err := m.UpdateManyNoCache(context.Background(), bson.D{}, bson.D{
 		{Key: "$set", Value: bson.D{{Key: "foo", Value: "baz"}}},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, resp)
 }
 
@@ -484,7 +485,7 @@ func TestModel_UpdateOne(t *testing.T) {
 	resp, err := m.UpdateOne(context.Background(), "foo", bson.D{}, bson.D{
 		{Key: "$set", Value: bson.D{{Key: "foo", Value: "baz"}}},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, resp)
 	var v string
 	mockCollection.EXPECT().UpdateOne(gomock.Any(), gomock.Any(), gomock.Any()).Return(&mongo.UpdateResult{}, errMocked)
@@ -492,7 +493,7 @@ func TestModel_UpdateOne(t *testing.T) {
 	_, err = m.UpdateOne(context.Background(), "foo", bson.D{}, bson.D{
 		{Key: "$set", Value: bson.D{{Key: "foo", Value: "baz"}}},
 	})
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	mockCollection.EXPECT().UpdateOne(gomock.Any(), gomock.Any(), gomock.Any()).Return(&mongo.UpdateResult{}, nil)
 	m.cache = mockedCache{m.cache}
@@ -511,13 +512,13 @@ func TestModel_UpdateOneNoCache(t *testing.T) {
 	resp, err := m.UpdateOneNoCache(context.Background(), bson.D{}, bson.D{
 		{Key: "$set", Value: bson.D{{Key: "foo", Value: "baz"}}},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, resp)
 }
 
 func createModel(t *testing.T, coll mon.Collection) *Model {
 	s, err := miniredis.Run()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	if atomic.AddInt32(&index, 1)%2 == 0 {
 		return mustNewTestNodeModel(coll, redis.MustNewRedis(redis.RedisConf{Host: s.Addr(), Type: redis.NodeType}))
 	} else {

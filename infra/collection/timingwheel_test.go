@@ -12,6 +12,7 @@ import (
 	"github.com/natuleadan/sdk-api/infra/syncx"
 	"github.com/natuleadan/sdk-api/infra/timex"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -21,7 +22,7 @@ const (
 
 func TestNewTimingWheel(t *testing.T) {
 	_, err := NewTimingWheel(0, 10, func(key, value any) {})
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestTimingWheel_Drain(t *testing.T) {
@@ -54,7 +55,7 @@ func TestTimingWheel_Drain(t *testing.T) {
 		count++
 	})
 	time.Sleep(time.Millisecond * 100)
-	assert.Equal(t, 0, count)
+	assert.InDelta(t, 0, count, 0.01)
 	tw.Stop()
 	assert.Equal(t, ErrClosed, tw.Drain(func(key, value any) {}))
 }
@@ -241,7 +242,7 @@ func TestTimingWheel_SetTimer(t *testing.T) {
 				actual = atomic.LoadInt32(&count)
 				close(done)
 			}, ticker)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			defer tw.Stop()
 
 			tw.SetTimer(1, 2, testStep*test.setAt)
@@ -319,7 +320,7 @@ func TestTimingWheel_SetAndMoveThenStart(t *testing.T) {
 				actual = atomic.LoadInt32(&count)
 				close(done)
 			}, ticker)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			defer tw.Stop()
 
 			tw.SetTimer(1, 2, testStep*test.setAt)
@@ -406,7 +407,7 @@ func TestTimingWheel_SetAndMoveTwice(t *testing.T) {
 				actual = atomic.LoadInt32(&count)
 				close(done)
 			}, ticker)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			defer tw.Stop()
 
 			tw.SetTimer(1, 2, testStep*test.setAt)
@@ -486,7 +487,7 @@ func TestTimingWheel_ElapsedAndSet(t *testing.T) {
 				actual = atomic.LoadInt32(&count)
 				close(done)
 			}, ticker)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			defer tw.Stop()
 
 			for i := 0; i < int(test.elapsed); i++ {
@@ -576,7 +577,7 @@ func TestTimingWheel_ElapsedAndSetThenMove(t *testing.T) {
 				actual = atomic.LoadInt32(&count)
 				close(done)
 			}, ticker)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			defer tw.Stop()
 
 			for i := 0; i < int(test.elapsed); i++ {

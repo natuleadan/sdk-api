@@ -13,6 +13,7 @@ import (
 	"github.com/natuleadan/sdk-api/infra/trace/tracetest"
 	red "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	tracesdk "go.opentelemetry.io/otel/trace"
 )
 
@@ -56,7 +57,7 @@ func TestHookProcessPipelineCase1(t *testing.T) {
 	err := defaultDurationHook.ProcessPipelineHook(func(ctx context.Context, cmds []red.Cmder) error {
 		return nil
 	})(context.Background(), nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = defaultDurationHook.ProcessPipelineHook(func(ctx context.Context, cmds []red.Cmder) error {
 		assert.Equal(t, "redis", tracesdk.SpanFromContext(ctx).(interface{ Name() string }).Name())
@@ -64,7 +65,7 @@ func TestHookProcessPipelineCase1(t *testing.T) {
 	})(context.Background(), []red.Cmder{
 		red.NewCmd(context.Background()),
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	assert.NotContains(t, w.String(), "slow")
 }
@@ -80,7 +81,7 @@ func TestHookProcessPipelineCase2(t *testing.T) {
 	})(context.Background(), []red.Cmder{
 		red.NewCmd(context.Background()),
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	assert.Contains(t, w.String(), "slow")
 	assert.Contains(t, w.String(), "trace")

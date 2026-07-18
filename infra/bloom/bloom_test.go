@@ -7,6 +7,7 @@ import (
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/natuleadan/sdk-api/infra/stores/redis/redistest"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRedisBitSet_New_Set_Test(t *testing.T) {
@@ -49,7 +50,7 @@ func TestRedisBitSet_Add(t *testing.T) {
 	assert.NoError(t, filter.Add([]byte("hello")))
 	assert.NoError(t, filter.Add([]byte("world")))
 	ok, err := filter.Exists([]byte("hello"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.True(t, ok)
 }
 
@@ -58,12 +59,12 @@ func TestFilter_Exists(t *testing.T) {
 
 	rbs := New(store, "test", 64)
 	_, err := rbs.Exists([]byte{0, 1, 2})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	clean()
 	rbs = New(store, "test", 64)
 	_, err = rbs.Exists([]byte{0, 1, 2})
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestRedisBitSet_check(t *testing.T) {
@@ -73,16 +74,16 @@ func TestRedisBitSet_check(t *testing.T) {
 	rbs := newRedisBitSet(store, "test", 0)
 	assert.Error(t, rbs.set(ctx, []uint{0, 1, 2}))
 	_, err := rbs.check(ctx, []uint{0, 1, 2})
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	rbs = newRedisBitSet(store, "test", 64)
 	_, err = rbs.check(ctx, []uint{0, 1, 2})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	clean()
 	rbs = newRedisBitSet(store, "test", 64)
 	_, err = rbs.check(ctx, []uint{0, 1, 2})
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestRedisBitSet_set(t *testing.T) {

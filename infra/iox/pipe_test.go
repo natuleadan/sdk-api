@@ -3,11 +3,11 @@ package iox
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRedirectInOut(t *testing.T) {
 	restore, err := RedirectInOut()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer restore()
 }

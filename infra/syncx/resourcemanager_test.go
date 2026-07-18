@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type dummyResource struct {
@@ -28,7 +29,7 @@ func TestResourceManager_GetResource(t *testing.T) {
 				age: age,
 			}, nil
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, 1, val.(*dummyResource).age)
 	}
 }
@@ -41,7 +42,7 @@ func TestResourceManager_GetResourceError(t *testing.T) {
 		_, err := manager.GetResource("key", func() (io.Closer, error) {
 			return nil, errors.New("fail")
 		})
-		assert.Error(t, err)
+		require.Error(t, err)
 	}
 }
 
@@ -53,7 +54,7 @@ func TestResourceManager_Close(t *testing.T) {
 		_, err := manager.GetResource("key", func() (io.Closer, error) {
 			return nil, errors.New("fail")
 		})
-		assert.Error(t, err)
+		require.Error(t, err)
 	}
 
 	if assert.NoError(t, manager.Close()) {
@@ -68,12 +69,12 @@ func TestResourceManager_UseAfterClose(t *testing.T) {
 	_, err := manager.GetResource("key", func() (io.Closer, error) {
 		return nil, errors.New("fail")
 	})
-	assert.Error(t, err)
+	require.Error(t, err)
 	if assert.NoError(t, manager.Close()) {
 		_, err = manager.GetResource("key", func() (io.Closer, error) {
 			return nil, errors.New("fail")
 		})
-		assert.Error(t, err)
+		require.Error(t, err)
 
 		assert.Panics(t, func() {
 			_, err = manager.GetResource("key", func() (io.Closer, error) {
@@ -94,6 +95,6 @@ func TestResourceManager_Inject(t *testing.T) {
 	val, err := manager.GetResource("key", func() (io.Closer, error) {
 		return nil, nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 10, val.(*dummyResource).age)
 }

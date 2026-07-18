@@ -10,6 +10,7 @@ import (
 	"github.com/natuleadan/sdk-api/infra/fs"
 	"github.com/natuleadan/sdk-api/infra/stringx"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestReadText(t *testing.T) {
@@ -41,11 +42,11 @@ b`,
 	for _, test := range tests {
 		t.Run(test.input, func(t *testing.T) {
 			tmpFile, err := fs.TempFilenameWithText(test.input)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			defer os.Remove(tmpFile)
 
 			content, err := ReadText(tmpFile)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, test.expect, content)
 		})
 	}
@@ -53,7 +54,7 @@ b`,
 
 func TestReadTextError(t *testing.T) {
 	_, err := ReadText("not-exist")
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestReadTextLines(t *testing.T) {
@@ -65,7 +66,7 @@ func TestReadTextLines(t *testing.T) {
     3`
 
 	tmpFile, err := fs.TempFilenameWithText(text)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer os.Remove(tmpFile)
 
 	tests := []struct {
@@ -93,7 +94,7 @@ func TestReadTextLines(t *testing.T) {
 	for _, test := range tests {
 		t.Run(stringx.Rand(), func(t *testing.T) {
 			lines, err := ReadTextLines(tmpFile, test.options...)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Len(t, lines, test.expectLines)
 		})
 	}
@@ -101,7 +102,7 @@ func TestReadTextLines(t *testing.T) {
 
 func TestReadTextLinesError(t *testing.T) {
 	_, err := ReadTextLines("not-exist")
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestDupReadCloser(t *testing.T) {
@@ -110,7 +111,7 @@ func TestDupReadCloser(t *testing.T) {
 	r1, r2 := DupReadCloser(reader)
 	verify := func(r io.Reader) {
 		output, err := io.ReadAll(r)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, input, string(output))
 	}
 
@@ -125,7 +126,7 @@ func TestLimitDupReadCloser(t *testing.T) {
 	r1, r2 := LimitDupReadCloser(reader, limitBytes)
 	verify := func(r io.Reader) {
 		output, err := io.ReadAll(r)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, input, string(output))
 	}
 	verifyLimit := func(r io.Reader, limit int64) {
@@ -133,7 +134,7 @@ func TestLimitDupReadCloser(t *testing.T) {
 		if limit < int64(len(input)) {
 			input = input[:limit]
 		}
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, input, string(output))
 	}
 
@@ -145,7 +146,7 @@ func TestReadBytes(t *testing.T) {
 	reader := io.NopCloser(bytes.NewBufferString("helloworld"))
 	buf := make([]byte, 5)
 	err := ReadBytes(reader, buf)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "hello", string(buf))
 }
 
@@ -168,6 +169,6 @@ func TestReadBytesChunks(t *testing.T) {
 	}()
 
 	err := ReadBytes(reader, buf)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "aaaaa", string(buf))
 }

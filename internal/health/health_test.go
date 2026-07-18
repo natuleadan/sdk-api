@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const probeName = "probe"
@@ -127,7 +128,7 @@ func TestCreateHttpHandler(t *testing.T) {
 
 	req, _ := http.NewRequestWithContext(context.Background(), "GET", srv.URL, nil)
 	resp, err := http.DefaultClient.Do(req)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	_ = resp.Body.Close()
 	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
 
@@ -136,7 +137,7 @@ func TestCreateHttpHandler(t *testing.T) {
 
 	req, _ = http.NewRequestWithContext(context.Background(), "GET", srv.URL, nil)
 	resp, err = http.DefaultClient.Do(req)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
 	content, _ := io.ReadAll(resp.Body)
 	assert.True(t, strings.HasPrefix(string(content), "Service Unavailable"))
@@ -145,7 +146,7 @@ func TestCreateHttpHandler(t *testing.T) {
 	hm.MarkReady()
 	req, _ = http.NewRequestWithContext(context.Background(), "GET", srv.URL, nil)
 	resp, err = http.DefaultClient.Do(req)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	_ = resp.Body.Close()
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }

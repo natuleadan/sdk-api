@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestImmutableResource(t *testing.T) {
@@ -19,14 +20,14 @@ func TestImmutableResource(t *testing.T) {
 
 	res, err := r.Get()
 	assert.Equal(t, "hello", res)
-	assert.Equal(t, 1, count)
-	assert.NoError(t, err)
+	assert.InDelta(t, 1, count, 0.01)
+	require.NoError(t, err)
 
 	// again
 	res, err = r.Get()
 	assert.Equal(t, "hello", res)
-	assert.Equal(t, 1, count)
-	assert.NoError(t, err)
+	assert.InDelta(t, 1, count, 0.01)
+	require.NoError(t, err)
 }
 
 func TestImmutableResourceError(t *testing.T) {
@@ -38,24 +39,24 @@ func TestImmutableResourceError(t *testing.T) {
 
 	res, err := r.Get()
 	assert.Nil(t, res)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, "any", err.Error())
-	assert.Equal(t, 1, count)
+	assert.InDelta(t, 1, count, 0.01)
 
 	// again
 	res, err = r.Get()
 	assert.Nil(t, res)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, "any", err.Error())
-	assert.Equal(t, 1, count)
+	assert.InDelta(t, 1, count, 0.01)
 
 	r.refreshInterval = 0
 	time.Sleep(time.Millisecond)
 	res, err = r.Get()
 	assert.Nil(t, res)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, "any", err.Error())
-	assert.Equal(t, 2, count)
+	assert.InDelta(t, 2, count, 0.01)
 }
 
 // It's hard to test more than one goroutine fetching the resource at the same time,
@@ -111,14 +112,14 @@ func TestImmutableResourceErrorRefreshAlways(t *testing.T) {
 
 	res, err := r.Get()
 	assert.Nil(t, res)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, "any", err.Error())
-	assert.Equal(t, 1, count)
+	assert.InDelta(t, 1, count, 0.01)
 
 	// again
 	res, err = r.Get()
 	assert.Nil(t, res)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, "any", err.Error())
-	assert.Equal(t, 2, count)
+	assert.InDelta(t, 2, count, 0.01)
 }

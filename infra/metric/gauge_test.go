@@ -37,7 +37,7 @@ func TestGaugeInc(t *testing.T) {
 	gv.Inc("/users")
 	gv.Inc("/users")
 	r := testutil.ToFloat64(gv.gauge)
-	assert.Equal(t, float64(2), r)
+	assert.InDelta(t, float64(2), r, 0.01)
 }
 
 func TestGaugeDec(t *testing.T) {
@@ -54,7 +54,7 @@ func TestGaugeDec(t *testing.T) {
 	gv.Dec("/users")
 	gv.Dec("/users")
 	r := testutil.ToFloat64(gv.gauge)
-	assert.Equal(t, float64(-2), r)
+	assert.InDelta(t, float64(-2), r, 0.01)
 }
 
 func TestGaugeAdd(t *testing.T) {
@@ -71,7 +71,7 @@ func TestGaugeAdd(t *testing.T) {
 	gv.Add(-10, "/classroom")
 	gv.Add(30, "/classroom")
 	r := testutil.ToFloat64(gv.gauge)
-	assert.Equal(t, float64(20), r)
+	assert.InDelta(t, float64(20), r, 0.01)
 }
 
 func TestGaugeSub(t *testing.T) {
@@ -88,7 +88,7 @@ func TestGaugeSub(t *testing.T) {
 	gv.Sub(-100, "/classroom")
 	gv.Sub(30, "/classroom")
 	r := testutil.ToFloat64(gv.gauge)
-	assert.Equal(t, float64(70), r)
+	assert.InDelta(t, float64(70), r, 0.01)
 }
 
 func TestGaugeSet(t *testing.T) {
@@ -104,5 +104,5 @@ func TestGaugeSet(t *testing.T) {
 	gv, _ := gaugeVec.(*promGaugeVec)
 	gv.Set(666, "/users")
 	r := testutil.ToFloat64(gv.gauge)
-	assert.Equal(t, float64(666), r)
+	assert.InDelta(t, float64(666), r, 0.01)
 }

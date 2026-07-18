@@ -12,6 +12,7 @@ import (
 
 	"github.com/natuleadan/sdk-api/infra/fs"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -41,21 +42,21 @@ v7q5UimZ205iKSBmgQIDAQAB
 
 func TestCryption(t *testing.T) {
 	enc, err := NewRsaEncrypter([]byte(pubKey))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	ret, err := enc.Encrypt([]byte(testBody))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	file, err := fs.TempFilenameWithText(priKey)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer os.Remove(file)
 	dec, err := NewRsaDecrypter(file)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	actual, err := dec.Decrypt(ret)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, testBody, string(actual))
 
 	actual, err = dec.DecryptBase64(base64.StdEncoding.EncodeToString(ret))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, testBody, string(actual))
 }
 
@@ -66,26 +67,26 @@ func TestBadPubKey(t *testing.T) {
 
 func TestOAEPCryption(t *testing.T) {
 	enc, err := NewRsaOAEPEncrypter([]byte(pubKey))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	ret, err := enc.Encrypt([]byte(testBody))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	file, err := fs.TempFilenameWithText(priKey)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer os.Remove(file)
 	dec, err := NewRsaOAEPDecrypter(file)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	actual, err := dec.Decrypt(ret)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, testBody, string(actual))
 
 	actual, err = dec.DecryptBase64(base64.StdEncoding.EncodeToString(ret))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, testBody, string(actual))
 
 	// empty input
 	actual, err = dec.DecryptBase64("")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Nil(t, actual)
 }
 
@@ -94,18 +95,18 @@ func TestOAEPBadKeys(t *testing.T) {
 	assert.Equal(t, ErrPublicKey, err)
 
 	_, err = NewRsaOAEPDecrypter("nonexistent")
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	// valid PEM but invalid private key content
 	badPem, err := fs.TempFilenameWithText("-----BEGIN RSA PRIVATE KEY-----\nYmFk\n-----END RSA PRIVATE KEY-----")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer os.Remove(badPem)
 	_, err = NewRsaOAEPDecrypter(badPem)
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	// not PEM content at all
 	notPem, err := fs.TempFilenameWithText("not a pem file")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer os.Remove(notPem)
 	_, err = NewRsaOAEPDecrypter(notPem)
 	assert.Equal(t, ErrPrivateKey, err)
@@ -115,14 +116,14 @@ func TestOAEPEncrypterParseError(t *testing.T) {
 	// valid PEM block but invalid public key content
 	badPub := []byte("-----BEGIN PUBLIC KEY-----\nYmFk\n-----END PUBLIC KEY-----")
 	_, err := NewRsaOAEPEncrypter(badPub)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestOAEPEncrypterNonRsaKey(t *testing.T) {
 	ecKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	derBytes, err := x509.MarshalPKIXPublicKey(&ecKey.PublicKey)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	ecPem := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: derBytes})
 	_, err = NewRsaOAEPEncrypter(ecPem)
 	assert.Equal(t, ErrNotRsaKey, err)
@@ -130,11 +131,11 @@ func TestOAEPEncrypterNonRsaKey(t *testing.T) {
 
 func TestOAEPDecryptBase64Error(t *testing.T) {
 	file, err := fs.TempFilenameWithText(priKey)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer os.Remove(file)
 	dec, err := NewRsaOAEPDecrypter(file)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	_, err = dec.DecryptBase64("not-valid-base64!!!")
-	assert.Error(t, err)
+	require.Error(t, err)
 }

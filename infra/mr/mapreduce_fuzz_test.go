@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 )
 
@@ -67,7 +68,7 @@ func FuzzMapReduce(f *testing.F) {
 			assert.Panicsf(t, func() { fn() }, buf.String())
 		} else {
 			val, err := fn()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, squareSum, val)
 		}
 	})

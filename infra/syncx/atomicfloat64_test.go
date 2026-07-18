@@ -18,5 +18,5 @@ func TestAtomicFloat64(t *testing.T) {
 		})
 	}
 	wg.Wait()
-	assert.Equal(t, float64(600), f.Load())
+	assert.InDelta(t, float64(600), f.Load(), 0.01)
 }

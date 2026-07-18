@@ -7,6 +7,7 @@ import (
 
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 )
 
@@ -90,7 +91,7 @@ func TestCreateExporter_InvalidFilePath(t *testing.T) {
 	}
 
 	_, err := createExporter(c)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "file exporter endpoint error")
 }
 
@@ -104,7 +105,7 @@ func TestCreateExporter_UnknownBatcher(t *testing.T) {
 	}
 
 	_, err := createExporter(c)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unknown exporter")
 }
 
@@ -232,13 +233,13 @@ func TestCreateExporter_ValidExporters(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			exporter, err := createExporter(tt.config)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				if tt.errMsg != "" {
 					assert.Contains(t, err.Error(), tt.errMsg)
 				}
 				assert.Nil(t, exporter)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, exporter)
 				// Clean up the exporter
 				if exporter != nil {
@@ -322,9 +323,9 @@ func TestStartAgent_WithEndpoint(t *testing.T) {
 
 			err := startAgent(tt.config)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, tp, "TracerProvider should be created")
 			}
 		})
@@ -348,7 +349,7 @@ func TestStartAgent_ErrorHandler(t *testing.T) {
 		Sampler: 1.0,
 	}
 	err := startAgent(config)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, tp)
 
 	// Verify the error handler was set and can be called without panicking

@@ -10,6 +10,7 @@ import (
 	"github.com/natuleadan/sdk-api/infra/stores/redis"
 	"github.com/natuleadan/sdk-api/infra/stores/redis/redistest"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func init() {
@@ -18,7 +19,7 @@ func init() {
 
 func TestTokenLimit_WithCtx(t *testing.T) {
 	s, err := miniredis.Run()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	const (
 		total = 100
@@ -42,7 +43,7 @@ func TestTokenLimit_WithCtx(t *testing.T) {
 
 func TestTokenLimit_Rescue(t *testing.T) {
 	s, err := miniredis.Run()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	const (
 		total = 100

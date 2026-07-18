@@ -8,6 +8,7 @@ import (
 	"github.com/natuleadan/sdk-api/infra/proc"
 	"github.com/natuleadan/sdk-api/infra/timex"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNextDelay(t *testing.T) {
@@ -58,7 +59,7 @@ func TestNextDelay(t *testing.T) {
 					clean(key, value)
 				}, ticker)
 			timingWheel.Store(tw)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			t.Cleanup(func() {
 				timingWheel.Store(old)
 			})

@@ -14,6 +14,7 @@ import (
 	"github.com/natuleadan/sdk-api/infra/syncx"
 	"github.com/natuleadan/sdk-api/infra/timex"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -87,7 +88,7 @@ func TestAdaptiveShedderMinRt(t *testing.T) {
 	shedder := &adaptiveShedder{
 		rtCounter: rtCounter,
 	}
-	assert.Equal(t, float64(6), shedder.minRt())
+	assert.InDelta(t, float64(6), shedder.minRt(), 0.01)
 
 	// default max min rt is equal to maxFloat64.
 	rtCounter = newRollingWindow()
@@ -171,7 +172,7 @@ func TestAdaptiveShedderShouldDrop(t *testing.T) {
 	shedder.avgFlying = 80
 	shedder.flying = 80
 	_, err := shedder.Allow()
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestAdaptiveShedderStillHot(t *testing.T) {

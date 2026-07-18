@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTimeoutLimit(t *testing.T) {
@@ -38,7 +39,7 @@ func TestTimeoutLimit(t *testing.T) {
 			})
 			wait1.Done()
 			wait2.Wait()
-			assert.NoError(t, limit.Borrow(time.Second))
+			require.NoError(t, limit.Borrow(time.Second))
 			wait3.Wait()
 			assert.Equal(t, ErrTimeout, limit.Borrow(time.Millisecond*100))
 			assert.NoError(t, limit.Return())

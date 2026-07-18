@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.uber.org/mock/gomock"
 )
@@ -16,9 +17,9 @@ func TestBulkInserter_InsertAndFlush(t *testing.T) {
 	mockCollection := NewMockCollection(ctrl)
 	mockCollection.EXPECT().Clone().Return(&mongo.Collection{})
 	bulkInserter, err := NewBulkInserter(mockCollection, time.Second)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	bulkInserter.SetResultHandler(func(result *mongo.InsertManyResult, err error) {
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, result.InsertedIDs, 2)
 	})
 	doc := map[string]any{"name": "test"}
@@ -32,7 +33,7 @@ func TestBulkInserter_SetResultHandler(t *testing.T) {
 	mockCollection := NewMockCollection(ctrl)
 	mockCollection.EXPECT().Clone().Return(nil)
 	bulkInserter, err := NewBulkInserter(mockCollection)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	mockHandler := func(result *mongo.InsertManyResult, err error) {}
 	bulkInserter.SetResultHandler(mockHandler)
 }
@@ -80,7 +81,7 @@ func Test_dbInserter_Execute(t *testing.T) {
 			fields: fields{
 				collection: mockCollection,
 				resultHandler: func(result *mongo.InsertManyResult, err error) {
-					assert.Error(t, err)
+					require.Error(t, err)
 				},
 			},
 			args: args{

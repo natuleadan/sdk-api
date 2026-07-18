@@ -9,12 +9,13 @@ import (
 	"github.com/natuleadan/sdk-api/infra/conf"
 	"github.com/natuleadan/sdk-api/infra/syncx"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestStart(t *testing.T) {
 	t.Run("profiling", func(t *testing.T) {
 		var c Config
-		assert.NoError(t, conf.FillDefault(&c))
+		require.NoError(t, conf.FillDefault(&c))
 		c.Name = "test"
 		p := newProfiler(c)
 		assert.NotNil(t, p)
@@ -147,8 +148,8 @@ func TestGenPyroscopeConf(t *testing.T) {
 func TestNewPyroscopeProfiler(t *testing.T) {
 	p := newPyroscopeProfiler(Config{})
 
-	assert.Error(t, p.Start())
-	assert.NoError(t, p.Stop())
+	require.Error(t, p.Start())
+	require.NoError(t, p.Stop())
 }
 
 type mockProfiler struct {

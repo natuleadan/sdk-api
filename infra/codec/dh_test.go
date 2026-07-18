@@ -5,18 +5,19 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDiffieHellman(t *testing.T) {
 	key1, err := GenerateKey()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	key2, err := GenerateKey()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	pubKey1, err := ComputeKey(key1.PubKey, key2.PriKey)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	pubKey2, err := ComputeKey(key2.PubKey, key1.PriKey)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	assert.Equal(t, pubKey1, pubKey2)
 }
@@ -29,46 +30,46 @@ func TestDiffieHellman1024(t *testing.T) {
 	}()
 
 	key1, err := GenerateKey()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	key2, err := GenerateKey()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	pubKey1, err := ComputeKey(key1.PubKey, key2.PriKey)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	pubKey2, err := ComputeKey(key2.PubKey, key1.PriKey)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	assert.Equal(t, pubKey1, pubKey2)
 }
 
 func TestDiffieHellmanMiddleManAttack(t *testing.T) {
 	key1, err := GenerateKey()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	keyMiddle, err := GenerateKey()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	key2, err := GenerateKey()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	const aesByteLen = 32
 	pubKey1, err := ComputeKey(keyMiddle.PubKey, key1.PriKey)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	src := []byte(`hello, world!`)
 	encryptedSrc, err := EcbEncrypt(pubKey1.Bytes()[:aesByteLen], src)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	pubKeyMiddle, err := ComputeKey(key1.PubKey, keyMiddle.PriKey)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	decryptedSrc, err := EcbDecrypt(pubKeyMiddle.Bytes()[:aesByteLen], encryptedSrc)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, string(src), string(decryptedSrc))
 
 	pubKeyMiddle, err = ComputeKey(key2.PubKey, keyMiddle.PriKey)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	encryptedSrc, err = EcbEncrypt(pubKeyMiddle.Bytes()[:aesByteLen], decryptedSrc)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	pubKey2, err := ComputeKey(keyMiddle.PubKey, key2.PriKey)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	decryptedSrc, err = EcbDecrypt(pubKey2.Bytes()[:aesByteLen], encryptedSrc)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, string(src), string(decryptedSrc))
 }
 
@@ -77,27 +78,27 @@ func TestKeyBytes(t *testing.T) {
 	assert.Empty(t, empty.Bytes())
 
 	key, err := GenerateKey()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotEmpty(t, key.Bytes())
 }
 
 func TestDHOnErrors(t *testing.T) {
 	key, err := GenerateKey()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotEmpty(t, key.Bytes())
 	_, err = ComputeKey(key.PubKey, key.PriKey)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	_, err = ComputeKey(nil, key.PriKey)
-	assert.Error(t, err)
+	require.Error(t, err)
 	_, err = ComputeKey(key.PubKey, nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	assert.NotNil(t, NewPublicKey([]byte("")))
 }
 
 func TestDHPubKeyBoundary(t *testing.T) {
 	key, err := GenerateKey()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// pubKey = 0 should be rejected
 	_, err = ComputeKey(big.NewInt(0), key.PriKey)
@@ -117,9 +118,9 @@ func TestDHPubKeyBoundary(t *testing.T) {
 
 	// pubKey = 1 should be accepted
 	_, err = ComputeKey(big.NewInt(1), key.PriKey)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// pubKey = p-1 should be accepted
 	_, err = ComputeKey(new(big.Int).Sub(p, big.NewInt(1)), key.PriKey)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }

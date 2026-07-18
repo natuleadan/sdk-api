@@ -6,6 +6,7 @@ import (
 
 	"github.com/natuleadan/sdk-api/infra/fs"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestProperties(t *testing.T) {
@@ -16,11 +17,11 @@ func TestProperties(t *testing.T) {
     # this is comment
     app.threads = 5`
 	tmpfile, err := fs.TempFilenameWithText(text)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer os.Remove(tmpfile)
 
 	props, err := LoadProperties(tmpfile)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "test", props.GetString("app.name"))
 	assert.Equal(t, "app", props.GetString("app.program"))
 	assert.Equal(t, 5, props.GetInt("app.threads"))
@@ -42,13 +43,13 @@ func TestPropertiesEnv(t *testing.T) {
     # this is comment
     app.threads = 5`
 	tmpfile, err := fs.TempFilenameWithText(text)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer os.Remove(tmpfile)
 
 	t.Setenv("FOO", "2")
 
 	props, err := LoadProperties(tmpfile, UseEnv())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "test", props.GetString("app.name"))
 	assert.Equal(t, "app", props.GetString("app.program"))
 	assert.Equal(t, 5, props.GetInt("app.threads"))
@@ -65,10 +66,10 @@ func TestPropertiesEnv(t *testing.T) {
 
 func TestLoadProperties_badContent(t *testing.T) {
 	filename, err := fs.TempFilenameWithText("hello")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer os.Remove(filename)
 	_, err = LoadProperties(filename)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.NotEmpty(t, err.Error())
 }
 
@@ -90,7 +91,7 @@ func TestSetInt(t *testing.T) {
 
 func TestLoadBadFile(t *testing.T) {
 	_, err := LoadProperties("nosuchfile")
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestProperties_valueWithEqualSymbols(t *testing.T) {
@@ -102,11 +103,11 @@ func TestProperties_valueWithEqualSymbols(t *testing.T) {
 	empty.value=
 	key.with.space = value = with = equals`
 	tmpfile, err := fs.TempFilenameWithText(text)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer os.Remove(tmpfile)
 
 	props, err := LoadProperties(tmpfile)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "postgres://localhost:5432/db?param=value", props.GetString("db.url"))
 	assert.Equal(t, "a=b=c", props.GetString("math.equation"))
 	assert.Equal(t, "SGVsbG8=World=Test=", props.GetString("base64.data"))
@@ -147,7 +148,7 @@ func TestProperties_edgeCases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tmpfile, err := fs.TempFilenameWithText(tt.content)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			defer os.Remove(tmpfile)
 
 			_, err = LoadProperties(tmpfile)

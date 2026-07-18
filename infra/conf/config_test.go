@@ -9,6 +9,7 @@ import (
 	"github.com/natuleadan/sdk-api/infra/fs"
 	"github.com/natuleadan/sdk-api/infra/hash"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var dupErr conflictKeyError
@@ -19,7 +20,7 @@ func TestLoadConfig_notExists(t *testing.T) {
 
 func TestLoadConfig_notRecogFile(t *testing.T) {
 	filename, err := fs.TempFilenameWithText("hello")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer os.Remove(filename)
 	assert.Error(t, LoadConfig(filename, nil))
 }
@@ -41,7 +42,7 @@ func TestConfigJson(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test, func(t *testing.T) {
 			tmpfile, err := createTempFile(t, test, text)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			var val struct {
 				A string `json:"a"`
@@ -86,7 +87,7 @@ func TestConfigJson5(t *testing.T) {
 	t.Setenv("FOO", "2")
 
 	tmpfile, err := createTempFile(t, ".json5", text)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	var val struct {
 		A string `json:"a"`
@@ -112,7 +113,7 @@ func TestConfigJsonStandardParser(t *testing.T) {
 	t.Setenv("FOO", "2")
 
 	tmpfile, err := createTempFile(t, ".json", text)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	var val struct {
 		A string `json:"a"`
@@ -135,7 +136,7 @@ func TestConfigJsonLargeIntegers(t *testing.T) {
 }`
 
 	tmpfile, err := createTempFile(t, ".json", text)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	var val struct {
 		ID        int64 `json:"id"`
@@ -157,7 +158,7 @@ func TestConfigJson5Env(t *testing.T) {
 	t.Setenv("FOO", "2")
 
 	tmpfile, err := createTempFile(t, ".json5", text)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	var val struct {
 		A string `json:"a"`
@@ -214,7 +215,7 @@ func TestConfigJson5LargeIntegersLimitation(t *testing.T) {
 }`
 
 	tmpfile, err := createTempFile(t, ".json5", text)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	var val struct {
 		ID int64 `json:"id"`
@@ -223,7 +224,7 @@ func TestConfigJson5LargeIntegersLimitation(t *testing.T) {
 	// This will load; depending on the JSON5 implementation, large integers may lose precision.
 	// This test documents that behavior without requiring loss of precision as an invariant.
 	err = Load(tmpfile, &val)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	t.Logf("loaded JSON5 large integer id=%d (original 1234567890123456789)", val.ID)
 }
@@ -236,7 +237,7 @@ d = "abcd!@#$112"
 `
 	t.Setenv("FOO", "2")
 	tmpfile, err := createTempFile(t, ".toml", text)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	var val struct {
 		A string `json:"a"`
@@ -258,7 +259,7 @@ c = "FOO"
 d = "abcd"
 `
 	tmpfile, err := createTempFile(t, ".toml", text)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	var val struct {
 		A string `json:"a"`
@@ -279,7 +280,7 @@ func TestConfigWithLower(t *testing.T) {
 b = 1
 `
 	tmpfile, err := createTempFile(t, ".toml", text)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	var val struct {
 		A string `json:"a"`
@@ -358,7 +359,7 @@ d = "abcd!@#112"
 `
 	t.Setenv("FOO", "2")
 	tmpfile, err := createTempFile(t, ".toml", text)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	var val struct {
 		A string `json:"a"`
@@ -390,7 +391,7 @@ func TestConfigJsonEnv(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test, func(t *testing.T) {
 			tmpfile, err := createTempFile(t, test, text)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			var val struct {
 				A string `json:"a"`
@@ -877,7 +878,7 @@ func Test_FieldOverwrite(t *testing.T) {
 			input := []byte(`{"Name": "hello"}`)
 			err := LoadFromJsonBytes(input, val)
 			assert.ErrorAs(t, err, &dupErr)
-			assert.Error(t, err)
+			require.Error(t, err)
 		}
 
 		validate(&St0{})
@@ -1206,13 +1207,13 @@ func TestFillDefaultUnmarshal(t *testing.T) {
 	t.Run("nil", func(t *testing.T) {
 		type St struct{}
 		err := FillDefault(St{})
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("not nil", func(t *testing.T) {
 		type St struct{}
 		err := FillDefault(&St{})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("default", func(t *testing.T) {
@@ -1222,7 +1223,7 @@ func TestFillDefaultUnmarshal(t *testing.T) {
 		}
 		var st St
 		err := FillDefault(&st)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "a", st.A)
 	})
 
@@ -1236,7 +1237,7 @@ func TestFillDefaultUnmarshal(t *testing.T) {
 
 		var st St
 		err := FillDefault(&st)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "a", st.A)
 		assert.Equal(t, "c", st.C)
 	})
@@ -1250,7 +1251,7 @@ func TestFillDefaultUnmarshal(t *testing.T) {
 			A: "b",
 		}
 		err := FillDefault(&st)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 }
 
@@ -1369,11 +1370,11 @@ func Test_LoadBadConfig(t *testing.T) {
 	}
 
 	file, err := createTempFile(t, ".json", `{"name": "baz"}`)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	var c Config
 	err = Load(file, &c)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func Test_getFullName(t *testing.T) {
@@ -1385,19 +1386,19 @@ func TestValidate(t *testing.T) {
 	t.Run("normal config", func(t *testing.T) {
 		var c mockConfig
 		err := LoadFromJsonBytes([]byte(`{"val": "hello", "number": 8}`), &c)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("error no int", func(t *testing.T) {
 		var c mockConfig
 		err := LoadFromJsonBytes([]byte(`{"val": "hello"}`), &c)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("error no string", func(t *testing.T) {
 		var c mockConfig
 		err := LoadFromJsonBytes([]byte(`{"number": 8}`), &c)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 }
 
@@ -1481,9 +1482,9 @@ func Test_buildFieldsInfo(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := buildFieldsInfo(tt.t, "")
 			if tt.ok {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			} else {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Equal(t, err.Error(), tt.containsKey)
 			}
 		})
@@ -1614,16 +1615,16 @@ func TestLoadValidation_WithoutEnv(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tmpfile, err := createTempFile(t, tt.extension, tt.content)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			var cfg validatorConfig
 			err = Load(tmpfile, &cfg)
 
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMsg)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -1691,16 +1692,16 @@ func TestLoadValidation_WithEnv(t *testing.T) {
 			t.Setenv("TEST_VALUE", tt.envValue)
 
 			tmpfile, err := createTempFile(t, tt.extension, tt.content)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			var cfg validatorConfig
 			err = Load(tmpfile, &cfg, UseEnv())
 
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMsg)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -1725,14 +1726,14 @@ func TestLoadValidation_Consistency(t *testing.T) {
 		t.Run("invalid_"+format.ext, func(t *testing.T) {
 			// Test without UseEnv()
 			tmpfile1, err := createTempFile(t, format.ext, format.invalid)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			var cfg1 validatorConfig
 			err1 := Load(tmpfile1, &cfg1)
 
 			// Test with UseEnv()
 			tmpfile2, err := createTempFile(t, format.ext, format.invalid)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			var cfg2 validatorConfig
 			err2 := Load(tmpfile2, &cfg2, UseEnv())
@@ -1747,14 +1748,14 @@ func TestLoadValidation_Consistency(t *testing.T) {
 		t.Run("valid_"+format.ext, func(t *testing.T) {
 			// Test without UseEnv()
 			tmpfile1, err := createTempFile(t, format.ext, format.valid)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			var cfg1 validatorConfig
 			err1 := Load(tmpfile1, &cfg1)
 
 			// Test with UseEnv()
 			tmpfile2, err := createTempFile(t, format.ext, format.valid)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			var cfg2 validatorConfig
 			err2 := Load(tmpfile2, &cfg2, UseEnv())

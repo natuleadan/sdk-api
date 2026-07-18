@@ -3,7 +3,7 @@ package load
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNopShedder(t *testing.T) {
@@ -11,11 +11,11 @@ func TestNopShedder(t *testing.T) {
 	shedder := NewAdaptiveShedder()
 	for range 1000 {
 		p, err := shedder.Allow()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		p.Fail()
 	}
 
 	p, err := shedder.Allow()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	p.Pass()
 }

@@ -6,6 +6,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewHistogramVec(t *testing.T) {
@@ -47,5 +48,5 @@ func TestHistogramObserve(t *testing.T) {
 `
 
 	err := testutil.CollectAndCompare(hv.histogram, strings.NewReader(metadata+val))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }

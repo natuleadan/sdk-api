@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCountLines(t *testing.T) {
@@ -21,11 +22,11 @@ func TestCountLines(t *testing.T) {
 	file.WriteString(val)
 	file.Close()
 	lines, err := CountLines(file.Name())
-	assert.NoError(t, err)
-	assert.Equal(t, 4, lines)
+	require.NoError(t, err)
+	assert.InDelta(t, 4, lines, 0.01)
 }
 
 func TestCountLinesError(t *testing.T) {
 	_, err := CountLines("not-exist")
-	assert.Error(t, err)
+	require.Error(t, err)
 }

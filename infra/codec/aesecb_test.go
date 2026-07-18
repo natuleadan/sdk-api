@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAesEcb(t *testing.T) {
@@ -18,23 +19,23 @@ func TestAesEcb(t *testing.T) {
 		badKey2 = []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 	)
 	_, err := EcbEncrypt(badKey1, val)
-	assert.Error(t, err)
+	require.Error(t, err)
 	_, err = EcbEncrypt(badKey2, val)
-	assert.Error(t, err)
+	require.Error(t, err)
 	dst, err := EcbEncrypt(key, val)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	_, err = EcbDecrypt(badKey1, dst)
-	assert.Error(t, err)
+	require.Error(t, err)
 	_, err = EcbDecrypt(badKey2, dst)
-	assert.Error(t, err)
+	require.Error(t, err)
 	_, err = EcbDecrypt(key, val)
 	// not a multiple of block size
-	assert.Error(t, err)
+	require.Error(t, err)
 	src, err := EcbDecrypt(key, dst)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, val, src)
 	block, err := aes.NewCipher(key)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	encrypter := NewECBEncrypter(block)
 	assert.Equal(t, 16, encrypter.BlockSize())
 	decrypter := NewECBDecrypter(block)
@@ -61,7 +62,7 @@ func TestAesEcb(t *testing.T) {
 	})
 
 	_, err = EcbEncryptBase64("cTR0N3dDKkYtSmFOZFJnVWpYbjJyNXU4eC9BP0QK", "aGVsbG93b3JsZGxvbmcuLgo=")
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestAesEcbBase64(t *testing.T) {
@@ -75,23 +76,23 @@ func TestAesEcbBase64(t *testing.T) {
 	b64Key := base64.StdEncoding.EncodeToString(key)
 	b64Val := base64.StdEncoding.EncodeToString([]byte(val))
 	_, err := EcbEncryptBase64(badKey1, val)
-	assert.Error(t, err)
+	require.Error(t, err)
 	_, err = EcbEncryptBase64(badKey2, val)
-	assert.Error(t, err)
+	require.Error(t, err)
 	_, err = EcbEncryptBase64(b64Key, val)
-	assert.Error(t, err)
+	require.Error(t, err)
 	dst, err := EcbEncryptBase64(b64Key, b64Val)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	_, err = EcbDecryptBase64(badKey1, dst)
-	assert.Error(t, err)
+	require.Error(t, err)
 	_, err = EcbDecryptBase64(badKey2, dst)
-	assert.Error(t, err)
+	require.Error(t, err)
 	_, err = EcbDecryptBase64(b64Key, val)
-	assert.Error(t, err)
+	require.Error(t, err)
 	src, err := EcbDecryptBase64(b64Key, dst)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	b, err := base64.StdEncoding.DecodeString(src)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, val, string(b))
 }
 
@@ -116,7 +117,7 @@ func TestPkcs5UnpaddingMalformedPadding(t *testing.T) {
 		0x41, 0x41, 0x41, 0x41, 0x41, 0x03, 0x03, 0x03,
 	}
 	result, err := pkcs5Unpadding(valid, 16)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, valid[:13], result)
 }
 

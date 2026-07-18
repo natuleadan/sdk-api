@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewWriter(t *testing.T) {
@@ -103,7 +104,7 @@ func TestNewFileWriter(t *testing.T) {
 		_, err := newFileWriter(LogConf{
 			Path: "/not-exists",
 		})
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 }
 
@@ -325,7 +326,7 @@ func TestComboWriter(t *testing.T) {
 			}
 		}
 		err := cw.Close()
-		assert.Error(t, err)
+		require.Error(t, err)
 		for _, mw := range cw.writers {
 			mw.(*tracedWriter).AssertCalled(t, "Close")
 		}

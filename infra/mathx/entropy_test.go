@@ -18,7 +18,7 @@ func TestCalcEntropy(t *testing.T) {
 
 func TestCalcEmptyEntropy(t *testing.T) {
 	m := make(map[any]int)
-	assert.Equal(t, float64(1), CalcEntropy(m))
+	assert.InDelta(t, 1.0, CalcEntropy(m), 0.01)
 }
 
 func TestCalcDiffEntropy(t *testing.T) {
@@ -34,5 +34,5 @@ func TestCalcEntropySingleItem(t *testing.T) {
 	m := map[any]int{
 		"only": 42,
 	}
-	assert.Equal(t, float64(1), CalcEntropy(m))
+	assert.InDelta(t, 1.0, CalcEntropy(m), 0.01)
 }

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTomlToJson(t *testing.T) {
@@ -46,7 +47,7 @@ func TestTomlToJson(t *testing.T) {
 		t.Run(test.input, func(t *testing.T) {
 			t.Parallel()
 			got, err := TomlToJson([]byte(test.input))
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, test.expect, string(got))
 		})
 	}
@@ -96,7 +97,7 @@ func TestYamlToJson(t *testing.T) {
 		t.Run(test.input, func(t *testing.T) {
 			t.Parallel()
 			got, err := YamlToJson([]byte(test.input))
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, test.expect, string(got))
 		})
 	}
@@ -111,7 +112,7 @@ func TestYamlToJsonSlice(t *testing.T) {
 	b, err := YamlToJson([]byte(`foo:
 - bar
 - baz`))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.JSONEq(t, `{"foo":["bar","baz"]}
 `, string(b))
 }
@@ -163,7 +164,7 @@ func TestJson5ToJson(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			got, err := Json5ToJson([]byte(test.input))
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, test.expect, string(got))
 		})
 	}
@@ -178,29 +179,29 @@ func TestJson5ToJsonError(t *testing.T) {
 func TestJson5ToJsonInfinity(t *testing.T) {
 	// JSON5 allows Infinity but standard JSON does not
 	_, err := Json5ToJson([]byte(`{value: Infinity}`))
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Infinity")
 
 	// Negative infinity
 	_, err = Json5ToJson([]byte(`{value: -Infinity}`))
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Infinity")
 
 	// Infinity in array
 	_, err = Json5ToJson([]byte(`{values: [1, Infinity, 3]}`))
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Infinity")
 }
 
 func TestJson5ToJsonNaN(t *testing.T) {
 	// JSON5 allows NaN but standard JSON does not
 	_, err := Json5ToJson([]byte(`{value: NaN}`))
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "NaN")
 
 	// NaN in nested structure
 	_, err = Json5ToJson([]byte(`{nested: {value: NaN}}`))
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "NaN")
 }
 
@@ -212,7 +213,7 @@ func TestJson5ToJsonSlice(t *testing.T) {
 			"baz",  // trailing comma
 		],
 	}`))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.JSONEq(t, `{"foo":["bar","baz"]}
 `, string(b))
 }

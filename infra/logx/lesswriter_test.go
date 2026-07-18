@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestLessWriter(t *testing.T) {
@@ -12,7 +13,7 @@ func TestLessWriter(t *testing.T) {
 	w := newLessWriter(&builder, 500)
 	for range 100 {
 		_, err := w.Write([]byte("hello"))
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}
 
 	assert.Equal(t, "hello", builder.String())

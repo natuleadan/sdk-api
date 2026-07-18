@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/sdk/trace"
 )
@@ -782,7 +783,7 @@ func TestSetup(t *testing.T) {
 	setupLogLevel(levelError)
 	setupLogLevel(levelSevere)
 	_, err := createOutput("")
-	assert.Error(t, err)
+	require.Error(t, err)
 	Disable()
 	SetLevel(InfoLevel)
 	atomic.StoreUint32(&encoding, jsonEncodingType)
@@ -1210,6 +1211,6 @@ func TestLogKey(t *testing.T) {
 	assert.NotEmpty(t, m["_trace"])
 	assert.NotEmpty(t, m["_span"])
 	parsedTime, err := time.Parse(timeFormat, m["_timestamp"])
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, now.Minute(), parsedTime.Minute())
 }

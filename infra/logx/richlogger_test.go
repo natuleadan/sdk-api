@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
@@ -464,7 +465,7 @@ func TestLogWithJson(t *testing.T) {
 
 	var val mockValue2
 	err := json.Unmarshal([]byte(w.String()), &val)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	assert.Equal(t, testlog, val.Content)
 	assert.Equal(t, "foo", val.Bar.Name)

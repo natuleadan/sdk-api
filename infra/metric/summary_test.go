@@ -7,6 +7,7 @@ import (
 	"github.com/natuleadan/sdk-api/infra/proc"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewSummaryVec(t *testing.T) {
@@ -63,6 +64,6 @@ func TestSummaryObserve(t *testing.T) {
 `
 
 	err := testutil.CollectAndCompare(sv.summary, strings.NewReader(metadata+val))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	proc.Shutdown()
 }

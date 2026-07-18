@@ -143,7 +143,7 @@ func TestRetryCtx(t *testing.T) {
 			time.Sleep(time.Millisecond * 150)
 			return errors.New("any")
 		}, WithInterval(time.Millisecond*150)))
-		assert.Equal(t, 1, times)
+		assert.InDelta(t, 1, times, 0.01)
 	})
 
 	t.Run("with deadline not exceeded", func(t *testing.T) {

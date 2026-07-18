@@ -17,6 +17,7 @@ import (
 	"github.com/natuleadan/sdk-api/infra/stores/redis/redistest"
 	"github.com/natuleadan/sdk-api/infra/syncx"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var _ Cache = (*mockedNode)(nil)
@@ -151,17 +152,17 @@ func TestCache_SetDel(t *testing.T) {
 		for i := range total {
 			var val int
 			assert.True(t, c.IsNotFound(c.Get(fmt.Sprintf("key/%d", i), &val)))
-			assert.Equal(t, 0, val)
+			assert.InDelta(t, 0, val, 0.01)
 		}
 	})
 
 	t.Run("test set del error", func(t *testing.T) {
 		r1, err := miniredis.Run()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		defer r1.Close()
 
 		r2, err := miniredis.Run()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		defer r2.Close()
 
 		conf := ClusterConf{
@@ -219,7 +220,7 @@ func TestCache_OneNode(t *testing.T) {
 	for i := range total {
 		var val int
 		assert.True(t, c.IsNotFound(c.Get(fmt.Sprintf("key/%d", i), &val)))
-		assert.Equal(t, 0, val)
+		assert.InDelta(t, 0, val, 0.01)
 	}
 }
 

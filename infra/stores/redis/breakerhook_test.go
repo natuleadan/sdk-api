@@ -9,6 +9,7 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/natuleadan/sdk-api/infra/breaker"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestBreakerHook_ProcessHook(t *testing.T) {
@@ -65,7 +66,7 @@ func TestBreakerHook_ProcessHook(t *testing.T) {
 		var err error
 
 		node, err := getRedis(rds)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		for range 1000 {
 			_, err = rds.Blpop(node, "key")

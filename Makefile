@@ -6,6 +6,7 @@ build: third-party
 	go build ./...
 
 lint:
+	golangci-lint run ./... --timeout=5m
 	go vet ./...
 
 test-unit:

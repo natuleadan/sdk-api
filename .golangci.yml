@@ -5,12 +5,13 @@ run:
 linters:
   default: none
   enable:
-    - errcheck
     - govet
-    - ineffassign
     - staticcheck
+    - errcheck
     - unused
+    - ineffassign
     - gosec
+    - testifylint
     - bodyclose
     - noctx
     - sqlclosecheck
@@ -39,3 +40,11 @@ linters:
           - bodyclose
       - path: _test\.go
         text: "SA5008"
+      - path: (infra|internal)/.*_test\.go
+        linters:
+          - testifylint
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports

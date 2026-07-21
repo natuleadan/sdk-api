@@ -54,3 +54,5 @@ examples/400-auth/*/auth-*
 
 # Deprecated examples
 /examples/_deprecated
+*-old*
+*-backup*

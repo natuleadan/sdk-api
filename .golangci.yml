@@ -31,6 +31,7 @@ linters:
   exclusions:
     paths:
       - .*\.pb\.go
+      - .*_test\.go
       - internal/mock/
     rules:
       - path: _test\.go

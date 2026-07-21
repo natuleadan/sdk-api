@@ -57,6 +57,16 @@ func (b nopBreaker) DoWithFallbackAcceptableCtx(_ context.Context, req func() er
 	return req()
 }
 
+func (b nopBreaker) IsOpen() bool {
+	return false
+}
+
+func (b nopBreaker) ForceOpen() {
+}
+
+func (b nopBreaker) ForceClose() {
+}
+
 type nopPromise struct{}
 
 func (p nopPromise) Accept() {

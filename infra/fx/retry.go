@@ -2,7 +2,9 @@ package fx
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
+	"math/big"
 	"time"
 
 	"github.com/natuleadan/sdk-api/infra/errorx"
@@ -11,32 +13,25 @@ import (
 const defaultRetryTimes = 3
 
 type (
-	// RetryOption defines the method to customize DoWithRetry.
 	RetryOption func(*retryOptions)
 
 	retryOptions struct {
-		times        int
-		interval     time.Duration
-		timeout      time.Duration
-		ignoreErrors []error
+		times            int
+		interval         time.Duration
+		backoffInitial   time.Duration
+		backoffMax       time.Duration
+		backoffMultipler float64
+		timeout          time.Duration
+		ignoreErrors     []error
 	}
 )
 
-// DoWithRetry runs fn, and retries if failed. Default to retry 3 times.
-// Note that if the fn function accesses global variables outside the function
-// and performs modification operations, it is best to lock them,
-// otherwise there may be data race issues
 func DoWithRetry(fn func() error, opts ...RetryOption) error {
 	return retry(context.Background(), func(errChan chan error, retryCount int) {
 		errChan <- fn()
 	}, opts...)
 }
 
-// DoWithRetryCtx runs fn, and retries if failed. Default to retry 3 times.
-// fn retryCount indicates the current number of retries, starting from 0
-// Note that if the fn function accesses global variables outside the function
-// and performs modification operations, it is best to lock them,
-// otherwise there may be data race issues
 func DoWithRetryCtx(ctx context.Context, fn func(ctx context.Context, retryCount int) error,
 	opts ...RetryOption,
 ) error {
@@ -79,12 +74,18 @@ func retry(ctx context.Context, fn func(errChan chan error, retryCount int), opt
 			return berr.Err()
 		}
 
-		if options.interval > 0 {
-			select {
-			case <-ctx.Done():
-				berr.Add(ctx.Err())
-				return berr.Err()
-			case <-time.After(options.interval):
+		if i < options.times-1 {
+			wait := options.interval
+			if options.backoffInitial > 0 {
+				wait = nextBackoff(i, options.backoffInitial, options.backoffMax, options.backoffMultipler)
+			}
+			if wait > 0 {
+				select {
+				case <-ctx.Done():
+					berr.Add(ctx.Err())
+					return berr.Err()
+				case <-time.After(wait):
+				}
 			}
 		}
 	}
@@ -92,31 +93,54 @@ func retry(ctx context.Context, fn func(errChan chan error, retryCount int), opt
 	return berr.Err()
 }
 
-// WithIgnoreErrors Ignore the specified errors
+func nextBackoff(attempt int, initial, max time.Duration, multiplier float64) time.Duration {
+	d := float64(initial)
+	for range attempt {
+		d *= multiplier
+		if d >= float64(max) {
+			return max
+		}
+	}
+	n, err := rand.Int(rand.Reader, big.NewInt(1000))
+	if err != nil {
+		return max
+	}
+	d += float64(n.Int64()) * float64(time.Millisecond)
+	if d >= float64(max) {
+		return max
+	}
+	return time.Duration(d)
+}
+
 func WithIgnoreErrors(ignoreErrors []error) RetryOption {
 	return func(options *retryOptions) {
 		options.ignoreErrors = ignoreErrors
 	}
 }
 
-// WithInterval customizes a DoWithRetry call with given interval.
 func WithInterval(interval time.Duration) RetryOption {
 	return func(options *retryOptions) {
 		options.interval = interval
 	}
 }
 
-// WithRetry customizes a DoWithRetry call with given retry times.
 func WithRetry(times int) RetryOption {
 	return func(options *retryOptions) {
 		options.times = times
 	}
 }
 
-// WithTimeout customizes a DoWithRetry call with given timeout.
 func WithTimeout(timeout time.Duration) RetryOption {
 	return func(options *retryOptions) {
 		options.timeout = timeout
+	}
+}
+
+func WithBackoff(initial, max time.Duration, multiplier float64) RetryOption {
+	return func(options *retryOptions) {
+		options.backoffInitial = initial
+		options.backoffMax = max
+		options.backoffMultipler = multiplier
 	}
 }
 

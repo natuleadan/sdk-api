@@ -1,6 +1,7 @@
 package breaker
 
 import (
+	"sync/atomic"
 	"time"
 
 	"github.com/natuleadan/sdk-api/infra/collection"
@@ -23,10 +24,11 @@ const (
 // see Client-Side Throttling section in https://landing.google.com/sre/sre-book/chapters/handling-overload/
 type (
 	googleBreaker struct {
-		k        float64
-		stat     *collection.RollingWindow[int64, *bucket]
-		proba    *mathx.Proba
-		lastPass *syncx.AtomicDuration
+		k          float64
+		stat       *collection.RollingWindow[int64, *bucket]
+		proba      *mathx.Proba
+		lastPass   *syncx.AtomicDuration
+		manualOpen atomic.Bool
 	}
 
 	windowResult struct {
@@ -51,6 +53,9 @@ func newGoogleBreaker() *googleBreaker {
 }
 
 func (b *googleBreaker) accept() error {
+	if b.manualOpen.Load() {
+		return ErrServiceUnavailable
+	}
 	history := b.history()
 	weightFactor := b.k - (b.k-minK)*float64(history.failingBuckets)/buckets
 	weightedAccepts := mathx.AtLeast(weightFactor, minK) * float64(history.accepts)
@@ -156,4 +161,16 @@ func (p googlePromise) Accept() {
 
 func (p googlePromise) Reject() {
 	p.b.markFailure()
+}
+
+func (b *googleBreaker) IsOpen() bool {
+	return b.accept() != nil
+}
+
+func (b *googleBreaker) ForceOpen() {
+	b.manualOpen.Store(true)
+}
+
+func (b *googleBreaker) ForceClose() {
+	b.manualOpen.Store(false)
 }

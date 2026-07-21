@@ -216,7 +216,7 @@ func TestNewModel(t *testing.T) {
 
 func Test_newModel(t *testing.T) {
 	Inject("mongodb://localhost:27019", &mongo.Client{})
-	newModel("mongodb://localhost:27019", nil, nil, nil)
+	newModel("mongodb://localhost:27019", nil, nil, nil, nil)
 }
 
 func Test_mockMonClient_StartSession(t *testing.T) {

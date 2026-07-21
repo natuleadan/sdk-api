@@ -99,6 +99,21 @@ func NoBreakerFor(name string) {
 	lock.Unlock()
 }
 
+type BreakerInfo struct {
+	Name string
+	Open bool
+}
+
+func States() []BreakerInfo {
+	lock.RLock()
+	defer lock.RUnlock()
+	infos := make([]BreakerInfo, 0, len(breakers))
+	for name, b := range breakers {
+		infos = append(infos, BreakerInfo{Name: name, Open: b.IsOpen()})
+	}
+	return infos
+}
+
 func do(name string, execute func(b Breaker) error) error {
 	return execute(GetBreaker(name))
 }

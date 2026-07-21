@@ -558,3 +558,9 @@ func (d *dropBreaker) DoWithFallbackAcceptableCtx(_ context.Context, _ func() er
 ) error {
 	return nil
 }
+
+func (d *dropBreaker) IsOpen() bool { return true }
+
+func (d *dropBreaker) ForceOpen() {}
+
+func (d *dropBreaker) ForceClose() {}

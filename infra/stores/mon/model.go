@@ -26,10 +26,11 @@ type (
 	// Model is a mongodb store model that represents a collection.
 	Model struct {
 		Collection
-		name string
-		cli  monClient
-		brk  breaker.Breaker
-		opts []Option
+		rawColl *mongo.Collection
+		name    string
+		cli     monClient
+		brk     breaker.Breaker
+		opts    []Option
 	}
 
 	Session struct {
@@ -55,15 +56,17 @@ func NewModel(uri, db, collection string, opts ...Option) (*Model, error) {
 
 	name := strings.Join([]string{uri, collection}, "/")
 	brk := breaker.GetBreaker(uri)
-	coll := newCollection(cli.Database(db).Collection(collection), brk)
-	return newModel(name, cli, coll, brk, opts...), nil
+	rawColl := cli.Database(db).Collection(collection)
+	coll := newCollection(rawColl, brk)
+	return newModel(name, rawColl, cli, coll, brk, opts...), nil
 }
 
-func newModel(name string, cli *mongo.Client, coll Collection, brk breaker.Breaker,
+func newModel(name string, rawColl *mongo.Collection, cli *mongo.Client, coll Collection, brk breaker.Breaker,
 	opts ...Option,
 ) *Model {
 	return &Model{
 		name:       name,
+		rawColl:    rawColl,
 		Collection: coll,
 		cli:        &wrappedMonClient{c: cli},
 		brk:        brk,
@@ -146,6 +149,75 @@ func (m *Model) Find(ctx context.Context, v, filter any,
 	}()
 
 	return cur.All(ctx, v)
+}
+
+// RawCollection returns the underlying raw *mongo.Collection, bypassing the circuit breaker,
+// tracing span, and duration logging. Use for high-throughput CRUD that manages its own cursor.
+func (m *Model) RawCollection() *mongo.Collection {
+	return m.rawColl
+}
+
+// FindNoBreaker runs Find directly on the raw mongo.Collection, bypassing the circuit breaker,
+// tracing span, and duration logging. Use for high-throughput CRUD operations.
+func (m *Model) FindNoBreaker(ctx context.Context, v, filter any,
+	opts ...options.Lister[options.FindOptions],
+) error {
+	cur, err := m.rawColl.Find(ctx, filter, opts...)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := cur.Close(ctx); err != nil {
+			fmt.Fprintf(os.Stderr, "mongo: cursor close error: %v\n", err)
+		}
+	}()
+
+	return cur.All(ctx, v)
+}
+
+// CountDocumentsNoBreaker runs CountDocuments directly on the raw mongo.Collection, bypassing
+// the circuit breaker, tracing span, and duration logging.
+func (m *Model) CountDocumentsNoBreaker(ctx context.Context, filter any,
+	opts ...options.Lister[options.CountOptions],
+) (int64, error) {
+	return m.rawColl.CountDocuments(ctx, filter, opts...)
+}
+
+// EstimatedDocumentCountNoBreaker runs EstimatedDocumentCount directly on the raw mongo.Collection.
+// It uses collection metadata (fast, but may be stale). Useful for pagination total.
+func (m *Model) EstimatedDocumentCountNoBreaker(ctx context.Context,
+	opts ...options.Lister[options.EstimatedDocumentCountOptions],
+) (int64, error) {
+	return m.rawColl.EstimatedDocumentCount(ctx, opts...)
+}
+
+// FindOneNoBreaker runs FindOne directly on the raw mongo.Collection, bypassing breaker/span/log.
+func (m *Model) FindOneNoBreaker(ctx context.Context, v, filter any,
+	opts ...options.Lister[options.FindOneOptions],
+) error {
+	res := m.rawColl.FindOne(ctx, filter, opts...)
+	return res.Decode(v)
+}
+
+// InsertOneNoBreaker runs InsertOne directly on the raw mongo.Collection, bypassing breaker/span/log.
+func (m *Model) InsertOneNoBreaker(ctx context.Context, doc any,
+	opts ...options.Lister[options.InsertOneOptions],
+) (*mongo.InsertOneResult, error) {
+	return m.rawColl.InsertOne(ctx, doc, opts...)
+}
+
+// UpdateOneNoBreaker runs UpdateOne directly on the raw mongo.Collection, bypassing breaker/span/log.
+func (m *Model) UpdateOneNoBreaker(ctx context.Context, filter, update any,
+	opts ...options.Lister[options.UpdateOneOptions],
+) (*mongo.UpdateResult, error) {
+	return m.rawColl.UpdateOne(ctx, filter, update, opts...)
+}
+
+// DeleteOneNoBreaker runs DeleteOne directly on the raw mongo.Collection, bypassing breaker/span/log.
+func (m *Model) DeleteOneNoBreaker(ctx context.Context, filter any,
+	opts ...options.Lister[options.DeleteOneOptions],
+) (*mongo.DeleteResult, error) {
+	return m.rawColl.DeleteOne(ctx, filter, opts...)
 }
 
 // FindOne finds the first document that matches the filter.

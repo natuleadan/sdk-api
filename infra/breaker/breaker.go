@@ -70,6 +70,13 @@ type (
 		// DoWithFallbackAcceptableCtx runs the given request if the Breaker accepts it when ctx isn't done.
 		DoWithFallbackAcceptableCtx(ctx context.Context, req func() error, fallback Fallback,
 			acceptable Acceptable) error
+
+		// IsOpen returns true if the breaker is currently rejecting requests.
+		IsOpen() bool
+		// ForceOpen forces the breaker to reject all requests.
+		ForceOpen()
+		// ForceClose forces the breaker to accept all requests.
+		ForceClose()
 	}
 
 	// Fallback is the func to be called if the request is rejected.
@@ -94,6 +101,7 @@ type (
 	circuitBreaker struct {
 		name string
 		throttle
+		gb *googleBreaker
 	}
 
 	internalThrottle interface {
@@ -117,7 +125,8 @@ func NewBreaker(opts ...Option) Breaker {
 	if len(b.name) == 0 {
 		b.name = stringx.Rand()
 	}
-	b.throttle = newLoggedThrottle(b.name, newGoogleBreaker())
+	b.gb = newGoogleBreaker()
+	b.throttle = newLoggedThrottle(b.name, b.gb)
 
 	return &b
 }
@@ -197,6 +206,18 @@ func (cb *circuitBreaker) DoWithFallbackAcceptableCtx(ctx context.Context, req f
 
 func (cb *circuitBreaker) Name() string {
 	return cb.name
+}
+
+func (cb *circuitBreaker) IsOpen() bool {
+	return cb.gb.IsOpen()
+}
+
+func (cb *circuitBreaker) ForceOpen() {
+	cb.gb.ForceOpen()
+}
+
+func (cb *circuitBreaker) ForceClose() {
+	cb.gb.ForceClose()
 }
 
 // WithName returns a function to set the name of a Breaker.

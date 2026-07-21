@@ -29,8 +29,8 @@ type (
 	// A Cache object is an in-memory cache.
 	Cache struct {
 		name           string
-		lock           sync.Mutex
-		data           map[string]any
+		data           sync.Map
+		lruLock        sync.Mutex
 		expire         time.Duration
 		timingWheel    *TimingWheel
 		lruCache       lru
@@ -43,7 +43,6 @@ type (
 // NewCache returns a Cache with given expire.
 func NewCache(expire time.Duration, opts ...CacheOption) (*Cache, error) {
 	cache := &Cache{
-		data:           make(map[string]any),
 		expire:         expire,
 		lruCache:       emptyLruCache,
 		barrier:        syncx.NewSingleFlight(),
@@ -77,14 +76,11 @@ func NewCache(expire time.Duration, opts ...CacheOption) (*Cache, error) {
 
 // Del deletes the item with the given key from c.
 func (c *Cache) Del(key string) {
-	c.lock.Lock()
-	delete(c.data, key)
+	c.data.Delete(key)
+	c.lruLock.Lock()
 	c.lruCache.remove(key)
-	c.lock.Unlock()
+	c.lruLock.Unlock()
 
-	// RemoveTimer is called outside the lock to avoid performance impact from this
-	// potentially time-consuming operation. Data integrity is maintained by lruCache,
-	// which will eventually evict any remaining entries when capacity is exceeded.
 	if err := c.timingWheel.RemoveTimer(key); err != nil {
 		logx.Errorf("cache: remove timer error: %v", err)
 	}
@@ -109,14 +105,13 @@ func (c *Cache) Set(key string, value any) {
 
 // SetWithExpire sets value into c with key and expire with the given value.
 func (c *Cache) SetWithExpire(key string, value any, expire time.Duration) {
-	c.lock.Lock()
-	_, ok := c.data[key]
-	c.data[key] = value
+	_, loaded := c.data.LoadOrStore(key, value)
+	c.lruLock.Lock()
 	c.lruCache.add(key)
-	c.lock.Unlock()
+	c.lruLock.Unlock()
 
 	expiry := c.unstableExpiry.AroundDuration(expire)
-	if ok {
+	if loaded {
 		if err := c.timingWheel.MoveTimer(key, expiry); err != nil {
 			logx.Errorf("cache: move timer error: %v", err)
 		}
@@ -168,29 +163,30 @@ func (c *Cache) Take(key string, fetch func() (any, error)) (any, error) {
 }
 
 func (c *Cache) doGet(key string) (any, bool) {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
-	value, ok := c.data[key]
+	value, ok := c.data.Load(key)
 	if ok {
+		c.lruLock.Lock()
 		c.lruCache.add(key)
+		c.lruLock.Unlock()
 	}
 
 	return value, ok
 }
 
 func (c *Cache) onEvict(key string) {
-	// already locked
-	delete(c.data, key)
+	c.data.Delete(key)
 	if err := c.timingWheel.RemoveTimer(key); err != nil {
 		logx.Errorf("cache: remove timer error: %v", err)
 	}
 }
 
 func (c *Cache) size() int {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-	return len(c.data)
+	var count int
+	c.data.Range(func(_, _ any) bool {
+		count++
+		return true
+	})
+	return count
 }
 
 // WithLimit customizes a Cache with items up to limit.

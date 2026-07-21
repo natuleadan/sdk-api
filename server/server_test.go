@@ -99,7 +99,9 @@ func TestDefaultConfig(t *testing.T) {
 func TestRecoveryMiddleware(t *testing.T) {
 	t.Parallel()
 	logx.Disable()
-	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, nil)
+	cfg := DefaultConfig()
+	cfg.Breaker = false
+	app := New(cfg, TelemetryConfig{}, SecurityConfig{}, nil)
 	app.app.Get("/panic", func(_ fiber.Ctx) error {
 		panic("test panic")
 	})
@@ -319,7 +321,9 @@ func TestOopsErrorHandler_4xxWithCode(t *testing.T) {
 func TestOopsErrorHandler_5xxWithCode(t *testing.T) {
 	t.Parallel()
 	logx.Disable()
-	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, nil)
+	cfg := DefaultConfig()
+	cfg.Breaker = false
+	app := New(cfg, TelemetryConfig{}, SecurityConfig{}, nil)
 	app.app.Get("/db-error", func(_ fiber.Ctx) error {
 		return errcode.ErrDBQuery("select", "users", fmt.Errorf("connection refused"))
 	})
@@ -497,6 +501,82 @@ func TestTelemetry_Disabled(t *testing.T) {
 	assert.Equal(t, 200, resp.StatusCode)
 	// No X-Trace-Id header when telemetry is disabled
 	assert.Empty(t, resp.Header.Get("X-Trace-Id"))
+}
+
+func TestCorrelationID_Enabled(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+	cfg := DefaultConfig()
+	cfg.Correlation = &CorrelationConfig{
+		Enabled:        true,
+		RequestHeader:  "X-Correlation-ID",
+		ResponseHeader: "X-Correlation-ID",
+	}
+	app := New(cfg, TelemetryConfig{}, SecurityConfig{}, nil)
+	app.app.Get("/ping", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	req := testRequest("/ping")
+	req.Header.Set("X-Correlation-ID", "my-custom-id")
+	resp, err := app.app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+	assert.Equal(t, "my-custom-id", resp.Header.Get("X-Correlation-ID"))
+}
+
+func TestCorrelationID_Generated(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+	cfg := DefaultConfig()
+	cfg.Correlation = &CorrelationConfig{
+		Enabled:        true,
+		ResponseHeader: "X-Correlation-ID",
+	}
+	app := New(cfg, TelemetryConfig{}, SecurityConfig{}, nil)
+	app.app.Get("/ping", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	req := testRequest("/ping")
+	resp, err := app.app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+	assert.NotEmpty(t, resp.Header.Get("X-Correlation-ID"))
+}
+
+func TestCorrelationID_Disabled(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, nil)
+	app.app.Get("/ping", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	req := testRequest("/ping")
+	resp, err := app.app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+	assert.Empty(t, resp.Header.Get("X-Correlation-ID"))
+}
+
+func TestCorrelationID_SkipPaths(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+	cfg := DefaultConfig()
+	cfg.Correlation = &CorrelationConfig{
+		Enabled:        true,
+		ResponseHeader: "X-Correlation-ID",
+		SkipPaths:      []string{"/health"},
+	}
+	app := New(cfg, TelemetryConfig{}, SecurityConfig{}, nil)
+
+	// Skipped path should not have correlation ID
+	req := testRequest("/health")
+	resp, err := app.app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+	assert.Empty(t, resp.Header.Get("X-Correlation-ID"))
 }
 
 func TestErrorHandler_5xxAlwaysSanitizes(t *testing.T) {

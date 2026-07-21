@@ -49,6 +49,15 @@ type Config struct {
 	RateLimit       *middleware.RateLimitConfig
 	TLS             *TLSConfig
 	SSRF            *middleware.SSRFConfig
+	// Correlation enables the X-Correlation-ID tracking middleware.
+	Correlation *CorrelationConfig
+}
+
+type CorrelationConfig struct {
+	Enabled        bool
+	RequestHeader  string
+	ResponseHeader string
+	SkipPaths      []string
 }
 
 type TelemetryConfig struct {
@@ -109,7 +118,7 @@ func DefaultConfig() Config {
 		HealthPath:      "/health",
 		ShutdownTimeout: 10 * time.Second,
 		RecoverStack:    true,
-		APIPrefix:       "/api/v1",
+		APIPrefix:       "/api",
 		Logger:          true,
 		LoadShedding:    true,
 		Breaker:         true,
@@ -157,6 +166,13 @@ func New(cfg Config, telemetry TelemetryConfig, security SecurityConfig, corsCfg
 func setupGlobalMiddlewares(app *fiber.App, cfg Config, telemetry TelemetryConfig) {
 	app.Use(recover.New(recover.Config{EnableStackTrace: cfg.RecoverStack}))
 	app.Use(middleware.HeaderSanitize())
+	if cfg.Correlation != nil && cfg.Correlation.Enabled {
+		app.Use(middleware.Correlation(middleware.CorrelationConfig{
+			RequestHeader:  cfg.Correlation.RequestHeader,
+			ResponseHeader: cfg.Correlation.ResponseHeader,
+			SkipPaths:      cfg.Correlation.SkipPaths,
+		}))
+	}
 	app.Get(cfg.HealthPath, healthcheck.New(healthcheck.Config{
 		Probe: func(_ fiber.Ctx) bool { return true },
 	}))

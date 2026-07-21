@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/golang-jwt/jwt/v5"
@@ -181,6 +182,129 @@ func (s *MiddlewareSuite) TestGunzip() {
 	s.Equal(200, resp.StatusCode)
 	body, _ := io.ReadAll(resp.Body)
 	s.Contains(string(body), "compressed")
+}
+
+func (s *MiddlewareSuite) TestCorrelationID_Generated() {
+	s.app.Use(Correlation(DefaultCorrelationConfig()))
+	s.app.Get("/test", func(c fiber.Ctx) error {
+		id := GetCorrelationID(c)
+		s.NotEmpty(id)
+		return c.SendString(id)
+	})
+
+	req := testRequest(context.Background(), "GET", "/test", nil)
+	resp, _ := s.app.Test(req)
+	s.Equal(http.StatusOK, resp.StatusCode)
+	body, _ := io.ReadAll(resp.Body)
+	s.GreaterOrEqual(len(string(body)), 36)
+}
+
+func (s *MiddlewareSuite) TestCorrelationID_FromHeader() {
+	s.app.Use(Correlation(DefaultCorrelationConfig()))
+	s.app.Get("/test", func(c fiber.Ctx) error {
+		id := GetCorrelationID(c)
+		return c.SendString(id)
+	})
+
+	req := testRequest(context.Background(), "GET", "/test", nil)
+	req.Header.Set("X-Correlation-ID", "my-custom-id")
+	resp, _ := s.app.Test(req)
+	s.Equal(http.StatusOK, resp.StatusCode)
+	body, _ := io.ReadAll(resp.Body)
+	s.Equal("my-custom-id", string(body))
+}
+
+func (s *MiddlewareSuite) TestCorrelationID_ResponseHeader() {
+	s.app.Use(Correlation(DefaultCorrelationConfig()))
+	s.app.Get("/test", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	req := testRequest(context.Background(), "GET", "/test", nil)
+	resp, _ := s.app.Test(req)
+	s.Equal(http.StatusOK, resp.StatusCode)
+	s.NotEmpty(resp.Header.Get("X-Correlation-ID"))
+}
+
+func (s *MiddlewareSuite) TestCorrelationID_SkipPath() {
+	s.app.Use(Correlation(CorrelationConfig{
+		SkipPaths: []string{"/health"},
+	}))
+	s.app.Get("/health", func(c fiber.Ctx) error {
+		id := GetCorrelationID(c)
+		return c.SendString(id)
+	})
+
+	req := testRequest(context.Background(), "GET", "/health", nil)
+	resp, _ := s.app.Test(req)
+	s.Equal(http.StatusOK, resp.StatusCode)
+	body, _ := io.ReadAll(resp.Body)
+	s.Empty(string(body))
+}
+
+func (s *MiddlewareSuite) TestDeprecation_Current() {
+	s.app.Use(Deprecation(DeprecationConfig{Status: "current"}))
+	s.app.Get("/test", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	req := testRequest(context.Background(), "GET", "/test", nil)
+	resp, _ := s.app.Test(req)
+	s.Equal(http.StatusOK, resp.StatusCode)
+	s.Empty(resp.Header.Get("Deprecation"))
+	s.Empty(resp.Header.Get("Sunset"))
+}
+
+func (s *MiddlewareSuite) TestDeprecation_Deprecated() {
+	s.app.Use(Deprecation(DeprecationConfig{Status: "deprecated"}))
+	s.app.Get("/test", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	req := testRequest(context.Background(), "GET", "/test", nil)
+	resp, _ := s.app.Test(req)
+	s.Equal(http.StatusOK, resp.StatusCode)
+	s.Equal("true", resp.Header.Get("Deprecation"))
+}
+
+func (s *MiddlewareSuite) TestDeprecation_Removed() {
+	s.app.Use(Deprecation(DeprecationConfig{Status: "removed"}))
+	s.app.Get("/test", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	req := testRequest(context.Background(), "GET", "/test", nil)
+	resp, _ := s.app.Test(req)
+	s.Equal(http.StatusGone, resp.StatusCode)
+	s.Equal("true", resp.Header.Get("Deprecation"))
+}
+
+func (s *MiddlewareSuite) TestDeprecation_WithSunset() {
+	sunset := time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC)
+	s.app.Use(Deprecation(DeprecationConfig{Status: "deprecated", SunsetDate: sunset}))
+	s.app.Get("/test", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	req := testRequest(context.Background(), "GET", "/test", nil)
+	resp, _ := s.app.Test(req)
+	s.Equal(http.StatusOK, resp.StatusCode)
+	s.Equal("true", resp.Header.Get("Deprecation"))
+	s.Contains(resp.Header.Get("Sunset"), "2027")
+}
+
+func (s *MiddlewareSuite) TestDeprecation_RemovedWithSunset() {
+	sunset := time.Date(2025, 6, 30, 0, 0, 0, 0, time.UTC)
+	s.app.Use(Deprecation(DeprecationConfig{Status: "removed", SunsetDate: sunset}))
+	s.app.Get("/test", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	req := testRequest(context.Background(), "GET", "/test", nil)
+	resp, _ := s.app.Test(req)
+	s.Equal(http.StatusGone, resp.StatusCode)
+	s.Equal("true", resp.Header.Get("Deprecation"))
+	s.Contains(resp.Header.Get("Sunset"), "2025")
 }
 
 func TestMiddlewareSuite(t *testing.T) {

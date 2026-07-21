@@ -691,6 +691,39 @@ func TestMaxConns(t *testing.T) {
 	}
 }
 
+func TestMaxConns_Exceeded(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+
+	block := make(chan struct{})
+	app := fiber.New()
+	app.Use(MaxConns(1))
+	app.Get("/block", func(c fiber.Ctx) error {
+		<-block
+		return c.SendString("ok")
+	})
+	app.Get("/fast", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	// Saturate the semaphore with a blocking request
+	go func() {
+		req := testRequest(context.Background(), "GET", "/block", nil)
+		_, _ = app.Test(req)
+	}()
+
+	// Give the goroutine time to acquire the slot
+	time.Sleep(50 * time.Millisecond)
+
+	// Second request should be rejected (semaphore full)
+	req := testRequest(context.Background(), "GET", "/fast", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+
+	close(block)
+}
+
 func TestGunzip(t *testing.T) {
 	t.Parallel()
 	logx.Disable()
@@ -758,6 +791,43 @@ func TestShedding(t *testing.T) {
 	req := testRequest(context.Background(), "GET", "/test", nil)
 	resp, _ := app.Test(req)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
+func TestShedding_Rejection(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+	app := fiber.New()
+	app.Use(Shedding(SheddingConfig{
+		Allow: func() error {
+			return assert.AnError
+		},
+	}))
+	app.Get("/test", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	req := testRequest(context.Background(), "GET", "/test", nil)
+	resp, _ := app.Test(req)
+	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+}
+
+func TestShedding_RejectionMessage(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+	app := fiber.New()
+	app.Use(Shedding(SheddingConfig{
+		Allow: func() error {
+			return assert.AnError
+		},
+	}))
+	app.Get("/test", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	req := testRequest(context.Background(), "GET", "/test", nil)
+	resp, _ := app.Test(req)
+	body, _ := io.ReadAll(resp.Body)
+	assert.Contains(t, string(body), "server is overloaded")
 }
 
 func TestBreaker(t *testing.T) {
@@ -2222,6 +2292,153 @@ func TestRateLimitPost_MaxFunc(t *testing.T) {
 	if callCount == 0 {
 		t.Error("MaxFunc was never called")
 	}
+}
+
+// --- Retry Tests ---
+
+func TestRetry_NotIdempotent(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+	app := fiber.New()
+	app.Use(Retry(RetryConfig{MaxRetries: 2}))
+	app.Post("/test", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	req := testRequest(context.Background(), "POST", "/test", nil)
+	resp, _ := app.Test(req)
+	assert.Equal(t, 200, resp.StatusCode)
+}
+
+func TestRetry_SuccessFirstTry(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+	app := fiber.New()
+	app.Use(Retry(RetryConfig{MaxRetries: 2}))
+	app.Get("/test", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	req := testRequest(context.Background(), "GET", "/test", nil)
+	resp, _ := app.Test(req)
+	assert.Equal(t, 200, resp.StatusCode)
+}
+
+func TestRetry_RetriesWithFirstAttempt(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+	// Only tests the first attempt path (c.Next()). Retries via
+	// fasthttp.Do require a running server, tested in integration.
+	app := fiber.New()
+	app.Use(Retry(RetryConfig{MaxRetries: 2}))
+	app.Get("/test", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	req := testRequest(context.Background(), "GET", "/test", nil)
+	resp, _ := app.Test(req)
+	assert.Equal(t, 200, resp.StatusCode)
+}
+
+func TestNextBackoffDuration(t *testing.T) {
+	t.Parallel()
+	d := nextBackoffDuration(0, time.Second, 32*time.Second, 2.0)
+	assert.GreaterOrEqual(t, d, time.Second)
+	assert.LessOrEqual(t, d, 2*time.Second)
+
+	d = nextBackoffDuration(1, time.Second, 32*time.Second, 2.0)
+	assert.GreaterOrEqual(t, d, 2*time.Second)
+	assert.LessOrEqual(t, d, 3*time.Second+time.Second)
+}
+
+// --- Fallback Tests ---
+
+func TestFallback_Disabled(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+	app := fiber.New()
+	app.Use(Fallback(FallbackConfig{Mode: ""}))
+	app.Get("/test", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	req := testRequest(context.Background(), "GET", "/test", nil)
+	resp, _ := app.Test(req)
+	assert.Equal(t, 200, resp.StatusCode)
+}
+
+func TestFallback_Degraded(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+	app := fiber.New()
+	app.Use(Fallback(FallbackConfig{Mode: "degraded", Message: "custom msg"}))
+	app.Get("/test", func(c fiber.Ctx) error {
+		return fiber.NewError(fiber.StatusInternalServerError, "db error")
+	})
+
+	req := testRequest(context.Background(), "GET", "/test", nil)
+	resp, _ := app.Test(req)
+	assert.Equal(t, 503, resp.StatusCode)
+	body, _ := io.ReadAll(resp.Body)
+	assert.Contains(t, string(body), "custom msg")
+}
+
+func TestFallback_DegradedDefaultMessage(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+	app := fiber.New()
+	app.Use(Fallback(FallbackConfig{Mode: "degraded"}))
+	app.Get("/test", func(c fiber.Ctx) error {
+		return fiber.NewError(fiber.StatusInternalServerError, "db error")
+	})
+
+	req := testRequest(context.Background(), "GET", "/test", nil)
+	resp, _ := app.Test(req)
+	assert.Equal(t, 503, resp.StatusCode)
+	body, _ := io.ReadAll(resp.Body)
+	assert.Contains(t, string(body), "service temporarily unavailable")
+}
+
+func TestFallback_DegradedPassesSuccess(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+	app := fiber.New()
+	app.Use(Fallback(FallbackConfig{Mode: "degraded"}))
+	app.Get("/test", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	req := testRequest(context.Background(), "GET", "/test", nil)
+	resp, _ := app.Test(req)
+	assert.Equal(t, 200, resp.StatusCode)
+}
+
+func TestFallback_Stale(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+	app := fiber.New()
+	app.Use(Fallback(FallbackConfig{Mode: "stale"}))
+
+	var fail bool
+	app.Get("/test", func(c fiber.Ctx) error {
+		if fail {
+			return fiber.NewError(fiber.StatusInternalServerError, "error")
+		}
+		return c.SendString("cached-response")
+	})
+
+	// First request succeeds and caches response
+	req := testRequest(context.Background(), "GET", "/test", nil)
+	resp, _ := app.Test(req)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	// Second request fails, returns stale cache
+	fail = true
+	req = testRequest(context.Background(), "GET", "/test", nil)
+	resp, _ = app.Test(req)
+	assert.Equal(t, 200, resp.StatusCode)
+	body, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, "cached-response", string(body))
 }
 
 // fiber:context-methods migrated

@@ -8,26 +8,38 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/natuleadan/sdk-api/infra/metric"
+)
+
+var (
+	httpDuration = metric.NewHistogramVec(&metric.HistogramVecOpts{
+		Namespace: "http_server",
+		Name:      "request_duration_ms",
+		Help:      "HTTP request duration in milliseconds",
+		Labels:    []string{"method", "path"},
+		Buckets:   []float64{5, 10, 25, 50, 100, 250, 500, 1000, 2000, 5000},
+	})
+
+	httpErrorsTotal = metric.NewCounterVec(&metric.CounterVecOpts{
+		Namespace: "http_server",
+		Name:      "errors_total",
+		Help:      "HTTP error count by code",
+		Labels:    []string{"method", "path", "code"},
+	})
 )
 
 type metricEntry struct {
 	sync.Mutex
-	count    map[string]uint64
-	duration map[string]float64
-	active   int64
+	count  map[string]uint64
+	active int64
 }
 
 var metrics = &metricEntry{
-	count:    make(map[string]uint64),
-	duration: make(map[string]float64),
+	count: make(map[string]uint64),
 }
 
 func metricKey(method, path, code string) string {
 	return method + ":" + path + ":" + code
-}
-
-func durationKey(method, path string) string {
-	return method + ":" + path
 }
 
 func Prometheus() fiber.Handler {
@@ -37,14 +49,18 @@ func Prometheus() fiber.Handler {
 		metrics.Unlock()
 		start := time.Now()
 		err := c.Next()
-		dur := float64(time.Since(start).Microseconds()) / 1000
+		dur := time.Since(start).Milliseconds()
 		method := c.Method()
 		path := c.Route().Path
 		code := strconv.Itoa(c.Response().StatusCode())
 
+		httpDuration.Observe(dur, method, path)
+		if code >= "400" {
+			httpErrorsTotal.Inc(method, path, code)
+		}
+
 		metrics.Lock()
 		metrics.count[metricKey(method, path, code)]++
-		metrics.duration[durationKey(method, path)] += dur
 		metrics.active--
 		metrics.Unlock()
 		return err
@@ -62,13 +78,6 @@ func PrometheusHandler() fiber.Handler {
 		for key, val := range metrics.count {
 			parts := strings.SplitN(key, ":", 3)
 			fmt.Fprintf(&b, "http_server_requests_total{method=%q,path=%q,code=%q} %d\n", parts[0], parts[1], parts[2], val)
-		}
-		b.WriteString("\n")
-		b.WriteString("# HELP http_server_request_duration_ms HTTP request duration in ms\n")
-		b.WriteString("# TYPE http_server_request_duration_ms summary\n")
-		for key, val := range metrics.duration {
-			parts := strings.SplitN(key, ":", 2)
-			fmt.Fprintf(&b, "http_server_request_duration_ms{method=%q,path=%q,quantile=\"0.99\"} %.2f\n", parts[0], parts[1], val)
 		}
 		b.WriteString("\n")
 		b.WriteString("# HELP http_server_requests_active Active requests\n")

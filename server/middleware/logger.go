@@ -13,12 +13,23 @@ func Logger() fiber.Handler {
 		err := c.Next()
 		duration := time.Since(start)
 
-		logx.Infof("%s %s %d %s",
-			c.Method(),
-			c.Path(),
-			c.Response().StatusCode(),
-			duration,
-		)
+		corrID := GetCorrelationID(c)
+		if corrID != "" {
+			logx.Infof("[%s] %s %s %d %s",
+				corrID,
+				c.Method(),
+				c.Path(),
+				c.Response().StatusCode(),
+				duration,
+			)
+		} else {
+			logx.Infof("%s %s %d %s",
+				c.Method(),
+				c.Path(),
+				c.Response().StatusCode(),
+				duration,
+			)
+		}
 		return err
 	}
 }

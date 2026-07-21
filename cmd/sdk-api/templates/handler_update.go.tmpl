@@ -1,0 +1,22 @@
+package handler
+
+import (
+	"{{.ModulePath}}/internal/logic"
+	"{{.ModulePath}}/internal/svc"
+	"{{.SDKModule}}/runtime"
+)
+
+func Update{{.ModelName}}(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		var req map[string]any
+		if err := c.Bind(&req); err != nil {
+			return err
+		}
+		l := logic.New{{.ModelName}}Logic(svcCtx)
+		updated, err := l.Update(c.Context(), c.Params("id"), req)
+		if err != nil {
+			return err
+		}
+		return c.JSON(updated)
+	}
+}

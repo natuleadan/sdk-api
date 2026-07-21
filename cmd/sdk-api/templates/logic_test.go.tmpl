@@ -1,0 +1,30 @@
+package logic
+
+import (
+	"context"
+	"testing"
+
+	"{{.ModulePath}}/internal/svc"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func Test{{.ModelName}}Logic_List(t *testing.T) {
+	t.Parallel()
+	svcCtx := svc.NewServiceContext()
+	logic := New{{.ModelName}}Logic(svcCtx)
+
+	items, err := logic.List(context.Background())
+	require.NoError(t, err)
+	assert.Empty(t, items)
+}
+
+func Test{{.ModelName}}Logic_Create(t *testing.T) {
+	t.Parallel()
+	svcCtx := svc.NewServiceContext()
+	logic := New{{.ModelName}}Logic(svcCtx)
+
+	item, err := logic.Create(context.Background(), {{.ModelName}}{})
+	require.NoError(t, err)
+	assert.NotNil(t, item)
+}

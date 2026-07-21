@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+package {{.ServiceName}};
+
+option go_package = "{{.ModulePath}}/pb;pb";
+
+service {{.ModelName}}Service {
+  rpc List{{.ModelName}}(List{{.ModelName}}Request) returns (List{{.ModelName}}Response);
+  rpc Get{{.ModelName}}(Get{{.ModelName}}Request) returns ({{.ModelName}});
+  rpc Create{{.ModelName}}(Create{{.ModelName}}Request) returns ({{.ModelName}});
+  rpc Update{{.ModelName}}(Update{{.ModelName}}Request) returns ({{.ModelName}});
+  rpc Delete{{.ModelName}}(Delete{{.ModelName}}Request) returns (Delete{{.ModelName}}Response);
+}
+
+message {{.ModelName}} {
+  int64 id = 1;
+{{- range .ExtraFields}}
+  {{protoType .Type}} {{.Name}} = {{.ProtoIdx}};
+{{- end}}
+}
+
+message List{{.ModelName}}Request {
+  int32 page = 1;
+  int32 size = 2;
+}
+
+message List{{.ModelName}}Response {
+  repeated {{.ModelName}} items = 1;
+  int32 total = 2;
+}
+
+message Get{{.ModelName}}Request {
+  int64 id = 1;
+}
+
+message Create{{.ModelName}}Request {
+{{- range .ExtraFields}}
+  {{protoType .Type}} {{.Name}} = {{.ProtoIdx}};
+{{- end}}
+}
+
+message Update{{.ModelName}}Request {
+  int64 id = 1;
+{{- range .ExtraFields}}
+  optional {{protoType .Type}} {{.Name}} = {{.ProtoIdx}};
+{{- end}}
+}
+
+message Delete{{.ModelName}}Request {
+  int64 id = 1;
+}
+
+message Delete{{.ModelName}}Response {
+  bool ok = 1;
+}

@@ -1,0 +1,23 @@
+package handler
+
+import (
+	"{{.ModulePath}}/internal/logic"
+	"{{.ModulePath}}/internal/svc"
+	"{{.ModulePath}}/models"
+	"{{.SDKModule}}/runtime"
+)
+
+func Create{{.ModelName}}(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		var req models.{{.ModelName}}
+		if err := c.Bind(&req); err != nil {
+			return err
+		}
+		l := logic.New{{.ModelName}}Logic(svcCtx)
+		created, err := l.Create(c.Context(), req)
+		if err != nil {
+			return err
+		}
+		return c.Status(201).JSON(created)
+	}
+}

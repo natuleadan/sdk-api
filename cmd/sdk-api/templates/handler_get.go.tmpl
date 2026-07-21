@@ -1,0 +1,18 @@
+package handler
+
+import (
+	"{{.ModulePath}}/internal/logic"
+	"{{.ModulePath}}/internal/svc"
+	"{{.SDKModule}}/runtime"
+)
+
+func Get{{.ModelName}}(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		l := logic.New{{.ModelName}}Logic(svcCtx)
+		item, err := l.Get(c.Context(), c.Params("id"))
+		if err != nil {
+			return err
+		}
+		return c.JSON(item)
+	}
+}

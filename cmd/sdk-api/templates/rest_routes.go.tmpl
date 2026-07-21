@@ -1,0 +1,12 @@
+package handler
+
+import (
+	"{{.SDKModule}}/runtime"
+	"{{.ModulePath}}/internal/svc"
+)
+
+func RegisterRestRoutes(s *runtime.Service, svcCtx *svc.ServiceContext) {
+{{- range .RestEndpoints}}
+	s.WithRest("{{.HandlerName}}", Handle{{.FuncName}}(svcCtx))
+{{- end}}
+}

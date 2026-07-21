@@ -1,51 +1,85 @@
 package main
 
 import (
-	_ "embed"
-	"flag"
+	"context"
 	"log"
 
+	_ "embed"
+{{- if .GrpcEnabled}}
+	"fmt"
+	"net"
+
+	"{{.ModulePath}}/grpcserver"
+	"{{.ModulePath}}/pb"
+	"google.golang.org/grpc"
+{{- end}}
+
+	"{{.ModulePath}}/internal/svc"
 	"{{.ModulePath}}/models"
 	"{{.SDKModule}}/db"
 	"{{.SDKModule}}/runtime"
+{{- if .HasRest}}
+	"{{.ModulePath}}/internal/handler"
+{{- end}}
 )
 
 //go:embed service.yaml
 var configYAML []byte
 
 func main() {
-	mode := flag.String("mode", "entry", "run mode: entry (HTTP) or exit (workers)")
-	flag.Parse()
-
-	svc, err := runtime.NewFromYAML(configYAML)
+	s, err := runtime.NewFromYAML(configYAML)
 	if err != nil {
 		log.Fatalf("init: %v", err)
 	}
 
+	svcCtx := svc.NewServiceContext()
+
 {{- if .HasDB}}
-	pool := svc.PoolPG("pg-main")
+	pool := s.PoolPG("{{.DBName}}")
+	if pool != nil {
+		svcCtx.SetPool("{{.DBName}}", pool)
+	}
+
 	table, err := db.NewTable[models.{{.ModelName}}](pool, "{{.DBTable}}")
 	if err != nil {
 		log.Fatalf("table: %v", err)
 	}
-	svc.WithCRUD("{{.ModelName}}", runtime.NewCRUDProvider(table, &models.{{.ModelName}}Hooks{}))
-	svc.WithHooks("{{.ModelName}}", &models.{{.ModelName}}Hooks{})
+	if err := table.AutoInit(context.Background()); err != nil {
+		log.Fatalf("auto init: %v", err)
+	}
+	s.WithCRUD("{{.ModelName}}", runtime.NewCRUDProvider(table, &models.{{.ModelName}}Hooks{}))
+	s.WithHooks("{{.ModelName}}", &models.{{.ModelName}}Hooks{})
 {{- end}}
+
+{{- if .GrpcEnabled}}
+	// Start gRPC server in background
+	go func() {
+		grpcPort := {{.GrpcPort}}
+		log.Printf("gRPC server starting on :%d", grpcPort)
+		lis, err := net.Listen("tcp", fmt.Sprintf(":%d", grpcPort))
+		if err != nil {
+			log.Fatalf("gRPC listen: %v", err)
+		}
+		grpcServer := grpc.NewServer()
+		pb.Register{{.ModelName}}ServiceServer(grpcServer, grpcserver.New{{.ModelName}}Server(svcCtx))
+		if err := grpcServer.Serve(lis); err != nil {
+			log.Fatalf("gRPC serve: %v", err)
+		}
+	}()
+{{- end}}
+
 {{- range .ExitWorkers}}
-	svc.WithExit("{{.Handler}}", {{.Handler}})
+	s.WithExit("{{.Handler}}", {{.Handler}})
 {{- end}}
 {{- range .CronJobs}}
-	svc.WithCron("{{.Handler}}", {{.Handler}})
+	s.WithCron("{{.Handler}}", {{.Handler}})
 {{- end}}
 
-	switch *mode {
-	case "entry":
-		log.Printf("starting {{.ServiceName}} entry on :%d", {{.Port}})
-	case "exit":
-		log.Printf("starting {{.ServiceName}} exit workers")
-	}
+{{- if .HasRest}}
+	handler.RegisterRestRoutes(s, svcCtx)
+{{- end}}
 
-	if err := svc.Run(); err != nil {
+	if err := s.Run(); err != nil {
 		log.Fatalf("run: %v", err)
 	}
 }

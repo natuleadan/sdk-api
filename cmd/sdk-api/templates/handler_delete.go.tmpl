@@ -1,0 +1,17 @@
+package handler
+
+import (
+	"{{.ModulePath}}/internal/logic"
+	"{{.ModulePath}}/internal/svc"
+	"{{.SDKModule}}/runtime"
+)
+
+func Delete{{.ModelName}}(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		l := logic.New{{.ModelName}}Logic(svcCtx)
+		if err := l.Delete(c.Context(), c.Params("id")); err != nil {
+			return err
+		}
+		return c.SendStatus(204)
+	}
+}

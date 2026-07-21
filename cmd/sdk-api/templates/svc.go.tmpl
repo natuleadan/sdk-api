@@ -1,0 +1,49 @@
+package svc
+
+import (
+	"fmt"
+
+	"{{.ModulePath}}/internal/config"
+	"{{.SDKModule}}/db"
+	"{{.SDKModule}}/runtime"
+	"{{.SDKModule}}/infra/syncx"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+type ServiceContext struct {
+	Config config.Config
+	pools  map[string]*pgxpool.Pool
+}
+
+func NewServiceContext(c config.Config) *ServiceContext {
+	return &ServiceContext{
+		Config: c,
+		pools:  make(map[string]*pgxpool.Pool),
+	}
+}
+
+func (s *ServiceContext) SetPool(name string, pool *pgxpool.Pool) {
+	s.pools[name] = pool
+}
+
+func (s *ServiceContext) Pool(name string) *pgxpool.Pool {
+	return s.pools[name]
+}
+
+func (s *ServiceContext) NewTable[T any](pool *pgxpool.Pool, tableName string) (*db.Table[T], error) {
+	return db.NewTable[T](pool, tableName)
+}
+
+func BulkheadGet(name string) *syncx.Limit {
+	return runtime.BulkheadGet(name)
+}
+
+// RegisterTables creates tables for all registered models.
+// Call this after setting up pools.
+func (s *ServiceContext) RegisterTables(ctx context.Context) error {
+	for name, pool := range s.pools {
+		_ = name
+		_ = pool
+	}
+	return fmt.Errorf("not implemented: register tables for your models")
+}

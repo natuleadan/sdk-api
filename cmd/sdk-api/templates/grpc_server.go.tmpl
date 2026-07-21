@@ -1,0 +1,72 @@
+package grpcserver
+
+import (
+	"context"
+
+	"{{.ModulePath}}/internal/logic"
+	"{{.ModulePath}}/internal/svc"
+	"{{.ModulePath}}/models"
+	"{{.ModulePath}}/pb"
+	"github.com/natuleadan/sdk-api/infra/logx"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+)
+
+type {{.ModelName}}Server struct {
+	svcCtx *svc.ServiceContext
+	pb.Unimplemented{{.ModelName}}ServiceServer
+}
+
+func New{{.ModelName}}Server(svcCtx *svc.ServiceContext) *{{.ModelName}}Server {
+	return &{{.ModelName}}Server{svcCtx: svcCtx}
+}
+
+func (s *{{.ModelName}}Server) List{{.ModelName}}(ctx context.Context, req *pb.List{{.ModelName}}Request) (*pb.List{{.ModelName}}Response, error) {
+	l := logic.New{{.ModelName}}Logic(svcCtx)
+	items, err := l.List(ctx)
+	if err != nil {
+		logx.Errorf("list: %v", err)
+		return nil, status.Error(codes.Internal, "list failed")
+	}
+	var pbItems []*pb.{{.ModelName}}
+	for i := range items {
+		pbItems = append(pbItems, modelToProto(&items[i]))
+	}
+	return &pb.List{{.ModelName}}Response{
+		Items: pbItems,
+		Total: int32(len(items)),
+	}, nil
+}
+
+func (s *{{.ModelName}}Server) Get{{.ModelName}}(ctx context.Context, req *pb.Get{{.ModelName}}Request) (*pb.{{.ModelName}}, error) {
+	l := logic.New{{.ModelName}}Logic(svcCtx)
+	item, err := l.Get(ctx, string(req.Id))
+	if err != nil {
+		return nil, status.Error(codes.NotFound, "not found")
+	}
+	return modelToProto(item), nil
+}
+
+func (s *{{.ModelName}}Server) Create{{.ModelName}}(ctx context.Context, req *pb.Create{{.ModelName}}Request) (*pb.{{.ModelName}}, error) {
+	// Convert proto request to model
+	model := protoToModel(req)
+	l := logic.New{{.ModelName}}Logic(svcCtx)
+	created, err := l.Create(ctx, *model)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "create failed")
+	}
+	return modelToProto(created), nil
+}
+
+func modelToProto(m *models.{{.ModelName}}) *pb.{{.ModelName}} {
+	return &pb.{{.ModelName}}{
+		Id: m.ID,
+		// Map extra fields here
+	}
+}
+
+func protoToModel(req *pb.Create{{.ModelName}}Request) *models.{{.ModelName}} {
+	return &models.{{.ModelName}}{
+		// Map fields from proto request
+	}
+}

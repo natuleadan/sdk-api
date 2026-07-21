@@ -3,7 +3,7 @@ port: {{.Port}}
 
 {{- if .HasDB}}
 databases:
-  - name: pg-main
+  - name: {{.DBName}}
     driver: postgres
     url: "${DATABASE_URL}"
     pool:
@@ -25,10 +25,18 @@ entry:
 {{- if .HasDB}}
   - type: crud
     model: {{.ModelName}}
-    db: pg-main
+    db: {{.DBName}}
     table: {{.DBTable}}
     resource: {{.ResourceName}}
     path: /{{.ResourceName}}
+{{- end}}
+{{- if .HasRest}}
+{{- range .RestEndpoints}}
+  - type: rest
+    method: {{.Method}}
+    path: {{.Path}}
+    handler: {{.HandlerName}}
+{{- end}}
 {{- end}}
 {{- if .HasNATS}}
 {{- range .Consumers}}
@@ -46,19 +54,10 @@ exit:
 
 server:
   host: "0.0.0.0"
-  api_prefix: /api/v1
+  api_prefix: /api
   middleware:
-    - path: "/api/v1/*"
+    - path: "/api/*"
       apply:
         - logger
         - breaker
         - cors
-{{- if .HasDB}}
-endpoints:
-  list:
-    page_size: 10
-    max_page_size: 100
-    sortable:
-      - id
-      - created_at
-{{- end}}

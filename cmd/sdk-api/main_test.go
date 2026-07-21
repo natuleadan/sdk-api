@@ -28,9 +28,9 @@ func TestRunNew(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	checkFile(t, dir, "main.go", `runtime.NewFromYAML(configYAML)`)
-	checkFile(t, dir, "main.go", "db.NewTable[models.Product]")
-	checkFile(t, dir, "main.go", `runtime.NewCRUDProvider`)
+	checkFile(t, dir, "cmd/main.go", `runtime.NewFromYAML(configYAML)`)
+	checkFile(t, dir, "cmd/main.go", "db.NewTable[models.Product]")
+	checkFile(t, dir, "cmd/main.go", `runtime.NewCRUDProvider`)
 	checkFile(t, dir, "service.yaml", "name: my-service")
 	checkFile(t, dir, "service.yaml", "port: 9090")
 	checkFile(t, dir, "service.yaml", "table: product")
@@ -69,7 +69,7 @@ func TestRunNewWithNATS(t *testing.T) {
 	checkFile(t, dir, "service.yaml", "stream: payments")
 	checkFile(t, dir, "service.yaml", "- name: order-results")
 	checkFile(t, dir, "service.yaml", "handler: onOrderCreated")
-	checkFile(t, dir, "main.go", `WithExit("onOrderCreated"`)
+	checkFile(t, dir, "cmd/main.go", `WithExit("onOrderCreated"`)
 }
 
 func TestRunNewDefaultFields(t *testing.T) {
@@ -274,7 +274,7 @@ func TestRunNewGeneratedGoValid(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	checkFile(t, dir, "main.go", "package main")
+	checkFile(t, dir, "cmd/main.go", "package main")
 	checkFile(t, dir, "models/model.go", "package models")
 	checkFile(t, dir, "models/model.go", "bool")
 }
@@ -521,7 +521,7 @@ func TestConsumeAutoHandler(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	checkFile(t, dir, "main.go", `WithExit("onOrders"`)
+	checkFile(t, dir, "cmd/main.go", `WithExit("onOrders"`)
 	checkFile(t, dir, "service.yaml", "handler: onOrders")
 }
 

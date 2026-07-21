@@ -1,0 +1,11 @@
+package config
+
+import "{{.SDKModule}}/runtime"
+
+type Config struct {
+	ServiceName string
+	Port        int
+	Databases   []runtime.DBConfig
+	Bulkhead    map[string]int
+	Server      runtime.ServerConf
+}

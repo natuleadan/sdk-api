@@ -1,0 +1,25 @@
+package cache
+
+import (
+	"context"
+	"fmt"
+
+	"{{.SDKModule}}/infra/stores/cache"
+)
+
+// Invalidate removes a model instance from the cache and its list cache.
+// Call this from REST handlers or hooks when data changes.
+func Invalidate[T any](cc cache.Cache, prefix string, id string) {
+	key := prefix + id
+	if err := cc.DelCtx(context.Background(), key); err != nil {
+		fmt.Printf("cache: del %s: %v\n", key, err)
+	}
+}
+
+// InvalidateList removes the list cache for a model.
+func InvalidateList(cc cache.Cache, prefix string) {
+	key := prefix + "list"
+	if err := cc.DelCtx(context.Background(), key); err != nil {
+		fmt.Printf("cache: del %s: %v\n", key, err)
+	}
+}

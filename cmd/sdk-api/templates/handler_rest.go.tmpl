@@ -1,0 +1,12 @@
+package handler
+
+import (
+	"{{.SDKModule}}/runtime"
+	"{{.ModulePath}}/internal/svc"
+)
+
+func Handle{{.FuncName}}(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		return c.JSON(runtime.Map{"status": "ok"})
+	}
+}

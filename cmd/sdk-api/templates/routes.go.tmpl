@@ -1,0 +1,16 @@
+package handler
+
+import (
+	"{{.ModulePath}}/internal/svc"
+	"{{.SDKModule}}/runtime"
+)
+
+func RegisterRoutes(s *runtime.Service, svcCtx *svc.ServiceContext) {
+{{- if .HasDB}}
+	s.WithRest("list", List{{.ModelName}}(svcCtx))
+	s.WithRest("get", Get{{.ModelName}}(svcCtx))
+	s.WithRest("create", Create{{.ModelName}}(svcCtx))
+	s.WithRest("update", Update{{.ModelName}}(svcCtx))
+	s.WithRest("delete", Delete{{.ModelName}}(svcCtx))
+{{- end}}
+}

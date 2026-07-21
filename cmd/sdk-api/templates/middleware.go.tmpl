@@ -1,0 +1,23 @@
+package middleware
+
+import (
+	"github.com/gofiber/fiber/v3"
+)
+
+// CustomMiddleware is an example middleware that can be customized.
+// Register it in your service.yaml or cmd/main.go:
+//
+//	app.Use(middleware.CustomMiddleware())
+func CustomMiddleware() fiber.Handler {
+	return func(c fiber.Ctx) error {
+		// Pre-processing before handler
+		// Example: log request, validate headers, inject tenant context
+
+		err := c.Next()
+
+		// Post-processing after handler
+		// Example: modify response, log latency
+
+		return err
+	}
+}

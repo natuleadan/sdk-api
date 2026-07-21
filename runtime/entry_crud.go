@@ -12,10 +12,18 @@ import (
 	"github.com/natuleadan/sdk-api/runtime/errcode"
 )
 
+type cachedMarker interface{ isCached() }
+
 func registerCRUD(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, mws []fiber.Handler) error {
 	provider, ok := handlers.CRUD[entry.Model]
 	if !ok {
 		return fmt.Errorf("crud model %q: no provider registered", entry.Model)
+	}
+
+	if entry.Cache != "" {
+		if _, ok := provider.(cachedMarker); !ok {
+			return fmt.Errorf("crud model %q: cache=%q set in YAML but provider is not cached. Use runtime.CachedCRUD (or MySQLCachedCRUD) instead of MustRegister", entry.Model, entry.Cache)
+		}
 	}
 
 	base := prefix + entry.Path
@@ -26,31 +34,7 @@ func registerCRUD(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, pref
 
 	// Tenant scoping middleware: extracts tenant ID from the JWT claim configured in tenant_scope
 	if entry.TenantField != "" {
-		tenantMw := func(c fiber.Ctx) error {
-			scope := entry.TenantScope
-			if scope == "" {
-				scope = "org_id"
-			}
-
-			tenantID := ""
-			if claims, ok := c.Locals("claims").(jwt.MapClaims); ok {
-				if tid, ok := claims[scope].(string); ok {
-					tenantID = tid
-				}
-			}
-
-			if tenantID == "" {
-				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-					"code":    403,
-					"message": fmt.Sprintf("tenant scope %q not found in token claims", scope),
-				})
-			}
-
-			c.Locals("tenant_field", entry.TenantField)
-			c.Locals("tenant_id", tenantID)
-			return c.Next()
-		}
-		mws = append(mws, tenantMw)
+		mws = append(mws, buildTenantMiddleware(entry))
 	}
 
 	ctx := context.Background()
@@ -73,6 +57,30 @@ func registerCRUD(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, pref
 		return err
 	}
 	return nil
+}
+
+func buildTenantMiddleware(entry *EntryDef) fiber.Handler {
+	scope := entry.TenantScope
+	if scope == "" {
+		scope = "org_id"
+	}
+	return func(c fiber.Ctx) error {
+		tenantID := ""
+		if claims, ok := c.Locals("claims").(jwt.MapClaims); ok {
+			if tid, ok := claims[scope].(string); ok {
+				tenantID = tid
+			}
+		}
+		if tenantID == "" {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"code":    403,
+				"message": fmt.Sprintf("tenant scope %q not found in token claims", scope),
+			})
+		}
+		c.Locals("tenant_field", entry.TenantField)
+		c.Locals("tenant_id", tenantID)
+		return c.Next()
+	}
 }
 
 func registerCRUDList(app *fiber.App, base string, ov *CRUDOverrides, handlers *EntryHandlers, provider CRUDProvider, entry *EntryDef, mws []fiber.Handler) error {

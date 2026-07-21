@@ -120,8 +120,8 @@ entry:
 	// Wait for server to start
 	time.Sleep(100 * time.Millisecond)
 
-	// Test the endpoint (uses default api_prefix /api/v1)
-	req, _ := http.NewRequestWithContext(context.Background(), "GET", "http://localhost:19010/api/v1/ping", nil)
+	// Test the endpoint (uses default api_prefix /api)
+	req, _ := http.NewRequestWithContext(context.Background(), "GET", "http://localhost:19010/api/ping", nil)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("GET /ping: %v", err)

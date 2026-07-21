@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -64,6 +65,8 @@ type Service struct {
 	authValidator   func(context.Context, *middleware.AuthContext, []string, []string) error
 	apiKeyValidator func(ctx context.Context, key string) (*middleware.AuthContext, error)
 	rlMaxFunc       func(c fiber.Ctx) int
+	grpcServer      *GrpcServer
+	grpcClients     map[string]*GrpcClient
 
 	stop context.CancelFunc
 }
@@ -88,12 +91,13 @@ func NewFromYAML(content []byte) (*Service, error) {
 
 func newFromConfig(cfg *ServiceConfig) (*Service, error) {
 	return &Service{
-		config:    cfg,
-		pools:     make(map[string]any),
-		natsConns: make(map[string]events.EventBroker),
-		handlers:  &EntryHandlers{},
-		exitMgr:   NewExitWorkerManager(),
-		tables:    make(map[string]any),
+		config:      cfg,
+		pools:       make(map[string]any),
+		natsConns:   make(map[string]events.EventBroker),
+		handlers:    &EntryHandlers{},
+		exitMgr:     NewExitWorkerManager(),
+		tables:      make(map[string]any),
+		grpcClients: make(map[string]*GrpcClient),
 	}, nil
 }
 
@@ -214,6 +218,22 @@ type cachedCRUD[T any] struct {
 	keyPrefix string
 }
 
+func (c *cachedCRUD[T]) isCached() {}
+
+func (c *cachedCRUD[T]) delCache(keys ...string) {
+	for _, k := range keys {
+		key := c.keyPrefix + k
+		if c.l1 != nil {
+			c.l1.Del(key)
+		}
+		if c.l2 != nil {
+			if err := c.l2.DelCtx(context.Background(), key); err != nil {
+				logx.Errorf("cache del: %v", err)
+			}
+		}
+	}
+}
+
 func (c *cachedCRUD[T]) Get(fc fiber.Ctx, id string) error {
 	key := c.keyPrefix + id
 
@@ -235,7 +255,7 @@ func (c *cachedCRUD[T]) Get(fc fiber.Ctx, id string) error {
 		})
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
-			return fc.Status(404).JSON(map[string]any{"code": 404, "message": "link not found"})
+			return fc.Status(404).JSON(map[string]any{"code": 404, "message": "not found"})
 		}
 		return fc.Status(500).JSON(map[string]any{"code": 500, "message": err.Error()})
 	}
@@ -248,19 +268,45 @@ func (c *cachedCRUD[T]) Get(fc fiber.Ctx, id string) error {
 }
 
 func (c *cachedCRUD[T]) List(fc fiber.Ctx, params ListParams) error {
-	return fc.SendStatus(405)
+	return fc.Status(405).JSON(map[string]any{"code": 405, "message": "list not available for cached provider"})
 }
 
 func (c *cachedCRUD[T]) Create(fc fiber.Ctx, body []byte) error {
-	return fc.SendStatus(405)
+	var entity T
+	if err := json.Unmarshal(body, &entity); err != nil {
+		return fc.Status(400).JSON(map[string]any{"code": 400, "message": err.Error()})
+	}
+	if err := c.table.Create(fc.Context(), &entity); err != nil {
+		return fc.Status(500).JSON(map[string]any{"code": 500, "message": err.Error()})
+	}
+	return fc.Status(201).JSON(entity)
 }
 
 func (c *cachedCRUD[T]) Update(fc fiber.Ctx, id string, body []byte) error {
-	return fc.SendStatus(405)
+	var patch map[string]any
+	if err := json.Unmarshal(body, &patch); err != nil {
+		return fc.Status(400).JSON(map[string]any{"code": 400, "message": err.Error()})
+	}
+	entity, err := c.table.Update(fc.Context(), id, patch)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return fc.Status(404).JSON(map[string]any{"code": 404, "message": "not found"})
+		}
+		return fc.Status(500).JSON(map[string]any{"code": 500, "message": err.Error()})
+	}
+	c.delCache(id)
+	return fc.JSON(entity)
 }
 
 func (c *cachedCRUD[T]) Delete(fc fiber.Ctx, id string) error {
-	return fc.SendStatus(405)
+	if err := c.table.Delete(fc.Context(), id); err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return fc.Status(404).JSON(map[string]any{"code": 404, "message": "not found"})
+		}
+		return fc.Status(500).JSON(map[string]any{"code": 500, "message": err.Error()})
+	}
+	c.delCache(id)
+	return fc.SendStatus(204)
 }
 
 // MySQLCachedCRUD registers a CRUD provider with L1+L2 cache using MySQL as DB backend.
@@ -314,6 +360,8 @@ type mysqlCachedCRUD[T any] struct {
 	keyPrefix string
 }
 
+func (c *mysqlCachedCRUD[T]) isCached() {}
+
 func (c *mysqlCachedCRUD[T]) Get(fc fiber.Ctx, id string) error {
 	key := c.keyPrefix + id
 
@@ -352,15 +400,55 @@ func (c *mysqlCachedCRUD[T]) List(fc fiber.Ctx, params ListParams) error {
 }
 
 func (c *mysqlCachedCRUD[T]) Create(fc fiber.Ctx, body []byte) error {
-	return fc.SendStatus(405)
+	var entity T
+	if err := json.Unmarshal(body, &entity); err != nil {
+		return fc.Status(400).JSON(map[string]any{"code": 400, "message": err.Error()})
+	}
+	if err := c.table.Create(fc.Context(), &entity); err != nil {
+		return fc.Status(500).JSON(map[string]any{"code": 500, "message": err.Error()})
+	}
+	return fc.Status(201).JSON(entity)
 }
 
 func (c *mysqlCachedCRUD[T]) Update(fc fiber.Ctx, id string, body []byte) error {
-	return fc.SendStatus(405)
+	var patch map[string]any
+	if err := json.Unmarshal(body, &patch); err != nil {
+		return fc.Status(400).JSON(map[string]any{"code": 400, "message": err.Error()})
+	}
+	entity, err := c.table.Update(fc.Context(), id, patch)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return fc.Status(404).JSON(map[string]any{"code": 404, "message": "not found"})
+		}
+		return fc.Status(500).JSON(map[string]any{"code": 500, "message": err.Error()})
+	}
+	if c.l1 != nil {
+		c.l1.Del(c.keyPrefix + id)
+	}
+	if c.l2 != nil {
+		if err := c.l2.DelCtx(context.Background(), c.keyPrefix+id); err != nil {
+			logx.Errorf("cache del: %v", err)
+		}
+	}
+	return fc.JSON(entity)
 }
 
 func (c *mysqlCachedCRUD[T]) Delete(fc fiber.Ctx, id string) error {
-	return fc.SendStatus(405)
+	if err := c.table.Delete(fc.Context(), id); err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return fc.Status(404).JSON(map[string]any{"code": 404, "message": "not found"})
+		}
+		return fc.Status(500).JSON(map[string]any{"code": 500, "message": err.Error()})
+	}
+	if c.l1 != nil {
+		c.l1.Del(c.keyPrefix + id)
+	}
+	if c.l2 != nil {
+		if err := c.l2.DelCtx(context.Background(), c.keyPrefix+id); err != nil {
+			logx.Errorf("cache del: %v", err)
+		}
+	}
+	return fc.SendStatus(204)
 }
 
 // TursoMustRegister registers a CRUD provider for Turso/SQLite backend.
@@ -659,6 +747,7 @@ func (s *Service) RunWithContext(ctx context.Context) error {
 		return err
 	}
 	s.initSSRF()
+	s.initGrpc()
 	s.initServer()
 
 	if err := s.registerEntryRoutes(); err != nil {
@@ -672,6 +761,10 @@ func (s *Service) RunWithContext(ctx context.Context) error {
 	}
 	if err := s.startCron(ctx); err != nil {
 		return err
+	}
+
+	if s.grpcServer != nil {
+		s.grpcServer.Start()
 	}
 
 	logx.Infof("%s starting on :%d", s.config.Name, s.config.Port)
@@ -842,6 +935,26 @@ func (s *Service) startCron(ctx context.Context) error {
 	return nil
 }
 
+func (s *Service) initGrpc() {
+	sc := s.config.Server
+	if sc.GrpcServer != nil {
+		gs, err := NewGrpcServer(sc.GrpcServer, nil)
+		if err != nil {
+			logx.Errorf("grpc: init server: %v", err)
+		} else {
+			s.grpcServer = gs
+		}
+	}
+	for _, gc := range sc.GrpcClients {
+		client, err := NewGrpcClient(&gc)
+		if err != nil {
+			logx.Errorf("grpc: init client %s: %v", gc.Name, err)
+		} else {
+			s.grpcClients[gc.Name] = client
+		}
+	}
+}
+
 func (s *Service) initServer() {
 	sc := s.config.Server
 
@@ -893,6 +1006,7 @@ func (s *Service) initServer() {
 		RateLimit:       convertRateLimit(sc.RateLimit),
 		TLS:             convertTLS(sc.TLS),
 		SSRF:            convertSSRF(sc.SSRF),
+		Correlation:     convertCorrelation(sc.Correlation),
 		Logger:          sc.Logger,
 		LoadShedding:    sc.LoadShedding,
 		Breaker:         sc.Breaker,
@@ -924,6 +1038,9 @@ func (s *Service) initServer() {
 
 func (s *Service) shutdown() {
 	logx.Info("runtime: shutting down...")
+	if s.grpcServer != nil {
+		s.grpcServer.Stop()
+	}
 	if s.stop != nil {
 		s.stop()
 	}
@@ -1349,6 +1466,18 @@ func parseDurationDef(s string) time.Duration {
 		return 0
 	}
 	return d
+}
+
+func convertCorrelation(cfg *CorrelationConf) *server.CorrelationConfig {
+	if cfg == nil || !cfg.Enabled {
+		return nil
+	}
+	return &server.CorrelationConfig{
+		Enabled:        cfg.Enabled,
+		RequestHeader:  cfg.RequestHeader,
+		ResponseHeader: cfg.ResponseHeader,
+		SkipPaths:      cfg.SkipPaths,
+	}
 }
 
 func convertSSRF(cfg *SSRFConf) *middleware.SSRFConfig {

@@ -98,6 +98,13 @@ entry:
       mode: local
       path: /data/uploads
 
+  - type: rest
+    method: GET
+    path: /v1/products/legacy
+    handler: onLegacyTransform
+    api_status: deprecated
+    sunset_date: "2026-12-31T23:59:59Z"
+
 exit:
   - name: email-sender
     subscribe:
@@ -135,9 +142,9 @@ cron:
 
 server:
   host: "0.0.0.0"
-  api_prefix: /api/v1
+  api_prefix: /api
   middleware:
-    - path: "/api/v1/*"
+    - path: "/api/*"
       apply:
         - logger
         - breaker
@@ -151,3 +158,8 @@ server:
       - POST
       - PUT
     credentials: true
+  correlation:
+    enabled: true
+    request_header: X-Correlation-ID
+    response_header: X-Correlation-ID
+    skip_paths: [/health, /metrics]

@@ -589,11 +589,14 @@ func (m *mongoCRUD) List(ctx fiber.Ctx, params ListParams) error {
 		return ctx.JSON(KeysetResponse{Data: results, NextCursor: nextCursor, PageSize: params.Size})
 	}
 
-	var results []any
-	if err := m.model.Find(ctx.Context(), &results, filter); err != nil {
+	size := max(params.Size, 1)
+	skip := max((params.Page-1)*size, 0)
+	findOpts := options.Find().SetSkip(int64(skip)).SetLimit(int64(size)).SetSort(bson.D{{Key: "_id", Value: 1}})
+	var results []bson.M
+	if err := m.model.Find(ctx.Context(), &results, filter, findOpts); err != nil {
 		return errcode.ErrDBQuery("op", "table", err)
 	}
-	return ctx.JSON(results)
+	return ctx.JSON(PaginatedResponse{Data: results, Total: 0, Page: params.Page, Size: size})
 }
 
 func (m *mongoCRUD) Get(ctx fiber.Ctx, id string) error {

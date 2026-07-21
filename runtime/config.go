@@ -142,7 +142,7 @@ type ServerConf struct {
 	// RecoverStack is a constant.
 	RecoverStack bool `json:"recover_stack" config:",default=true"`
 	// APIPrefix is a constant.
-	APIPrefix string `json:"api_prefix" config:",default=/api/v1"`
+	APIPrefix string `json:"api_prefix" config:",default=/api"`
 	// CORS is a constant.
 	CORS *CORSConf `json:"cors" config:",optional"`
 	// Middleware is a constant.
@@ -175,6 +175,47 @@ type ServerConf struct {
 	Breaker bool `json:"breaker" config:",default=true"`
 	// Telemetry is a constant.
 	Telemetry *TelemetryConf `json:"telemetry" config:",optional"`
+	// Correlation enables the X-Correlation-ID tracking middleware.
+	Correlation *CorrelationConf `json:"correlation" config:",optional"`
+	// GrpcServer configures the gRPC server.
+	GrpcServer *GrpcServerConf `json:"grpc_server" config:",optional"`
+	// GrpcClients defines gRPC client connections to other services.
+	GrpcClients []GrpcClientConf `json:"grpc_clients" config:",optional"`
+}
+
+type GrpcServerConf struct {
+	// ListenOn is the address to listen on (e.g. ":8081").
+	ListenOn string `json:"listen_on" config:",optional"`
+	// Timeout is the default RPC timeout in milliseconds.
+	Timeout int64 `json:"timeout" config:",default=2000"`
+	// CpuThreshold is the CPU load threshold for adaptive shedding (0-1000). 0 disables.
+	CpuThreshold int64 `json:"cpu_threshold" config:",default=900"`
+	// Health enables the gRPC health check service.
+	Health bool `json:"health" config:",default=true"`
+}
+
+type GrpcClientConf struct {
+	// Name is a unique name for this client connection.
+	Name string `json:"name"`
+	// Target is the gRPC target address (e.g. "dns:///product-svc:8081").
+	Target string `json:"target" config:",optional"`
+	// Endpoints are direct gRPC endpoints (e.g. ["localhost:8081"]).
+	Endpoints []string `json:"endpoints" config:",optional"`
+	// Timeout is the default RPC timeout in milliseconds.
+	Timeout int64 `json:"timeout" config:",default=2000"`
+	// NonBlock enables non-blocking dial.
+	NonBlock bool `json:"non_block" config:",default=true"`
+}
+
+type CorrelationConf struct {
+	// Enabled enables the correlation ID middleware.
+	Enabled bool `json:"enabled" config:",optional"`
+	// RequestHeader is the header to read the correlation ID from.
+	RequestHeader string `json:"request_header" config:",default=X-Correlation-ID"`
+	// ResponseHeader is the header to set the correlation ID on.
+	ResponseHeader string `json:"response_header" config:",default=X-Correlation-ID"`
+	// SkipPaths are request paths that should not receive a correlation ID.
+	SkipPaths []string `json:"skip_paths" config:",optional"`
 }
 
 type TelemetryConf struct {
@@ -268,6 +309,17 @@ type StreamConfig struct {
 	RetryOnFail bool `json:"retry_on_fail" config:",optional"`
 	// Streams is a constant.
 	Streams []StreamDef `json:"streams" config:",optional"`
+}
+
+type RetryConf struct {
+	// MaxRetries is the maximum number of retry attempts (default 3).
+	MaxRetries int `json:"max_retries" config:",default=3"`
+	// InitialInterval is the initial backoff duration (default 500ms).
+	InitialInterval string `json:"initial_interval" config:",default=500ms"`
+	// MaxBackoff is the maximum backoff duration (default 10s).
+	MaxBackoff string `json:"max_backoff" config:",default=10s"`
+	// Multiplier is the exponential backoff multiplier (default 2.0).
+	Multiplier float64 `json:"multiplier" config:",default=2.0"`
 }
 
 type RateLimitConf struct {
@@ -667,6 +719,9 @@ type EntryDef struct {
 	// TenantField is a constant.
 	TenantField string `json:"tenant_field" config:",optional"` // DB column for tenant filter (e.g. "tenant_id")
 
+	// ServiceName is the gRPC service name (required for type: grpc).
+	ServiceName string `json:"service_name" config:",optional"`
+
 	// CRUD
 	Model string `json:"model" config:",optional"`
 	// Table is a constant.
@@ -711,8 +766,28 @@ type EntryDef struct {
 	// Validation
 	ValidationModel string `json:"validate" config:",optional"` // validation model name
 
+	// APIVersion sets the API version prefix for this entry (e.g. "v1", "v2").
+	// If empty and the server api_prefix does not already contain a version,
+	// defaults to "v1".
+	APIVersion string `json:"api_version" config:",optional"`
+
+	// APIStatus indicates the lifecycle status of this endpoint.
+	// Values: current | deprecated | removed
+	APIStatus string `json:"api_status" config:",optional"`
+	// SunsetDate is the RFC3339 date when the endpoint will be removed.
+	SunsetDate string `json:"sunset_date" config:",optional"`
+
 	// Timeout per-entry (e.g. "30s")
 	Timeout string `json:"timeout" config:",optional"`
+
+	// Retry configures the retry behavior for idempotent methods (GET, HEAD, PUT, DELETE, OPTIONS).
+	Retry *RetryConf `json:"retry" config:",optional"`
+	// Fallback sets the fallback strategy when the circuit breaker is open.
+	// Values: "degraded" | "stale" | "" (disabled)
+	Fallback string `json:"fallback" config:",optional"`
+	// Bulkhead defines named concurrency limits for external outbound calls.
+	// Each key is a dependency name, value is max concurrent calls.
+	Bulkhead map[string]int `json:"bulkhead" config:",optional"`
 
 	// API Key prefix (only applies when auth_modes includes "apikey")
 	APIPrefix string `json:"api_key_prefix" config:",optional"`
@@ -824,8 +899,10 @@ func (e *EntryDef) Validate() error {
 		return e.validateAsync()
 	case "graphql":
 		return e.validateGraphQL()
+	case "grpc":
+		return e.validateGRPC()
 	default:
-		return fmt.Errorf("unknown entry type %q (use crud, rest, webhook, websocket, sse, file, async, or graphql)", e.Type)
+		return fmt.Errorf("unknown entry type %q (use crud, rest, webhook, websocket, sse, file, async, grpc, or graphql)", e.Type)
 	}
 }
 
@@ -924,6 +1001,16 @@ func (e *EntryDef) validateAsync() error {
 	}
 	if e.Handler == "" {
 		return fmt.Errorf("async: handler is required")
+	}
+	return nil
+}
+
+func (e *EntryDef) validateGRPC() error {
+	if e.ServiceName == "" {
+		return fmt.Errorf("grpc: service name is required")
+	}
+	if e.Handler == "" {
+		return fmt.Errorf("grpc: handler is required")
 	}
 	return nil
 }
@@ -1107,7 +1194,29 @@ func expandEnvDefaults(content string) (string, error) {
 	return result.String(), nil
 }
 
+func loadDotEnv() {
+	data, err := os.ReadFile(".env")
+	if err != nil {
+		return
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 {
+			key := strings.TrimSpace(parts[0])
+			val := strings.TrimSpace(parts[1])
+			if os.Getenv(key) == "" {
+				_ = os.Setenv(key, val)
+			}
+		}
+	}
+}
+
 func LoadConfig(path string) (*ServiceConfig, error) {
+	loadDotEnv()
 	if path == "" {
 		return nil, nil
 	}

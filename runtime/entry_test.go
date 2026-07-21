@@ -644,7 +644,7 @@ func TestRegisterEntries_Errors(t *testing.T) {
 		handlers := &EntryHandlers{}
 		cfg := &ServiceConfig{
 			Entry: []EntryDef{
-				{Type: "grpc", Path: "/x"},
+				{Type: "unknown", Path: "/x"},
 			},
 		}
 		err := RegisterEntries(app, cfg, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, nil)

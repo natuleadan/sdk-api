@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -18,6 +19,21 @@ import (
 	"github.com/natuleadan/sdk-api/server/auth/zitadel"
 	"github.com/natuleadan/sdk-api/server/middleware"
 )
+
+var versionRe = regexp.MustCompile(`/v\d+$`)
+
+// buildEntryPrefix builds the full URL prefix for an entry.
+// If the global prefix already contains a version (e.g. /api/v1),
+// it is used as-is. Otherwise, the entry's api_version is appended.
+func buildEntryPrefix(prefix string, entry *EntryDef) string {
+	if versionRe.MatchString(prefix) {
+		return prefix
+	}
+	if entry.APIVersion == "" {
+		return prefix
+	}
+	return prefix + "/" + entry.APIVersion
+}
 
 var rlMaxFunc atomic.Value
 
@@ -257,30 +273,38 @@ func authRouter(entry *EntryDef) fiber.Handler {
 }
 
 func registerOneEntry(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, models map[string]*db.TableInfo, jwtCfg *middleware.JWTConfig, authValidator func(context.Context, *middleware.AuthContext, []string, []string) error, apiKeyValidator func(ctx context.Context, key string) (*middleware.AuthContext, error), fgaClient openfga.Checker, oryClient *ory.Client, zitadelClient *zitadel.Client, driver string, serverPerUser, serverPerKey *middleware.RateLimitEntry, rlAlgorithm string, rlTTL time.Duration, rlRdb ...*redis.Redis) error {
-	registerValidationMiddleware(app, entry, prefix)
-	registerEntryRateLimit(app, entry, prefix, rlAlgorithm, rlTTL, rlRdb...)
-	registerEntryTimeout(app, entry, prefix)
+	versionPrefix := buildEntryPrefix(prefix, entry)
+
+	registerDeprecation(app, entry, versionPrefix)
+	registerValidationMiddleware(app, entry, versionPrefix)
+	registerEntryRateLimit(app, entry, versionPrefix, rlAlgorithm, rlTTL, rlRdb...)
+	registerEntryTimeout(app, entry, versionPrefix)
+	registerRetry(app, entry, versionPrefix)
+	registerFallback(app, entry, versionPrefix)
+	registerBulkhead(entry)
 
 	mws := registerAuthMiddleware(entry, driver, jwtCfg, authValidator, apiKeyValidator, fgaClient, oryClient, zitadelClient, serverPerUser, serverPerKey, rlAlgorithm, rlTTL, rlRdb...)
 
 	var err error
 	switch entry.Type {
 	case "crud":
-		err = registerCRUD(app, entry, handlers, prefix, brokers, mws)
+		err = registerCRUD(app, entry, handlers, versionPrefix, brokers, mws)
 	case "rest":
-		err = registerREST(app, entry, handlers, prefix, brokers, mws)
+		err = registerREST(app, entry, handlers, versionPrefix, brokers, mws)
 	case "webhook":
-		err = registerREST(app, entry, handlers, prefix, brokers, mws)
+		err = registerREST(app, entry, handlers, versionPrefix, brokers, mws)
 	case "websocket":
-		err = registerWebSocket(app, entry, handlers, prefix, mws)
+		err = registerWebSocket(app, entry, handlers, versionPrefix, mws)
 	case "sse":
-		err = registerSSE(app, entry, handlers, prefix, mws)
+		err = registerSSE(app, entry, handlers, versionPrefix, mws)
 	case "file":
-		err = registerFile(app, entry, handlers, prefix, brokers, mws)
+		err = registerFile(app, entry, handlers, versionPrefix, brokers, mws)
 	case "async":
-		err = registerAsync(app, entry, handlers, prefix, mws)
+		err = registerAsync(app, entry, handlers, versionPrefix, mws)
+	case "grpc":
+		err = registerGRPC(app, entry, handlers, versionPrefix, brokers, models, mws)
 	case "graphql":
-		err = registerGraphQL(app, entry, handlers, prefix, models, mws)
+		err = registerGraphQL(app, entry, handlers, versionPrefix, models, mws)
 	default:
 		return fmt.Errorf("unknown entry type %q", entry.Type)
 	}
@@ -471,6 +495,51 @@ func apiKeyRoleMiddleware(entry *EntryDef, authValidator func(context.Context, *
 		}
 		return c.Next()
 	}}
+}
+
+func registerBulkhead(entry *EntryDef) {
+	for name, limit := range entry.Bulkhead {
+		if limit > 0 {
+			BulkheadRegister(name, limit)
+		}
+	}
+}
+
+func registerRetry(app *fiber.App, entry *EntryDef, prefix string) {
+	if entry.Retry == nil || entry.Retry.MaxRetries <= 0 {
+		return
+	}
+	initial, _ := time.ParseDuration(entry.Retry.InitialInterval)
+	maxBackoff, _ := time.ParseDuration(entry.Retry.MaxBackoff)
+	app.Use(prefix+entry.Path, middleware.Retry(middleware.RetryConfig{
+		MaxRetries:      entry.Retry.MaxRetries,
+		InitialInterval: initial,
+		MaxBackoff:      maxBackoff,
+		Multiplier:      entry.Retry.Multiplier,
+	}))
+}
+
+func registerFallback(app *fiber.App, entry *EntryDef, prefix string) {
+	if entry.Fallback == "" {
+		return
+	}
+	app.Use(prefix+entry.Path, middleware.Fallback(middleware.FallbackConfig{
+		Mode: entry.Fallback,
+	}))
+}
+
+func registerDeprecation(app *fiber.App, entry *EntryDef, prefix string) {
+	if entry.APIStatus == "" || entry.APIStatus == "current" {
+		return
+	}
+	var sunset time.Time
+	if entry.SunsetDate != "" {
+		sunset, _ = time.Parse(time.RFC3339, entry.SunsetDate)
+	}
+	app.Use(prefix+entry.Path, middleware.Deprecation(middleware.DeprecationConfig{
+		Status:     entry.APIStatus,
+		SunsetDate: sunset,
+	}))
 }
 
 func registerValidationMiddleware(app *fiber.App, entry *EntryDef, prefix string) {

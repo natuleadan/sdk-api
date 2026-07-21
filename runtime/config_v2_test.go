@@ -64,8 +64,8 @@ func TestLoadConfig_FullYAML(t *testing.T) { //nolint:gocyclo
 	}
 
 	// Entry endpoints
-	if len(cfg.Entry) != 9 {
-		t.Fatalf("Entry = %d, want 9", len(cfg.Entry))
+	if len(cfg.Entry) != 10 {
+		t.Fatalf("Entry = %d, want 10", len(cfg.Entry))
 	}
 
 	// CRUD 1: Product
@@ -237,6 +237,21 @@ func TestLoadConfig_FullYAML(t *testing.T) { //nolint:gocyclo
 		t.Errorf("Storage.Path = %q", e8.Storage.Path)
 	}
 
+	// Deprecated entry
+	e9 := cfg.Entry[9]
+	if e9.Type != "rest" {
+		t.Errorf("Entry[9].Type = %q", e9.Type)
+	}
+	if e9.Handler != "onLegacyTransform" {
+		t.Errorf("Entry[9].Handler = %q", e9.Handler)
+	}
+	if e9.APIStatus != "deprecated" {
+		t.Errorf("Entry[9].APIStatus = %q, want deprecated", e9.APIStatus)
+	}
+	if e9.SunsetDate != "2026-12-31T23:59:59Z" {
+		t.Errorf("Entry[9].SunsetDate = %q", e9.SunsetDate)
+	}
+
 	// Exit workers
 	if len(cfg.Exit) != 2 {
 		t.Fatalf("Exit = %d, want 2", len(cfg.Exit))
@@ -312,7 +327,7 @@ func TestLoadConfig_FullYAML(t *testing.T) { //nolint:gocyclo
 	if cfg.Server.Host != "0.0.0.0" {
 		t.Errorf("Server.Host = %q", cfg.Server.Host)
 	}
-	if cfg.Server.APIPrefix != "/api/v1" {
+	if cfg.Server.APIPrefix != "/api" {
 		t.Errorf("Server.APIPrefix = %q", cfg.Server.APIPrefix)
 	}
 	if cfg.Server.CORS == nil {
@@ -324,11 +339,28 @@ func TestLoadConfig_FullYAML(t *testing.T) { //nolint:gocyclo
 	if len(cfg.Server.Middleware) != 1 {
 		t.Fatalf("Middleware = %d, want 1", len(cfg.Server.Middleware))
 	}
-	if cfg.Server.Middleware[0].Path != "/api/v1/*" {
+	if cfg.Server.Middleware[0].Path != "/api/*" {
 		t.Errorf("Middleware.Path = %q", cfg.Server.Middleware[0].Path)
 	}
 	if len(cfg.Server.Middleware[0].Apply) != 4 {
 		t.Errorf("Middleware.Apply = %d, want 4", len(cfg.Server.Middleware[0].Apply))
+	}
+
+	// Correlation
+	if cfg.Server.Correlation == nil {
+		t.Fatal("Correlation is nil")
+	}
+	if !cfg.Server.Correlation.Enabled {
+		t.Error("Correlation.Enabled should be true")
+	}
+	if cfg.Server.Correlation.RequestHeader != "X-Correlation-ID" {
+		t.Errorf("Correlation.RequestHeader = %q", cfg.Server.Correlation.RequestHeader)
+	}
+	if cfg.Server.Correlation.ResponseHeader != "X-Correlation-ID" {
+		t.Errorf("Correlation.ResponseHeader = %q", cfg.Server.Correlation.ResponseHeader)
+	}
+	if len(cfg.Server.Correlation.SkipPaths) != 2 {
+		t.Errorf("Correlation.SkipPaths = %v, want 2", cfg.Server.Correlation.SkipPaths)
 	}
 }
 
@@ -385,7 +417,8 @@ func TestEntryDef_Validate(t *testing.T) {
 		{"file missing storage", EntryDef{Type: "file", Method: "POST", Path: "/f", Handler: "f"}, true},
 		{"file bad storage mode", EntryDef{Type: "file", Method: "POST", Path: "/f", Handler: "f", Storage: &StorageDef{Mode: "ftp"}}, true},
 		{"file local missing path", EntryDef{Type: "file", Method: "POST", Path: "/f", Handler: "f", Storage: &StorageDef{Mode: "local"}}, true},
-		{"unknown type", EntryDef{Type: "grpc", Path: "/g", Handler: "f"}, true},
+		{"unknown type", EntryDef{Type: "invalid", Path: "/g", Handler: "f"}, true},
+		{"valid grpc", EntryDef{Type: "grpc", ServiceName: "Greeter", Handler: "onGreet"}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

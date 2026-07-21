@@ -137,7 +137,8 @@ func initMongo(cfg *DBConfig) string {
 		if !strings.Contains(uri, "/?") && !strings.Contains(uri, "?") {
 			uri += "/"
 		}
-		uri = fmt.Sprintf("%s?maxPoolSize=%d&maxConnecting=%d", uri, cfg.Pool.MaxConns, min(cfg.Pool.MaxConns/10, 10))
+		uri = fmt.Sprintf("%s?maxPoolSize=%d&maxConnecting=%d",
+			uri, cfg.Pool.MaxConns, min(cfg.Pool.MaxConns/10, 10))
 	}
 	return uri
 }

@@ -389,24 +389,6 @@ func (t *Table[T]) PrimaryKey() string {
 	return t.info.PrimaryKey
 }
 
-func (t *Table[T]) Count(ctx context.Context, where ...ColumnValue) (int64, error) {
-	query := fmt.Sprintf("SELECT COUNT(*) FROM %s", t.tableName)
-	var args []any
-	if len(where) > 0 {
-		if _, err := t.validColumn(where[0].col); err != nil {
-			return 0, err
-		}
-		query += " WHERE " + where[0].col + " = $1"
-		args = append(args, where[0].val)
-	}
-	var count int64
-	err := t.pool.QueryRow(ctx, query, args...).Scan(&count)
-	if err != nil {
-		return 0, fmt.Errorf("db: count: %w", err)
-	}
-	return count, nil
-}
-
 func (t *Table[T]) Exists(ctx context.Context, column string, value any) (bool, error) {
 	if _, err := t.validColumn(column); err != nil {
 		return false, err
@@ -508,114 +490,6 @@ func (t *Table[T]) ExecRaw(ctx context.Context, sql string, args ...any) (int64,
 		return 0, fmt.Errorf("db: exec: %w", err)
 	}
 	return tag.RowsAffected(), nil
-}
-
-func (t *Table[T]) QueryPaginated(ctx context.Context, page, size int, orderBy string) ([]T, int64, error) {
-	defer logSlowQuery("QueryPaginated", time.Now(), t.tableName)
-	if page < 1 {
-		page = 1
-	}
-	if size < 1 {
-		size = 10
-	}
-	if orderBy == "" {
-		orderBy = t.info.PrimaryKey
-	} else if _, err := t.validColumn(orderBy); err != nil {
-		return nil, 0, err
-	}
-	offset := (page - 1) * size
-
-	total, err := t.Count(ctx)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	query := fmt.Sprintf("SELECT %s FROM %s ORDER BY %s LIMIT $1 OFFSET $2",
-		t.columnsList(), t.tableName, orderBy)
-	rows, err := t.pool.Query(ctx, query, size, offset)
-	if err != nil {
-		return nil, 0, fmt.Errorf("db: paginated: %w", err)
-	}
-	defer rows.Close()
-
-	result, err := pgx.CollectRows(rows, pgx.RowToStructByName[T])
-	if err != nil {
-		return nil, 0, fmt.Errorf("db: paginated: %w", err)
-	}
-	return result, total, nil
-}
-
-func (t *Table[T]) QueryKeyset(ctx context.Context, cursor string, size int, orderBy string, where map[string]any) ([]T, string, error) {
-	defer logSlowQuery("QueryKeyset", time.Now(), t.tableName)
-	if size < 1 {
-		size = 10
-	}
-	if orderBy == "" {
-		orderBy = t.info.PrimaryKey
-	} else if _, err := t.validColumn(orderBy); err != nil {
-		return nil, "", err
-	}
-
-	orderField := orderBy
-	for _, f := range t.info.Fields {
-		if f.Column == orderBy {
-			orderField = f.GoName
-			break
-		}
-	}
-
-	var b strings.Builder
-	b.Grow(128)
-	fmt.Fprintf(&b, "SELECT %s FROM %s", t.columnsList(), t.tableName)
-
-	var args []any
-	idx := 1
-	if cursor != "" {
-		fmt.Fprintf(&b, " WHERE %s > $%d", orderBy, idx)
-		args = append(args, cursor)
-		idx++
-	}
-	for col, val := range where {
-		if _, err := t.validColumn(col); err != nil {
-			return nil, "", err
-		}
-		if idx == 1 {
-			fmt.Fprintf(&b, " WHERE %s = $%d", col, idx)
-		} else {
-			fmt.Fprintf(&b, " AND %s = $%d", col, idx)
-		}
-		args = append(args, val)
-		idx++
-	}
-	fmt.Fprintf(&b, " ORDER BY %s", orderBy)
-	if orderBy != t.info.PrimaryKey {
-		b.WriteString(", ")
-		b.WriteString(t.info.PrimaryKey)
-	}
-	fmt.Fprintf(&b, " LIMIT $%d", idx)
-	args = append(args, size+1)
-
-	rows, err := t.pool.Query(ctx, b.String(), args...)
-	if err != nil {
-		return nil, "", fmt.Errorf("db: keyset: %w", err)
-	}
-	defer rows.Close()
-
-	result, err := pgx.CollectRows(rows, pgx.RowToStructByName[T])
-	if err != nil {
-		return nil, "", fmt.Errorf("db: keyset: %w", err)
-	}
-
-	nextCursor := ""
-	if len(result) > size {
-		v := reflect.ValueOf(result[size-1])
-		fv := v.FieldByName(orderField)
-		if fv.IsValid() {
-			nextCursor = fmt.Sprintf("%v", fv.Interface())
-		}
-		result = result[:size]
-	}
-	return result, nextCursor, nil
 }
 
 func (t *Table[T]) Upsert(ctx context.Context, entity *T, conflictColumn string) error {

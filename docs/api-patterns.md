@@ -843,7 +843,72 @@ svc.WithRateLimitMaxFunc(func(c fiber.Ctx) int {
 
 ---
 
-## 21. Graceful Shutdown
+## 21. gRPC Service
+
+Define a gRPC service that shares business logic with HTTP handlers.
+
+**YAML:**
+
+```yaml
+entry:
+  - type: grpc
+    service_name: ProductService
+    handler: onProductGRPC
+
+server:
+  grpc_server:
+    listen_on: ":8081"
+    health: true
+  grpc_clients:
+    - name: product-service
+      target: direct:///product-svc:8081
+      timeout: 5000
+```
+
+**Go (generated scaffold):**
+
+```go
+// grpcserver/product.go — delegates to internal/logic/
+type ProductServer struct {
+    svcCtx *svc.ServiceContext
+    pb.UnimplementedProductServiceServer
+}
+
+func (s *ProductServer) ListProducts(ctx context.Context, req *pb.ListProductsRequest) (*pb.ListProductsResponse, error) {
+    l := logic.NewProductLogic(s.svcCtx)
+    items, err := l.List(ctx)
+    // ... map to proto response
+}
+```
+
+HTTP and gRPC share the same `internal/logic/` package. The gRPC server auto-registers interceptors: tracing, circuit breaker, timeout, and CPU shedding.
+
+## 22. Lifecycle Hooks
+
+Hooks are called before/after CRUD and REST operations. They live in a separate file from the model struct.
+
+```
+models/
+├── product.go           # struct definition
+└── products_hooks.go    # BeforeCreate, AfterCreate, BeforeUpdate, AfterUpdate, BeforeDelete, AfterDelete
+```
+
+```go
+// models/products_hooks.go
+func (h *ProductHooks) BeforeCreate(ctx context.Context, req Product) (Product, error) {
+    if req.Price <= 0 {
+        return req, fmt.Errorf("price must be positive")
+    }
+    return req, nil
+}
+
+func (h *ProductHooks) AfterCreate(ctx context.Context, entity *Product) error {
+    // send event, invalidate cache, etc.
+    return nil
+}
+```
+
+## 23. Graceful Shutdown
 
 The runtime handles shutdown automatically on SIGINT/SIGTERM:
 

@@ -50,6 +50,14 @@ svc.App()                        // *fiber.App — raw Fiber access
 svc.Storage("/files/upload")     // server.StorageBackend — storage by entry path
 svc.Table("Product")             // any — *db.Table[T] registered via MustRegister
 
+// gRPC server and client
+svc.GrpcServer()                // *runtime.GrpcServer — access the gRPC server
+svc.GrpcClient("product-svc")   // *runtime.GrpcClient — named gRPC client connection
+
+runtime.NewGrpcServer(cfg, register)  // Create gRPC server with interceptors (trace, breaker, timeout, shedding)
+runtime.NewGrpcClient(cfg)            // Create gRPC client with service discovery (direct, etcd)
+runtime.BulkheadGet("openai")         // *syncx.Limit — named semaphore for external API concurrency
+
 // Package-level helpers
 runtime.GetTable[Product](svc, "Product")   // *db.Table[T] — typed table by model name
 runtime.TableFor[Product](pools, "pg-main", "link") // *db.Table[T] — new table from pools map
@@ -74,6 +82,7 @@ svc.Run()
 New("service.yaml") ─────────────┐
                                  ├─ LoadConfig() + ParseConfig()
 NewFromYAML(content) ────────────┘    │
+                                       ├─ loadDotEnv()            ← reads .env file (automatic)
                                        ├─ validateConfigDeploy()  ← checks deploy.target
                                        ├─ validateConfig*()       ← databases, entries, exits, cron
                                        ├─ applyEnvOverrides()     ← resolves PORT env
@@ -85,7 +94,8 @@ NewFromYAML(content) ────────────┘    │
                                        4. initKvConns()          — lazy-init Redis/Dragonfly connections
                                        5. initStreamConns()      — connect NATS/Kafka + create streams
                                        6. initSSRF()             — SafeHTTPClient (if configured)
-                                       7. initServer()           — Fiber HTTP + middlewares + TLS + security + CSRF + rate limit
+                                       7. initGrpc()             — gRPC server (if grpc_server configured) + clients
+                                       8. initServer()           — Fiber HTTP + middlewares + TLS + security + CSRF + rate limit
                                        8. registerEntryRoutes()  — register all entry routes (9 types)
                                        9. serveStaticFiles()
                                       10. registerDocs()         — OpenAPI + Scalar UI

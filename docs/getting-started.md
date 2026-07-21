@@ -27,10 +27,21 @@ This generates:
 
 ```
 products-svc/
-├── main.go              # Entrypoint with //go:embed + runtime.NewFromYAML()
-├── service.yaml         # YAML configuration (embedded in binary)
-└── models/
-    └── model.go         # Product struct + hooks
+├── cmd/
+│   └── main.go                   # Bootstrap with //go:embed + runtime.NewFromYAML()
+├── internal/
+│   ├── config/
+│   │   └── config.go             # Typed config struct
+│   ├── handler/
+│   │   └── products.go           # HTTP handler (one per resource)
+│   ├── logic/
+│   │   └── products.go           # Business logic (pure, testable)
+│   └── svc/
+│       └── servicecontext.go     # DI container
+├── models/
+│   └── product.go                # Struct with db:"" tags + hooks
+├── service.yaml                  # YAML configuration (embedded in binary)
+└── .env                          # Environment variables
 ```
 
 ## 3. Configure
@@ -58,9 +69,9 @@ entry:
 
 server:
   host: "0.0.0.0"
-  api_prefix: /api/v1
+  api_prefix: /api
   middleware:
-    - path: "/api/v1/*"
+    - path: "/api/*"
       apply:
         - logger
         - cors
@@ -93,18 +104,20 @@ func (h *ProductHooks) BeforeCreate(ctx context.Context, req Product) (Product, 
 }
 ```
 
-## 5. Wire in main.go
+## 5. Wire in cmd/main.go
 
 ```go
 package main
 
 import (
-    _ "embed"
+    "context"
     "log"
 
+    _ "embed"
+
+    "products-svc/internal/svc"
     "products-svc/models"
 
-    "github.com/jackc/pgx/v5/pgxpool"
     "github.com/natuleadan/sdk-api/db"
     "github.com/natuleadan/sdk-api/runtime"
 )
@@ -113,22 +126,29 @@ import (
 var configYAML []byte
 
 func main() {
-    svc, err := runtime.NewFromYAML(configYAML)
+    s, err := runtime.NewFromYAML(configYAML)
     if err != nil {
         log.Fatalf("init: %v", err)
     }
 
-    pgPool := svc.Pool("pg-main").(*pgxpool.Pool)
-    table, err := db.NewTable[models.Product](pgPool, "products")
+    svcCtx := svc.NewServiceContext()
+    pool := s.PoolPG("pg-main")
+    if pool != nil {
+        svcCtx.SetPool("pg-main", pool)
+    }
+
+    table, err := db.NewTable[models.Product](pool, "products")
     if err != nil {
         log.Fatalf("table: %v", err)
     }
-
-    svc.WithCRUD("Product",
+    if err := table.AutoInit(context.Background()); err != nil {
+        log.Fatalf("auto init: %v", err)
+    }
+    s.WithCRUD("Product",
         runtime.NewCRUDProvider(table, &models.ProductHooks{}))
-    svc.RegisterModel("Product", (*models.Product)(nil))
+    s.WithHooks("Product", &models.ProductHooks{})
 
-    if err := svc.Run(); err != nil {
+    if err := s.Run(); err != nil {
         log.Fatalf("run: %v", err)
     }
 }

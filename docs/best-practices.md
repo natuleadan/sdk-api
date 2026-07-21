@@ -12,6 +12,103 @@
 - **Exit** = NATS. Event-driven processing. Runs in `--mode exit`.
 - A single binary + YAML can run both modes.
 
+## gRPC Communication
+
+For synchronous inter-service communication, use gRPC instead of HTTP. gRPC provides typed contracts via protobuf, built-in load balancing, and service discovery.
+
+```yaml
+server:
+  grpc_clients:
+    - name: product-service
+      target: direct:///product-svc:8081
+      timeout: 5000
+```
+
+```go
+client := svc.GrpcClient("product-service")
+conn := client.Conn()
+productClient := pb.NewProductServiceClient(conn)
+```
+
+### gRPC + HTTP share logic
+
+Both HTTP handlers and gRPC servers call the same `internal/logic/` layer. Never duplicate business logic.
+
+## Bulkhead for External APIs
+
+When calling external services (OpenAI, Stripe, etc.), use bulkhead to limit concurrency:
+
+```yaml
+entry:
+  - type: rest
+    path: /chat
+    handler: onChat
+    bulkhead:
+      openai: 5   # max 5 concurrent calls to OpenAI
+```
+
+```go
+func onChat(c *runtime.RestCtx) error {
+    sem := runtime.BulkheadGet("openai")
+    if sem == nil || !sem.TryBorrow() {
+        return c.Status(503).JSON(fiber.Map{"message": "openai busy"})
+    }
+    defer sem.Return()
+    // call OpenAI
+}
+```
+
+Bulkhead is for **outbound** calls only. Database concurrency is handled by the connection pool.
+
+## Retry for Idempotent Endpoints
+
+Configure retry with exponential backoff for GET, HEAD, PUT, DELETE, OPTIONS:
+
+```yaml
+entry:
+  - type: rest
+    method: GET
+    path: /products
+    retry:
+      max_retries: 3
+      initial_interval: 500ms
+      max_backoff: 10s
+      multiplier: 2.0
+```
+
+Retries include random jitter (0-999ms) to avoid thundering herd. Only for idempotent methods.
+
+## Fallback When Breaker Opens
+
+When the circuit breaker rejects a request, configure a fallback strategy:
+
+```yaml
+entry:
+  - type: rest
+    path: /products
+    fallback: degraded     # returns 503 with message
+    # fallback: stale      # returns last cached 200 response (30s TTL)
+```
+
+Use `stale` for read endpoints where serving old data is better than serving nothing.
+
+## Correlation ID for Debugging
+
+Enable correlation ID tracking to trace requests across services:
+
+```yaml
+server:
+  correlation:
+    enabled: true
+```
+
+The correlation ID is included in every access log line:
+```
+[550e8400-e29b-...] GET /products 200 45ms
+```
+
+Pass the correlation ID to downstream services via the `X-Correlation-ID` header.
+
 ## Architecture Guidelines
 
 ### Service isolation

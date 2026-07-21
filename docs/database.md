@@ -159,3 +159,40 @@ runtime.PoolPG(pools, name)     // *pgxpool.Pool
 runtime.PoolSQL(pools, name)    // *sql.DB
 runtime.TableFor[T](pools, poolName, tableName)  // *db.Table[T]
 ```
+
+## Model Generation from SQL
+
+You can generate Go structs from existing SQL `CREATE TABLE` statements using the CLI:
+
+```bash
+# From a file
+sdk-api model from-sql schema.sql
+
+# From stdin
+cat schema.sql | sdk-api model from-sql -
+
+# From MongoDB collection
+sdk-api model from-mongo --uri "mongodb://localhost:27017" --db mydb --collection products
+```
+
+```sql
+CREATE TABLE products (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    price DECIMAL(10,2) NOT NULL DEFAULT 0
+);
+```
+
+Generates:
+
+```go
+type Product struct {
+    ID        int64     `db:"id,primary,auto" json:"id"`
+    Name      string    `db:"name" json:"name"`
+    Price     float64   `db:"price" json:"price"`
+    CreatedAt time.Time `db:"created_at" json:"created_at"`
+    UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+}
+```
+
+Supports PostgreSQL, MySQL, and SQLite DDL syntax. Column types mapped to Go types (BIGINT→int64, VARCHAR→string, DECIMAL→float64, BOOLEAN→bool, TIMESTAMP→time.Time, etc.).

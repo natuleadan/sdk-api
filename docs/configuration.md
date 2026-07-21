@@ -156,7 +156,7 @@ server:
   health_path: /health
   shutdown_timeout: 10s
   recover_stack: true
-  api_prefix: /api/v1
+  api_prefix: /api
   cors:
     origins:
       - "https://app.example.com"   # Never "*" in production
@@ -598,6 +598,20 @@ Auto-generated GraphQL schema from registered models.
 
 Queries and mutations are auto-generated from `CRUDProvider` registrations. Models must be registered via `svc.RegisterModel()`.
 
+### `type: grpc`
+gRPC service definition. Generates scaffold code (proto, server, pb). At runtime, registers as informational; the gRPC server is started by the generated main.go.
+
+```yaml
+- type: grpc
+  service_name: ProductService
+  handler: onProductGRPC
+```
+
+| Field | Description |
+|-------|-------------|
+| `service_name` | gRPC service name (required) |
+| `handler` | Handler reference (required) |
+
 ### Common entry fields
 
 | Field | Applies to | Description |
@@ -621,6 +635,16 @@ Queries and mutations are auto-generated from `CRUDProvider` registrations. Mode
 | `requires_mfa` | crud, rest | Require `mfa: true` in JWT claims. Rejects with 401 if missing or false |
 | `csrf` | crud, rest, webhook | Per-entry override: `false` skips CSRF for this entry |
 | `validate` | crud, rest, webhook | Validation model name |
+| `api_version` | all | API version prefix (e.g. `v1`, `v2`). Empty = no version prefix |
+| `api_status` | all | Lifecycle status: `current`, `deprecated`, `removed` |
+| `sunset_date` | all | RFC3339 date when endpoint will be removed (e.g. `2026-12-31T23:59:59Z`) |
+| `retry` | rest, webhook | Retry configuration for idempotent methods (GET, HEAD, PUT, DELETE, OPTIONS) |
+| `retry.max_retries` | rest, webhook | Max retry attempts. Default `3` |
+| `retry.initial_interval` | rest, webhook | Initial backoff duration. Default `500ms` |
+| `retry.max_backoff` | rest, webhook | Max backoff duration. Default `10s` |
+| `retry.multiplier` | rest, webhook | Exponential backoff multiplier. Default `2.0` |
+| `fallback` | rest, webhook, file | Fallback strategy when breaker rejects: `degraded` or `stale` |
+| `bulkhead` | rest, webhook | Named concurrency limits for external API calls (e.g. `openai: 5`) |
 
 **Entry auth combinations:**
 
@@ -707,7 +731,11 @@ Slow query logging writes a structured log entry for any database query that exc
 | `prefork` | `false` | Fiber prefork (SO_REUSEPORT) |
 | `body_limit` | `4194304` | Max body size (Fiber level) |
 | `timeout` | `30s` | Read/write/idle timeout |
-| `api_prefix` | `/api/v1` | Prefix prepended to all entry paths |
+| `api_prefix` | `/api` | Prefix prepended to all entry paths (version via `api_version`) |
+| `correlation.enabled` | `false` | Enable X-Correlation-ID tracking middleware |
+| `correlation.request_header` | `X-Correlation-ID` | Incoming correlation ID header |
+| `correlation.response_header` | `X-Correlation-ID` | Response correlation ID header |
+| `correlation.skip_paths` | — | Paths to skip (e.g. `[/health, /metrics]`) |
 | `recover_stack` | `true` | Show stack traces on panic |
 | `logger` | `true` | Enable request logging middleware |
 | `load_shedding` | `true` | Enable adaptive load shedding |

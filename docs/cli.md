@@ -14,30 +14,47 @@ go install github.com/natuleadan/sdk-api/cmd/sdk-api@latest
 
 Print the SDK version.
 
+```bash
+sdk-api version
+```
+
 ### `sdk-api new <name> [flags]`
 
-Creates a new microservice scaffold with YAML config. Generates three files:
+Creates a new microservice scaffold with a proper project structure (handler/, logic/, svc/, config/).
 
 ```
 <name>/
-├── main.go            # Entrypoint with runtime.New()
-├── service.yaml       # YAML configuration
-└── models/
-    └── model.go       # Struct with db:"" tags + EntryHooks
+├── cmd/
+│   └── main.go                   # Bootstrap with runtime.NewFromYAML()
+├── internal/
+│   ├── config/
+│   │   └── config.go             # Typed config struct
+│   ├── handler/
+│   │   └── <resource>.go         # HTTP handler (one per resource)
+│   ├── logic/
+│   │   └── <resource>.go         # Business logic (pure, testable)
+│   └── svc/
+│       └── servicecontext.go     # DI container (pools + bulkheads)
+├── models/
+│   └── <model>.go                # Struct with db:"" tags + hooks
+├── service.yaml
+└── .env
 ```
 
 **Flags:**
 
-| Flag | Description | Example |
+| Flag | Description | Default |
 |------|-------------|---------|
-| `--model` | Model name (defaults to PascalCase of service name) | `--model Product` |
-| `--fields` | Comma-separated field definitions | `--fields "name:string,price:float64"` |
-| `--port` | HTTP port (default: `8080`) | `--port 9090` |
-| `--consume` | NATS consumer streams | `--consume "orders:ord-cons:onOrder"` |
-| `--publish` | NATS producer streams | `--publish "events:create\|update"` |
-| `--exit` | Exit worker definitions | `--exit "orders:onOrderConfirmed:ord-worker"` |
-| `--cron` | Cron job handlers | `--cron "onCleanup:daily-cleanup"` |
-| `--dir` | Output directory (default: service name) | `--dir ./my-svc` |
+| `--model` | Model name (PascalCase) | Service name |
+| `--fields` | Comma-separated field definitions | — |
+| `--port` | HTTP port | `8080` |
+| `--consume` | NATS consumers: `stream:durable:handler` | — |
+| `--publish` | NATS producers: `stream:after_event` | — |
+| `--exit` | Exit workers: `stream:handler:name` | — |
+| `--cron` | Cron jobs: `handler:name` | — |
+| `--grpc` | Enable gRPC server generation | `false` |
+| `--grpc-port` | gRPC server port | HTTP port + 1 |
+| `--dir` | Output directory | Service name |
 
 **Examples:**
 
@@ -47,18 +64,50 @@ sdk-api new products-svc \
     --model Product \
     --fields "name:string,price:float64,stock:int"
 
-# With NATS consumers and producers
+# With NATS and gRPC
 sdk-api new orders-svc \
     --model Order \
     --fields "total:float64,status:string" \
     --consume "orders:ord-consumer:onOrderCreated" \
-    --publish "order-events:create|update"
+    --grpc
 
 # With exit workers and cron
 sdk-api new analytics-svc \
     --exit "events:onEvent:event-worker" \
     --cron "onDailyReport:daily-report"
 ```
+
+### `sdk-api validate [file]`
+
+Validates a `service.yaml` configuration against the SDK schema. Checks required fields, references, and value ranges.
+
+```bash
+sdk-api validate                      # validate service.yaml
+sdk-api validate config.yaml -v       # verbose output
+sdk-api validate --strict             # fail on warnings
+```
+
+| Flag | Description |
+|------|-------------|
+| `--verbose` | Show parsed configuration details |
+| `--strict` | Exit with error on warnings |
+
+### `sdk-api dev [flags]`
+
+Runs the service in development mode with hot reload. Watches for file changes and automatically rebuilds and restarts.
+
+```bash
+sdk-api dev                           # watch *.go, run go run .
+sdk-api dev --port 9090               # set PORT env var
+sdk-api dev --cmd "make run"          # custom rebuild command
+```
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--pattern` | File glob pattern to watch | `*.go` |
+| `--cmd` | Command to run on change | `go run .` |
+| `--port` | PORT env var for the process | — |
+| `--verbose` | Log all file changes | `false` |
 
 ### `sdk-api docker [flags]`
 
@@ -70,10 +119,10 @@ sdk-api docker --name myapp --port 9090 > Dockerfile
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--name` | (required) | Binary name |
+| `--name` | `service` | Binary name |
 | `--port` | `8080` | Exposed port |
-| `--main` | `./` | Main package path |
-| `--base` | `alpine` | Runtime base image (`alpine` or `scratch`) |
+| `--main` | `main.go` | Main file path |
+| `--base` | `scratch` | Base image |
 
 ### `sdk-api kube [flags]`
 
@@ -87,18 +136,15 @@ sdk-api kube --name products --image products:v1 > k8s.yaml
 |------|---------|-------------|
 | `--name` | (required) | Service name |
 | `--image` | (required) | Container image |
+| `--namespace` | `default` | K8s namespace |
 | `--port` | `8080` | Container port |
-| `--replicas` | `3` | Initial replicas |
-| `--namespace` | `default` | Kubernetes namespace |
+| `--replicas` | `3` | Replicas |
 
-Generates:
-- Deployment with resource requests/limits
-- Service (ClusterIP)
-- HorizontalPodAutoscaler (target CPU: 80%)
+Generates Deployment with resource requests/limits, ClusterIP Service, and HorizontalPodAutoscaler (CPU 80%).
 
 ### `sdk-api vercel [flags]`
 
-Generates `vercel.json` for Vercel deployment. Validates the `service.yaml` against Vercel compatibility rules (prefork must be false, TLS must be disabled).
+Generates `vercel.json` for Vercel deployment. Validates against Vercel compatibility rules.
 
 ```bash
 sdk-api vercel --output vercel.json
@@ -108,14 +154,12 @@ sdk-api vercel --output vercel.json
 |------|---------|-------------|
 | `--config` | `service.yaml` | Path to YAML config |
 | `--output` | stdout | Output file path |
-| `--build-command` | — | Custom build command (e.g., `make build`) |
-| `--go-flags` | — | Extra GO_BUILD_FLAGS (e.g., `-ldflags '-s -w'`) |
-
-The generated `vercel.json` sets `{"framework": "go"}`. If `--build-command` or `--go-flags` are provided, they are included in the config.
+| `--build-command` | — | Custom build command |
+| `--go-flags` | — | Extra build flags |
 
 ### `sdk-api client [flags]`
 
-Generates typed client SDK in multiple languages.
+Generates typed client SDK in TypeScript, Python, Dart, Java, or Kotlin.
 
 ```bash
 sdk-api client --model Product --fields "name:string,price:float64" --lang ts
@@ -128,21 +172,43 @@ sdk-api client --model Product --fields "name:string,price:float64" --lang ts
 | `--lang` | Target language: `ts`, `py`, `dart`, `java`, `kotlin` |
 | `--output` | Output file path (default: stdout) |
 
+### `sdk-api completion [bash|zsh|fish]`
+
+Generates shell completion scripts.
+
+```bash
+source <(sdk-api completion bash)                     # bash
+sdk-api completion zsh > /usr/local/share/zsh/site-functions/_sdk-api  # zsh
+sdk-api completion fish > ~/.config/fish/completions/sdk-api.fish       # fish
+```
+
 ## Generated Project Structure
 
 ```
 my-svc/
-├── main.go              # Entrypoint with //go:embed + runtime.NewFromYAML()
-├── service.yaml         # YAML with entry/exit/cron (embedded in binary)
-└── models/
-    └── model.go         # Struct + EntryHooks
+├── cmd/
+│   └── main.go                   # Bootstrap with //go:embed + runtime.NewFromYAML()
+├── internal/
+│   ├── config/
+│   │   └── config.go             # Typed Config struct
+│   ├── handler/
+│   │   └── <resource>.go         # HTTP endpoints, one per resource
+│   ├── logic/
+│   │   └── <resource>.go         # Business logic (pure Go, testable)
+│   └── svc/
+│       └── servicecontext.go     # ServiceContext — dependency injection container
+├── models/
+│   └── model.go                  # Struct + EntryHooks
+├── service.yaml                  # YAML config (embedded via //go:embed)
+└── .env                          # Environment variables
 ```
 
-The generated `main.go` uses `//go:embed` to embed `service.yaml` directly into the binary. This eliminates filesystem dependencies at runtime and works on any deployment platform (Vercel, Docker, Kubernetes, bare-metal).
+With `--grpc`:
 
-The binary supports `--mode`:
-
-```bash
-go run . --mode entry    # HTTP server
-go run . --mode exit     # NATS workers
 ```
+├── api/<resource>.proto           # Protobuf definition
+├── grpcserver/<resource>.go       # gRPC server implementation
+└── pb/<resource>.pb.go            # Generated Go structs with protobuf tags
+```
+
+The generated `cmd/main.go` uses `//go:embed` to embed `service.yaml` directly into the binary. This eliminates filesystem dependencies at runtime and works on any deployment platform (Vercel, Docker, Kubernetes, bare-metal).

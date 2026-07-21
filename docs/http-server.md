@@ -12,7 +12,7 @@ server:
   timeout: 30s
   max_conns: 1000
   max_bytes: 4194304
-  api_prefix: /api/v1
+  api_prefix: /api
   health_path: /health
   metrics_path: /metrics
   shutdown_timeout: 10s
@@ -27,7 +27,7 @@ server:
 | `timeout` | `30s` | Read/write/idle timeout |
 | `max_conns` | `1000` | Concurrency limit via middleware |
 | `max_bytes` | `4194304` | Per-request max bytes |
-| `api_prefix` | `/api/v1` | Prefix prepended to all entry paths |
+| `api_prefix` | `/api` | Prefix prepended to all entry paths (version via `api_version`) |
 | `health_path` | `/health` | Kubernetes liveness probe endpoint |
 | `metrics_path` | `/metrics` | Prometheus metrics endpoint |
 | `shutdown_timeout` | `10s` | Graceful shutdown wait time |
@@ -47,6 +47,58 @@ The server auto-registers routes from `entry:` in YAML. Nine types:
 | `file` | GET, POST, PUT, PATCH, DELETE | Upload handler | File upload/download/delete |
 | `async` | POST, GET | Async handler | 202 Accepted + status polling |
 | `graphql` | POST | Nothing | Auto-generated GraphQL schema |
+
+## Correlation ID
+
+Global middleware that injects `X-Correlation-ID` into every request and response. Configured via `server.correlation`:
+
+```yaml
+server:
+  correlation:
+    enabled: true
+    request_header: X-Correlation-ID
+    response_header: X-Correlation-ID
+    skip_paths: [/health, /metrics]
+```
+
+When enabled, the correlation ID is:
+- Read from the incoming `X-Correlation-ID` header (or auto-generated as UUID)
+- Set on the response header
+- Passed to handlers via `GetCorrelationID(c)`
+- Included in access logs: `[550e8400...] GET /products 200 45ms`
+
+## Retry
+
+Per-entry retry middleware for idempotent methods (GET, HEAD, PUT, DELETE, OPTIONS). Uses exponential backoff with jitter.
+
+```yaml
+entry:
+  - type: rest
+    path: /products
+    retry:
+      max_retries: 3
+      initial_interval: 500ms
+      max_backoff: 10s
+      multiplier: 2.0
+```
+
+On 5xx response, waits (backoff + random jitter 0-999ms) and re-executes the handler. Only for idempotent methods.
+
+## Fallback
+
+Middleware that intercepts circuit breaker rejections and returns a degraded response.
+
+```yaml
+entry:
+  - type: rest
+    path: /products
+    fallback: degraded     # Returns 503 with message
+    # fallback: stale      # Returns last cached 200 response (30s TTL)
+```
+
+Two modes:
+- `degraded`: Returns 503 with a configurable message
+- `stale`: Serves the last successful 200 response from an in-memory cache (30s TTL)
 
 ## Security Headers
 

@@ -13,19 +13,23 @@ docker compose run --rm bench --rps         # functional + RPS
 
 | Endpoint | RPS | Notes |
 |----------|:---:|-------|
-| Expand (GET /expand/:shortCode) | 118,331 | Dragonfly/Redis in-memory |
-| List (GET /links) | 15,656 | Pagination with COUNT(*) |
-| GetByID (GET /links/:id) | 114,503 | Direct read by PK |
-| Create (POST /links) | 51,703 | Insert via Dragonfly |
-| Update (PUT /links/:id) | 64,884 | Update via Dragonfly |
-| Delete (DELETE /links/:id) | 55,797 | Delete via Dragonfly |
+| Expand (GET /api/expand/:shortCode) | ~120K | Dragonfly/Redis in-memory |
+| List (GET /api/links) | ~18K | Pagination with SSCAN |
+| GetByID (GET /api/links/:id) | ~127K | Direct read by primary key |
+| Create (POST /api/links) | ~38K | Insert via Dragonfly |
+| Update (PATCH /api/links/:id) | ~57K | Update via Dragonfly |
+| Delete (DELETE /api/links/:id) | ~51K | Delete via Dragonfly |
 
 ## Architecture
 
 | File | Purpose |
 |------|---------|
-| `main.go` | 6 REST handlers (create/list/get/update/delete/expand) via `svc.WithRest` |
-| `service.docker.yaml` | 6 `type: rest` entries, `apply: []` middleware, no databases |
-| `run.sh` | Entrypoint: `--rps` for benchmarks, `--test:Name` for specific tests |
-| `bench_test.go` | Functional tests + expand benchmark |
+| `cmd/main.go` | Bootstrap with `runtime.New()` + `handler.RegisterRoutes()` |
+| `internal/handler/routes.go` | Route registration |
+| `internal/handler/*.go` | Per-endpoint handlers (create, list, get, update, delete, expand) |
+| `internal/logic/links.go` | Business logic (Redis CRUD) |
+| `internal/svc/servicecontext.go` | DI container with `*redis.Redis` |
+| `service.yaml` | YAML config with `api_prefix: /api` |
+| `bench_test.go` | Functional tests + benchmark |
+| `run.sh` | Entrypoint: `--rps` for benchmarks |
 | `docker-compose.yml` | Dragonfly + bench container |

@@ -8,6 +8,12 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: psql -h127.0.0.1 -p6432 -Udev -dpostgres -c 'SELECT 1' >/dev/null 2>&1
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
 
   postgres:
     image: postgres:18-alpine
@@ -45,7 +51,7 @@ services:
       postgres:
         condition: service_healthy
       pgdog:
-        condition: service_started
+        condition: service_healthy
       nats:
         condition: service_started
     environment:

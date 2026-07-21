@@ -3,8 +3,8 @@ WORKDIR /build
 COPY sdk-api /sdk-api
 COPY sdk-api/examples/100-healthz ./
 RUN go mod edit -replace github.com/natuleadan/sdk-api=/sdk-api && go mod tidy && go mod download
-RUN CGO_ENABLED=0 go build -o /svc .
-RUN CGO_ENABLED=0 go test -c -o /tester .
+RUN CGO_ENABLED=0 go build -o /svc ./cmd/
+RUN CGO_ENABLED=0 go test -c -o /tester ./cmd/
 
 FROM alpine:latest
 RUN apk add --no-cache wrk ca-certificates curl

@@ -2,9 +2,9 @@ local cursor = ""
 
 request = function()
     if cursor == "" then
-        wrk.path = "/api/v1/products?size=20"
+        wrk.path = "/api/products?size=20"
     else
-        wrk.path = "/api/v1/products?cursor=" .. cursor .. "&size=20"
+        wrk.path = "/api/products?cursor=" .. cursor .. "&size=20"
     end
     return wrk.format("GET")
 end

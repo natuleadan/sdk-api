@@ -13,15 +13,16 @@ docker compose run --rm bench --rps         # functional + RPS
 
 | Endpoint | RPS | Notes |
 |----------|:---:|-------|
-| Upload (POST /files/upload/:key) | 23568 | S3 + RAM cache L1 |
-| Download (GET /files/download/:key) | 126469 | S3 + RAM cache L1 |
+| Upload (POST /files/upload/:key) | 22,473 | S3 + RAM cache L1 |
+| Download (GET /files/download/:key) | 121,088 | S3 + RAM cache L1 |
 
 
 ## Architecture
 
 | File | Purpose |
 |------|---------|
-| `main.go` |  |
+| `cmd/main.go` | Bootstrap — NewFromYAML + Storage upload/download handlers |
+| `service.yaml` | Service config (api_prefix: /api, storage with L1 RAM + L2 disk cache) |
 | `run.sh` | Entrypoint: --rps for benchmarks, --test:Name for specific tests |
-| `bench_test.go` | Functional tests |
-| `docker-compose.yml` | Services:  |
+| `bench_test.go` | Functional tests + upload/download benchmarks |
+| `docker-compose.yml` | MinIO S3 + bucket init + bench |

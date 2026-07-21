@@ -1,0 +1,55 @@
+#file proxysql.cnf
+
+datadir="/var/lib/proxysql"
+
+admin_variables=
+{
+    admin_credentials="admin:admin"
+    mysql_ifaces="0.0.0.0:6032"
+}
+
+mysql_variables=
+{
+    threads=4
+    max_connections=2048
+    default_query_delay=0
+    default_query_timeout=36000000
+    have_compress=true
+    poll_timeout=2000
+    interfaces="0.0.0.0:6033"
+    default_schema="shorturl"
+    stacksize=1048576
+    server_version="11.0.0-MariaDB"
+    connect_timeout_server=3000
+    monitor_username="monitor"
+    monitor_password="monitor"
+    monitor_history=600000
+    monitor_connect_interval=60000
+    monitor_ping_interval=10000
+    ping_interval_server_msec=10000
+    ping_timeout_server=200
+    commands_stats=true
+    sessions_sort=true
+}
+
+mysql_servers =
+(
+    {
+        address="mariadb"
+        port=3306
+        hostgroup=0
+        max_connections=200
+    }
+)
+
+mysql_users:
+(
+    {
+        username="dev"
+        password="devpass"
+        default_hostgroup=0
+        max_connections=200
+        default_schema="shorturl"
+        active=1
+    }
+)

@@ -15,8 +15,8 @@ import (
 
 const (
 	baseURL     = "http://localhost:23301"
-	apiUpload   = baseURL + "/api/v1/files/upload"
-	apiDownload = baseURL + "/api/v1/files/download"
+	apiUpload   = baseURL + "/api/files/upload"
+	apiDownload = baseURL + "/api/files/download"
 	benchDur    = 15 * time.Second
 	concurrency = 100
 )
@@ -212,7 +212,7 @@ func TestFile_ListFiles(t *testing.T) {
 		code := fmt.Sprintf("list-%d.dat", i)
 		http.Post(apiUpload+"/"+code, "text/plain", strings.NewReader("data"))
 	}
-	resp, err := http.Get(baseURL + "/api/v1/files")
+	resp, err := http.Get(baseURL + "/api/files")
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -227,7 +227,7 @@ func TestFile_DeleteFile(t *testing.T) {
 	code := fmt.Sprintf("delete-%d", time.Now().UnixNano())
 	http.Post(apiUpload+"/"+code+".dat", "text/plain", strings.NewReader("to-delete"))
 
-	req, _ := http.NewRequest("DELETE", baseURL+"/api/v1/files/"+code+".dat", nil)
+	req, _ := http.NewRequest("DELETE", baseURL+"/api/files/"+code+".dat", nil)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("delete: %v", err)

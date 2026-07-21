@@ -15,8 +15,8 @@ import (
 
 const (
 	baseURL     = "http://localhost:23302"
-	apiUpload   = baseURL + "/api/v1/files/upload"
-	apiDownload = baseURL + "/api/v1/files/download"
+	apiUpload   = baseURL + "/api/files/upload"
+	apiDownload = baseURL + "/api/files/download"
 	benchDur    = 15 * time.Second
 	concurrency = 100
 )
@@ -61,7 +61,7 @@ func setup(tb testing.TB) {
 
 	setupOnce.Do(func() {
 		svcCmd = exec.Command("/tmp/file-cached-svc")
-		svcCmd.Env = append(os.Environ(), "PORT=23302")
+		svcCmd.Env = append(os.Environ(), "CONFIG_PATH=service.yaml", "PORT=23302")
 		svcCmd.Stdout = os.Stdout
 		svcCmd.Stderr = os.Stderr
 		if err := svcCmd.Start(); err != nil {

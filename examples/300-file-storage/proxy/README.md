@@ -13,15 +13,16 @@ docker compose run --rm bench --rps         # functional + RPS
 
 | Endpoint | RPS | Notes |
 |----------|:---:|-------|
-| Upload (POST /files/upload/:key) | 18320 | S3 proxy (no cache) |
-| Download (GET /files/download/:key) | 19194 | S3 proxy (no cache) |
+| Upload (POST /files/upload/:key) | 15,796 | S3 proxy (no cache) |
+| Download (GET /files/download/:key) | 18,803 | S3 proxy (no cache) |
 
 
 ## Architecture
 
 | File | Purpose |
 |------|---------|
-| `main.go` |  |
+| `cmd/main.go` | Bootstrap — S3 upload/download proxy without cache |
+| `service.yaml` | Service config (api_prefix: /api, S3 storage) |
 | `run.sh` | Entrypoint: --rps for benchmarks, --test:Name for specific tests |
-| `bench_test.go` | Functional tests |
-| `docker-compose.yml` | Services:  |
+| `bench_test.go` | Functional tests + upload/download benchmarks |
+| `docker-compose.yml` | MinIO S3 + bucket init + bench |

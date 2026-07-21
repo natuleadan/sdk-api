@@ -13,15 +13,16 @@ docker compose run --rm bench --rps         # functional + RPS
 
 | Endpoint | RPS | Notes |
 |----------|:---:|-------|
-| Upload (POST /files/upload/:key) | 56420 | In-memory filesystem |
-| Download (GET /files/download/:key) | 99785 | In-memory filesystem |
+| Upload (POST /files/upload/:key) | 56,420 | In-memory filesystem |
+| Download (GET /files/download/:key) | 99,785 | In-memory filesystem |
 
 
 ## Architecture
 
 | File | Purpose |
 |------|---------|
-| `main.go` |  |
+| `cmd/main.go` | Bootstrap — 4 REST handlers (upload, download, list, delete) |
+| `service.yaml` | Service config (api_prefix: /api, 4 REST entries) |
 | `run.sh` | Entrypoint: --rps for benchmarks, --test:Name for specific tests |
-| `bench_test.go` | Functional tests |
-| `docker-compose.yml` | Services:  |
+| `bench_test.go` | Functional tests + upload/download benchmarks |
+| `docker-compose.yml` | Bench container with tmpfs volume |

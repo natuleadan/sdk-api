@@ -12,6 +12,8 @@ for arg in "$@"; do
 	esac
 done
 
+export CONFIG_PATH=service.yaml
+
 echo "=== starting service ==="
 /app/svc &
 SVC_PID=$!
@@ -28,7 +30,7 @@ if [ "$RPS" = "true" ]; then
 	echo "=== seeding 200 hot keys ==="
 	for i in $(seq 1 200); do
 		code=$(printf "hot%05d" $i)
-		curl -s --max-time 5 -X POST "http://localhost:23301/api/v1/files/upload/$code.dat" \
+		curl -s --max-time 5 -X POST "http://localhost:23301/api/files/upload/$code.dat" \
 			-H "Content-Type: application/octet-stream" \
 			-d "seed-data-$i-benchmark" >/dev/null
 	done

@@ -23,21 +23,21 @@ docker compose run --rm bench --rps         # functional + RPS
 
 | Endpoint | RPS | Notes |
 |----------|:---:|-------|
-| Expand (GET /expand/:shortCode) | 38,753 | PostgreSQL via PgDog |
-| List (GET /links) | 20,901 | Pagination with COUNT(*) |
-| GetByID (GET /links/:id) | 41,838 | Direct PG read by PK |
-| Create (POST /links) | 17,058 | PG INSERT with PgDog |
-| Update (PUT /links/:id) | 196,073 | PG UPDATE via PgDog |
-| Delete (DELETE /links/:id) | 36,657 | PG DELETE via PgDog |
+| Expand (GET /expand/:shortCode) | 39,935 | PostgreSQL via PgDog |
+| List (GET /links) | 20,944 | Pagination with COUNT(*) |
+| GetByID (GET /links/:id) | 41,830 | Direct PG read by PK |
+| Create (POST /links) | 19,317 | PG INSERT with PgDog |
+| Update (PUT /links/:id) | 187,776 | PG UPDATE via PgDog |
+| Delete (DELETE /links/:id) | 36,309 | PG DELETE via PgDog |
 
 ## Architecture
 
 | File | Purpose |
 |------|---------|
-| `models/link.go` | Link model (primary key: `id`) |
+| `cmd/main.go` | Bootstrap via `runtime.MustRegister` |
+| `models/link.go` | Link model + `BeforeCreate` auto-generates short codes |
 | `models/link_expand.go` | LinkExpand model (primary key: `short_code`) |
-| `hooks.go` | `BeforeCreate` auto-generates short codes |
-| `main.go` | Bootstrap via `runtime.MustRegister` |
+| `service.yaml` | Service config (api_prefix: /api) |
 | `service.docker.yaml` | Docker config (prefork, pool, PgDog) |
 | `bench_test.go` | Functional tests + expand benchmark |
 | `run.sh` | Entrypoint: `--rps` for benchmarks, `--test:Name` for specific tests |

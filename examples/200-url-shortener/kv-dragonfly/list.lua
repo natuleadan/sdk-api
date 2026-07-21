@@ -1,3 +1,3 @@
 request = function()
-    return wrk.format("GET", "/api/v1/links")
+    return wrk.format("GET", "/api/links")
 end

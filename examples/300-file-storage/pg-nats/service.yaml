@@ -59,6 +59,11 @@ entry:
 
   - type: rest
     method: GET
+    path: /files/download/:key
+    handler: onDownloadCached
+
+  - type: rest
+    method: GET
     path: /products/:id/view
     handler: onGetProductWithMedia
 
@@ -79,13 +84,12 @@ exit:
 
 server:
   host: "0.0.0.0"
-  api_prefix: /api/v1
+  api_prefix: /api
   openapi:
     enabled: true
     version: "1.0.0"
   middleware:
-    - path: "/api/v1/*"
+    - path: "/api/*"
       apply:
         - logger
         - cors
-

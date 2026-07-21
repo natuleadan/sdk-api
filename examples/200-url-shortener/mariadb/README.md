@@ -9,26 +9,27 @@ docker compose run --rm bench               # functional tests
 docker compose run --rm bench --rps         # functional + RPS
 ```
 
-## Benchmark (wrk -t10 -c1000 inside Docker)
+## Benchmark (wrk -t10 -c1000 inside Docker via ProxySQL)
 
 | Endpoint | RPS | Notes |
 |----------|:---:|-------|
-| Expand (GET /expand/:shortCode) | 50,501 | MariaDB via PgDog proxy |
-| List (GET /links) | 71,890 | Pagination with COUNT(*) |
-| GetByID (GET /links/:id) | 52,710 | Direct read by PK |
-| Create (POST /links) | 15,697 | Insert via MariaDB |
-| Update (PUT /links/:id) | 195,204 | Update via MariaDB |
-| Delete (DELETE /links/:id) | 45,783 | Delete via MariaDB |
+| Expand (GET /expand/:shortCode) | 30,088 | MariaDB via ProxySQL pooler |
+| List (GET /links) | 44,082 | Pagination with COUNT(*) |
+| GetByID (GET /links/:id) | 29,292 | Direct read by PK |
+| Create (POST /links) | 18,036 | Insert via MariaDB |
+| Update (PUT /links/:id) | 138,390 | Update via MariaDB |
+| Delete (DELETE /links/:id) | 26,231 | Delete via MariaDB |
 
 ## Architecture
 
 | File | Purpose |
 |------|---------|
-| `main.go` |  |
-| `hooks.go` | BeforeCreate auto-generates short codes |
-| `models/link.go` | Link model (PK: id) |
-| `models/link_expand.go` | LinkExpand model (PK: short_code) |
-| `service.docker.yaml` | Docker config |
+| `cmd/main.go` | Bootstrap — MySQLMustRegister × 2 |
+| `models/link.go` | Link model + BeforeCreate hook (auto short code) |
+| `models/link_expand.go` | LinkExpand model (read-only, PK: short_code) |
+| `service.yaml` | Service config (api_prefix: /api) |
+| `service.docker.yaml` | Docker config override |
 | `run.sh` | Entrypoint: --rps for benchmarks, --test:Name for specific tests |
 | `bench_test.go` | Functional tests + expand benchmark |
-| `docker-compose.yml` | Services definition |
+| `docker-compose.yml` | Services: mariadb + proxysql (pooler) + bench |
+| `proxysql.cnf` | ProxySQL configuration for connection pooling |

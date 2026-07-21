@@ -8,7 +8,7 @@ server:
   body_limit: 4194304
   max_conns: 10000
   health_path: /healthz
-  api_prefix: /api/v1
+  api_prefix: /api
   shutdown_timeout: 10s
   middleware:
     - path: "/*"
@@ -24,8 +24,17 @@ server:
     enabled: true
     json_check: true
     exclude_paths:
-      - "/api/v1/login"
-      - "/api/v1/signup"
+      - "/api/login"
+      - "/api/signup"
+      - "/api/no-csrf"
+      - "/api/oauth/token"
+      - "/api/oauth/introspect"
+      - "/api/oauth/revoke"
+      - "/api/auth/magic-link"
+      - "/api/auth/magic-link/verify"
+      - "/api/oauth/authorize"
+      - "/api/oauth/clients"
+      - "/api/oauth/clients/*"
   security_headers:
     frame_options: DENY
     referrer_policy: no-referrer
@@ -317,6 +326,150 @@ entry:
     rate_limit_per_user:
       requests_per_second: 1
       burst: 2
+
+  - type: rest
+    method: POST
+    path: /auth/magic-link
+    handler: magicLink
+
+  - type: rest
+    method: GET
+    path: /auth/magic-link/verify
+    handler: magicLinkVerify
+
+  - type: rest
+    method: POST
+    path: /auth/access-code
+    handler: accessCode
+
+  - type: rest
+    method: POST
+    path: /auth/access-code/verify
+    handler: accessCodeVerify
+
+  - type: rest
+    method: POST
+    path: /auth/sms/send
+    handler: smsSend
+
+  - type: rest
+    method: POST
+    path: /auth/sms/verify
+    handler: smsVerify
+
+  - type: rest
+    method: GET
+    path: /auth/:provider/login
+    handler: socialLogin
+
+  - type: rest
+    method: GET
+    path: /auth/:provider/callback
+    handler: socialCallback
+
+  - type: rest
+    method: GET
+    path: /auth/linked-accounts
+    handler: linkedAccounts
+    auth_modes: [jwt]
+
+  - type: rest
+    method: POST
+    path: /auth/link
+    handler: linkAccount
+    auth_modes: [jwt]
+
+  - type: rest
+    method: DELETE
+    path: /auth/linked-accounts/:id
+    handler: unlinkAccount
+    auth_modes: [jwt]
+
+  - type: rest
+    method: POST
+    path: /auth/webauthn/register/begin
+    handler: webAuthnRegisterBegin
+    auth_modes: [jwt]
+
+  - type: rest
+    method: POST
+    path: /auth/webauthn/register/finish
+    handler: webAuthnRegisterFinish
+    auth_modes: [jwt]
+
+  - type: rest
+    method: POST
+    path: /auth/webauthn/login/begin
+    handler: webAuthnLoginBegin
+
+  - type: rest
+    method: POST
+    path: /auth/webauthn/login/finish
+    handler: webAuthnLoginFinish
+
+  - type: rest
+    method: POST
+    path: /auth/webauthn/login/manual/begin
+    handler: webAuthnManualLoginBegin
+
+  - type: rest
+    method: POST
+    path: /auth/webauthn/login/manual/finish
+    handler: webAuthnManualLoginFinish
+
+  - type: rest
+    method: GET
+    path: /auth/webauthn/credentials
+    handler: webAuthnCredentials
+    auth_modes: [jwt]
+
+  - type: rest
+    method: DELETE
+    path: /auth/webauthn/credentials/:id
+    handler: webAuthnDeleteCredential
+    auth_modes: [jwt]
+
+  - type: rest
+    method: GET
+    path: /oauth/authorize
+    handler: oauthAuthorize
+    auth_modes: [jwt]
+
+  - type: rest
+    method: POST
+    path: /oauth/token
+    handler: oauthToken
+    csrf: false
+
+  - type: rest
+    method: POST
+    path: /oauth/introspect
+    handler: oauthIntrospect
+    csrf: false
+
+  - type: rest
+    method: POST
+    path: /oauth/revoke
+    handler: oauthRevoke
+    csrf: false
+
+  - type: rest
+    method: GET
+    path: /oauth/clients
+    handler: oauthClientsList
+    auth_modes: [jwt]
+
+  - type: rest
+    method: POST
+    path: /oauth/clients
+    handler: oauthClientsCreate
+    auth_modes: [jwt]
+
+  - type: rest
+    method: DELETE
+    path: /oauth/clients/:id
+    handler: oauthClientsDelete
+    auth_modes: [jwt]
 
   - type: crud
     model: TenantProduct

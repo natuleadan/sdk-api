@@ -13,22 +13,22 @@ docker compose run --rm bench --rps         # functional + RPS
 
 | Endpoint | RPS | Notes |
 |----------|:---:|-------|
-| Expand (GET /expand/:shortCode) | 103,370 | PostgreSQL + RAM L1 + Dragonfly L2 |
-| List (GET /links) | 25,145 | Pagination with COUNT(*) |
-| GetByID (GET /links/:id) | 41,967 | Direct read by PK |
-| Create (POST /links) | 16,920 | Insert via PostgreSQL |
-| Update (PUT /links/:id) | 221,905 | Update via PostgreSQL |
-| Delete (DELETE /links/:id) | 45,592 | Delete via PostgreSQL |
+| Expand (GET /expand/:shortCode) | 95,809 | PostgreSQL + RAM L1 (sync.Map) + Dragonfly L2 |
+| List (GET /links) | 22,796 | Pagination with COUNT(*) |
+| GetByID (GET /links/:id) | 34,935 | Direct read by PK |
+| Create (POST /links) | 18,374 | Insert via PostgreSQL |
+| Update (PUT /links/:id) | 180,258 | Update via PostgreSQL |
+| Delete (DELETE /links/:id) | 33,857 | Delete via PostgreSQL |
 
 ## Architecture
 
 | File | Purpose |
 |------|---------|
-| `main.go` |  |
-| `hooks.go` | BeforeCreate auto-generates short codes |
-| `models/link.go` | Link model (PK: id) |
-| `models/link_expand.go` | LinkExpand model (PK: short_code) |
-| `service.docker.yaml` | Docker config |
+| `cmd/main.go` | Bootstrap — MustRegister + CachedCRUD with L1+L2 |
+| `models/link.go` | Link model + BeforeCreate hook |
+| `models/link_expand.go` | LinkExpand model (PK: short_code, L1+L2 cached) |
+| `service.yaml` | Service config (api_prefix: /api) |
+| `service.docker.yaml` | Docker config (prefork, pool, PgDog) |
 | `run.sh` | Entrypoint: --rps for benchmarks, --test:Name for specific tests |
 | `bench_test.go` | Functional tests + expand benchmark |
-| `docker-compose.yml` | Services definition |
+| `docker-compose.yml` | PostgreSQL 18 + PgDog + Dragonfly |

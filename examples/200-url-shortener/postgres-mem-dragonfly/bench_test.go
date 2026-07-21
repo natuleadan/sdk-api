@@ -16,8 +16,8 @@ import (
 
 const (
 	baseURL     = "http://localhost:23205"
-	apiLinks    = baseURL + "/api/v1/links"
-	apiExpand   = baseURL + "/api/v1/expand"
+	apiLinks    = baseURL + "/api/links"
+	apiExpand   = baseURL + "/api/expand"
 	benchDur    = 15 * time.Second
 	concurrency = 100
 )

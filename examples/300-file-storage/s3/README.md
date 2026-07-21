@@ -13,15 +13,17 @@ docker compose run --rm bench --rps         # functional + RPS
 
 | Endpoint | RPS | Notes |
 |----------|:---:|-------|
-| Upload (POST /files/upload/:key) | 16864 | S3 direct with presign |
-| Download (GET /files/download/:key) | 17763 | S3 direct with presign |
-| Sign Only (GET /files/sign/:key) | 69603 | Presigned URL generation |
+| Upload (POST /files/upload/:key) | 19,696 | S3 direct with presign |
+| Download (GET /files/download/:key) | 13,376 | S3 proxy download |
+| Sign Only (GET /files/sign/:key) | 62,835 | S3 presign URL generation |
 
 ## Architecture
 
 | File | Purpose |
 |------|---------|
-| `main.go` |  |
-| `run.sh` | Entrypoint: --rps for benchmarks, --test:Name for specific tests |
+| `cmd/main.go` | Bootstrap — S3 upload, proxy download, presigned redirect, sign-only |
+| `service.yaml` | Service config (api_prefix: /api, S3 storage with presign) |
+| `run.sh` | Entrypoint: --rps for benchmarks (upload, download, sign-only) |
 | `bench_test.go` | Functional tests |
-| `docker-compose.yml` | Services:  |
+| `upload.lua` / `download.lua` / `sign.lua` | S3 benchmarks |
+| `docker-compose.yml` | MinIO S3 + bucket init + bench |

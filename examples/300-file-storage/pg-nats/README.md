@@ -13,15 +13,22 @@ docker compose run --rm bench --rps         # functional + RPS
 
 | Endpoint | RPS | Notes |
 |----------|:---:|-------|
-| Upload (POST /files/upload/:key) | 558163 | PostgreSQL + NATS events + S3 |
-| Download (GET /files/download/:key) | 524839 | PostgreSQL + NATS events + S3 |
+| Upload (POST /files/upload) | 2,741 | S3 + L1 RAM cache + L2 disk cache |
+| Download (GET /files/download/:key) | 25,775 | S3 + L1 RAM cache + L2 disk cache |
+| Create (POST /products) | 15,739 | PG insert + NATS event publish |
+| List (GET /products?size=20) | 29,739 | Keyset pagination |
 
 
 ## Architecture
 
 | File | Purpose |
 |------|---------|
-| `main.go` |  |
-| `run.sh` | Entrypoint: --rps for benchmarks, --test:Name for specific tests |
+| `cmd/main.go` | Bootstrap — MustRegister + S3 upload + product view + exit workers |
+| `models/model.go` | Product, ProductPublic, UploadResponse structs |
+| `models/hooks.go` | ProductHooks (AfterCreate, AfterGet, AfterDelete) + TransformToPublic |
+| `service.yaml` | Service config (CRUD + file storage + NATS + OpenAPI) |
+| `run.sh` | Entrypoint: --rps for benchmarks (upload, download, create, list) |
 | `bench_test.go` | Functional tests |
-| `docker-compose.yml` | Services:  |
+| `upload.lua` / `download.lua` | S3 file transfer benchmarks |
+| `create.lua` / `list.lua` | CRUD product benchmarks |
+| `docker-compose.yml` | PostgreSQL 18 + PgDog + NATS JetStream + MinIO S3 |

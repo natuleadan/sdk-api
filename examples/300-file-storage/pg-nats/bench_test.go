@@ -87,7 +87,7 @@ func TestFile_CRUDFlow(t *testing.T) {
 	setup(t)
 
 	// Create a product without media
-	resp, err := http.Post(baseURL+"/api/v1/products", "application/json",
+	resp, err := http.Post(baseURL+"/api/products", "application/json",
 		strings.NewReader(`{"name":"Test Product","price":29.99}`))
 	if err != nil {
 		t.Fatalf("create: %v", err)
@@ -106,7 +106,7 @@ func TestFile_CRUDFlow(t *testing.T) {
 	t.Logf("created product id=%v", id)
 
 	// List products
-	listResp, err := http.Get(baseURL + "/api/v1/products")
+	listResp, err := http.Get(baseURL + "/api/products")
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -116,7 +116,7 @@ func TestFile_CRUDFlow(t *testing.T) {
 	}
 
 	// Get product by ID
-	getResp, err := http.Get(fmt.Sprintf("%s/api/v1/products/%v", baseURL, id))
+	getResp, err := http.Get(fmt.Sprintf("%s/api/products/%v", baseURL, id))
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
@@ -126,7 +126,7 @@ func TestFile_CRUDFlow(t *testing.T) {
 	}
 
 	// Update product
-	req, _ := http.NewRequest("PATCH", fmt.Sprintf("%s/api/v1/products/%v", baseURL, id),
+	req, _ := http.NewRequest("PATCH", fmt.Sprintf("%s/api/products/%v", baseURL, id),
 		strings.NewReader(`{"name":"Updated Product","price":39.99}`))
 	updResp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -139,7 +139,7 @@ func TestFile_CRUDFlow(t *testing.T) {
 	}
 
 	// Delete product
-	delReq, _ := http.NewRequest("DELETE", fmt.Sprintf("%s/api/v1/products/%v", baseURL, id), nil)
+	delReq, _ := http.NewRequest("DELETE", fmt.Sprintf("%s/api/products/%v", baseURL, id), nil)
 	delResp, err := http.DefaultClient.Do(delReq)
 	if err != nil {
 		t.Fatalf("delete: %v", err)
@@ -150,7 +150,7 @@ func TestFile_CRUDFlow(t *testing.T) {
 	}
 
 	// Verify deletion
-	checkResp, err := http.Get(fmt.Sprintf("%s/api/v1/products/%v", baseURL, id))
+	checkResp, err := http.Get(fmt.Sprintf("%s/api/products/%v", baseURL, id))
 	if err != nil {
 		t.Fatalf("check delete: %v", err)
 	}
@@ -163,7 +163,7 @@ func TestFile_CRUDFlow(t *testing.T) {
 func TestFile_UploadFlow(t *testing.T) {
 	setup(t)
 	payload := "hello-s3-test-content"
-	resp, err := http.Post(baseURL+"/api/v1/files/upload", "text/plain", strings.NewReader(payload))
+	resp, err := http.Post(baseURL+"/api/files/upload", "text/plain", strings.NewReader(payload))
 	if err != nil {
 		t.Fatalf("upload: %v", err)
 	}
@@ -192,7 +192,7 @@ func TestFile_ProductWithMedia(t *testing.T) {
 
 	// 1. Upload file
 	payload := "test-image-for-product"
-	upResp, err := http.Post(baseURL+"/api/v1/files/upload", "image/png", strings.NewReader(payload))
+	upResp, err := http.Post(baseURL+"/api/files/upload", "image/png", strings.NewReader(payload))
 	if err != nil {
 		t.Fatalf("upload: %v", err)
 	}
@@ -211,7 +211,7 @@ func TestFile_ProductWithMedia(t *testing.T) {
 
 	// 2. Create product with that media_key
 	createBody := fmt.Sprintf(`{"name":"Media Product","price":15.50,"mediaKey":"%s"}`, mediaKey)
-	crResp, err := http.Post(baseURL+"/api/v1/products", "application/json", strings.NewReader(createBody))
+	crResp, err := http.Post(baseURL+"/api/products", "application/json", strings.NewReader(createBody))
 	if err != nil {
 		t.Fatalf("create product: %v", err)
 	}
@@ -229,7 +229,7 @@ func TestFile_ProductWithMedia(t *testing.T) {
 	t.Logf("created product id=%v", productID)
 
 	// 3. Get product with media via custom endpoint
-	viewResp, err := http.Get(fmt.Sprintf("%s/api/v1/products/%v/view", baseURL, productID))
+	viewResp, err := http.Get(fmt.Sprintf("%s/api/products/%v/view", baseURL, productID))
 	if err != nil {
 		t.Fatalf("view product: %v", err)
 	}
@@ -251,7 +251,7 @@ func TestFile_ProductWithMedia(t *testing.T) {
 	}
 
 	// 4. Cleanup: delete product
-	delReq, _ := http.NewRequest("DELETE", fmt.Sprintf("%s/api/v1/products/%v", baseURL, productID), nil)
+	delReq, _ := http.NewRequest("DELETE", fmt.Sprintf("%s/api/products/%v", baseURL, productID), nil)
 	delResp, err := http.DefaultClient.Do(delReq)
 	if err != nil {
 		t.Fatalf("delete: %v", err)
@@ -266,7 +266,7 @@ func TestFile_ProductUpdateMedia(t *testing.T) {
 	setup(t)
 
 	// Upload first media
-	up1, _ := http.Post(baseURL+"/api/v1/files/upload", "text/plain", strings.NewReader("media-a"))
+	up1, _ := http.Post(baseURL+"/api/files/upload", "text/plain", strings.NewReader("media-a"))
 	var b1 map[string]any
 	json.NewDecoder(up1.Body).Decode(&b1)
 	up1.Body.Close()
@@ -274,7 +274,7 @@ func TestFile_ProductUpdateMedia(t *testing.T) {
 	t.Logf("media key A=%s", keyA)
 
 	// Create product with media A
-	cr1, _ := http.Post(baseURL+"/api/v1/products", "application/json",
+	cr1, _ := http.Post(baseURL+"/api/products", "application/json",
 		strings.NewReader(fmt.Sprintf(`{"name":"Product","price":10,"mediaKey":"%s"}`, keyA)))
 	var prod1 map[string]any
 	json.NewDecoder(cr1.Body).Decode(&prod1)
@@ -283,7 +283,7 @@ func TestFile_ProductUpdateMedia(t *testing.T) {
 	t.Logf("product id=%s with media A", pid)
 
 	// Upload second media
-	up2, _ := http.Post(baseURL+"/api/v1/files/upload", "text/plain", strings.NewReader("media-b"))
+	up2, _ := http.Post(baseURL+"/api/files/upload", "text/plain", strings.NewReader("media-b"))
 	var b2 map[string]any
 	json.NewDecoder(up2.Body).Decode(&b2)
 	up2.Body.Close()
@@ -291,7 +291,7 @@ func TestFile_ProductUpdateMedia(t *testing.T) {
 	t.Logf("media key B=%s", keyB)
 
 	// Update product to media B
-	updReq, _ := http.NewRequest("PATCH", fmt.Sprintf("%s/api/v1/products/%s", baseURL, pid),
+	updReq, _ := http.NewRequest("PATCH", fmt.Sprintf("%s/api/products/%s", baseURL, pid),
 		strings.NewReader(fmt.Sprintf(`{"mediaKey":"%s"}`, keyB)))
 	updResp, err := http.DefaultClient.Do(updReq)
 	if err != nil {
@@ -305,7 +305,7 @@ func TestFile_ProductUpdateMedia(t *testing.T) {
 	t.Log("product media updated from A to B")
 
 	// Verify via view endpoint
-	viewResp, viewErr := http.Get(fmt.Sprintf("%s/api/v1/products/%s/view", baseURL, pid))
+	viewResp, viewErr := http.Get(fmt.Sprintf("%s/api/products/%s/view", baseURL, pid))
 	if viewErr != nil || viewResp == nil {
 		t.Logf("view request failed: %v", viewErr)
 	} else {

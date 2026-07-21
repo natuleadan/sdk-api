@@ -24,5 +24,5 @@ local codes = {
 }
 
 request = function()
-    return wrk.format("GET", "/api/v1/nats/kv/" .. codes[math.random(#codes)])
+    return wrk.format("GET", "/api/nats/kv/" .. codes[math.random(#codes)])
 end

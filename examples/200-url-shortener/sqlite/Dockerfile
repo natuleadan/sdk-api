@@ -3,7 +3,7 @@ WORKDIR /build
 COPY sdk-api sdk-api
 COPY sdk-api/examples/200-url-shortener/sqlite ./
 RUN go mod edit -replace github.com/natuleadan/sdk-api=./sdk-api && go mod tidy && go mod download
-RUN CGO_ENABLED=1 go build -o /svc .
+RUN CGO_ENABLED=1 go build -o /svc ./cmd/
 RUN CGO_ENABLED=1 go test -c -o /tester . 2>/dev/null; true
 RUN go run -tags tursoinit turso-init.go "file:///tmp/cache.db" && rm -f /tmp/cache.db && \
     ls /root/.cache/turso-go/*/libturso_sync_sdk_kit.so && echo "CACHE OK"

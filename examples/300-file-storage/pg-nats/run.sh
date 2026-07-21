@@ -12,6 +12,8 @@ for arg in "$@"; do
 	esac
 done
 
+export CONFIG_PATH=service.yaml
+
 echo "=== starting service ==="
 /app/svc &
 SVC_PID=$!
@@ -27,9 +29,19 @@ EXIT=$?
 if [ "$RPS" = "true" ]; then
 	echo "=== seeding 50 hot products ==="
 	for i in $(seq 1 50); do
-		curl -s --max-time 5 -X POST "http://localhost:23304/api/v1/products" \
+		curl -s --max-time 5 -X POST "http://localhost:23304/api/products" \
 			-H "Content-Type: application/json" \
 			-d "{\"name\":\"product-$i\",\"price\":$i}" >/dev/null
+	done
+	echo "Seeding complete"
+
+	echo "=== seeding 200 hot files ==="
+	for i in $(seq 1 200); do
+		code=$(printf "hot%05d" $i)
+		data=$(printf 'upload-seed-data-%s' "$code")
+		curl -s --max-time 5 -X POST "http://localhost:23304/api/files/upload" \
+			-H "Content-Type: application/octet-stream" \
+			-d "$data" >/dev/null
 	done
 	echo "Seeding complete"
 
@@ -41,6 +53,8 @@ if [ "$RPS" = "true" ]; then
 		wrk -t10 -c1000 -d5s -s "/app/$lua" --latency "http://localhost:23304" 2>&1 | awk '/Requests\/sec/ {print "  measure:", $2}'
 	}
 
+	bench_one upload   upload.lua
+	bench_one download download.lua
 	bench_one create   create.lua
 	bench_one list     list.lua
 fi

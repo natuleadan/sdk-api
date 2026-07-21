@@ -24,22 +24,25 @@ docker compose run --rm bench --rps         # functional + RPS
 
 | Endpoint | RPS | Notes |
 |----------|:---:|-------|
-| List (GET /links) | 24,315 | PG scan + pagination |
-| Expand (GET /expand/:shortCode) | 104,823 | Cache-aside (NATS KV) |
-| Create (POST /links) | 18,059 | PG insert + cache invalidation + event publish |
-| Update (PATCH /links/:id) | 15,335 | PG update + cache invalidation + event publish |
-| Delete (DELETE /links/:id) | 35,068 | PG delete + cache invalidation + event publish |
-| RPC (POST /nats/rpc) | 109,792 | Core NATS request-reply |
-| KV Get (GET /nats/kv/:key) | 107,630 | NATS KV standalone read |
-| KV Set (PUT /nats/kv/:key) | 105,615 | NATS KV standalone write |
+| List (GET /links) | 19,908 | PG scan + pagination |
+| Expand (GET /expand/:shortCode) | 81,970 | Cache-aside (NATS KV) |
+| Create (POST /links) | 14,908 | PG insert + cache invalidation + event publish |
+| Update (PATCH /links/:id) | 14,192 | PG update + cache invalidation + event publish |
+| Delete (DELETE /links/:id) | 33,843 | PG delete + cache invalidation + event publish |
+| RPC (POST /nats/rpc) | 113,524 | Core NATS request-reply |
+| KV Get (GET /nats/kv/:key) | 99,162 | NATS KV standalone read |
+| KV Set (PUT /nats/kv/:key) | 78,424 | NATS KV standalone write |
 
 ## Architecture
 
 | File | Purpose |
 |------|---------|
-| `models/link.go` | Link model + URLEvent for JetStream |
-| `hooks.go` | Cache invalidation inline + event publish on CRUD |
-| `main.go` | CRUD override (cache-aside) + event entries + exit workers |
+| `cmd/main.go` | Bootstrap — MustRegister + handler routes + exit workers |
+| `models/link.go` | Link model + URLEvent + lifecycle hooks (cache invalidation + event publish) |
+| `internal/handler/links.go` | CRUD override (cache-aside) + expand with event publish |
+| `internal/handler/nats.go` | NATS RPC, KV, pull handlers |
+| `internal/handler/admin.go` | Events admin handlers |
+| `internal/svc/servicecontext.go` | DI container — event broker, cache conn, exit workers |
 | `service.docker.yaml` | Docker config (prefork off, pool 500, PgDog) |
 | `bench_test.go` | 16 functional tests including cache invalidation + worker bulk (358k/s) |
 | `run.sh` | Entrypoint: `--rps` for benchmarks, `--test:Name` for specific tests |

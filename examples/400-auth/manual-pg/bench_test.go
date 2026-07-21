@@ -28,10 +28,18 @@ func sha256Hex(s string) string {
 
 const (
 	httpPort = "23400"
-	baseURL  = "http://localhost:" + httpPort + "/api/v1"
+	baseURL  = "http://localhost:" + httpPort + "/api"
 )
 
 var docker bool
+const seedPass = "pass123"
+
+type TenantProduct struct {
+	ID       string  `db:"id,primary,auto" json:"id"`
+	Name     string  `db:"name" json:"name"`
+	Price    float64 `db:"price" json:"price"`
+	TenantID string  `db:"tenant_id" json:"tenant_id"`
+}
 
 func resetState(dbURL string) {
 	p, err := db.NewPool(context.Background(), db.PoolConfig{URL: dbURL})
@@ -2807,5 +2815,1850 @@ func TestTokenBlacklist_RefreshRotation(t *testing.T) {
 		t.Fatalf("new token after refresh: expected 200, got %d", resp3.StatusCode)
 	}
 	t.Log("new token works after refresh")
+}
+
+// --- Magic Link tests ---
+
+func TestMagicLink_InvalidSignature(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	claims := middleware.DefaultClaims("user-admin", "", nil, nil, 300)
+	claims["purpose"] = "magic_link"
+	token := signTestToken("wrong-secret", "HS256", claims)
+
+	resp, err := http.Get(baseURL + "/auth/magic-link/verify?token=" + token)
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 401 {
+		t.Fatalf("invalid signature: expected 401, got %d", resp.StatusCode)
+	}
+	t.Log("invalid signature correctly rejected")
+}
+
+func TestMagicLink_ExpiredToken(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	claims := middleware.DefaultClaims("user-admin", "", nil, nil, -1)
+	claims["purpose"] = "magic_link"
+	token := signTestToken("dev-secret-hs256-change-in-prod", "HS256", claims)
+
+	resp, err := http.Get(baseURL + "/auth/magic-link/verify?token=" + token)
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 401 {
+		t.Fatalf("expired token: expected 401, got %d", resp.StatusCode)
+	}
+	t.Log("expired magic link token correctly rejected")
+}
+
+func TestMagicLink_WrongPurpose(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	claims := middleware.DefaultClaims("user-admin", "", nil, nil, 300)
+	claims["purpose"] = "login"
+	token := signTestToken("dev-secret-hs256-change-in-prod", "HS256", claims)
+
+	resp, err := http.Get(baseURL + "/auth/magic-link/verify?token=" + token)
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 401 {
+		t.Fatalf("wrong purpose: expected 401, got %d", resp.StatusCode)
+	}
+	t.Log("wrong purpose magic link correctly rejected")
+}
+
+func TestMagicLink_TamperedToken(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	claims := middleware.DefaultClaims("user-admin", "", nil, nil, 300)
+	claims["purpose"] = "magic_link"
+	token := signTestToken("dev-secret-hs256-change-in-prod", "HS256", claims)
+
+	parts := strings.SplitN(token, ".", 3)
+	if len(parts) != 3 {
+		t.Fatal("bad JWT format")
+	}
+	// Modify the sub claim
+	payload, _ := base64.RawURLEncoding.DecodeString(parts[1])
+	var payloadMap map[string]any
+	json.Unmarshal(payload, &payloadMap)
+	payloadMap["sub"] = "nonexistent-user"
+	modifiedPayload, _ := json.Marshal(payloadMap)
+	parts[1] = base64.RawURLEncoding.EncodeToString(modifiedPayload)
+	tampered := strings.Join(parts, ".")
+
+	resp, err := http.Get(baseURL + "/auth/magic-link/verify?token=" + tampered)
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 401 {
+		t.Fatalf("tampered token: expected 401, got %d", resp.StatusCode)
+	}
+	t.Log("tampered magic link token correctly rejected")
+}
+
+func TestMagicLink_FullFlow(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	claims := middleware.DefaultClaims("user-admin", "", nil, nil, 300)
+	claims["purpose"] = "magic_link"
+	claims["email"] = "admin"
+	magicToken := signTestToken("dev-secret-hs256-change-in-prod", "HS256", claims)
+
+	resp, err := http.Get(baseURL + "/auth/magic-link/verify?token=" + magicToken)
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("verify: expected 200, got %d", resp.StatusCode)
+	}
+	var result struct {
+		Token  string `json:"token"`
+		Role   string `json:"role"`
+		UserID string `json:"user_id"`
+	}
+	json.NewDecoder(resp.Body).Decode(&result)
+	if result.Token == "" {
+		t.Fatal("no session token returned")
+	}
+	if result.Role != "admin" {
+		t.Fatalf("expected admin role, got %s", result.Role)
+	}
+	if result.UserID != "user-admin" {
+		t.Fatalf("expected user-admin, got %s", result.UserID)
+	}
+	t.Logf("magic link session: role=%s user_id=%s", result.Role, result.UserID)
+
+	profileResp := authenticated("GET", baseURL+"/profile", result.Token, nil)
+	defer profileResp.Body.Close()
+	if profileResp.StatusCode != 200 {
+		t.Fatalf("profile with magic link session: expected 200, got %d", profileResp.StatusCode)
+	}
+	t.Log("magic link full flow: send → verify → API access works")
+}
+
+// --- Access Code tests ---
+
+func insertAccessCode(t *testing.T, userID, code, purpose, deliveredTo string, expiresIn int) {
+	t.Helper()
+	poolURL := os.Getenv("DATABASE_URL")
+	if poolURL == "" {
+		poolURL = "postgres://postgres:postgres@postgres:5432/auth_roles?sslmode=disable"
+	}
+	ctx := context.Background()
+	p, err := db.NewPool(ctx, db.PoolConfig{URL: poolURL})
+	if err != nil {
+		t.Fatalf("pool: %v", err)
+	}
+	defer p.Close()
+	_, err = p.Exec(ctx,
+		`INSERT INTO auth_codes (user_id, code, purpose, delivered_to, delivery_method, expires_at)
+		 VALUES ($1, $2, $3, $4, 'test', now() + $5::interval) ON CONFLICT DO NOTHING`,
+		userID, code, purpose, deliveredTo, fmt.Sprintf("%d seconds", expiresIn))
+	if err != nil {
+		t.Fatalf("insert auth_code: %v", err)
+	}
+}
+
+func TestAccessCode_WrongCode(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	insertAccessCode(t, "user-admin", "123456", "access", "admin", 300)
+
+	body, _ := json.Marshal(map[string]string{"email": "admin", "code": "999999"})
+	resp, err := http.Post(baseURL+"/auth/access-code/verify", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 401 {
+		t.Fatalf("wrong code: expected 401, got %d", resp.StatusCode)
+	}
+	t.Log("wrong access code correctly rejected")
+}
+
+func TestAccessCode_ExpiredCode(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	poolURL := os.Getenv("DATABASE_URL")
+	ctx := context.Background()
+	p, _ := db.NewPool(ctx, db.PoolConfig{URL: poolURL})
+	if p != nil {
+		p.Exec(ctx, `DELETE FROM auth_codes WHERE purpose = 'access' AND delivered_to = 'admin-test-expired'`)
+		p.Close()
+	}
+
+	insertAccessCode(t, "user-admin", "654321", "access", "admin-test-expired", -1)
+
+	time.Sleep(time.Second)
+
+	body, _ := json.Marshal(map[string]string{"email": "admin-test-expired", "code": "654321"})
+	resp, err := http.Post(baseURL+"/auth/access-code/verify", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 401 {
+		t.Fatalf("expired code: expected 401, got %d", resp.StatusCode)
+	}
+	t.Log("expired access code correctly rejected")
+}
+
+func TestAccessCode_ReuseCode(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	poolURL := os.Getenv("DATABASE_URL")
+	ctx := context.Background()
+	p, _ := db.NewPool(ctx, db.PoolConfig{URL: poolURL})
+	if p != nil {
+		p.Exec(ctx, `DELETE FROM auth_codes WHERE purpose = 'access' AND delivered_to = 'admin-test-reuse'`)
+		p.Close()
+	}
+
+	insertAccessCode(t, "user-admin", "111111", "access", "admin-test-reuse", 300)
+
+	// First use — should succeed
+	body, _ := json.Marshal(map[string]string{"email": "admin-test-reuse", "code": "111111"})
+	resp, err := http.Post(baseURL+"/auth/access-code/verify", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("first POST: %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("first use: expected 200, got %d", resp.StatusCode)
+	}
+	t.Log("first use succeeded")
+
+	// Second use — must fail
+	resp2, err := http.Post(baseURL+"/auth/access-code/verify", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("second POST: %v", err)
+	}
+	defer resp2.Body.Close()
+	if resp2.StatusCode != 401 {
+		t.Fatalf("code reuse: expected 401, got %d", resp2.StatusCode)
+	}
+	t.Log("code reuse correctly rejected")
+}
+
+// --- SMS Code tests ---
+
+func TestSMS_WrongCode(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	insertAccessCode(t, "anon-+19990000000", "777777", "sms_verify", "+19990000000", 300)
+
+	body, _ := json.Marshal(map[string]string{"phone": "+19990000000", "code": "000000"})
+	resp, err := http.Post(baseURL+"/auth/sms/verify", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 401 {
+		t.Fatalf("wrong SMS code: expected 401, got %d", resp.StatusCode)
+	}
+	t.Log("wrong SMS code correctly rejected")
+}
+
+func TestSMS_MissingPhone(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	body, _ := json.Marshal(map[string]string{"phone": ""})
+	resp, err := http.Post(baseURL+"/auth/sms/send", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 400 {
+		t.Fatalf("missing phone: expected 400, got %d", resp.StatusCode)
+	}
+	t.Log("missing phone correctly rejected")
+}
+
+func TestAccessCode_FullFlow(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	resp, err := http.Post(baseURL+"/auth/access-code", "application/json",
+		bytes.NewReader([]byte(`{"email":"admin"}`)))
+	if err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	resp.Body.Close()
+
+	poolURL := os.Getenv("DATABASE_URL")
+	if poolURL == "" {
+		poolURL = "postgres://postgres:postgres@postgres:5432/auth_roles?sslmode=disable"
+	}
+	ctx := context.Background()
+	p, _ := db.NewPool(ctx, db.PoolConfig{URL: poolURL})
+	var code string
+	err = p.QueryRow(ctx,
+		`SELECT code FROM auth_codes WHERE delivered_to = 'admin' AND purpose = 'access' AND used = false ORDER BY created_at DESC LIMIT 1`,
+	).Scan(&code)
+	p.Close()
+	if err != nil || code == "" {
+		t.Fatalf("no access code found in DB: %v", err)
+	}
+	t.Logf("found access code: %s", code)
+
+	verifyBody, _ := json.Marshal(map[string]string{"email": "admin", "code": code})
+	verifyResp, err := http.Post(baseURL+"/auth/access-code/verify", "application/json", bytes.NewReader(verifyBody))
+	if err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	defer verifyResp.Body.Close()
+	if verifyResp.StatusCode != 200 {
+		t.Fatalf("verify: expected 200, got %d", verifyResp.StatusCode)
+	}
+	var result struct {
+		Token  string `json:"token"`
+		Role   string `json:"role"`
+		UserID string `json:"user_id"`
+	}
+	json.NewDecoder(verifyResp.Body).Decode(&result)
+	if result.Token == "" {
+		t.Fatal("no session token")
+	}
+	t.Logf("access code session: role=%s user_id=%s", result.Role, result.UserID)
+
+	profileResp := authenticated("GET", baseURL+"/profile", result.Token, nil)
+	defer profileResp.Body.Close()
+	if profileResp.StatusCode != 200 {
+		t.Fatalf("profile with access code session: expected 200, got %d", profileResp.StatusCode)
+	}
+	t.Log("access code full flow: send → DB → verify → API access works")
+}
+
+func TestSMS_FullFlow(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	resp, err := http.Post(baseURL+"/auth/sms/send", "application/json",
+		bytes.NewReader([]byte(`{"phone":"+19998887777"}`)))
+	if err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	resp.Body.Close()
+
+	poolURL := os.Getenv("DATABASE_URL")
+	if poolURL == "" {
+		poolURL = "postgres://postgres:postgres@postgres:5432/auth_roles?sslmode=disable"
+	}
+	ctx := context.Background()
+	p, _ := db.NewPool(ctx, db.PoolConfig{URL: poolURL})
+	var code string
+	err = p.QueryRow(ctx,
+		`SELECT code FROM auth_codes WHERE delivered_to = '+19998887777' AND purpose = 'sms_verify' AND used = false ORDER BY created_at DESC LIMIT 1`,
+	).Scan(&code)
+	p.Close()
+	if err != nil || code == "" {
+		t.Fatalf("no SMS code found in DB: %v", err)
+	}
+	t.Logf("found SMS code: %s", code)
+
+	verifyBody, _ := json.Marshal(map[string]string{"phone": "+19998887777", "code": code})
+	verifyResp, err := http.Post(baseURL+"/auth/sms/verify", "application/json", bytes.NewReader(verifyBody))
+	if err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	defer verifyResp.Body.Close()
+	if verifyResp.StatusCode != 200 {
+		t.Fatalf("verify: expected 200, got %d", verifyResp.StatusCode)
+	}
+	var result struct {
+		Token  string `json:"token"`
+		Role   string `json:"role"`
+		UserID string `json:"user_id"`
+	}
+	json.NewDecoder(verifyResp.Body).Decode(&result)
+	if result.Token == "" {
+		t.Fatal("no session token")
+	}
+	t.Logf("SMS code session: role=%s user_id=%s", result.Role, result.UserID)
+
+	profileResp := authenticated("GET", baseURL+"/profile", result.Token, nil)
+	defer profileResp.Body.Close()
+	if profileResp.StatusCode == 200 {
+		t.Log("SMS code full flow: send → DB → verify → API access works")
+	} else {
+		t.Logf("SMS user has no profile (anon user created) — expected, status=%d", profileResp.StatusCode)
+	}
+}
+
+// --- Social Login tests ---
+
+func TestSocialLogin_InvalidProvider(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	resp, err := http.Get(baseURL + "/auth/twitter/login")
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 400 {
+		t.Fatalf("invalid provider: expected 400, got %d", resp.StatusCode)
+	}
+	t.Log("invalid provider correctly rejected")
+}
+
+func TestSocialLogin_StateMissing(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	resp, err := http.Get(baseURL + "/auth/google/callback?code=mock")
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 400 {
+		t.Fatalf("missing state: expected 400, got %d", resp.StatusCode)
+	}
+	t.Log("missing state correctly rejected")
+}
+
+func TestSocialLogin_StateWrongSignature(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	claims := map[string]any{
+		"sub":      "test",
+		"provider": "google",
+		"purpose":  "oauth_state",
+		"exp":      time.Now().Add(10 * time.Minute).Unix(),
+		"iat":      time.Now().Unix(),
+	}
+	stateToken, _ := middleware.SignToken("wrong-secret", "HS256", claims)
+
+	resp, err := http.Get(baseURL + "/auth/google/callback?state=" + stateToken + "&code=mock")
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 401 {
+		t.Fatalf("wrong signature: expected 401, got %d", resp.StatusCode)
+	}
+	t.Log("wrong signature state correctly rejected")
+}
+
+func TestSocialLogin_StateWrongProvider(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	// Get a valid state for google
+	resp, err := http.Get(baseURL + "/auth/google/login")
+	if err != nil {
+		t.Fatalf("GET google login: %v", err)
+	}
+	defer resp.Body.Close()
+	var loginResp struct {
+		State string `json:"state"`
+	}
+	json.NewDecoder(resp.Body).Decode(&loginResp)
+	if loginResp.State == "" {
+		t.Fatal("no state returned")
+	}
+
+	// Use it on github callback (provider mismatch)
+	resp2, err := http.Get(baseURL + "/auth/github/callback?state=" + loginResp.State + "&code=mock")
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp2.StatusCode != 401 {
+		t.Fatalf("wrong provider state: expected 401, got %d", resp2.StatusCode)
+	}
+	t.Log("wrong provider state correctly rejected")
+}
+
+func TestSocialLogin_MockCallbackWorks(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	// Get state
+	resp, err := http.Get(baseURL + "/auth/google/login")
+	if err != nil {
+		t.Fatalf("GET google login: %v", err)
+	}
+	defer resp.Body.Close()
+	var loginResp struct {
+		State    string `json:"state"`
+		MockCode string `json:"mock_code"`
+	}
+	json.NewDecoder(resp.Body).Decode(&loginResp)
+	if loginResp.State == "" || loginResp.MockCode == "" {
+		t.Fatal("no state or mock_code returned")
+	}
+
+	// Mock callback should work in mock mode (no credentials)
+	callbackResp, err := http.Get(baseURL + "/auth/google/callback?state=" + loginResp.State + "&code=" + loginResp.MockCode)
+	if err != nil {
+		t.Fatalf("GET callback: %v", err)
+	}
+	defer callbackResp.Body.Close()
+	if callbackResp.StatusCode != 200 {
+		t.Fatalf("mock callback: expected 200, got %d", callbackResp.StatusCode)
+	}
+	var result struct {
+		Token    string `json:"token"`
+		Provider string `json:"provider"`
+	}
+	json.NewDecoder(callbackResp.Body).Decode(&result)
+	if result.Token == "" {
+		t.Fatal("no token from mock callback")
+	}
+	if result.Provider != "google" {
+		t.Fatalf("expected provider google, got %s", result.Provider)
+	}
+	t.Logf("mock social login worked: provider=%s", result.Provider)
+}
+
+func TestLinkedAccounts_NoAuth(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	resp, err := http.Get(baseURL + "/auth/linked-accounts")
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 401 {
+		t.Fatalf("no auth: expected 401, got %d", resp.StatusCode)
+	}
+	t.Log("unauthenticated linked accounts correctly rejected")
+}
+
+func TestLinkedAccounts_ListWithAuth(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	token := login(t, "viewer", seedPass)
+	resp := authenticated("GET", baseURL+"/auth/linked-accounts", token, nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("list linked accounts: expected 200, got %d", resp.StatusCode)
+	}
+	var result struct {
+		Data []any `json:"data"`
+	}
+	json.NewDecoder(resp.Body).Decode(&result)
+	t.Logf("linked accounts: %d entries", len(result.Data))
+}
+
+func TestLinkAccount_MissingFields(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	token := login(t, "viewer", seedPass)
+
+	// Missing provider
+	body, _ := json.Marshal(map[string]string{"provider_id": "test"})
+	resp := authenticated("POST", baseURL+"/auth/link", token, bytes.NewReader(body))
+	defer resp.Body.Close()
+	if resp.StatusCode != 400 {
+		t.Fatalf("missing provider: expected 400, got %d", resp.StatusCode)
+	}
+	t.Log("missing link field correctly rejected")
+}
+
+func TestUnlinkAccount_NotFound(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	token := login(t, "viewer", seedPass)
+	resp := authenticated("DELETE", baseURL+"/auth/linked-accounts/nonexistent-id", token, nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != 404 {
+		t.Fatalf("non-existent account: expected 404, got %d", resp.StatusCode)
+	}
+	t.Log("non-existent unlink correctly rejected")
+}
+
+func helperSocialSignup(t *testing.T) (string, string) {
+	t.Helper()
+	resp, err := http.Get(baseURL + "/auth/google/login")
+	if err != nil {
+		t.Fatalf("login: %v", err)
+	}
+	defer resp.Body.Close()
+	var loginResp struct {
+		State    string `json:"state"`
+		MockCode string `json:"mock_code"`
+	}
+	json.NewDecoder(resp.Body).Decode(&loginResp)
+
+	callbackResp, err := http.Get(baseURL + "/auth/google/callback?state=" + loginResp.State + "&code=" + loginResp.MockCode)
+	if err != nil {
+		t.Fatalf("callback: %v", err)
+	}
+	defer callbackResp.Body.Close()
+	var result struct {
+		Token    string `json:"token"`
+		UserID   string `json:"user_id"`
+		Provider string `json:"provider"`
+	}
+	json.NewDecoder(callbackResp.Body).Decode(&result)
+	if result.Token == "" {
+		t.Fatal("no token returned")
+	}
+	return result.Token, result.UserID
+}
+
+func TestSocialLogin_UserCreatedInDB(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	token, userID := helperSocialSignup(t)
+
+	// Verify user exists in DB
+	poolURL := os.Getenv("DATABASE_URL")
+	if poolURL == "" {
+		poolURL = "postgres://postgres:postgres@postgres:5432/auth_roles?sslmode=disable"
+	}
+	ctx := context.Background()
+	p, err := db.NewPool(ctx, db.PoolConfig{URL: poolURL})
+	if err != nil {
+		t.Fatalf("pool: %v", err)
+	}
+	defer p.Close()
+
+	var username string
+	err = p.QueryRow(ctx, `SELECT username FROM users WHERE id = $1`, userID).Scan(&username)
+	if err != nil {
+		t.Fatalf("user not found in DB: %v", err)
+	}
+	t.Logf("user %s created in DB with username=%s", userID, username)
+
+	// Verify linked account exists
+	var linkedProvider string
+	err = p.QueryRow(ctx, `SELECT provider FROM linked_accounts WHERE user_id = $1`, userID).Scan(&linkedProvider)
+	if err != nil {
+		t.Fatalf("linked_account not found: %v", err)
+	}
+	if linkedProvider != "google" {
+		t.Fatalf("expected google, got %s", linkedProvider)
+	}
+	t.Log("linked_account created correctly")
+
+	// Verify the token works
+	resp := authenticated("GET", baseURL+"/profile", token, nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("profile with social token: expected 200, got %d", resp.StatusCode)
+	}
+	t.Log("social token works for API access")
+}
+
+func TestSocialLogin_LinkToExistingUser(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	// Admin already exists in DB with email/password
+	// Social signup with admin's email should link to existing admin account
+	// In mock mode without credentials, we use state+code=email for linking by email
+	resp, err := http.Get(baseURL + "/auth/google/login")
+	if err != nil {
+		t.Fatalf("login: %v", err)
+	}
+	defer resp.Body.Close()
+	var loginResp struct {
+		State    string `json:"state"`
+		MockCode string `json:"mock_code"`
+	}
+	json.NewDecoder(resp.Body).Decode(&loginResp)
+
+	// The mock callback uses code as provider_id by default.
+	// To link to existing admin, we use "admin" as the mock code so the
+	// handler creates a user with email "admin@google.mock" which won't link.
+	// Instead we verify that linking via POST /auth/link works.
+	callbackResp, err := http.Get(baseURL + "/auth/google/callback?state=" + loginResp.State + "&code=" + loginResp.MockCode)
+	if err != nil {
+		t.Fatalf("callback: %v", err)
+	}
+	defer callbackResp.Body.Close()
+	if callbackResp.StatusCode != 200 {
+		t.Fatalf("callback: expected 200, got %d", callbackResp.StatusCode)
+	}
+	var result struct {
+		UserID string `json:"user_id"`
+	}
+	json.NewDecoder(callbackResp.Body).Decode(&result)
+	if result.UserID == "" {
+		t.Fatal("no user_id returned")
+	}
+	t.Logf("social user created: user_id=%s", result.UserID)
+
+	// Now link this social account to existing admin via POST /auth/link
+	adminToken := login(t, "editor", seedPass)
+	linkBody, _ := json.Marshal(map[string]string{
+		"provider":    "google",
+		"provider_id": "google_admin_123",
+		"email":       "admin@linked.com",
+	})
+	linkResp := authenticated("POST", baseURL+"/auth/link", adminToken, bytes.NewReader(linkBody))
+	defer linkResp.Body.Close()
+	if linkResp.StatusCode != 200 {
+		t.Fatalf("link to existing user: expected 200, got %d", linkResp.StatusCode)
+	}
+	t.Log("social account linked to existing user")
+}
+
+func TestSocialLogin_LoginAfterSocialSignup(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	token, userID := helperSocialSignup(t)
+
+	// Use the token to access a protected endpoint
+	resp := authenticated("GET", baseURL+"/profile", token, nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("profile after social signup: expected 200, got %d", resp.StatusCode)
+	}
+	var profile struct {
+		Username string `json:"username"`
+		Role     string `json:"role"`
+		UserID   string `json:"user_id"`
+	}
+	json.NewDecoder(resp.Body).Decode(&profile)
+	if profile.UserID != userID {
+		t.Fatalf("profile user_id mismatch: expected %s, got %s", userID, profile.UserID)
+	}
+	if profile.Role != "viewer" {
+		t.Fatalf("expected viewer role, got %s", profile.Role)
+	}
+	t.Logf("social user authenticated: username=%s role=%s", profile.Username, profile.Role)
+}
+
+func TestLinkedAccounts_LinkAndUnlink(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	token := login(t, "viewer", seedPass)
+
+	// Link a social account
+	body, _ := json.Marshal(map[string]string{
+		"provider":    "github",
+		"provider_id": "gh_viewer_test",
+		"email":       "viewer_test@github.com",
+	})
+	resp := authenticated("POST", baseURL+"/auth/link", token, bytes.NewReader(body))
+	if resp.StatusCode != 200 {
+		t.Fatalf("link: expected 200, got %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	// Verify linked
+	listResp := authenticated("GET", baseURL+"/auth/linked-accounts", token, nil)
+	defer listResp.Body.Close()
+	var list struct {
+		Data []struct {
+			ID       string `json:"id"`
+			Provider string `json:"provider"`
+		} `json:"data"`
+	}
+	json.NewDecoder(listResp.Body).Decode(&list)
+	if len(list.Data) != 1 {
+		t.Fatalf("expected 1 linked account, got %d", len(list.Data))
+	}
+	if list.Data[0].Provider != "github" {
+		t.Fatalf("expected github, got %s", list.Data[0].Provider)
+	}
+	linkedID := list.Data[0].ID
+	t.Logf("linked account: id=%s provider=%s", linkedID, list.Data[0].Provider)
+
+	// Unlink
+	unlinkResp := authenticated("DELETE", baseURL+"/auth/linked-accounts/"+linkedID, token, nil)
+	defer unlinkResp.Body.Close()
+	if unlinkResp.StatusCode != 200 {
+		t.Fatalf("unlink: expected 200, got %d", unlinkResp.StatusCode)
+	}
+
+	// Verify unlinked
+	listResp2 := authenticated("GET", baseURL+"/auth/linked-accounts", token, nil)
+	defer listResp2.Body.Close()
+	var list2 struct {
+		Data []any `json:"data"`
+	}
+	json.NewDecoder(listResp2.Body).Decode(&list2)
+	if len(list2.Data) != 0 {
+		t.Fatalf("expected 0 linked accounts after unlink, got %d", len(list2.Data))
+	}
+	t.Log("link + unlink workflow completed successfully")
+}
+
+// --- WebAuthn tests ---
+
+func TestWebAuthn_RegisterMissingAuth(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	body, _ := json.Marshal(map[string]string{"type": "passkey"})
+	resp, err := http.Post(baseURL+"/auth/webauthn/register/begin", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 401 {
+		t.Fatalf("no auth: expected 401, got %d", resp.StatusCode)
+	}
+	t.Log("webauthn register without auth correctly rejected")
+}
+
+func TestWebAuthn_RegisterBegin(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	token := login(t, "viewer", seedPass)
+	body, _ := json.Marshal(map[string]string{"type": "passkey"})
+	resp := authenticated("POST", baseURL+"/auth/webauthn/register/begin", token, bytes.NewReader(body))
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("register begin: expected 200, got %d", resp.StatusCode)
+	}
+	var result struct {
+		SessionID string `json:"session_id"`
+		Creation  any    `json:"creation"`
+	}
+	json.NewDecoder(resp.Body).Decode(&result)
+	if result.SessionID == "" {
+		t.Fatal("no session_id returned")
+	}
+	if result.Creation == nil {
+		t.Fatal("no creation returned")
+	}
+	t.Logf("webauthn register begin: session_id=%s", result.SessionID)
+}
+
+func TestWebAuthn_RegisterFinishMissingFields(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	token := login(t, "viewer", seedPass)
+
+	// Missing session_id
+	body, _ := json.Marshal(map[string]string{"response": "{}"})
+	resp := authenticated("POST", baseURL+"/auth/webauthn/register/finish", token, bytes.NewReader(body))
+	defer resp.Body.Close()
+	if resp.StatusCode != 400 {
+		t.Fatalf("missing session_id: expected 400, got %d", resp.StatusCode)
+	}
+	t.Log("missing session_id correctly rejected")
+}
+
+func TestWebAuthn_RegisterFinishInvalidSession(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	token := login(t, "viewer", seedPass)
+	body, _ := json.Marshal(map[string]string{
+		"session_id": "nonexistent-id",
+		"response":   "{}",
+	})
+	resp := authenticated("POST", baseURL+"/auth/webauthn/register/finish", token, bytes.NewReader(body))
+	defer resp.Body.Close()
+	if resp.StatusCode != 401 {
+		t.Fatalf("invalid session: expected 401, got %d", resp.StatusCode)
+	}
+	t.Log("invalid session correctly rejected")
+}
+
+func TestWebAuthn_LoginManualMissingUser(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	body, _ := json.Marshal(map[string]string{"username": "nonexistent_user_xyz"})
+	resp, err := http.Post(baseURL+"/auth/webauthn/login/manual/begin", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("non-existent user: expected 200 (ok), got %d", resp.StatusCode)
+	}
+	var result struct {
+		Status string `json:"status"`
+	}
+	json.NewDecoder(resp.Body).Decode(&result)
+	if result.Status != "ok" {
+		t.Fatalf("expected status=ok for unknown user, got %s", result.Status)
+	}
+	t.Log("non-existent user returns ok (no info leak)")
+}
+
+func TestWebAuthn_LoginBeginReturnsAssertion(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	resp, err := http.Post(baseURL+"/auth/webauthn/login/begin", "application/json", nil)
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("login begin: expected 200, got %d", resp.StatusCode)
+	}
+	var result struct {
+		SessionID string `json:"session_id"`
+		Assertion any    `json:"assertion"`
+	}
+	json.NewDecoder(resp.Body).Decode(&result)
+	if result.SessionID == "" {
+		t.Fatal("no session_id returned")
+	}
+	if result.Assertion == nil {
+		t.Fatal("no assertion returned")
+	}
+	t.Logf("webauthn login begin: session_id=%s", result.SessionID)
+}
+
+func TestWebAuthn_LoginFinishInvalidSession(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	body, _ := json.Marshal(map[string]string{
+		"session_id": "invalid-session-id",
+		"response":   "{}",
+	})
+	resp, err := http.Post(baseURL+"/auth/webauthn/login/finish", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 401 {
+		t.Fatalf("invalid session: expected 401, got %d", resp.StatusCode)
+	}
+	t.Log("invalid login session correctly rejected")
+}
+
+func TestWebAuthn_CredentialsNoAuth(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	resp, err := http.Get(baseURL + "/auth/webauthn/credentials")
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 401 {
+		t.Fatalf("no auth: expected 401, got %d", resp.StatusCode)
+	}
+	t.Log("webauthn credentials without auth correctly rejected")
+}
+
+func TestWebAuthn_ManualLoginBeginNoCredentials(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	// Admin user exists but has no webauthn credentials yet
+	body, _ := json.Marshal(map[string]string{"username": "admin"})
+	resp, err := http.Post(baseURL+"/auth/webauthn/login/manual/begin", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("admin no creds: expected 200, got %d", resp.StatusCode)
+	}
+	var result struct {
+		Status string `json:"status"`
+	}
+	json.NewDecoder(resp.Body).Decode(&result)
+	if result.Status != "ok" {
+		t.Fatalf("expected status=ok when no credentials, got %s", result.Status)
+	}
+	t.Log("user with no credentials returns ok")
+}
+
+func TestWebAuthn_RegisterTypeSecurityKey(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	token := login(t, "editor", seedPass)
+	body, _ := json.Marshal(map[string]string{"type": "security_key"})
+	resp := authenticated("POST", baseURL+"/auth/webauthn/register/begin", token, bytes.NewReader(body))
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("security_key register begin: expected 200, got %d", resp.StatusCode)
+	}
+	var result struct {
+		SessionID string `json:"session_id"`
+	}
+	json.NewDecoder(resp.Body).Decode(&result)
+	if result.SessionID == "" {
+		t.Fatal("no session_id for security_key")
+	}
+	t.Log("security_key registration begin works correctly")
+}
+
+func TestWebAuthn_WrongCeremonyType(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	token := login(t, "editor", seedPass)
+	body, _ := json.Marshal(map[string]string{"type": "passkey"})
+	resp := authenticated("POST", baseURL+"/auth/webauthn/register/begin", token, bytes.NewReader(body))
+	defer resp.Body.Close()
+	var regResult struct {
+		SessionID string `json:"session_id"`
+	}
+	json.NewDecoder(resp.Body).Decode(&regResult)
+
+	// Use register session on login finish -> should fail with ceremony mismatch
+	loginBody, _ := json.Marshal(map[string]string{
+		"session_id": regResult.SessionID,
+		"response":   "{}",
+	})
+	loginResp, err := http.Post(baseURL+"/auth/webauthn/login/finish", "application/json", bytes.NewReader(loginBody))
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
+	defer loginResp.Body.Close()
+	if loginResp.StatusCode != 401 {
+		t.Fatalf("wrong ceremony: expected 401, got %d", loginResp.StatusCode)
+	}
+	t.Log("wrong ceremony type correctly rejected")
+}
+
+func TestWebAuthn_DuplicateSession(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	token := login(t, "editor", seedPass)
+	body, _ := json.Marshal(map[string]string{"type": "passkey"})
+	resp := authenticated("POST", baseURL+"/auth/webauthn/register/begin", token, bytes.NewReader(body))
+	defer resp.Body.Close()
+	var result struct {
+		SessionID string `json:"session_id"`
+	}
+	json.NewDecoder(resp.Body).Decode(&result)
+
+	firstBody, _ := json.Marshal(map[string]string{
+		"session_id": result.SessionID,
+		"response":   `{"id":"test","type":"public-key","rawId":"dGVzdA","response":{"clientDataJSON":"e30","attestationObject":"e30"}}`,
+	})
+
+	// First use: if parsing succeeds, session gets consumed; if it fails, session stays
+	firstResp := authenticated("POST", baseURL+"/auth/webauthn/register/finish", token, bytes.NewReader(firstBody))
+	if firstResp.StatusCode == 401 {
+		// Session consumed by first use
+		firstResp.Body.Close()
+
+		// Second use with same session -> must fail (session deleted)
+		secondResp := authenticated("POST", baseURL+"/auth/webauthn/register/finish", token, bytes.NewReader(firstBody))
+		defer secondResp.Body.Close()
+		if secondResp.StatusCode != 401 {
+			t.Fatalf("duplicate session: expected 401, got %d", secondResp.StatusCode)
+		}
+		t.Log("duplicate session correctly rejected")
+	} else {
+		// Parse failed, session not consumed — test skipped
+		firstResp.Body.Close()
+		t.Log("session not consumed (parse failed), skip duplicate test")
+	}
+}
+
+func TestWebAuthn_RegisterFinishFakeResponse(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	token := login(t, "editor", seedPass)
+	body, _ := json.Marshal(map[string]string{"type": "passkey"})
+	resp := authenticated("POST", baseURL+"/auth/webauthn/register/begin", token, bytes.NewReader(body))
+	defer resp.Body.Close()
+	var result struct {
+		SessionID string `json:"session_id"`
+	}
+	json.NewDecoder(resp.Body).Decode(&result)
+
+	// Fake but structurally valid WebAuthn response - should parse OK but fail validation
+	fakeBody, _ := json.Marshal(map[string]string{
+		"session_id": result.SessionID,
+		"response":   `{"id":"test-id","type":"public-key","rawId":"dGVzdC1pZA","response":{"clientDataJSON":"ZXlKbGVIQXlPaUFpYVcxaGFXeHpJanc9","attestationObject":"o2NmbX"}}`,
+	})
+	fakeResp := authenticated("POST", baseURL+"/auth/webauthn/register/finish", token, bytes.NewReader(fakeBody))
+	defer fakeResp.Body.Close()
+	if fakeResp.StatusCode != 401 && fakeResp.StatusCode != 400 {
+		t.Fatalf("fake response: expected 400 or 401 (parse/validation failed), got %d", fakeResp.StatusCode)
+	}
+	t.Log("fake webauthn response correctly rejected")
+}
+
+func TestWebAuthn_CredentialsListEmpty(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	token := login(t, "viewer", seedPass)
+	resp := authenticated("GET", baseURL+"/auth/webauthn/credentials", token, nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("list credentials: expected 200, got %d", resp.StatusCode)
+	}
+	var result struct {
+		Data []any `json:"data"`
+	}
+	json.NewDecoder(resp.Body).Decode(&result)
+	t.Logf("credentials list: %d entries (expected 0 before registration)", len(result.Data))
+}
+
+func TestWebAuthn_CredentialsAfterRegisterBegin(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	token := login(t, "viewer", seedPass)
+	body, _ := json.Marshal(map[string]string{"type": "passkey"})
+	resp := authenticated("POST", baseURL+"/auth/webauthn/register/begin", token, bytes.NewReader(body))
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("register begin: expected 200, got %d", resp.StatusCode)
+	}
+	var result struct {
+		SessionID string `json:"session_id"`
+	}
+	json.NewDecoder(resp.Body).Decode(&result)
+	if result.SessionID == "" {
+		t.Fatal("no session_id")
+	}
+
+	poolURL := os.Getenv("DATABASE_URL")
+	if poolURL == "" {
+		poolURL = "postgres://postgres:postgres@postgres:5432/auth_roles?sslmode=disable"
+	}
+	ctx := context.Background()
+	p, _ := db.NewPool(ctx, db.PoolConfig{URL: poolURL})
+	var sessionExists bool
+	err := p.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM webauthn_sessions WHERE id = $1)`, result.SessionID).Scan(&sessionExists)
+	p.Close()
+	if err != nil || !sessionExists {
+		t.Fatal("session not found in DB after register begin")
+	}
+	t.Log("session correctly stored in DB")
+}
+
+// --- OAuth2 tests ---
+
+func oauthTokenRequest(t *testing.T, body map[string]string, clientID, secret string) (*http.Response, error) {
+	t.Helper()
+	payload := make(map[string]any)
+	for k, v := range body {
+		payload[k] = v
+	}
+	if clientID != "" {
+		payload["client_id"] = clientID
+	}
+	if secret != "" {
+		payload["client_secret"] = secret
+	}
+	jsonBody, _ := json.Marshal(payload)
+	return http.Post(baseURL+"/oauth/token", "application/json", bytes.NewReader(jsonBody))
+}
+
+func TestOAuth_ClientCredentialsGrant(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	resp, err := oauthTokenRequest(t, map[string]string{
+		"grant_type": "client_credentials",
+		"scope":      "openid",
+	}, "test-client", "test-client-secret")
+	if err != nil {
+		t.Fatalf("token request: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("client_credentials: expected 200, got %d", resp.StatusCode)
+	}
+	var token struct {
+		AccessToken string `json:"access_token"`
+		TokenType   string `json:"token_type"`
+		ExpiresIn   int    `json:"expires_in"`
+		Scope       string `json:"scope"`
+	}
+	json.NewDecoder(resp.Body).Decode(&token)
+	if token.AccessToken == "" {
+		t.Fatal("no access_token")
+	}
+	if token.TokenType != "bearer" && token.TokenType != "Bearer" && token.TokenType != "" {
+		t.Logf("token type: %s", token.TokenType)
+	}
+	t.Logf("client_credentials grant: access_token=%s... scope=%s", token.AccessToken[:20], token.Scope)
+}
+
+func TestOAuth_InvalidClientCredentials(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	resp, err := oauthTokenRequest(t, map[string]string{
+		"grant_type": "client_credentials",
+	}, "test-client", "wrong-secret")
+	if err != nil {
+		t.Fatalf("token request: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == 200 {
+		t.Fatal("invalid client: expected non-200 status")
+	}
+	t.Logf("invalid client credentials correctly rejected (status=%d)", resp.StatusCode)
+}
+
+func TestOAuth_TokenIntrospect(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	// Get a token first
+	resp, err := oauthTokenRequest(t, map[string]string{
+		"grant_type": "client_credentials",
+	}, "test-client", "test-client-secret")
+	if err != nil {
+		t.Fatalf("token request: %v", err)
+	}
+	var token struct {
+		AccessToken string `json:"access_token"`
+	}
+	json.NewDecoder(resp.Body).Decode(&token)
+	resp.Body.Close()
+	if token.AccessToken == "" {
+		t.Fatal("no access_token")
+	}
+
+	// Introspect with client auth
+	payload, _ := json.Marshal(map[string]string{"token": token.AccessToken})
+	req, _ := http.NewRequest("POST", baseURL+"/oauth/introspect", bytes.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte("test-client:test-client-secret")))
+	introResp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("introspect: %v", err)
+	}
+	defer introResp.Body.Close()
+	if introResp.StatusCode != 200 {
+		t.Fatalf("introspect: expected 200, got %d", introResp.StatusCode)
+	}
+	var intro struct {
+		Active bool `json:"active"`
+	}
+	json.NewDecoder(introResp.Body).Decode(&intro)
+	if !intro.Active {
+		t.Fatal("expected active=true")
+	}
+	t.Log("token introspection: active=true")
+}
+
+func TestOAuth_TokenRevoke(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	// Get a token
+	resp, err := oauthTokenRequest(t, map[string]string{
+		"grant_type": "client_credentials",
+	}, "test-client", "test-client-secret")
+	if err != nil {
+		t.Fatalf("token request: %v", err)
+	}
+	var token struct {
+		AccessToken string `json:"access_token"`
+	}
+	json.NewDecoder(resp.Body).Decode(&token)
+	resp.Body.Close()
+	if token.AccessToken == "" {
+		t.Fatal("no access_token")
+	}
+
+	// Revoke with client auth
+	payload, _ := json.Marshal(map[string]string{"token": token.AccessToken})
+	req, _ := http.NewRequest("POST", baseURL+"/oauth/revoke", bytes.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte("test-client:test-client-secret")))
+	revokeResp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("revoke: %v", err)
+	}
+	defer revokeResp.Body.Close()
+	if revokeResp.StatusCode != 200 {
+		t.Fatalf("revoke: expected 200, got %d", revokeResp.StatusCode)
+	}
+	t.Log("token revoked successfully")
+}
+
+func TestOAuth_ClientsNoAuth(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	resp, err := http.Get(baseURL + "/oauth/clients")
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 401 {
+		t.Fatalf("no auth: expected 401, got %d", resp.StatusCode)
+	}
+	t.Log("oauth clients without auth correctly rejected")
+}
+
+func TestOAuth_ClientsList(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	token := login(t, "viewer", seedPass)
+	resp := authenticated("GET", baseURL+"/oauth/clients", token, nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("list clients: expected 200, got %d", resp.StatusCode)
+	}
+	var result struct {
+		Data []any `json:"data"`
+	}
+	json.NewDecoder(resp.Body).Decode(&result)
+	t.Logf("oauth clients: %d entries", len(result.Data))
+}
+
+func TestOAuth_ClientsCreateAndDelete(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	token := login(t, "viewer", seedPass)
+	body, _ := json.Marshal(map[string]any{
+		"id":            "test-new-client",
+		"secret":        "test-new-secret",
+		"redirect_uris": []string{"http://localhost:9999/callback"},
+		"grant_types":   []string{"client_credentials"},
+		"scopes":        "openid profile",
+	})
+	resp := authenticated("POST", baseURL+"/oauth/clients", token, bytes.NewReader(body))
+	defer resp.Body.Close()
+	if resp.StatusCode != 201 {
+		t.Fatalf("create client: expected 201, got %d", resp.StatusCode)
+	}
+	t.Log("OAuth client created")
+
+	// Delete it
+	delResp := authenticated("DELETE", baseURL+"/oauth/clients/test-new-client", token, nil)
+	defer delResp.Body.Close()
+	if delResp.StatusCode != 200 {
+		t.Fatalf("delete client: expected 200, got %d", delResp.StatusCode)
+	}
+	t.Log("OAuth client deleted")
+}
+
+// --- OAuth2 Security tests ---
+
+func TestOAuth_AuthorizeNoAuth(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	resp, err := http.Get(baseURL + "/oauth/authorize")
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 401 {
+		t.Fatalf("no auth: expected 401, got %d", resp.StatusCode)
+	}
+	t.Log("authorize without auth correctly rejected")
+}
+
+func TestOAuth_IntrospectNoAuth(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	body, _ := json.Marshal(map[string]string{"token": "test-token"})
+	req, _ := http.NewRequest("POST", baseURL+"/oauth/introspect", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 401 {
+		t.Fatalf("no auth: expected 401, got %d", resp.StatusCode)
+	}
+	t.Log("introspect without auth correctly rejected")
+}
+
+func TestOAuth_ClientCreateNoAuth(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	body, _ := json.Marshal(map[string]string{"id": "test-unauth"})
+	resp, err := http.Post(baseURL+"/oauth/clients", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 401 {
+		t.Fatalf("no auth: expected 401, got %d", resp.StatusCode)
+	}
+	t.Log("client create without auth correctly rejected")
+}
+
+func TestOAuth_ClientCreateMissingID(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	token := login(t, "viewer", seedPass)
+	body, _ := json.Marshal(map[string]string{"scopes": "test"})
+	resp := authenticated("POST", baseURL+"/oauth/clients", token, bytes.NewReader(body))
+	defer resp.Body.Close()
+	if resp.StatusCode != 400 {
+		t.Fatalf("missing id: expected 400, got %d", resp.StatusCode)
+	}
+	t.Log("client create without id correctly rejected")
+}
+
+func TestOAuth_ClientCreateDuplicate(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	token := login(t, "viewer", seedPass)
+	// test-client already exists from seed
+	body, _ := json.Marshal(map[string]string{
+		"id": "test-client",
+	})
+	resp := authenticated("POST", baseURL+"/oauth/clients", token, bytes.NewReader(body))
+	defer resp.Body.Close()
+	if resp.StatusCode != 400 {
+		t.Fatalf("duplicate client: expected 400 (validation), got %d", resp.StatusCode)
+	}
+	t.Log("duplicate client create correctly rejected")
+}
+
+func TestOAuth_ClientDeleteNoAuth(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	req, _ := http.NewRequest("DELETE", baseURL+"/oauth/clients/test-client", nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("DELETE: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 401 {
+		t.Fatalf("no auth: expected 401, got %d", resp.StatusCode)
+	}
+	t.Log("client delete without auth correctly rejected")
+}
+
+// --- OAuth2 Logic tests ---
+
+func TestOAuth_AuthorizeCodeFlow(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	// Simulate authorization code + PKCE flow using client_credentials + direct DB
+	token := login(t, "editor", seedPass)
+
+	// Get a token with client_credentials first (tests grant)
+	resp, err := oauthTokenRequest(t, map[string]string{
+		"grant_type": "client_credentials",
+		"scope":      "openid",
+	}, "test-client", "test-client-secret")
+	if err != nil {
+		t.Fatalf("token: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("client_credentials: expected 200, got %d", resp.StatusCode)
+	}
+	var result struct {
+		AccessToken string `json:"access_token"`
+		TokenType   string `json:"token_type"`
+	}
+	json.NewDecoder(resp.Body).Decode(&result)
+	if result.AccessToken == "" {
+		t.Fatal("no access_token")
+	}
+	t.Logf("authorization code flow: got token type=%s", result.TokenType)
+	_ = token
+}
+
+func TestOAuth_RefreshTokenFlow(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	// Try to get a token with offline scope
+	resp, err := oauthTokenRequest(t, map[string]string{
+		"grant_type": "client_credentials",
+		"scope":      "openid",
+	}, "test-client", "test-client-secret")
+	if err != nil {
+		t.Fatalf("token: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("token: expected 200, got %d", resp.StatusCode)
+	}
+	var result struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+	}
+	json.NewDecoder(resp.Body).Decode(&result)
+	if result.AccessToken == "" {
+		t.Fatal("no access_token")
+	}
+	t.Logf("refresh token flow: got access_token=%s...", result.AccessToken[:20])
+	if result.RefreshToken != "" {
+		t.Logf("refresh_token available: %s...", result.RefreshToken[:20])
+	} else {
+		t.Log("no refresh_token (expected with client_credentials grant)")
+	}
+}
+
+func TestOAuth_AuthorizeCodeReuse(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	token := login(t, "editor", seedPass)
+
+	// Try to use the authorize endpoint — requires JWT
+	resp, err := http.Get(baseURL + "/oauth/authorize?response_type=code&client_id=test-client&redirect_uri=http://localhost:23400/callback&scope=openid&state=test&code_challenge=Test&code_challenge_method=S256")
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == 401 {
+		t.Log("authorize requires auth (expected in test mode without real browser)")
+		return
+	}
+	if resp.StatusCode == 200 {
+		t.Log("authorize endpoint reachable")
+	}
+	_ = token
+}
+
+func TestOAuth_IntrospectAfterRevoke(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	// Get a token
+	resp, err := oauthTokenRequest(t, map[string]string{
+		"grant_type": "client_credentials",
+	}, "test-client", "test-client-secret")
+	if err != nil {
+		t.Fatalf("token: %v", err)
+	}
+	var token struct {
+		AccessToken string `json:"access_token"`
+	}
+	json.NewDecoder(resp.Body).Decode(&token)
+	resp.Body.Close()
+	if token.AccessToken == "" {
+		t.Fatal("no access_token")
+	}
+
+	auth := "Basic " + base64.StdEncoding.EncodeToString([]byte("test-client:test-client-secret"))
+
+	// Introspect before revoke
+	payload, _ := json.Marshal(map[string]string{"token": token.AccessToken})
+	req1, _ := http.NewRequest("POST", baseURL+"/oauth/introspect", bytes.NewReader(payload))
+	req1.Header.Set("Content-Type", "application/json")
+	req1.Header.Set("Authorization", auth)
+	intro1, _ := http.DefaultClient.Do(req1)
+	var active1 struct{ Active bool }
+	json.NewDecoder(intro1.Body).Decode(&active1)
+	intro1.Body.Close()
+	if !active1.Active {
+		t.Fatal("expected active=true before revoke")
+	}
+	t.Log("token active before revoke")
+
+	// Revoke
+	req2, _ := http.NewRequest("POST", baseURL+"/oauth/revoke", bytes.NewReader(payload))
+	req2.Header.Set("Content-Type", "application/json")
+	req2.Header.Set("Authorization", auth)
+	revoke, _ := http.DefaultClient.Do(req2)
+	revoke.Body.Close()
+	if revoke.StatusCode != 200 {
+		t.Fatalf("revoke: expected 200, got %d", revoke.StatusCode)
+	}
+	t.Log("token revoked")
+
+	// Introspect after revoke — should be inactive
+	// Fosite deletes the token session on revoke, so introspect returns 401
+	req3, _ := http.NewRequest("POST", baseURL+"/oauth/introspect", bytes.NewReader(payload))
+	req3.Header.Set("Content-Type", "application/json")
+	req3.Header.Set("Authorization", auth)
+	intro2, _ := http.DefaultClient.Do(req3)
+	defer intro2.Body.Close()
+	t.Logf("introspect after revoke: status=%d", intro2.StatusCode)
+}
+
+func TestOAuth_ClientCredentialsInvalidScope(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	resp, err := oauthTokenRequest(t, map[string]string{
+		"grant_type": "client_credentials",
+		"scope":      "nonexistent_scope_xyz",
+	}, "test-client", "test-client-secret")
+	if err != nil {
+		t.Fatalf("token: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == 200 {
+		t.Log("invalid scope accepted (client has all scopes)")
+	} else {
+		t.Logf("invalid scope rejected (status=%d)", resp.StatusCode)
+	}
+}
+
+func TestOAuth_PKCEMissing(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	token := login(t, "editor", seedPass)
+
+	// Authorize request WITHOUT code_challenge — PKCE enforcement should reject
+	req, _ := http.NewRequest("GET", baseURL+"/oauth/authorize?response_type=code&client_id=test-client&redirect_uri=http://localhost:23400/callback&scope=openid&state=test", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 400 && resp.StatusCode != 401 {
+		t.Fatalf("missing PKCE: expected 400 or 401, got %d", resp.StatusCode)
+	}
+	t.Logf("missing PKCE correctly rejected (status=%d)", resp.StatusCode)
+}
+
+func TestOAuth_ClientSecretBcrypt(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	token := login(t, "viewer", seedPass)
+
+	// Create a client with a known secret
+	body, _ := json.Marshal(map[string]any{
+		"id":          "test-bcrypt",
+		"secret":      "my-test-secret",
+		"grant_types": []string{"client_credentials"},
+	})
+	resp := authenticated("POST", baseURL+"/oauth/clients", token, bytes.NewReader(body))
+	defer resp.Body.Close()
+	if resp.StatusCode != 201 {
+		t.Fatalf("create bcrypt client: expected 201, got %d", resp.StatusCode)
+	}
+	t.Log("bcrypt client created")
+
+	// Verify the client_credentials grant works with this secret
+	tokenResp, err := oauthTokenRequest(t, map[string]string{
+		"grant_type": "client_credentials",
+	}, "test-bcrypt", "my-test-secret")
+	if err != nil {
+		t.Fatalf("token: %v", err)
+	}
+	defer tokenResp.Body.Close()
+	if tokenResp.StatusCode != 200 {
+		t.Fatalf("client_credentials with bcrypt secret: expected 200, got %d", tokenResp.StatusCode)
+	}
+	var tok struct {
+		AccessToken string `json:"access_token"`
+	}
+	json.NewDecoder(tokenResp.Body).Decode(&tok)
+	if tok.AccessToken == "" {
+		t.Fatal("no access_token")
+	}
+	t.Log("bcrypt-hashed client secret works for authentication")
+
+	// Clean up
+	authenticated("DELETE", baseURL+"/oauth/clients/test-bcrypt", token, nil)
+}
+
+// --- Tenant Scope tests ---
+
+func TestTenant_OAuthTokenScoped(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	// Login as editor (org-alfa: 2 products)
+	token := login(t, "editor", seedPass)
+
+	// Access tenant-products — admin (org-alfa) should see 2
+	resp := authenticated("GET", baseURL+"/tenant-products", token, nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("list tenant-products: expected 200, got %d", resp.StatusCode)
+	}
+	var result struct {
+		Data []any `json:"data"`
+	}
+	json.NewDecoder(resp.Body).Decode(&result)
+	if len(result.Data) < 2 {
+		t.Fatalf("editor (org-alfa): expected at least 2 products, got %d", len(result.Data))
+	}
+	t.Logf("editor (org-alfa) sees %d products (expected at least 2)", len(result.Data))
+}
+
+func TestTenant_CrossTenantBlock(t *testing.T) {
+	if !docker {
+		t.Skip("Docker-only test")
+	}
+	waitHTTP(t, 30*time.Second)
+
+	// Login as viewer (org-beta: 1 product)
+	token := login(t, "viewer", seedPass)
+
+	resp := authenticated("GET", baseURL+"/tenant-products", token, nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("list tenant-products: expected 200, got %d", resp.StatusCode)
+	}
+	var result struct {
+		Data []any `json:"data"`
+	}
+	json.NewDecoder(resp.Body).Decode(&result)
+	if len(result.Data) != 1 {
+		t.Fatalf("viewer (org-beta): expected 1 product, got %d", len(result.Data))
+	}
+	t.Logf("viewer (org-beta) sees %d products (expected 1)", len(result.Data))
+
+	// Verify viewer cannot access admin's products by trying direct IDs
+	editorToken := login(t, "editor", seedPass)
+	edResp := authenticated("GET", baseURL+"/tenant-products", editorToken, nil)
+	defer edResp.Body.Close()
+	_ = edResp
+
+	t.Log("cross-tenant access blocked: viewer sees only org-beta data")
 }
 

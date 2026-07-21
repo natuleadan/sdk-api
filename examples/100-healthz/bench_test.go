@@ -27,7 +27,7 @@ func TestMain(m *testing.M) {
 		}
 	}
 	if !docker {
-		exec.Command("go", "build", "-buildvcs=false", "-o", "/tmp/healthz-svc", ".").Run()
+		exec.Command("go", "build", "-buildvcs=false", "-o", "/tmp/healthz-svc", "./cmd/").Run()
 	}
 	os.Exit(m.Run())
 }

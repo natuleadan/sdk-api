@@ -9,7 +9,7 @@ services:
       context: ../../../..
       dockerfile: sdk-api/examples/200-url-shortener/kv-dragonfly/Dockerfile
     ports:
-      - "23203:23203"
+      - "23204:23204"
     depends_on:
       dragonfly:
         condition: service_started

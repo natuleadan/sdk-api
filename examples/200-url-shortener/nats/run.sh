@@ -30,16 +30,17 @@ if [ "$RPS" = "true" ]; then
 	echo "=== seeding 200 PG hot keys ==="
 	for i in $(seq 1 200); do
 		code=$(printf "hot%05d" $i)
-		curl -s --max-time 5 -X POST http://localhost:23202/api/v1/links \
+		data=$(printf '{"targetUrl":"https://hot-%s.example.com","shortCode":"%s"}' "$i" "$code")
+		curl -s --max-time 5 -X POST http://localhost:23202/api/links \
 			-H "Content-Type: application/json" \
-			-d "{\"targetUrl\":\"https://hot-$i.example.com\",\"shortCode\":\"$code\"}" >/dev/null
+			-d "$data" >/dev/null
 	done
 	echo "PG seed complete"
 
 	echo "=== seeding 100 KV keys ==="
 	for i in $(seq 1 100); do
 		key=$(printf "kv%05d" $i)
-		curl -s --max-time 5 -X PUT "http://localhost:23202/api/v1/nats/kv/$key" \
+		curl -s --max-time 5 -X PUT "http://localhost:23202/api/nats/kv/$key" \
 			-d "seed-value-$i" >/dev/null
 	done
 	echo "KV seed complete"

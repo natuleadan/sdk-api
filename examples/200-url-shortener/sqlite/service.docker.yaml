@@ -33,10 +33,10 @@ entry:
 server:
   host: "0.0.0.0"
   prefork: false
-  api_prefix: /api/v1
+  api_prefix: /api
   max_conns: 10000
   timeout: 30s
   middleware:
-    - path: "/api/v1/*"
+    - path: "/api/*"
       apply:
         - logger

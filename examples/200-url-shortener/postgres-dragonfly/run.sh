@@ -30,9 +30,10 @@ if [ "$RPS" = "true" ]; then
 	echo "=== seeding 200 hot keys ==="
 	for i in $(seq 1 200); do
 		code=$(printf "hot%05d" $i)
-		curl -s --max-time 5 -X POST http://localhost:23204/api/v1/links \
+		data=$(printf '{"targetUrl":"https://hot-%s.example.com","shortCode":"%s"}' "$i" "$code")
+		curl -s --max-time 5 -X POST http://localhost:23204/api/links \
 			-H "Content-Type: application/json" \
-			-d "{\\"targetUrl\\":\\"https://hot-$i.example.com\\",\\"shortCode\\":\\"$code\\"}" >/dev/null
+			-d "$data" >/dev/null
 	done
 	echo "Seeding complete"
 

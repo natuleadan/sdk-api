@@ -37,12 +37,12 @@ docker compose run --rm bench --rps         # functional + RPS
 
 | Endpoint | RPS | Notes |
 |----------|:---:|-------|
-| Expand (GET /expand/:shortCode) | 75,775 | Direct SQLite read |
-| List (GET /links) | 5,527 | Offset pagination with COUNT(*) |
-| GetByID (GET /links/:id) | 72,703 | Direct read by PK |
-| Create (POST /links) | 11.84 | Single-writer SQLite |
-| Update (PUT /links/:id) | 6,673 | Write + busy_timeout |
-| Delete (DELETE /links/:id) | 12.40 | Single-writer SQLite |
+| Expand (GET /expand/:shortCode) | 47,854 | Direct SQLite read |
+| List (GET /links) | 2,340 | Offset pagination with COUNT(*) |
+| GetByID (GET /links/:id) | 53,194 | Direct read by PK |
+| Create (POST /links) | 9.04 | Single-writer SQLite |
+| Update (PUT /links/:id) | 11,350 | Write + busy_timeout |
+| Delete (DELETE /links/:id) | 0.39 | Single-writer SQLite |
 
 ## Limitations
 
@@ -55,11 +55,12 @@ docker compose run --rm bench --rps         # functional + RPS
 
 | File | Purpose |
 |------|---------|
-| `models/link.go` | Link model (primary key: `id`) |
-| `models/link_expand.go` | LinkExpand model (primary key: `short_code`) |
-| `hooks.go` | `BeforeCreate` auto-generates short codes |
-| `main.go` | `TursoMustRegister` |
+| `cmd/main.go` | Bootstrap — `TursoMustRegister` × 2 |
+| `models/link.go` | Link model + `BeforeCreate` hook |
+| `models/link_expand.go` | LinkExpand model (PK: short_code) |
+| `service.yaml` | Service config (api_prefix: /api) |
 | `service.docker.yaml` | Docker config (no prefork, pool=500, local mode) |
 | `bench_test.go` | Functional tests + BenchmarkExpand |
 | `run.sh` | Entrypoint: `--rps` for benchmarks, `--test:Name` for specific tests |
 | `docker-compose.yml` | Bench container only (DB embedded) |
+| `turso-init.go` | Build tag init for Turso C library cache |

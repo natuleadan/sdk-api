@@ -16,8 +16,8 @@ import (
 
 const (
 	baseURL     = "http://localhost:23207"
-	apiLinks    = baseURL + "/api/v1/links"
-	apiExpand   = baseURL + "/api/v1/expand"
+	apiLinks    = baseURL + "/api/links"
+	apiExpand   = baseURL + "/api/expand"
 	benchDur    = 15 * time.Second
 	concurrency = 100
 )
@@ -38,7 +38,7 @@ func TestMain(m *testing.M) {
 			fmt.Println("skip: no docker")
 			os.Exit(0)
 		}
-		out, err := exec.Command("go", "build", "-buildvcs=false", "-o", "/tmp/url-svc", ".").CombinedOutput()
+		out, err := exec.Command("go", "build", "-buildvcs=false", "-o", "/tmp/url-svc", "./cmd/").CombinedOutput()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "build: %v\n%s", err, out)
 			os.Exit(1)

@@ -12,6 +12,8 @@ for arg in "$@"; do
 	esac
 done
 
+export CONFIG_PATH=service.yaml
+
 echo "=== starting service ==="
 export DOCKER_TEST=1
 

@@ -16,8 +16,8 @@ import (
 
 const (
 	baseURL     = "http://localhost:23305"
-	apiUpload   = baseURL + "/api/v1/files/upload"
-	apiDownload = baseURL + "/api/v1/files/download"
+	apiUpload   = baseURL + "/api/files/upload"
+	apiDownload = baseURL + "/api/files/download"
 	benchDur    = 15 * time.Second
 	concurrency = 100
 )
@@ -228,7 +228,7 @@ func TestFile_PresignRedirect(t *testing.T) {
 			return http.ErrUseLastResponse
 		},
 	}
-	resp2, err := client.Get(baseURL + "/api/v1/files/presign/" + code + ".dat")
+	resp2, err := client.Get(baseURL + "/api/files/presign/" + code + ".dat")
 	if err != nil {
 		t.Fatalf("presign: %v", err)
 	}
@@ -253,7 +253,7 @@ func TestFile_SignOnlyJSON(t *testing.T) {
 	// Upload first so the file exists
 	_, _ = http.Post(apiUpload+"/"+code+".dat", "text/plain", strings.NewReader("sign-data"))
 
-	resp, err := http.Get(baseURL + "/api/v1/files/sign/" + code + ".dat")
+	resp, err := http.Get(baseURL + "/api/files/sign/" + code + ".dat")
 	if err != nil {
 		t.Fatalf("sign: %v", err)
 	}

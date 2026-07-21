@@ -8,6 +8,12 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: psql -h127.0.0.1 -p6432 -Udev -dpostgres -c 'SELECT 1' >/dev/null 2>&1
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
 
   postgres:
     image: postgres:18-alpine
@@ -27,6 +33,11 @@ services:
   dragonfly:
     image: docker.dragonflydb.io/dragonflydb/dragonfly
     command: ["--cluster_mode=emulated"]
+    healthcheck:
+      test: redis-cli -h 127.0.0.1 -p 6379 PING >/dev/null 2>&1
+      interval: 2s
+      timeout: 3s
+      retries: 15
 
   bench:
     build:
@@ -38,9 +49,9 @@ services:
       postgres:
         condition: service_healthy
       dragonfly:
-        condition: service_started
+        condition: service_healthy
       pgdog:
-        condition: service_started
+        condition: service_healthy
     environment:
       DOCKER_TEST: "1"
       DRAGONFLY_ADDR: dragonfly:6379

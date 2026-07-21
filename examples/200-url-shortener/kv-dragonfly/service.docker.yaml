@@ -1,5 +1,5 @@
-name: kv-only
-port: 23203
+name: kv-dragonfly-v2
+port: 23204
 
 kv:
   - name: kv-main
@@ -20,7 +20,7 @@ entry:
     path: /links/:id
     handler: getLink
   - type: rest
-    method: PUT
+    method: PATCH
     path: /links/:id
     handler: updateLink
   - type: rest
@@ -31,12 +31,12 @@ entry:
     method: GET
     path: /expand/:shortCode
     handler: expandLink
+
 server:
   host: "0.0.0.0"
-  prefork: true
-  api_prefix: /api/v1
+  api_prefix: /api
   max_conns: 10000
   timeout: 30s
   middleware:
-    - path: "/api/v1/*"
+    - path: "/api/*"
       apply: []

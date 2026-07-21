@@ -15,8 +15,8 @@ import (
 
 const (
 	baseURL     = "http://localhost:23303"
-	apiUpload   = baseURL + "/api/v1/files/upload"
-	apiDownload = baseURL + "/api/v1/files/download"
+	apiUpload   = baseURL + "/api/files/upload"
+	apiDownload = baseURL + "/api/files/download"
 	benchDur    = 15 * time.Second
 	concurrency = 100
 )

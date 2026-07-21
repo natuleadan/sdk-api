@@ -4,7 +4,7 @@ port: 23301
 server:
   host: "0.0.0.0"
   prefork: false
-  api_prefix: /api/v1
+  api_prefix: /api
 
 entry:
   - type: rest

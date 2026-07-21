@@ -16,12 +16,12 @@ import (
 
 const (
 	baseURL     = "http://localhost:23202"
-	apiLinks    = baseURL + "/api/v1/links"
-	apiExpand   = baseURL + "/api/v1/expand"
-	apiEvents   = baseURL + "/api/v1/admin/events"
-	apiRPC      = baseURL + "/api/v1/nats/rpc"
-	apiKV       = baseURL + "/api/v1/nats/kv"
-	apiPull     = baseURL + "/api/v1/nats/pull"
+	apiLinks    = baseURL + "/api/links"
+	apiExpand   = baseURL + "/api/expand"
+	apiEvents   = baseURL + "/api/admin/events"
+	apiRPC      = baseURL + "/api/nats/rpc"
+	apiKV       = baseURL + "/api/nats/kv"
+	apiPull     = baseURL + "/api/nats/pull"
 	benchDur    = 15 * time.Second
 	concurrency = 100
 )
@@ -698,7 +698,7 @@ func TestWorker_BulkProcess(t *testing.T) {
 	clearEvents(t)
 
 	body := `{"count":999,"subject":"links.bulk"}`
-	resp, err := http.Post(baseURL+"/api/v1/admin/publish-bulk", "application/json", strings.NewReader(body))
+	resp, err := http.Post(baseURL+"/api/admin/publish-bulk", "application/json", strings.NewReader(body))
 	if err != nil {
 		t.Fatalf("bulk publish: %v", err)
 	}

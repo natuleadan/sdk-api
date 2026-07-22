@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"reflect"
 	"strings"
 	"time"
@@ -237,10 +238,10 @@ func (t *Table[T]) Update(ctx context.Context, id any, patch map[string]any) (*T
 		return nil, fmt.Errorf("db: update: no fields")
 	}
 
-	n := len(patch) + 1
-	if n < len(patch) {
+	if len(patch) >= math.MaxInt {
 		return nil, fmt.Errorf("db: update: too many fields")
 	}
+	n := len(patch) + 1
 
 	idx := 1
 	var sets []string

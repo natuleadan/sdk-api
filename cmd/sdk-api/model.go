@@ -39,12 +39,12 @@ func processCreateTableLine(line string, tableName *string, inParens *bool) {
 	if line == "" {
 		return
 	}
-	if strings.HasPrefix(line, "CREATE TABLE") {
-		rest := strings.TrimPrefix(line, "CREATE TABLE")
+	if after, ok := strings.CutPrefix(line, "CREATE TABLE"); ok {
+		rest := after
 		rest = strings.TrimPrefix(rest, " IF NOT EXISTS")
 		rest = strings.TrimSpace(rest)
-		if idx := strings.Index(rest, "("); idx >= 0 {
-			*tableName = strings.TrimSpace(rest[:idx])
+		if before, _, ok := strings.Cut(rest, "("); ok {
+			*tableName = strings.TrimSpace(before)
 			*tableName = strings.Trim(*tableName, "`\"'")
 			*inParens = true
 			return

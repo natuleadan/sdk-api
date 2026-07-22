@@ -8,7 +8,9 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/ory/fosite"
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/text/language"
+	"github.com/go-jose/go-jose/v3"
 )
 
 type oauthSession struct {
@@ -264,4 +266,72 @@ func stringsSplitSpace(s string) []string {
 		}
 	}
 	return r
+}
+
+func (s *OAuthStore) Authenticate(ctx context.Context, clientID string, secret string) (string, error) {
+	client, err := s.getClient(clientID)
+	if err != nil {
+		return "", fosite.ErrNotFound
+	}
+	if err := bcrypt.CompareHashAndPassword(client.GetHashedSecret(), []byte(secret)); err != nil {
+		return "", fosite.ErrInvalidClient
+	}
+	return clientID, nil
+}
+
+func (s *OAuthStore) GetPublicKey(ctx context.Context, issuer string, subject string, keyId string) (*jose.JSONWebKey, error) {
+	return nil, fosite.ErrNotFound
+}
+
+func (s *OAuthStore) GetPublicKeys(ctx context.Context, issuer string, subject string) (*jose.JSONWebKeySet, error) {
+	return nil, fosite.ErrNotFound
+}
+
+func (s *OAuthStore) GetPublicKeyScopes(ctx context.Context, issuer string, subject string, keyId string) ([]string, error) {
+	return nil, fosite.ErrNotFound
+}
+
+func (s *OAuthStore) IsJWTUsed(ctx context.Context, jti string) (bool, error) {
+	return false, nil
+}
+
+func (s *OAuthStore) MarkJWTUsedForTime(ctx context.Context, jti string, exp time.Time) error {
+	return nil
+}
+
+func (s *OAuthStore) CreateOpenIDConnectSession(ctx context.Context, authorizeCode string, requester fosite.Requester) error {
+	sessData, _ := json.Marshal(requester.GetSession())
+	_, err := s.pool.Exec(ctx,
+		`INSERT INTO oauth_sessions (signature, type, request_id, client_id, session_data, active, expires_at)
+		 VALUES ($1, 'oidc', $2, $3, $4, true, now() + interval '10 minutes')
+		 ON CONFLICT (signature, type) DO UPDATE SET session_data = EXCLUDED.session_data`,
+		authorizeCode, requester.GetID(), requester.GetClient().GetID(), sessData)
+	return err
+}
+
+func (s *OAuthStore) GetOpenIDConnectSession(ctx context.Context, authorizeCode string, requester fosite.Requester) (fosite.Requester, error) {
+	var sessData []byte
+	var clientID, requestID string
+	err := s.pool.QueryRow(ctx,
+		`SELECT request_id, client_id, session_data FROM oauth_sessions WHERE signature = $1 AND type = 'oidc' AND active = true`,
+		authorizeCode).Scan(&requestID, &clientID, &sessData)
+	if err != nil {
+		return nil, fosite.ErrNotFound
+	}
+	client, err := s.getClient(clientID)
+	if err != nil {
+		return nil, fosite.ErrNotFound
+	}
+	var sess fosite.DefaultSession
+	json.Unmarshal(sessData, &sess)
+	return &fosite.Request{
+		ID:      requestID,
+		Client:  client,
+		Session: &sess,
+	}, nil
+}
+
+func (s *OAuthStore) DeleteOpenIDConnectSession(ctx context.Context, authorizeCode string) error {
+	_, err := s.pool.Exec(ctx, `DELETE FROM oauth_sessions WHERE signature = $1 AND type = 'oidc'`, authorizeCode)
+	return err
 }

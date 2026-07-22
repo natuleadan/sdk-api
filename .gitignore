@@ -1,58 +1,54 @@
+
 # Binaries
+# CLI binary
+# Deprecated examples
+# Environment
+# Example binaries — build artifacts from examples/*/
+# Go workspace
+# IDE
+*-backup*
+*-old*
+*.dll
+*.dylib
 *.exe
 *.exe~
-*.dll
-*.so
-*.dylib
-*.test
 *.out
-
-# IDE
+*.so
+*.swo
+*.swp
+*.test
+.DS_Store
+.env
 .idea/
 .vscode/
-*.swp
-*.swo
-.DS_Store
-
-# Environment
-.env
-
-# Go workspace
-go.work
-go.work.sum
-
-# CLI binary
-nla-go
+/examples/_deprecated
 /sdk-api
-
-# Example binaries — build artifacts from examples/*/
-examples/*/healthz
-examples/*/svc
-examples/*/mongo-bench
-examples/*/mysql-bench
-examples/*/turso-bench
+examples/*/auth-manual-monolith
+examples/*/auth-none-monolith
+examples/*/auth-openfga-zitadel-monolith
+examples/*/auth-ory-monolith
 examples/*/exit-workers
 examples/*/file-upload
-examples/*/url-link-nats
-examples/*/url-link-base
+examples/*/healthz
+examples/*/mongo-bench
+examples/*/mysql-bench
 examples/*/nla-*-amd64
-examples/*/auth-none-monolith
-examples/*/auth-ory-monolith
-examples/*/auth-openfga-zitadel-monolith
-examples/*/auth-manual-monolith
-examples/auth-*/*/auth-*
-examples/auth-*/*/product-service
-examples/auth-*/*/products-service
-examples/auth-*/*/users-service
-examples/auth-*/*/order-service-fga
-examples/auth-*/*/product-service-fga
-examples/auth-*/*/doc-service-ory
-examples/auth-*/*/report-service-ory
-examples/300-file-storage/*/300-file-storage-*
+examples/*/svc
+examples/*/turso-bench
+examples/*/url-link-base
+examples/*/url-link-nats
 examples/200-url-shortener/*/201-*-*
+examples/300-file-storage/*/300-file-storage-*
 examples/400-auth/*/auth-*
-
-# Deprecated examples
-/examples/_deprecated
-*-old*
-*-backup*
+examples/auth-*/*/auth-*
+examples/auth-*/*/doc-service-ory
+examples/auth-*/*/order-service-fga
+examples/auth-*/*/product-service
+examples/auth-*/*/product-service-fga
+examples/auth-*/*/products-service
+examples/auth-*/*/report-service-ory
+examples/auth-*/*/users-service
+go.work
+go.work.sum
+nla-go
+oidc_private_key.*

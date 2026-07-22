@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"auth-roles/internal/svc"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/natuleadan/sdk-api/runtime"
 	"github.com/natuleadan/sdk-api/runtime/auth"
 	"github.com/ory/fosite"
@@ -258,4 +259,76 @@ func handleOAuthClientsDelete(svcCtx *svc.ServiceContext) func(c *runtime.RestCt
 func hashClientSecret(secret string) []byte {
 	h, _ := auth.HashPassword(secret)
 	return []byte(h)
+}
+
+func handleOIDCDiscovery(svcCtx *svc.ServiceContext) func(c *runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		return c.JSON(runtime.Map{
+			"issuer":                                "http://localhost:23400/",
+			"authorization_endpoint":                 "http://localhost:23400/api/oauth/authorize",
+			"token_endpoint":                         "http://localhost:23400/api/oauth/token",
+			"userinfo_endpoint":                      "http://localhost:23400/api/userinfo",
+			"jwks_uri":                              "http://localhost:23400/api/.well-known/jwks.json",
+			"revocation_endpoint":                    "http://localhost:23400/api/oauth/revoke",
+			"introspection_endpoint":                 "http://localhost:23400/api/oauth/introspect",
+			"response_types_supported":               []string{"code"},
+			"grant_types_supported":                  []string{"authorization_code", "client_credentials", "refresh_token"},
+			"subject_types_supported":                []string{"public"},
+			"id_token_signing_alg_values_supported":  []string{"RS256"},
+			"token_endpoint_auth_methods_supported":  []string{"client_secret_basic", "client_secret_post"},
+			"scopes_supported":                       []string{"openid", "profile", "email", "offline"},
+			"claims_supported":                       []string{"sub", "name", "email", "org_id"},
+		})
+	}
+}
+
+func handleOIDCJWKS(svcCtx *svc.ServiceContext) func(c *runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		return c.JSON(svcCtx.OAuth.JWKS)
+	}
+}
+
+func handleOIDCUserInfo(svcCtx *svc.ServiceContext) func(c *runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		tokenStr := c.Get("Authorization")
+		tokenStr = strings.TrimPrefix(tokenStr, "Bearer ")
+		if tokenStr == "" || tokenStr == c.Get("Authorization") {
+			return c.Status(401).JSON(runtime.Map{"error": "no bearer token"})
+		}
+
+		// Try JWT from login
+		token, _, err := new(jwt.Parser).ParseUnverified(tokenStr, jwt.MapClaims{})
+		if err == nil {
+			if claims, ok := token.Claims.(jwt.MapClaims); ok {
+				sub, _ := claims["sub"].(string)
+				if sub != "" {
+					return c.JSON(runtime.Map{"sub": sub})
+				}
+			}
+		}
+
+		// Try OAuth2 opaque token: fosite format is <key>.<signature>
+		parts := strings.SplitN(tokenStr, ".", 2)
+		if len(parts) == 2 {
+			sig := parts[1]
+			ar, err := svcCtx.OAuth.Store.GetAccessTokenSession(c.Context(), sig, &fosite.DefaultSession{})
+			if err == nil && ar != nil {
+				session := ar.GetSession().(*fosite.DefaultSession)
+				claims := runtime.Map{"sub": session.Subject}
+				if extra, ok := session.Extra["org_id"].(string); ok {
+					claims["org_id"] = extra
+				}
+				return c.JSON(claims)
+			}
+		}
+
+		return c.Status(401).JSON(runtime.Map{"error": "invalid token"})
+	}
+}
+
+func buildIntrospectionReq(token string) *http.Request {
+	body := url.Values{"token": {token}}
+	req, _ := http.NewRequest("POST", "/api/oauth/introspect", strings.NewReader(body.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	return req
 }

@@ -36,3 +36,5 @@ services:
       REDIS_URL: dragonfly:6379
       JWT_SECRET: dev-secret-hs256-change-in-prod
       ENCRYPT_COOKIE_KEY: diPHoCg5vhBrTHCSJhlud1RRMRFpRo+4N/d32S+48t8=
+    env_file:
+      - oidc_private_key.env

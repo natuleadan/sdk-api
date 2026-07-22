@@ -431,6 +431,22 @@ entry:
 
   - type: rest
     method: GET
+    path: /.well-known/openid-configuration
+    handler: oidcDiscovery
+
+  - type: rest
+    method: GET
+    path: /.well-known/jwks.json
+    handler: oidcJWKS
+
+  - type: rest
+    method: GET
+    path: /userinfo
+    handler: oidcUserInfo
+    csrf: false
+
+  - type: rest
+    method: GET
     path: /oauth/authorize
     handler: oauthAuthorize
     auth_modes: [jwt]

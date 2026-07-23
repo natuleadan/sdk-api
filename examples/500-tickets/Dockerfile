@@ -1,0 +1,18 @@
+FROM golang:1.26-alpine AS builder
+WORKDIR /build
+COPY sdk-api /sdk-api
+COPY sdk-api/examples/500-tickets ./
+RUN go mod edit -replace github.com/natuleadan/sdk-api=/sdk-api && go mod tidy && go mod download
+RUN CGO_ENABLED=0 go build -o /svc ./cmd/
+RUN CGO_ENABLED=0 go test -tags=integration -c -o /tester .
+
+FROM alpine:latest
+RUN apk add --no-cache ca-certificates curl
+WORKDIR /app
+COPY --from=builder /svc /app/svc
+COPY --from=builder /tester /app/tester
+COPY sdk-api/examples/500-tickets/run.sh /app/run.sh
+COPY sdk-api/examples/500-tickets/service.yaml /app/service.yaml
+RUN chmod +x /app/run.sh /app/svc /app/tester
+EXPOSE 23500
+ENTRYPOINT ["/app/run.sh"]

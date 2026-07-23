@@ -1,0 +1,46 @@
+name: tickets-bench
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+  dragonfly:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly
+    command: ["--cluster_mode=emulated"]
+
+  nats:
+    image: docker.io/library/nats:latest
+    command: "-js"
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 4222 || exit 1"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+  bench:
+    build:
+      context: ../../..
+      dockerfile: sdk-api/examples/500-tickets/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      dragonfly:
+        condition: service_started
+      nats:
+        condition: service_started
+    environment:
+      DATABASE_URL: "postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable"
+      REDIS_URL: "redis://dragonfly:6379/0"
+      NATS_URL: "nats://nats:4222"
+      CONFIG_PATH: /etc/service.yaml
+    volumes:
+      - ./service.yaml:/etc/service.yaml

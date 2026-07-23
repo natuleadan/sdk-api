@@ -1,0 +1,122 @@
+name: tickets
+port: 23500
+
+databases:
+  - name: pg-main
+    driver: postgres
+    url: "${DATABASE_URL}"
+    pool:
+      max_conns: 50
+      min_conns: 5
+
+kv:
+  - name: cache-main
+    driver: redis
+    url: "${REDIS_URL}"
+
+stream:
+  - name: default
+    driver: nats
+    url: "${NATS_URL}"
+    streams:
+      - name: tickets
+      - name: orders
+      - name: cron
+
+entry:
+  - type: crud
+    model: Ticket
+    db: pg-main
+    table: tickets
+    path: /tickets
+    event_stream: default
+    event_publish:
+      - stream: tickets
+        subject: tickets.created
+
+  - type: rest
+    method: POST
+    path: /orders/create
+    handler: createOrder
+
+  - type: rest
+    method: GET
+    path: /orders/get
+    handler: getOrder
+
+  - type: async
+    path: /orders/batch
+    handler: processBatch
+    async_store:
+      driver: nats_kv
+      stream: default
+      bucket: batch-jobs
+      result_ttl: 1h
+      reassign:
+        enabled: true
+        processing_timeout: 5m
+        reap_interval: 30s
+        max_retries: 3
+      callback:
+        url: "http://localhost:23500/api/v1/webhooks/batch-complete"
+        secret: "test-callback-secret"
+        retry: 2
+        retry_delay: 1s
+
+  - type: rest
+    method: POST
+    path: /orders/validate-payment
+    handler: validatePayment
+
+  - type: rest
+    method: POST
+    path: /admin/reset-stock
+    handler: resetStock
+
+  - type: rest
+    method: GET
+    path: /reports/daily
+    handler: dailyReport
+
+  - type: rest
+    method: POST
+    path: /webhooks/batch-complete
+    handler: batchCompleteWebhook
+
+exit:
+  - name: order-confirmer
+    subscribe:
+      stream: orders
+      subject: orders.created
+    handler: onOrderConfirmed
+    max_concurrent: 10
+    event_stream: default
+
+  - name: batch-payment
+    subscribe:
+      stream: orders
+      subject: orders.batch.process
+    handler: onBatchPayment
+    max_concurrent: 5
+    event_stream: default
+
+  - name: payment-validator
+    subscribe:
+      stream: orders
+      subject: orders.payment.validate
+    handler: onValidatePayment
+    reply: true
+    reply_timeout: 30s
+    event_stream: default
+
+cron:
+  - name: daily-report
+    schedule: "0 6 * * *"
+    mode: handler
+    handler: onDailyReport
+
+server:
+  host: "0.0.0.0"
+  api_prefix: /api/v1
+  timeout: 30s
+  prefork: false

@@ -902,7 +902,7 @@ func (s *Service) registerEntryRoutes() error {
 	if s.config.Server.RateLimit != nil && s.config.Server.RateLimit.KV != "" && s.kvConns != nil {
 		rlRedis = s.kvConns[s.config.Server.RateLimit.KV]
 	}
-	return RegisterEntries(s.srv.App(), s.config, s.handlers, s.config.Server.APIPrefix, s.natsConns, s.models, s.jwtCfg, s.authValidator, s.apiKeyValidator, s.fgaClient, s.oryClient, s.zitadelClient, rlRedis)
+	return registerEntries(s.srv.App(), s.config, s.handlers, s.config.Server.APIPrefix, s.natsConns, s.models, s.jwtCfg, s.authValidator, s.apiKeyValidator, s.fgaClient, s.oryClient, s.zitadelClient, s.pools, s.kvConns, rlRedis)
 }
 
 func (s *Service) serveStaticFiles() {

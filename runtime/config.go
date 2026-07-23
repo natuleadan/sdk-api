@@ -800,6 +800,60 @@ type EntryDef struct {
 	Pagination string `json:"pagination" config:",optional"` // "offset" | "keyset"
 	// Sortable is a constant.
 	Sortable []string `json:"sortable" config:",optional"` // allowed sort columns
+
+	// AsyncStore configures the job store backend for type: async entries.
+	AsyncStore *AsyncStoreConf `json:"async_store" config:",optional"`
+}
+
+// AsyncStoreConf configures the job store backend for async entries.
+type AsyncStoreConf struct {
+	// Driver selects the backend: "memory" (default), "postgres", "redis", "nats_kv".
+	Driver string `json:"driver" config:",optional"`
+	// DB references a database name for driver: postgres.
+	DB string `json:"db" config:",optional"`
+	// KV references a kv store name for driver: redis.
+	KV string `json:"kv" config:",optional"`
+	// Stream references a stream name for driver: nats_kv.
+	Stream string `json:"stream" config:",optional"`
+	// Bucket is the NATS KV bucket name (driver: nats_kv).
+	Bucket string `json:"bucket" config:",optional"`
+	// Table is the PostgreSQL table name (driver: postgres).
+	Table string `json:"table" config:",optional"`
+
+	// Reassign configures automatic recovery of stuck jobs (reaper).
+	Reassign *AsyncReassignConf `json:"reassign" config:",optional"`
+	// Callback configures a webhook to notify on job completion.
+	Callback *AsyncCallbackConf `json:"callback" config:",optional"`
+	// ResultTTL is how long completed/failed jobs are kept before cleanup.
+	// Default: 0 (keep forever)
+	ResultTTL string `json:"result_ttl" config:",optional"`
+}
+
+// AsyncReassignConf configures automatic recovery of stuck processing jobs.
+type AsyncReassignConf struct {
+	// Enabled enables the background reaper goroutine.
+	Enabled bool `json:"enabled" config:",optional"`
+	// ProcessingTimeout is how long a job can stay in "processing" before being reaped.
+	// Default: 5m
+	ProcessingTimeout string `json:"processing_timeout" config:",optional"`
+	// ReapInterval is how often the reaper checks for stale jobs.
+	// Default: 30s
+	ReapInterval string `json:"reap_interval" config:",optional"`
+	// MaxRetries is the maximum number of times a job can be retried before moving to "failed".
+	// Default: 3
+	MaxRetries int `json:"max_retries" config:",optional"`
+}
+
+// AsyncCallbackConf configures a webhook to notify on job completion or failure.
+type AsyncCallbackConf struct {
+	// URL is the webhook endpoint called on job completion (required).
+	URL string `json:"url" config:",optional"`
+	// Secret is the HMAC key for signing the callback payload.
+	Secret string `json:"secret" config:",optional"`
+	// Retry is the number of retry attempts if the callback fails.
+	Retry int `json:"retry" config:",optional"`
+	// RetryDelay is the delay between retry attempts.
+	RetryDelay string `json:"retry_delay" config:",optional"`
 }
 
 type CRUDOverrides struct {

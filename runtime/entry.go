@@ -74,6 +74,10 @@ type EntryHandlers struct {
 }
 
 func RegisterEntries(app *fiber.App, cfg *ServiceConfig, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, models map[string]*db.TableInfo, jwtCfg *middleware.JWTConfig, authValidator func(context.Context, *middleware.AuthContext, []string, []string) error, apiKeyValidator func(ctx context.Context, key string) (*middleware.AuthContext, error), fgaClient openfga.Checker, oryClient *ory.Client, zitadelClient *zitadel.Client, rlRdb ...*redis.Redis) error {
+	return registerEntries(app, cfg, handlers, prefix, brokers, models, jwtCfg, authValidator, apiKeyValidator, fgaClient, oryClient, zitadelClient, nil, nil, rlRdb...)
+}
+
+func registerEntries(app *fiber.App, cfg *ServiceConfig, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, models map[string]*db.TableInfo, jwtCfg *middleware.JWTConfig, authValidator func(context.Context, *middleware.AuthContext, []string, []string) error, apiKeyValidator func(ctx context.Context, key string) (*middleware.AuthContext, error), fgaClient openfga.Checker, oryClient *ory.Client, zitadelClient *zitadel.Client, pools map[string]any, kvConns map[string]*redis.Redis, rlRdb ...*redis.Redis) error {
 	driver := ""
 	if cfg.Auth != nil {
 		driver = cfg.Auth.Driver
@@ -114,7 +118,7 @@ func RegisterEntries(app *fiber.App, cfg *ServiceConfig, handlers *EntryHandlers
 				return fmt.Errorf("entry[%d] %s:%s: %w", i, entry.Type, entry.Path, err)
 			}
 		}
-		if err := registerOneEntry(app, &entry, handlers, prefix, brokers, models, jwtCfg, authValidator, apiKeyValidator, fgaClient, oryClient, zitadelClient, driver, serverPerUser, serverPerKey, rlAlgorithm, rlTTL, rlRedis); err != nil {
+		if err := registerOneEntry(app, &entry, handlers, prefix, brokers, models, jwtCfg, authValidator, apiKeyValidator, fgaClient, oryClient, zitadelClient, driver, serverPerUser, serverPerKey, rlAlgorithm, rlTTL, pools, kvConns, rlRedis); err != nil {
 			return fmt.Errorf("entry[%d] %s %s: %w", i, entry.Type, entry.Path, err)
 		}
 	}
@@ -272,7 +276,7 @@ func authRouter(entry *EntryDef) fiber.Handler {
 	}
 }
 
-func registerOneEntry(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, models map[string]*db.TableInfo, jwtCfg *middleware.JWTConfig, authValidator func(context.Context, *middleware.AuthContext, []string, []string) error, apiKeyValidator func(ctx context.Context, key string) (*middleware.AuthContext, error), fgaClient openfga.Checker, oryClient *ory.Client, zitadelClient *zitadel.Client, driver string, serverPerUser, serverPerKey *middleware.RateLimitEntry, rlAlgorithm string, rlTTL time.Duration, rlRdb ...*redis.Redis) error {
+func registerOneEntry(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, models map[string]*db.TableInfo, jwtCfg *middleware.JWTConfig, authValidator func(context.Context, *middleware.AuthContext, []string, []string) error, apiKeyValidator func(ctx context.Context, key string) (*middleware.AuthContext, error), fgaClient openfga.Checker, oryClient *ory.Client, zitadelClient *zitadel.Client, driver string, serverPerUser, serverPerKey *middleware.RateLimitEntry, rlAlgorithm string, rlTTL time.Duration, pools map[string]any, kvConns map[string]*redis.Redis, rlRdb ...*redis.Redis) error {
 	versionPrefix := buildEntryPrefix(prefix, entry)
 
 	registerDeprecation(app, entry, versionPrefix)
@@ -300,7 +304,11 @@ func registerOneEntry(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, 
 	case "file":
 		err = registerFile(app, entry, handlers, versionPrefix, brokers, mws)
 	case "async":
-		err = registerAsync(app, entry, handlers, versionPrefix, mws)
+		var store JobStore
+		store, err = resolveAsyncStore(entry, pools, kvConns, brokers)
+		if err == nil {
+			err = registerAsync(app, entry, handlers, versionPrefix, mws, store)
+		}
 	case "grpc":
 		err = registerGRPC(app, entry, handlers, versionPrefix, brokers, models, mws)
 	case "graphql":

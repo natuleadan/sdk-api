@@ -1191,7 +1191,7 @@ func TestRegisterOneEntry_DriverNone(t *testing.T) {
 	handlers := &EntryHandlers{Rest: map[string]func(fiber.Ctx) error{"testHandler": func(c fiber.Ctx) error { return c.SendString("ok") }}}
 	cfg := &ServiceConfig{Auth: &AuthConfig{Driver: "none"}}
 
-	err := registerOneEntry(app, entry, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, nil, "none", nil, nil, "", 0)
+	err := registerOneEntry(app, entry, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, nil, "none", nil, nil, "", 0, nil, nil)
 	if err != nil {
 		t.Fatalf("registerOneEntry failed: %v", err)
 	}
@@ -1222,7 +1222,7 @@ func TestRegisterOneEntry_DriverManualWithValidator(t *testing.T) {
 	}
 	jwtCfg := &middleware.JWTConfig{Secret: "test", TokenLookup: "header:Authorization"}
 
-	err := registerOneEntry(app, entry, handlers, "", nil, nil, jwtCfg, validator, nil, nil, nil, nil, "manual", nil, nil, "", 0)
+	err := registerOneEntry(app, entry, handlers, "", nil, nil, jwtCfg, validator, nil, nil, nil, nil, "manual", nil, nil, "", 0, nil, nil)
 	if err != nil {
 		t.Fatalf("registerOneEntry failed: %v", err)
 	}
@@ -1262,11 +1262,11 @@ func TestRegisterOneEntry_Timeout(t *testing.T) {
 		Type: "rest", Path: "/fast", Method: "GET", Handler: "fastHandler",
 	}
 
-	err := registerOneEntry(app, entry, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, nil, "", nil, nil, "", 0)
+	err := registerOneEntry(app, entry, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, nil, "", nil, nil, "", 0, nil, nil)
 	if err != nil {
 		t.Fatalf("register entry: %v", err)
 	}
-	err = registerOneEntry(app, fastEntry, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, nil, "", nil, nil, "", 0)
+	err = registerOneEntry(app, fastEntry, handlers, "/api/v1", nil, nil, nil, nil, nil, nil, nil, nil, "", nil, nil, "", 0, nil, nil)
 	if err != nil {
 		t.Fatalf("register fast entry: %v", err)
 	}

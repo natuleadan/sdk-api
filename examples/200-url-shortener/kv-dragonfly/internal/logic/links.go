@@ -2,15 +2,13 @@ package logic
 
 import (
 	"context"
-	"crypto/rand"
 	"encoding/json"
-	"math/big"
 	"strconv"
 
 	"github.com/natuleadan/sdk-api/infra/stores/redis"
+	"github.com/natuleadan/sdk-api/runtime"
 )
 
-const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
 type LinkData struct {
 	ID        int    `json:"id"`
@@ -31,20 +29,11 @@ func NewLinkLogic(rdb *redis.Redis) *LinkLogic {
 	return &LinkLogic{rdb: rdb}
 }
 
-func generateShortCode(n int) string {
-	code := make([]byte, n)
-	for i := range code {
-		idx, _ := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
-		code[i] = charset[idx.Int64()]
-	}
-	return string(code)
-}
-
 func (l *LinkLogic) Create(ctx context.Context, body LinkBody) (*LinkData, error) {
 	r := l.rdb
 	code := body.ShortCode
 	if code == "" {
-		code = generateShortCode(8)
+		code = runtime.GenerateShortCode(8)
 	}
 	nextID, err := r.IncrCtx(ctx, "link:next_id")
 	if err != nil {

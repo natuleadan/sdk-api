@@ -2,8 +2,6 @@ package models
 
 import (
 	"context"
-	"crypto/rand"
-	"math/big"
 
 	"github.com/natuleadan/sdk-api/runtime"
 )
@@ -20,17 +18,7 @@ type LinkHooks struct {
 
 func (h *LinkHooks) BeforeCreate(ctx context.Context, req Link) (Link, error) {
 	if req.ShortCode == "" {
-		req.ShortCode = generateShortCode(8)
+		req.ShortCode = runtime.GenerateShortCode(8)
 	}
 	return req, nil
-}
-
-func generateShortCode(n int) string {
-	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	code := make([]byte, n)
-	for i := range code {
-		idx, _ := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
-		code[i] = charset[idx.Int64()]
-	}
-	return string(code)
 }

@@ -19,10 +19,16 @@ func ProcessBatch(svcCtx *svc.ServiceContext) runtime.AsyncHandler {
 			Quantity int   `json:"quantity"`
 		}
 		if err := json.Unmarshal(body, &req); err != nil {
-			return err
+			return fmt.Errorf("invalid JSON: %w", err)
 		}
 		if req.Quantity <= 0 {
 			return fmt.Errorf("quantity must be positive")
+		}
+		if req.Quantity > 100 {
+			return fmt.Errorf("quantity exceeds max (100)")
+		}
+		if req.TicketID <= 0 {
+			return fmt.Errorf("invalid ticket_id")
 		}
 
 		results := make([]runtime.Map, 0, req.Quantity)

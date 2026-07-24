@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	"tickets/models"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/natuleadan/sdk-api/db"
 )
@@ -35,39 +37,36 @@ func TestMain(m *testing.M) {
 
 	ctx := context.Background()
 	pool := benchPool
-	ddl := []string{
-		`CREATE TABLE IF NOT EXISTS tickets (
-			id BIGSERIAL PRIMARY KEY,
-			name TEXT NOT NULL,
-			description TEXT DEFAULT '',
-			price NUMERIC(10,2) NOT NULL DEFAULT 0,
-			stock INT NOT NULL DEFAULT 0,
-			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-		)`,
-		`CREATE TABLE IF NOT EXISTS orders (
-			id BIGSERIAL PRIMARY KEY,
-			ticket_id BIGINT NOT NULL REFERENCES tickets(id),
-			quantity INT NOT NULL DEFAULT 1,
-			status TEXT NOT NULL DEFAULT 'pending',
-			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-		)`,
+
+	orderTbl, err := db.NewTable[models.Order](pool, "orders")
+	if err != nil {
+		log.Fatalf("order table: %v", err)
 	}
-	for _, d := range ddl {
-		if _, err := pool.Exec(ctx, d); err != nil {
-			log.Fatalf("create table: %v", err)
-		}
+	if err := orderTbl.AutoInit(ctx); err != nil {
+		log.Fatalf("order autoinit: %v", err)
 	}
+
+	ticketTbl, err := db.NewTable[models.Ticket](pool, "tickets")
+	if err != nil {
+		log.Fatalf("ticket table: %v", err)
+	}
+	if err := ticketTbl.AutoInit(ctx); err != nil {
+		log.Fatalf("ticket autoinit: %v", err)
+	}
+
 	var count int
 	pool.QueryRow(ctx, "SELECT COUNT(*) FROM tickets").Scan(&count)
 	if count == 0 {
-		seeds := []struct{ name, desc string; price float64; stock int }{
-			{"Taylor Swift - VIP", "Front row VIP", 599.99, 10},
-			{"Taylor Swift - Gold", "Gold circle", 299.99, 25},
-			{"Taylor Swift - Silver", "Silver standard", 149.99, 50},
-			{"Taylor Swift - General", "General admission", 79.99, 100},
+		seeds := []models.Ticket{
+			{Name: "Taylor Swift - VIP", Description: "Front row VIP", Price: 599.99, Stock: 10},
+			{Name: "Taylor Swift - Gold", Description: "Gold circle", Price: 299.99, Stock: 25},
+			{Name: "Taylor Swift - Silver", Description: "Silver standard", Price: 149.99, Stock: 50},
+			{Name: "Taylor Swift - General", Description: "General admission", Price: 79.99, Stock: 100},
 		}
 		for _, s := range seeds {
-			pool.Exec(ctx, "INSERT INTO tickets (name, description, price, stock) VALUES ($1, $2, $3, $4)", s.name, s.desc, s.price, s.stock)
+			if err := ticketTbl.Create(ctx, &s); err != nil {
+				log.Fatalf("seed: %v", err)
+			}
 		}
 	}
 
@@ -699,4 +698,167 @@ func TestAsync_SSE_ReceivesCompletion(t *testing.T) {
 	}
 }
 
+// ============================================================================
+// 15. Async Validation Tests (3 tests)
+// ============================================================================
+
+func TestAsync_Validate_QuantityTooHigh(t *testing.T) {
+	body := mustMarshal(map[string]any{"ticket_id": 1, "quantity": 200})
+	resp, _ := request("POST", "/api/v1/orders/batch", body)
+	if resp.StatusCode != 202 {
+		t.Fatalf("status = %d, want 202", resp.StatusCode)
+	}
+	var r struct{ StatusURL string `json:"status_url"` }
+	json.Unmarshal([]byte(readBody(resp)), &r)
+
+	for range 10 {
+		time.Sleep(200 * time.Millisecond)
+		resp2, _ := request("GET", r.StatusURL, nil)
+		var state struct{ Status string `json:"status"` }
+		json.Unmarshal([]byte(readBody(resp2)), &state)
+		if state.Status == "failed" {
+			return
+		}
+	}
+	t.Fatal("validation job should have failed")
+}
+
+func TestAsync_Validate_NegativeQuantity(t *testing.T) {
+	body := mustMarshal(map[string]any{"ticket_id": 1, "quantity": -5})
+	resp, _ := request("POST", "/api/v1/orders/batch", body)
+	var r struct{ StatusURL string `json:"status_url"` }
+	json.Unmarshal([]byte(readBody(resp)), &r)
+
+	for range 10 {
+		time.Sleep(200 * time.Millisecond)
+		resp2, _ := request("GET", r.StatusURL, nil)
+		var state struct{ Status string `json:"status"` }
+		json.Unmarshal([]byte(readBody(resp2)), &state)
+		if state.Status == "failed" {
+			return
+		}
+	}
+	t.Fatal("negative qty job should have failed")
+}
+
+func TestAsync_Validate_InvalidTicketID(t *testing.T) {
+	body := mustMarshal(map[string]any{"ticket_id": -1, "quantity": 1})
+	resp, _ := request("POST", "/api/v1/orders/batch", body)
+	var r struct{ StatusURL string `json:"status_url"` }
+	json.Unmarshal([]byte(readBody(resp)), &r)
+
+	for range 10 {
+		time.Sleep(200 * time.Millisecond)
+		resp2, _ := request("GET", r.StatusURL, nil)
+		var state struct{ Status string `json:"status"` }
+		json.Unmarshal([]byte(readBody(resp2)), &state)
+		if state.Status == "failed" {
+			return
+		}
+	}
+	t.Fatal("invalid ticket_id job should have failed")
+}
+
+// ============================================================================
+// 16. MaxConcurrent VIP Batch (2 tests)
+// ============================================================================
+
+func TestAsync_VIPBatch_Accepts202(t *testing.T) {
+	body := mustMarshal(map[string]any{"ticket_id": 1, "quantity": 3})
+	resp, _ := request("POST", "/api/v1/orders/batch-vip", body)
+	if resp.StatusCode != 202 {
+		t.Errorf("status = %d, want 202: %s", resp.StatusCode, readBody(resp))
+	}
+	var r struct{ StatusURL string `json:"status_url"` }
+	json.Unmarshal([]byte(readBody(resp)), &r)
+	if r.StatusURL == "" {
+		t.Error("no status_url")
+	}
+}
+
+func TestAsync_VIPBatch_Completes(t *testing.T) {
+	request("POST", "/api/v1/admin/reset-stock", mustMarshal(map[string]any{"ticket_id": 5, "stock": 10}))
+	body := mustMarshal(map[string]any{"ticket_id": 5, "quantity": 5})
+	resp, _ := request("POST", "/api/v1/orders/batch-vip", body)
+	var r struct{ StatusURL string `json:"status_url"` }
+	json.Unmarshal([]byte(readBody(resp)), &r)
+
+	for range 15 {
+		time.Sleep(200 * time.Millisecond)
+		resp2, _ := request("GET", r.StatusURL, nil)
+		var state struct{ Status string `json:"status"` }
+		json.Unmarshal([]byte(readBody(resp2)), &state)
+		if state.Status == "completed" {
+			return
+		}
+		if state.Status == "failed" {
+			t.Fatal("VIP batch failed")
+		}
+	}
+	t.Fatal("VIP batch did not complete")
+}
+
+// ============================================================================
+// 17. Callback Per-Request (1 test)
+// ============================================================================
+
+func TestAsync_Callback_PerRequestURL(t *testing.T) {
+	body := mustMarshal(map[string]any{
+		"ticket_id":     1,
+		"quantity":      1,
+		"_callback_url": "http://localhost:23500/api/v1/webhooks/batch-complete",
+	})
+	resp, _ := request("POST", "/api/v1/orders/batch", body)
+	if resp.StatusCode != 202 {
+		t.Fatalf("status = %d, want 202", resp.StatusCode)
+	}
+	var r struct{ StatusURL string `json:"status_url"` }
+	json.Unmarshal([]byte(readBody(resp)), &r)
+
+	for range 10 {
+		time.Sleep(200 * time.Millisecond)
+		resp2, _ := request("GET", r.StatusURL, nil)
+		var state struct{ Status string `json:"status"` }
+		json.Unmarshal([]byte(readBody(resp2)), &state)
+		if state.Status == "completed" || state.Status == "failed" {
+			return
+		}
+	}
+}
+
+// ============================================================================
+// 18. GET List Jobs (2 tests)
+// ============================================================================
+
+func TestAsync_List_ReturnsJobs(t *testing.T) {
+	resp, _ := request("GET", "/api/v1/orders/batch", nil)
+	if resp.StatusCode != 200 {
+		t.Errorf("status = %d, want 200: %s", resp.StatusCode, readBody(resp))
+	}
+	var list struct {
+		Jobs  []any `json:"jobs"`
+		Total int   `json:"total"`
+	}
+	if err := json.Unmarshal([]byte(readBody(resp)), &list); err != nil {
+		t.Fatal(err)
+	}
+	if list.Total < 0 {
+		t.Errorf("total = %d, want >= 0", list.Total)
+	}
+}
+
+func TestAsync_List_EmptyListOK(t *testing.T) {
+	body := mustMarshal(map[string]any{"ticket_id": 1, "quantity": 2})
+	resp, _ := request("POST", "/api/v1/orders/batch", body)
+	var r struct{ StatusURL string `json:"status_url"` }
+	json.Unmarshal([]byte(readBody(resp)), &r)
+
+	resp2, _ := request("DELETE", r.StatusURL, nil)
+	readBody(resp2)
+
+	resp3, _ := request("GET", "/api/v1/orders/batch", nil)
+	if resp3.StatusCode != 200 {
+		t.Errorf("status = %d, want 200", resp3.StatusCode)
+	}
+}
 

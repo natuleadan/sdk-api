@@ -37,14 +37,31 @@ func main() {
 
 	svcCtx := svc.NewServiceContext(s, pool)
 
-	if err := svcCtx.EnsureTables(ctx); err != nil {
-		log.Fatalf("tables: %v", err)
+	// Initialize tables via SDK (replaces raw DDL)
+	orderTbl, err := db.NewTable[models.Order](pool, "orders")
+	if err != nil {
+		log.Fatalf("order table: %v", err)
 	}
+	if err := orderTbl.AutoInit(ctx); err != nil {
+		log.Fatalf("order autoinit: %v", err)
+	}
+	svcCtx.SetOrderTable(orderTbl)
+
+	ticketTbl, err := db.NewTable[models.Ticket](pool, "tickets")
+	if err != nil {
+		log.Fatalf("ticket table: %v", err)
+	}
+	if err := ticketTbl.AutoInit(ctx); err != nil {
+		log.Fatalf("ticket autoinit: %v", err)
+	}
+	svcCtx.SetTicketTable(ticketTbl)
+
+	// MustRegister creates a lazy CRUD factory for the /tickets entry
+	runtime.MustRegister[models.Ticket](s, "Ticket", "pg-main", "tickets", nil)
+
 	if err := svcCtx.SeedData(ctx); err != nil {
 		log.Fatalf("seed: %v", err)
 	}
-
-	runtime.MustRegister[models.Ticket](s, "Ticket", "pg-main", "tickets", nil)
 
 	handler.RegisterRoutes(s, svcCtx)
 

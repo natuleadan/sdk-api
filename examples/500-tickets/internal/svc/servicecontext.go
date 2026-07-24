@@ -2,9 +2,6 @@ package svc
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -14,24 +11,20 @@ import (
 	"tickets/models"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/natuleadan/sdk-api/db"
 	"github.com/natuleadan/sdk-api/events"
 	"github.com/natuleadan/sdk-api/runtime"
 )
 
-func hmacSign(secret string, data []byte) string {
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write(data)
-	return hex.EncodeToString(mac.Sum(nil))
-}
-
 type ServiceContext struct {
-	svc           *runtime.Service
-	pool          *pgxpool.Pool
-	confirmed     []models.OrderEvent
-	mu            sync.RWMutex
-	callbacks     [][]byte
-	callbackMu    sync.RWMutex
-	callbackKey   string
+	svc         *runtime.Service
+	pool        *pgxpool.Pool
+	ticketTable *db.Table[models.Ticket]
+	orderTable  *db.Table[models.Order]
+	confirmed   []models.OrderEvent
+	mu          sync.RWMutex
+	callbacks   [][]byte
+	callbackMu  sync.RWMutex
 }
 
 func NewServiceContext(s *runtime.Service, pool *pgxpool.Pool) *ServiceContext {
@@ -46,37 +39,28 @@ func (c *ServiceContext) NATS() events.EventBroker {
 	return c.svc.NATS("default")
 }
 
-func (c *ServiceContext) EnsureTables(ctx context.Context) error {
-	p := c.Pool()
-	ddl := []string{
-		`CREATE TABLE IF NOT EXISTS tickets (
-			id BIGSERIAL PRIMARY KEY,
-			name TEXT NOT NULL,
-			description TEXT DEFAULT '',
-			price NUMERIC(10,2) NOT NULL DEFAULT 0,
-			stock INT NOT NULL DEFAULT 0,
-			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-		)`,
-		`CREATE TABLE IF NOT EXISTS orders (
-			id BIGSERIAL PRIMARY KEY,
-			ticket_id BIGINT NOT NULL REFERENCES tickets(id),
-			quantity INT NOT NULL DEFAULT 1,
-			status TEXT NOT NULL DEFAULT 'pending',
-			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-		)`,
-	}
-	for _, d := range ddl {
-		if _, err := p.Exec(ctx, d); err != nil {
-			return fmt.Errorf("create table: %w", err)
-		}
-	}
-	return nil
+func (c *ServiceContext) SetOrderTable(tbl *db.Table[models.Order]) {
+	c.orderTable = tbl
+}
+
+func (c *ServiceContext) OrderTable() *db.Table[models.Order] {
+	return c.orderTable
+}
+
+func (c *ServiceContext) SetTicketTable(tbl *db.Table[models.Ticket]) {
+	c.ticketTable = tbl
+}
+
+func (c *ServiceContext) TicketTable() *db.Table[models.Ticket] {
+	return c.ticketTable
 }
 
 func (c *ServiceContext) SeedData(ctx context.Context) error {
-	p := c.Pool()
+	if c.ticketTable == nil {
+		return fmt.Errorf("Ticket table not set")
+	}
 	var count int
-	if err := p.QueryRow(ctx, "SELECT COUNT(*) FROM tickets").Scan(&count); err != nil {
+	if err := c.pool.QueryRow(ctx, "SELECT COUNT(*) FROM tickets").Scan(&count); err != nil {
 		return err
 	}
 	if count > 0 {
@@ -88,8 +72,8 @@ func (c *ServiceContext) SeedData(ctx context.Context) error {
 		{Name: "Taylor Swift - Silver", Description: "Silver standard", Price: 149.99, Stock: 50},
 		{Name: "Taylor Swift - General", Description: "General admission", Price: 79.99, Stock: 100},
 	}
-	for _, s := range seeds {
-		if _, err := p.Exec(ctx, "INSERT INTO tickets (name, description, price, stock) VALUES ($1, $2, $3, $4)", s.Name, s.Description, s.Price, s.Stock); err != nil {
+	for _, t := range seeds {
+		if err := c.ticketTable.Create(ctx, &t); err != nil {
 			return fmt.Errorf("seed: %w", err)
 		}
 	}
@@ -131,7 +115,6 @@ func (c *ServiceContext) ConfirmedCount() int {
 	return len(c.confirmed)
 }
 
-// Exit worker: order confirmation (fire-and-forget)
 func (c *ServiceContext) OnOrderConfirmed(ctx context.Context, msg []byte) ([]byte, error) {
 	var evt models.OrderEvent
 	if err := json.Unmarshal(msg, &evt); err != nil {
@@ -142,7 +125,6 @@ func (c *ServiceContext) OnOrderConfirmed(ctx context.Context, msg []byte) ([]by
 	return nil, nil
 }
 
-// Exit worker: batch payment processing (fire-and-forget)
 func (c *ServiceContext) OnBatchPayment(ctx context.Context, msg []byte) ([]byte, error) {
 	var evt models.OrderEvent
 	if err := json.Unmarshal(msg, &evt); err != nil {
@@ -152,7 +134,6 @@ func (c *ServiceContext) OnBatchPayment(ctx context.Context, msg []byte) ([]byte
 	return nil, nil
 }
 
-// Exit worker: payment validation (RPC reply)
 func (c *ServiceContext) OnValidatePayment(ctx context.Context, msg []byte) ([]byte, error) {
 	var evt struct {
 		OrderID  int64 `json:"order_id"`
@@ -171,14 +152,9 @@ func (c *ServiceContext) OnValidatePayment(ctx context.Context, msg []byte) ([]b
 	return json.Marshal(resp)
 }
 
-// Cron handler: daily report
 func (c *ServiceContext) OnDailyReport(ctx context.Context) error {
 	log.Println("[cron] daily report generated")
 	return nil
-}
-
-func (c *ServiceContext) ExpectedSignature(data []byte) string {
-	return hmacSign("test-callback-secret", data)
 }
 
 func (c *ServiceContext) RecordCallback(data []byte) {
@@ -194,6 +170,6 @@ func (c *ServiceContext) CallbackCount() int {
 }
 
 func (c *ServiceContext) ResetStock(ctx context.Context, ticketID int64, stock int) error {
-	_, err := c.Pool().Exec(ctx, "UPDATE tickets SET stock = $1 WHERE id = $2", stock, ticketID)
+	_, err := c.ticketTable.Update(ctx, ticketID, runtime.Map{"stock": stock})
 	return err
 }

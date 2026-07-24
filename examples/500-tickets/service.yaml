@@ -78,6 +78,21 @@ entry:
     path: /reports/daily
     handler: dailyReport
 
+  - type: async
+    resource: orders/batch-vip
+    handler: processBatch
+    max_concurrent: 20
+    async_store:
+      driver: nats_kv
+      stream: default
+      bucket: batch-vip-jobs
+      result_ttl: 1h
+      reassign:
+        enabled: true
+        processing_timeout: 5m
+        reap_interval: 30s
+        max_retries: 3
+
   - type: rest
     method: POST
     path: /webhooks/batch-complete
@@ -88,6 +103,7 @@ exit:
     subscribe:
       stream: orders
       subject: orders.created
+      durable: tickets-order-confirmer
     handler: onOrderConfirmed
     max_concurrent: 10
     event_stream: default
@@ -96,6 +112,7 @@ exit:
     subscribe:
       stream: orders
       subject: orders.batch.process
+      durable: tickets-batch-payment
     handler: onBatchPayment
     max_concurrent: 5
     event_stream: default
@@ -104,6 +121,7 @@ exit:
     subscribe:
       stream: orders
       subject: orders.payment.validate
+      durable: tickets-payment-validator
     handler: onValidatePayment
     reply: true
     reply_timeout: 30s

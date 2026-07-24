@@ -13,8 +13,7 @@ func BatchCompleteWebhook(svcCtx *svc.ServiceContext) func(c *runtime.RestCtx) e
 		body := c.Body()
 		sig := c.Get("X-Job-Signature")
 
-		expected := svcCtx.ExpectedSignature(body)
-		if sig != "" && sig != expected {
+		if sig != "" && !runtime.VerifyCallbackSignature(body, "test-callback-secret", sig) {
 			return c.Status(http.StatusUnauthorized).JSON(runtime.Map{"error": "invalid signature"})
 		}
 

@@ -174,6 +174,30 @@ sdk-api client --model Product --fields "name:string,price:float64" --lang ts
 | `--lang` | Target language: `ts`, `py`, `dart`, `java`, `kotlin` |
 | `--output` | Output file path (default: stdout) |
 
+### `sdk-api rpc generate <proto-file>`
+
+Generates gRPC stubs (`.pb.go` + `_grpc.pb.go`) from a proto file using protoc.
+
+Requires `protoc`, `protoc-gen-go`, and `protoc-gen-go-grpc` in PATH.
+
+```bash
+sdk-api rpc generate proto/auth_service.proto --out=pb
+```
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--out` | Output directory | Proto file directory |
+
+### `sdk-api rpc validate <proto-file>`
+
+Validates a proto file syntax without generating code.
+
+```bash
+sdk-api rpc validate proto/auth_service.proto
+```
+
+Exit code 0 on success, non-zero on syntax errors.
+
 ### `sdk-api completion [bash|zsh|fish]`
 
 Generates shell completion scripts.

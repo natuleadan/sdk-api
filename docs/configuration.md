@@ -762,10 +762,16 @@ event_publish:
   - stream: orders                # Stream/topic name
     subject: order.created        # Subject (defaults to stream)
     event_stream: default         # Optional: broker name override
+    outbox: true                  # Optional: transactional outbox via _outbox table
 ```
 
 When `event_stream` is specified per-target, the message is published only to that broker.
 When omitted, the message is published to all available brokers.
+
+When `outbox: true`, the event is first stored in `_outbox` table (within the handler's
+DB transaction) and relayed asynchronously. This ensures at-least-once delivery even if
+the broker is temporarily unavailable. The outbox relay polls pending events every
+second and publishes them to the broker.
 
 ## Exit (workers)
 
@@ -785,6 +791,7 @@ exit:
 |-------|-------------|
 | `event_stream` | Broker name to consume from (nats or kafka). When omitted, falls back to the first configured broker |
 | `consumer_mode` | `push` (default) or `pull`. Pull mode uses `pull_batch` to fetch messages in batches |
+| `term_on_failure` | When `true`, sends Term (DLQ) instead of Nak when the handler returns an error |
 
 ## Cron
 

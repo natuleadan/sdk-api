@@ -104,17 +104,17 @@ NewFromYAML(content) ────────────┘    │
                                         1. validateConfigDeploy() — check deploy.target rules
                                         2. validateAuthConfig()   — check auth driver config
                                         3. initDatabases()        — connect PG/Turso/MySQL/Mongo pools (dedup by URL)
-                                        4. runSeeds()             — WithSeed callbacks (DDL, data seeding, app setup)
-                                        5. initKvConns()          — lazy-init Redis/Dragonfly connections
+                                        4. initKvConns()          — lazy-init Redis/Dragonfly connections
                                        5. initStreamConns()      — connect NATS/Kafka + create streams
                                        6. initSSRF()             — SafeHTTPClient (if configured)
-                                       7. initGrpc()             — gRPC server (if grpc_server configured) + clients
-                                       8. initServer()           — Fiber HTTP + middlewares + TLS + security + CSRF + rate limit
-                                       8. registerEntryRoutes()  — register all entry routes (9 types)
-                                       9. serveStaticFiles()
-                                      10. registerDocs()         — OpenAPI + Scalar UI
-                                      11. startExitWorkers()     — start all event workers (NATS/Kafka consumers)
-                                      12. startCron()            — start cron scheduler
+                                        7. initGrpc()             — gRPC server (if grpc_server configured) + clients
+                                        8. runSeeds()             — WithSeed callbacks (DDL, data seeding, gRPC registration)
+                                        9. initServer()           — Fiber HTTP + middlewares + TLS + security + CSRF + rate limit
+                                       10. registerEntryRoutes()  — register all entry routes (9 types)
+                                       11. serveStaticFiles()
+                                       12. registerDocs()         — OpenAPI + Scalar UI
+                                       13. startExitWorkers()     — start all event workers (NATS/Kafka consumers)
+                                       14. startCron()            — start cron scheduler
                                        → HTTP server starts
 ```
 
@@ -759,6 +759,34 @@ async_store:
     url: "${CALLBACK_URL}"
     secret: "${CALLBACK_SECRET}"
 ```
+
+### Outbox
+
+Transactional outbox for reliable event publishing. Events are stored in a `_outbox`
+PostgreSQL table before being published to the broker, ensuring at-least-once delivery
+even if NATS/Kafka is temporarily unavailable.
+
+```go
+// Insert into outbox (typically within a DB transaction)
+runtime.InsertOutbox(ctx, pool, "orders.created", body)
+runtime.InsertOutboxJSON(ctx, pool, "orders.created", data)
+```
+
+The `OutboxRelay` polls pending events every second, publishes them to the broker,
+and marks them as published. Started via `event_publish[].outbox: true`:
+
+```yaml
+entry:
+  - type: rest
+    path: /orders/create
+    event_publish:
+      - stream: orders
+        subject: orders.created
+        outbox: true                        # ← enables outbox relay
+```
+
+The `_outbox` table is auto-created by `NewOutboxRelay`. The relay stops when the
+service shuts down (graceful drain built-in).
 
 ## HTTP pool sizing
 

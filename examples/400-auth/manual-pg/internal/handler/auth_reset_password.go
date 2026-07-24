@@ -17,7 +17,7 @@ func handleResetPassword(_ *svc.ServiceContext) func(c *runtime.RestCtx) error {
 		if err := c.Bind(&body); err != nil {
 			return c.Status(400).JSON(runtime.Map{"code": 400, "message": "invalid body"})
 		}
-		if err := checkPasswordStrength(body.Password); err != nil {
+		if err := auth.CheckPasswordStrength(body.Password); err != nil {
 			return c.Status(400).JSON(runtime.Map{"code": 400, "message": err.Error()})
 		}
 		pool := c.PoolPG("primary")

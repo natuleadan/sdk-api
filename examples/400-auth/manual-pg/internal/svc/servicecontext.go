@@ -1,11 +1,7 @@
 package svc
 
 import (
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"slices"
@@ -68,44 +64,6 @@ func (s *ServiceContext) VerifyPassword(hash, password string) bool {
 	return auth.VerifyPassword(hash, password)
 }
 
-func tokenHash(raw string) string {
-	h := sha256.Sum256([]byte(raw))
-	return hex.EncodeToString(h[:])
-}
-
-func generateToken() string {
-	b := make([]byte, 32)
-	rand.Read(b)
-	return hex.EncodeToString(b)
-}
-
-func checkPasswordStrength(password string) error {
-	if len(password) < 8 {
-		return errors.New("password must be at least 8 characters")
-	}
-	var hasUpper, hasLower, hasDigit bool
-	for _, ch := range password {
-		switch {
-		case ch >= 'A' && ch <= 'Z':
-			hasUpper = true
-		case ch >= 'a' && ch <= 'z':
-			hasLower = true
-		case ch >= '0' && ch <= '9':
-			hasDigit = true
-		}
-	}
-	if !hasUpper {
-		return errors.New("password must contain an uppercase letter")
-	}
-	if !hasLower {
-		return errors.New("password must contain a lowercase letter")
-	}
-	if !hasDigit {
-		return errors.New("password must contain a digit")
-	}
-	return nil
-}
-
 func getAuth(c *runtime.RestCtx) *middleware.AuthContext {
 	if a, ok := c.Locals("auth").(*middleware.AuthContext); ok {
 		return a
@@ -140,26 +98,10 @@ func envIntOrDefault(key string, def int) int {
 	return def
 }
 
-var roleHierarchy = map[string][]string{
+var roleHierarchy = auth.RoleHierarchy{
 	"viewer": {},
 	"editor": {"viewer"},
 	"admin":  {"editor", "viewer"},
-}
-
-func roleInherits(userRole, requiredRole string) bool {
-	if userRole == requiredRole {
-		return true
-	}
-	inherited, ok := roleHierarchy[userRole]
-	if !ok {
-		return false
-	}
-	for _, r := range inherited {
-		if r == requiredRole || roleInherits(r, requiredRole) {
-			return true
-		}
-	}
-	return false
 }
 
 type ProductStore struct {
@@ -182,7 +124,7 @@ func (s *ProductStore) hasRole(a *middleware.AuthContext, role string) bool {
 		return false
 	}
 	for _, r := range a.Roles {
-		if r == role || roleInherits(r, role) {
+		if r == role || roleHierarchy.Inherits(r, role) {
 			return true
 		}
 	}

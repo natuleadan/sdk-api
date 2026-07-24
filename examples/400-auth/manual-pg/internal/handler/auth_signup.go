@@ -22,7 +22,7 @@ func handleSignup(svcCtx *svc.ServiceContext) func(c *runtime.RestCtx) error {
 		if body.Username == "" || body.Password == "" {
 			return c.Status(400).JSON(runtime.Map{"code": 400, "message": "username and password required"})
 		}
-		if err := checkPasswordStrength(body.Password); err != nil {
+		if err := auth.CheckPasswordStrength(body.Password); err != nil {
 			return c.Status(400).JSON(runtime.Map{"code": 400, "message": err.Error()})
 		}
 		if body.Role == "" {
@@ -44,7 +44,7 @@ func handleSignup(svcCtx *svc.ServiceContext) func(c *runtime.RestCtx) error {
 			return c.Status(500).JSON(runtime.Map{"code": 500, "message": err.Error()})
 		}
 
-		token := generateToken()
+		token, _ := auth.GenerateToken()
 		_, _ = pool.Exec(c.Context(),
 			`INSERT INTO email_verifications (user_id, token, verified, created_at, expires_at)
 			 VALUES ($1,$2,false,now(),now()+interval '24 hours')

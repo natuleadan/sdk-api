@@ -5,6 +5,7 @@ import (
 
 	"auth-roles/internal/svc"
 	"github.com/natuleadan/sdk-api/runtime"
+	"github.com/natuleadan/sdk-api/runtime/auth"
 )
 
 func handleForgotPassword(_ *svc.ServiceContext) func(c *runtime.RestCtx) error {
@@ -16,7 +17,7 @@ func handleForgotPassword(_ *svc.ServiceContext) func(c *runtime.RestCtx) error 
 			return c.Status(400).JSON(runtime.Map{"code": 400, "message": "invalid body"})
 		}
 		pool := c.PoolPG("primary")
-		token := generateToken()
+		token, _ := auth.GenerateToken()
 		_, _ = pool.Exec(c.Context(),
 			`INSERT INTO password_resets (user_id, token, created_at, expires_at)
 			 VALUES ($1,$2,now(),now()+interval '1 hour')

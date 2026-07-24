@@ -54,20 +54,13 @@ func TestMain(m *testing.M) {
 		log.Fatalf("ticket autoinit: %v", err)
 	}
 
-	var count int
-	pool.QueryRow(ctx, "SELECT COUNT(*) FROM tickets").Scan(&count)
-	if count == 0 {
-		seeds := []models.Ticket{
-			{Name: "Taylor Swift - VIP", Description: "Front row VIP", Price: 599.99, Stock: 10},
-			{Name: "Taylor Swift - Gold", Description: "Gold circle", Price: 299.99, Stock: 25},
-			{Name: "Taylor Swift - Silver", Description: "Silver standard", Price: 149.99, Stock: 50},
-			{Name: "Taylor Swift - General", Description: "General admission", Price: 79.99, Stock: 100},
-		}
-		for _, s := range seeds {
-			if err := ticketTbl.Create(ctx, &s); err != nil {
-				log.Fatalf("seed: %v", err)
-			}
-		}
+	if _, err := pool.Exec(ctx, `INSERT INTO tickets (id, name, description, price, stock) VALUES
+		(1, 'Taylor Swift - VIP', 'Front row VIP', 599.99, 10),
+		(2, 'Taylor Swift - Gold', 'Gold circle', 299.99, 25),
+		(3, 'Taylor Swift - Silver', 'Silver standard', 149.99, 50),
+		(4, 'Taylor Swift - General', 'General admission', 79.99, 100)
+	ON CONFLICT (id) DO NOTHING`); err != nil {
+		log.Fatalf("seed: %v", err)
 	}
 
 	os.Exit(m.Run())

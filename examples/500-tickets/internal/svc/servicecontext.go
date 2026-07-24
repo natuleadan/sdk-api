@@ -3,7 +3,6 @@ package svc
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -18,7 +17,6 @@ import (
 
 type ServiceContext struct {
 	svc         *runtime.Service
-	pool        *pgxpool.Pool
 	ticketTable *db.Table[models.Ticket]
 	orderTable  *db.Table[models.Order]
 	confirmed   []models.OrderEvent
@@ -27,12 +25,12 @@ type ServiceContext struct {
 	callbackMu  sync.RWMutex
 }
 
-func NewServiceContext(s *runtime.Service, pool *pgxpool.Pool) *ServiceContext {
-	return &ServiceContext{svc: s, pool: pool}
+func NewServiceContext(s *runtime.Service) *ServiceContext {
+	return &ServiceContext{svc: s}
 }
 
 func (c *ServiceContext) Pool() *pgxpool.Pool {
-	return c.pool
+	return c.svc.PoolPGTyped("pg-main")
 }
 
 func (c *ServiceContext) NATS() events.EventBroker {
@@ -55,32 +53,6 @@ func (c *ServiceContext) TicketTable() *db.Table[models.Ticket] {
 	return c.ticketTable
 }
 
-func (c *ServiceContext) SeedData(ctx context.Context) error {
-	if c.ticketTable == nil {
-		return fmt.Errorf("Ticket table not set")
-	}
-	var count int
-	if err := c.pool.QueryRow(ctx, "SELECT COUNT(*) FROM tickets").Scan(&count); err != nil {
-		return err
-	}
-	if count > 0 {
-		return nil
-	}
-	seeds := []models.Ticket{
-		{Name: "Taylor Swift - VIP", Description: "Front row VIP", Price: 599.99, Stock: 10},
-		{Name: "Taylor Swift - Gold", Description: "Gold circle", Price: 299.99, Stock: 25},
-		{Name: "Taylor Swift - Silver", Description: "Silver standard", Price: 149.99, Stock: 50},
-		{Name: "Taylor Swift - General", Description: "General admission", Price: 79.99, Stock: 100},
-	}
-	for _, t := range seeds {
-		if err := c.ticketTable.Create(ctx, &t); err != nil {
-			return fmt.Errorf("seed: %w", err)
-		}
-	}
-	log.Printf("seeded %d tickets", len(seeds))
-	return nil
-}
-
 func (c *ServiceContext) DecrementStock(ctx context.Context, ticketID int64, qty int) (bool, error) {
 	tag, err := c.Pool().Exec(ctx, "UPDATE tickets SET stock = stock - $1 WHERE id = $2 AND stock >= $1", qty, ticketID)
 	if err != nil {
@@ -90,9 +62,11 @@ func (c *ServiceContext) DecrementStock(ctx context.Context, ticketID int64, qty
 }
 
 func (c *ServiceContext) CreateOrder(ctx context.Context, ticketID int64, qty int) (int64, error) {
-	var id int64
-	err := c.Pool().QueryRow(ctx, "INSERT INTO orders (ticket_id, quantity, status) VALUES ($1, $2, 'confirmed') RETURNING id", ticketID, qty).Scan(&id)
-	return id, err
+	order := models.Order{TicketID: ticketID, Quantity: qty, Status: "confirmed"}
+	if err := c.orderTable.Create(ctx, &order); err != nil {
+		return 0, err
+	}
+	return order.ID, nil
 }
 
 func (c *ServiceContext) PublishEvent(ctx context.Context, evt models.OrderEvent) error {

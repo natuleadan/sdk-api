@@ -93,3 +93,5 @@ curl -X POST http://localhost:8080/api/v1/graphql \
 - Only CRUD resolvers are auto-generated (no custom queries/mutations yet)
 - Input types exclude primary key and auto-increment fields
 - Pagination via `Products(page: Int, size: Int)` (optional)
+
+

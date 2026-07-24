@@ -9,7 +9,7 @@
 │   db/    │   server/    │   events/     │   runtime/   │  infra/  │grpc/ │
 │  (pgx)   │   (Fiber)    │  (NATS JS)    │ (orchestr.)  │ (go-zero)│      │
 │          │              │               │              │          │      │
-│ Table[T] │  18 middle-  │  Producers    │  Service     │  conf    │Server│
+│ Table[T] │  20 middle-  │  Producers    │  Service     │  conf    │Server│
 │ CRUD     │  wares       │  Consumers    │  GrpcServer  │  logx    │Client│
 │ AutoInit │  JWT         │  KV Cache     │  GrpcClient  │  trace   │Interc│
 │ Paginate │  CORS        │  Streams      │  YAML cfg    │  breaker │Resolv│
@@ -60,7 +60,7 @@ HTTP and gRPC share `internal/logic/`. The HTTP handler and gRPC server only par
 | Package | Technology | Purpose |
 |---------|------------|---------|
 | `db/` | pgxpool v5, database/sql | PostgreSQL, Turso/SQLite, MySQL, MongoDB |
-| `server/` | Fiber (fasthttp) | REST API, 18+ middlewares, SSE, WebSocket |
+| `server/` | Fiber (fasthttp) | REST API, 34+ middlewares, SSE, WebSocket |
 | `events/` | NATS JetStream, Kafka | Producers, consumers, KV cache |
 | `runtime/` | — | Service orchestrator, YAML, hooks, gRPC server/client |
 | `infra/` | go-zero core | 45+ packages: conf, logx, trace, breaker, discov, metric |
@@ -87,9 +87,9 @@ The order is critical. Global chain (applied to every request):
 16. **MaxBytes** — request body size limit (always on)
 17. **Gunzip** — decompress gzip bodies (always on)
 18. **PrometheusRecorder** — in-process metrics (always on)
-19. **CORS** — `server.cors` (block)
+20. **CORS** — `server.cors` (block)
 
-**Per-entry middlewares** (applied per-route, not global): `JWT`, `JWTWithZitadel`, `OpenFGA`, `Ory`, `APIKey`, `ValidateInput`, `RateLimit`, `Timeout`, `Retry`, `Fallback`.
+**Per-entry middlewares** (applied per-route, not global): `JWT`, `JWTWithZitadel`, `Ory`, `OryJWT`, `OpenFGA`, `APIKey`, `MFA`, `AuthContext`, `ValidateInput`, `RateLimit`, `Timeout`, `Retry`, `Fallback`, `WebSocket`, `SSE`.
 
 **gRPC interceptors** (auto-applied to gRPC server when `grpc_server` is configured): Trace, Breaker, Timeout, Shedding.
 

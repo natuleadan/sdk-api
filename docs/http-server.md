@@ -273,7 +273,18 @@ When `cors` is omitted, CORS defaults to same-origin only (secure default).
 | `EncryptCookie()` | Fiber built-in | `server.security.encrypt_cookie.enabled` | AES-256-GCM cookie value encryption |
 | `SSE()` | `server/middleware/sse.go` | — | Sets SSE headers (Content-Type, Cache-Control, Connection) |
 | `ValidateInput()` | `validate.go` | `entry[].validate` | go-playground/validator struct validation. Parses body, validates against registered model, returns 422 with field-level errors |
-| `MFARequired()` | `server/middleware/mfa.go` | `entry[].requires_mfa: true` | Checks `mfa: true` in JWT claims. Rejects with 401 if missing or false |
+| `MFARequired()` | `mfa.go` | `entry[].requires_mfa: true` | Checks `mfa: true` in JWT claims. Rejects with 401 if missing or false |
+| `AuthContext()` | `auth_context.go` | `auth.enabled: true` | Extracts and enriches AuthContext from JWT/API key validation |
+| `RateLimit()` | `rate_limit.go` | `server.rate_limit.enabled` | Token bucket or sliding window rate limiter (global, per-IP, per-user, per-key) |
+| `Retry()` | `retry.go` | `entry[].retry` | Exponential backoff with jitter for idempotent methods (GET, HEAD, PUT, DELETE, OPTIONS) |
+| `Fallback()` | `fallback.go` | `entry[].fallback` | Degraded (503) or stale (cached) response when circuit breaker rejects |
+| `SecurityHeaders()` | `security_headers.go` | `server.security_headers` | Injects X-Frame-Options, Referrer-Policy, Permissions-Policy, HSTS, CSP, COOP, COEP, CORP, Cache-Control |
+| `Correlation()` | `correlation.go` | `server.correlation.enabled` | X-Correlation-ID injection, propagation, and logging |
+| `ResponseCache()` | `response_cache.go` | `entry[].response_cache` | Caches GET responses in-memory with configurable TTL |
+| `Deprecation()` | `deprecation.go` | `entry[].api_status` | Injects Sunset/Deprecation headers for deprecated API versions |
+| `SSRF()` | `ssrf.go` | `server.ssrf.enabled` | Blocks private, loopback, and cloud metadata IPs in `SafeHTTPClient()` |
+| `WebSocket()` | `websocket.go` | `entry[].type: websocket` | Upgrades HTTP to WebSocket (`github.com/gofiber/contrib/websocket`) |
+| `OryJWT()` | `ory_jwt.go` | `auth.driver: ory` (Ory JWKS) | JWT validation via Ory JWKS endpoint (RS256) |
 
 ## Error Response
 

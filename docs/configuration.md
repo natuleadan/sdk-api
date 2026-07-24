@@ -62,6 +62,13 @@ entry:
     db: pg-main
     table: products
     path: /products
+    pagination: offset
+    page_size: 20
+    max_page_size: 100
+    sortable: [id, name, price]
+    tenant_scope: org_id
+    tenant_field: tenant_id
+    cache: cache-main
     event_stream: default
     event_publish:
       - stream: orders
@@ -73,6 +80,15 @@ entry:
     path: /products/:id/transform
     handler: onTransformProduct
     auth_modes: [jwt]
+    requires_mfa: true
+    timeout: 30s
+    retry:
+      max_retries: 3
+      initial_interval: 500ms
+      max_backoff: 10s
+      multiplier: 2.0
+    fallback: degraded
+    bulkhead: openai
     event_publish:
       - stream: orders
         subject: orders.transformed
@@ -81,6 +97,8 @@ entry:
   - type: webhook
     path: /webhooks/sendgrid
     handler: onInboundEmail
+    api_version: v1
+    api_status: current
     event_publish:
       - stream: email
         subject: email.received
@@ -215,6 +233,32 @@ server:
     min_version: "1.2"
     max_version: "1.3"
     redirect_http: true
+
+  # gRPC server (optional)
+  grpc_server:
+    listen_on: ":8081"
+    timeout: 5000
+    cpu_threshold: 900
+    health: true
+
+  # gRPC clients (optional)
+  grpc_clients:
+    - name: product-service
+      target: direct:///product-svc:8081
+      timeout: 5000
+    - name: user-service
+      target: direct:///user-svc:8082
+      endpoints: ["user-svc:8082", "10.0.1.5:8082"]
+
+  # Telemetry / OpenTelemetry tracing
+  telemetry:
+    enabled: true
+    name: my-service
+    endpoint: localhost:4317
+    sampler: 0.1
+    batcher: otlpgrpc
+    trace_response_header: X-Trace-Id
+    skip_paths: [/health, /metrics]
 
   # SSRF protection (disabled by default)
   ssrf:
@@ -581,12 +625,67 @@ Async job with 202 Accepted + status polling.
   handler: processReport
 ```
 
+With persistent store, callback, and automatic recovery:
+
+```yaml
+- type: async
+  path: /jobs/reports
+  handler: processReport
+  max_concurrent: 10
+  async_store:
+    driver: nats_kv
+    stream: default
+    bucket: batch-jobs
+    result_ttl: 24h
+    reassign:
+      enabled: true
+      processing_timeout: 5m
+      reap_interval: 30s
+      max_retries: 3
+    callback:
+      url: "${CALLBACK_URL}"
+      secret: "${CALLBACK_SECRET}"
+      retry: 3
+      retry_delay: 5s
+```
+
+Using `resource` instead of `path` (auto-generates path from resource):
+
+```yaml
+- type: async
+  resource: jobs/reports
+  handler: processReport
+```
+
 | Method | Path | Behavior |
 |--------|------|----------|
 | POST | `/path` | Submit job → 202 + `job_id` + `status_url` |
 | GET | `/path/:job_id` | Poll job status → JSON |
+| DELETE | `/path/:job_id` | Cancel pending/completed/failed job → 204 (or 409 if processing) |
+| GET | `/path/:job_id/status` | SSE stream of job status changes |
+| GET | `/path` | List recent jobs → `{jobs: [...], total: N}` |
 
 Handler signature: `func(body []byte, job *JobState) error`. Set `job.Result` for status response.
+
+| Field | Description |
+|-------|-------------|
+| `resource` | Alternative to `path`. Auto-generates `path` from resource name |
+| `max_concurrent` | Limit simultaneous job goroutines (`0` = unlimited) |
+| `async_store.driver` | Backend: `memory` (default), `postgres`, `redis`, `nats_kv` |
+| `async_store.db` | Database reference (driver: postgres) |
+| `async_store.kv` | KV store reference (driver: redis) |
+| `async_store.stream` | Stream reference (driver: nats_kv) |
+| `async_store.bucket` | NATS KV bucket name (default `async-jobs`) |
+| `async_store.table` | PostgreSQL table name (default `async_jobs`) |
+| `async_store.result_ttl` | Auto-cleanup completed/failed jobs after duration (`0` = forever) |
+| `async_store.reassign.enabled` | Enable reaper for stuck job recovery |
+| `async_store.reassign.processing_timeout` | Deadline before reassign (default `5m`) |
+| `async_store.reassign.reap_interval` | Reaper check interval (default `30s`) |
+| `async_store.reassign.max_retries` | Max retries before failed (default `3`) |
+| `async_store.callback.url` | Webhook URL called on job completion or failure |
+| `async_store.callback.secret` | HMAC-SHA256 key for callback payload signing |
+| `async_store.callback.retry` | Retry attempts if callback fails (default `3`) |
+| `async_store.callback.retry_delay` | Delay between retries (default `5s`) |
 
 ### `type: graphql`
 Auto-generated GraphQL schema from registered models.
@@ -684,7 +783,8 @@ exit:
 
 | Field | Description |
 |-------|-------------|
-| `event_stream` | Broker name to consume from (nats or kafka) |
+| `event_stream` | Broker name to consume from (nats or kafka). When omitted, falls back to the first configured broker |
+| `consumer_mode` | `push` (default) or `pull`. Pull mode uses `pull_batch` to fetch messages in batches |
 
 ## Cron
 
@@ -727,6 +827,7 @@ Slow query logging writes a structured log entry for any database query that exc
 
 | Field | Default | Description |
 |-------|---------|-------------|
+| `mode` | `monolith` | Operating mode: `monolith` (gRPC off) or `micro` (gRPC on for inter-service calls) |
 | `host` | `0.0.0.0` | Bind address |
 | `prefork` | `false` | Fiber prefork (SO_REUSEPORT) |
 | `body_limit` | `4194304` | Max body size (Fiber level) |

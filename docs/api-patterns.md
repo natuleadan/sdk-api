@@ -137,6 +137,44 @@ The client uses `nextCursor` from the response as the `cursor` parameter in the 
 - No random page access — only sequential next/prev.
 - Use offset mode (`pagination: offset`) when you need total counts or arbitrary page jumps.
 
+### Tenant Scoping (Multi-Tenant CRUD)
+
+Automatically filter CRUD data by the authenticated user's tenant. The JWT must contain a tenant claim (default `org_id`).
+
+**YAML:**
+```yaml
+entry:
+  - type: crud
+    model: Product
+    path: /products
+    tenant_scope: org_id        # JWT claim for tenant ID
+    tenant_field: tenant_id     # DB column to filter on
+```
+
+The SDK injects a middleware that extracts `org_id` from JWT claims and appends `WHERE tenant_id = $N` to every CRUD query. Cross-tenant reads return 404 (not 403) to avoid leaking tenant existence.
+
+**Request (with valid JWT containing `org_id: tenant-abc`):**
+```
+GET /api/v1/products
+# Automatically becomes: SELECT * FROM products WHERE tenant_id = 'tenant-abc'
+```
+
+**Spoof prevention:** The JWT `org_id` claim is the source of truth. Requests cannot override the tenant field via the request body — the middleware silently overwrites `tenant_id` on create and ignores it on update.
+
+**Go registration:**
+```go
+svc.WithAuthValidator(func(ctx context.Context, auth *middleware.AuthContext, roles, permissions []string) error {
+    if auth.TenantID == "" {
+        return fmt.Errorf("missing tenant")
+    }
+    return nil
+})
+```
+
+See `examples/400-auth/manual-pg` for a full tenant-scoped CRUD implementation with tests.
+
+---
+
 ### Redis List Pattern (Set Index)
 
 When using Redis/Dragonfly as the primary store (not just cache), avoid `SCAN` for listing. Use a **Set Index** instead:
@@ -623,7 +661,120 @@ cron:
 
 ---
 
-## 16. Multi-Database
+## 16. Retry (Exponential Backoff)
+
+Per-entry retry for idempotent HTTP methods (GET, HEAD, PUT, DELETE, OPTIONS).
+
+**YAML:**
+```yaml
+entry:
+  - type: rest
+    method: GET
+    path: /products/:id
+    handler: onGetProduct
+    retry:
+      max_retries: 3
+      initial_interval: 500ms   # first backoff
+      max_backoff: 10s          # ceiling
+      multiplier: 2.0           # exponential factor
+```
+
+The middleware intercepts transient failures (5xx, network errors) and retries up to `max_retries` times with exponential backoff + jitter. Non-idempotent methods (POST, PATCH) are not retried.
+
+**Go (programmatic retry for DB calls):**
+```go
+import "github.com/natuleadan/sdk-api/infra/fx"
+
+err := fx.RetryWithBackoff(ctx, func() error {
+    return db.Query(ctx, "...")
+}, fx.RetryConfig{
+    MaxAttempts: 3,
+    InitialDelay: 100 * time.Millisecond,
+    MaxDelay: 2 * time.Second,
+})
+```
+
+---
+
+## 17. Fallback (Circuit Breaker Rejection)
+
+When the circuit breaker opens, the entry can serve a degraded response instead of a hard 503.
+
+**YAML:**
+```yaml
+entry:
+  - type: rest
+    method: GET
+    path: /products
+    handler: onListProducts
+    breaker: true
+    fallback: stale              # "degraded" or "stale"
+```
+
+**Strategies:**
+| Value | Behavior |
+|-------|----------|
+| `degraded` | Returns 503 with `{"error": "service unavailable", "retry_after": 30}` |
+| `stale` | Returns the last cached 200 response (30s TTL). Falls back to `degraded` if no cache exists |
+
+**Go:**
+```go
+type StaleCache struct {
+    Data      any
+    Timestamp time.Time
+}
+
+svc.WithRest("onListProducts", func(c *runtime.RestCtx) error {
+    data, err := fetchProducts(c.UserContext())
+    if err != nil {
+        runtime.SetStaleFallback(c, staleData) // Store fallback data
+        return err
+    }
+    return c.JSON(data)
+})
+```
+
+---
+
+## 18. Bulkhead (Concurrency Isolation)
+
+Limit concurrent external API calls per named resource.
+
+**YAML:**
+```yaml
+server:
+  bulkhead:
+    openai: 5     # max 5 concurrent calls to OpenAI
+    stripe: 10    # max 10 concurrent calls to Stripe
+
+entry:
+  - type: rest
+    method: POST
+    path: /chat
+    handler: onChat
+    bulkhead: openai
+```
+
+**Go:**
+```go
+// Programmatic access via runtime.Bulkhead
+func onChat(c *runtime.RestCtx) error {
+    bh := bulkhead.Get("openai")
+    if !bh.TryAcquire() {
+        return c.Status(503).JSON(map[string]any{
+            "error": "rate limited",
+        })
+    }
+    defer bh.Release()
+    // Make OpenAI call...
+}
+```
+
+Bulkhead is ideal for protecting the service from cascading failures when external dependencies are slow or saturated.
+
+---
+
+## 19. Multi-Database
 
 Different entry endpoints can use different databases.
 
@@ -663,7 +814,7 @@ svc.WithCRUD("AuditLog", runtime.NewMySQLCRUDProvider(mysqlTable, nil))
 
 ---
 
-## 17. MySQL CRUDProvider
+## 20. MySQL CRUDProvider
 
 Same CRUD pattern but using MySQL driver instead of PostgreSQL.
 
@@ -677,7 +828,7 @@ svc.WithCRUD("Product", runtime.NewMySQLCRUDProvider(table, &ProductHooks{}))
 
 ---
 
-## 18. Turso CRUDProvider
+## 21. Turso CRUDProvider
 
 Same pattern for Turso (SQLite-compatible).
 
@@ -688,7 +839,7 @@ svc.WithCRUD("Product", runtime.NewTursoCRUDProvider(t, &ProductHooks{}))
 
 ---
 
-## 19. Docker Compose Config per Environment
+## 22. Docker Compose Config per Environment
 
 Use different YAML for Docker vs local:
 
@@ -704,7 +855,7 @@ Example `service.docker.yaml` uses Docker hostnames (`postgres:5432`, `nats:4222
 
 ---
 
-## 20. Auth: Manual JWT + API Keys
+## 23. Auth: Manual JWT + API Keys
 
 Full authentication example with JWT, API keys, role hierarchy, rate limits, CSRF, and security headers.
 
@@ -843,7 +994,7 @@ svc.WithRateLimitMaxFunc(func(c fiber.Ctx) int {
 
 ---
 
-## 21. gRPC Service
+## 24. gRPC Service
 
 Define a gRPC service that shares business logic with HTTP handlers.
 
@@ -883,7 +1034,7 @@ func (s *ProductServer) ListProducts(ctx context.Context, req *pb.ListProductsRe
 
 HTTP and gRPC share the same `internal/logic/` package. The gRPC server auto-registers interceptors: tracing, circuit breaker, timeout, and CPU shedding.
 
-## 22. Lifecycle Hooks
+## 25. Lifecycle Hooks
 
 Hooks are called before/after CRUD and REST operations. They live in a separate file from the model struct.
 
@@ -908,7 +1059,7 @@ func (h *ProductHooks) AfterCreate(ctx context.Context, entity *Product) error {
 }
 ```
 
-## 23. Graceful Shutdown
+## 26. Graceful Shutdown
 
 The runtime handles shutdown automatically on SIGINT/SIGTERM:
 

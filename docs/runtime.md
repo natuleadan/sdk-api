@@ -37,6 +37,10 @@ svc.WithCron("onCleanup", handler)
 
 // Register models for OpenAPI/GraphQL schema generation
 svc.RegisterModel("Product", (*Product)(nil))
+svc.MustRegister("Product", runtime.NewCRUDProvider(table, hooks)) // Panics on error (convenience)
+
+// Register gRPC service
+svc.WithGRPC("ProductGRPC", grpcHandler)
 
 // Access databases and event streams
 svc.Pool("pg-main")              // any — returns the pool by name
@@ -48,14 +52,16 @@ svc.SafeHTTPClient()             // *middleware.SafeHTTPClient — SSRF-protecte
 svc.KV("cache-main")             // *redis.Redis — KV store by name (from kv: YAML section)
 svc.App()                        // *fiber.App — raw Fiber access
 svc.Storage("/files/upload")     // server.StorageBackend — storage by entry path
+svc.GetGrpcServer()              // *GrpcServer — gRPC server instance (nil if not in micro mode)
+svc.GetGRPCClient("user-svc")    // *GrpcClient — named gRPC client connection
 svc.Table("Product")             // any — *db.Table[T] registered via MustRegister
 
-// gRPC server and client
-svc.GrpcServer()                // *runtime.GrpcServer — access the gRPC server
-svc.GrpcClient("product-svc")   // *runtime.GrpcClient — named gRPC client connection
+// gRPC server and client (micro mode only)
+gs := svc.GetGrpcServer()            // *GrpcServer — register proto services, nil in monolith mode
+gc := svc.GetGRPCClient("user-svc")  // *GrpcClient — access named gRPC client connection
 
-runtime.NewGrpcServer(cfg, register)  // Create gRPC server with interceptors (trace, breaker, timeout, shedding)
-runtime.NewGrpcClient(cfg)            // Create gRPC client with service discovery (direct, etcd)
+runtime.NewGrpcServer(cfg, register)  // Create gRPC server with interceptors (trace, breaker, timeout, shedding, recovery, prometheus)
+runtime.NewGrpcClient(cfg)            // Create gRPC client with service discovery (direct, etcd), TLS option
 runtime.BulkheadGet("openai")         // *syncx.Limit — named semaphore for external API concurrency
 
 // Package-level helpers
@@ -204,6 +210,99 @@ On SIGINT/SIGTERM, two paths run concurrently:
 - Waits for in-flight requests to complete (up to `server.shutdown_timeout`)
 
 Both paths must finish before the process exits. No manual cleanup needed.
+
+## gRPC
+
+gRPC is available only in `server.mode: micro` for inter-service communication. In `server.mode: monolith` (default), gRPC is disabled and all communication uses direct function calls via `internal/logic/`.
+
+### Architecture
+
+```
+┌─ Microservice A ─────────────────┐     ┌─ Microservice B ─────────────────┐
+│ HTTP port 23600  (external API)  │     │ HTTP port 23601  (external API)  │
+│ gRPC port 50051 (inter-service)  │ ←─→ │ gRPC client → etcd → discover A │
+│ etcd key: "users-svc"           │     │ etcd key: "orders-svc"          │
+└──────────────────────────────────┘     └──────────────────────────────────┘
+```
+
+In micro mode, services expose gRPC for internal calls and HTTP for external clients. Service discovery via etcd or direct endpoint configuration.
+
+### YAML Configuration
+
+**Server (exposes gRPC):**
+```yaml
+server:
+  mode: micro
+  grpc_server:
+    listen_on: ":50051"
+    health: true
+    etcd_endpoints: ["etcd:2379"]
+    etcd_key: users-svc
+```
+
+**Client (consumes gRPC):**
+```yaml
+server:
+  mode: micro
+  grpc_clients:
+    - name: users-svc
+      target: direct:///user-service:50051
+      secure: true
+```
+
+### Server API
+
+```go
+gs := svc.GetGrpcServer()
+if gs == nil {
+    // gRPC not available (monolith mode)
+}
+pb.RegisterUserServiceServer(gs.Server(), &userServer{})
+```
+
+The gRPC server is created with interceptors: trace, breaker, timeout, adaptive shedding, panic recovery, and Prometheus metrics. Reflection is registered for development tooling.
+
+### Client API
+
+```go
+client := svc.GetGRPCClient("users-svc")
+conn := client.Conn()  // *grpc.ClientConn
+userClient := pb.NewUserServiceClient(conn)
+user, err := userClient.GetUser(ctx, &pb.GetUserRequest{Id: 1})
+```
+
+### Service Discovery
+
+| Scheme | Example | Description |
+|--------|---------|-------------|
+| `direct:///` | `direct:///host1:8081,host2:8081` | Static endpoint list |
+| `etcd:///` | `etcd:///etcd:2379?key=users-svc` | Dynamic discovery via etcd watch |
+
+The etcd resolver uses `discov.Subscriber` to watch for endpoint changes in real time.
+
+### Interceptors
+
+| Interceptor | Type | Description |
+|-------------|------|-------------|
+| Trace | Unary + Stream | OpenTelemetry span propagation |
+| Breaker | Unary + Stream | Circuit breaker per method |
+| Timeout | Unary | Per-request deadline |
+| Shedding | Unary | Adaptive CPU load shedding |
+| Recover | Unary | Panic recovery → `codes.Internal` |
+| Prometheus | Unary | Duration histogram + code counter |
+
+Configured via `GrpcInterceptorsConfig` (all enabled by default).
+
+### Prometheus Metrics
+
+When the Prometheus agent is enabled (`infra/prometheus`), the following metrics are collected automatically:
+
+| Metric | Type | Labels |
+|--------|------|--------|
+| `rpc_server_requests_duration_ms` | Histogram | `method` |
+| `rpc_server_requests_code_total` | Counter | `method`, `code` |
+| `rpc_client_requests_duration_ms` | Histogram | `method` |
+| `rpc_client_requests_code_total` | Counter | `method`, `code` |
 
 ## RegisterModel
 
@@ -537,7 +636,88 @@ Three download modes:
 - **Redirect (302)** — server returns a signed URL, client follows redirect (zero server bandwidth)
 - **Sign-only JSON** — server returns signed URL as JSON, client decides how to use it
 
-### HTTP pool sizing
+### Async Job Store
+
+The `JobStore` interface persists job state across submissions and polls:
+
+```go
+type JobStore interface {
+    Create(id string) *JobState
+    Get(id string) (*JobState, bool)
+    Update(id string, status JobStatus, result any, errMsg string)
+    Delete(id string)
+    List() ([]*JobState, error)
+    ReapStale(ctx context.Context, timeout time.Duration, maxRetries int) (int, error)
+    Cleanup(ctx context.Context, ttl time.Duration) (int, error)
+}
+```
+
+Built-in implementations:
+
+| Implementation | Driver | Constructor |
+|----------------|--------|-------------|
+| In-memory | `memory` | `newMemoryJobStore()` |
+| PostgreSQL | `postgres` | `newPGJobStore(pool, table)` |
+| Redis | `redis` | `newRedisJobStore(client, prefix)` |
+| NATS KV | `nats_kv` | `newNATSKVJobStore(conn, bucket)` |
+
+The store is selected via YAML `async_store.driver`. The `ReapStale` method is called by the `Reaper` to recover jobs stuck in `processing` status. The `Cleanup` method is called by the Reaper when `result_ttl` is configured.
+
+### AsyncJobManager
+
+```go
+mgr := runtime.NewAsyncJobManager(store, processor)
+mgr := runtime.NewAsyncJobManagerWithRetry(store, processor, maxRetries)
+```
+
+The manager is created automatically when registering an async entry. It exposes handler methods:
+
+- `HandleSubmit()` — POST handler, returns 202
+- `HandleStatus()` — GET `/:job_id` handler
+- `HandleCancel()` — DELETE `/:job_id` handler, returns 204 or 409
+- `HandleList()` — GET `/` handler, returns job list
+- `HandleStatusSSE()` — GET `/:job_id/status` handler, SSE stream
+
+### VerifyCallbackSignature
+
+```go
+if runtime.VerifyCallbackSignature(payload, secret, signature) {
+    // signature is valid
+}
+```
+
+Verifies an HMAC-SHA256 callback signature. Used on the receiving end of async callbacks. The SDK sends callbacks with `X-Job-Signature: <hex>` header when `callback.secret` is configured.
+
+### Reaper
+
+```go
+r := runtime.NewReaper(store, timeout, interval, maxRetries)
+r.Start()  // background goroutine
+r.Stop()   // cancel
+```
+
+The reaper periodically calls `ReapStale` on the store. When a job's `processing_deadline` has passed, the reaper resets it to `pending` (or `failed` if `maxRetries` exceeded). This enables automatic recovery when a service instance crashes while processing a job.
+
+When `result_ttl` is configured, the reaper also calls `Cleanup` on each cycle to remove old completed/failed jobs.
+
+Configured via YAML:
+
+```yaml
+async_store:
+  driver: nats_kv
+  stream: default
+  result_ttl: 24h
+  reassign:
+    enabled: true
+    processing_timeout: 5m
+    reap_interval: 30s
+    max_retries: 3
+  callback:
+    url: "${CALLBACK_URL}"
+    secret: "${CALLBACK_SECRET}"
+```
+
+## HTTP pool sizing
 
 Configure the S3 HTTP client pool under `storage.pool` in YAML to match expected concurrency:
 

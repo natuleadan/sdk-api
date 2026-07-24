@@ -121,6 +121,12 @@ func nakWithLog(m events.Message, name, context string) {
 	}
 }
 
+func termWithLog(m events.Message, name, context string) {
+	if err := m.Term(); err != nil {
+		logx.Errorf("exit %s term error (%s): %v", name, context, err)
+	}
+}
+
 func processMsg(state *workerState, sem chan struct{}, handler ExitHandler, hooks ExitHooks, cfg ExitWorker, name string, m events.Message) {
 	select {
 	case sem <- struct{}{}:
@@ -153,7 +159,11 @@ func processMsg(state *workerState, sem chan struct{}, handler ExitHandler, hook
 				hooks.OnError(context.Background(), err)
 			}
 			logx.Errorf("exit %s handler error: %v", name, err)
-			nakWithLog(m, name, "handler")
+			if cfg.TermOnFailure {
+				termWithLog(m, name, "handler-dlq")
+			} else {
+				nakWithLog(m, name, "handler")
+			}
 			return
 		}
 

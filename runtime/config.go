@@ -1117,6 +1117,8 @@ type ExitWorker struct {
 	ConsumerMode string `json:"consumer_mode" config:",optional"` // push or pull
 	// EventStream is a constant.
 	EventStream string `json:"event_stream" config:",optional"` // broker name
+	// TermOnFailure terminates (DLQ) instead of Nak when handler returns error.
+	TermOnFailure bool `json:"term_on_failure" config:",optional"`
 }
 
 type SubscribeDef struct {

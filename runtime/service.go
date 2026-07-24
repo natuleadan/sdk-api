@@ -785,15 +785,15 @@ func (s *Service) RunWithContext(ctx context.Context) error {
 	if err := s.initDatabases(ctx); err != nil {
 		return err
 	}
-	if err := s.runSeeds(ctx); err != nil {
-		return err
-	}
 	s.initKvConns()
 	if err := s.initStreamConns(ctx); err != nil {
 		return err
 	}
 	s.initSSRF()
 	s.initGrpc()
+	if err := s.runSeeds(ctx); err != nil {
+		return err
+	}
 	s.initServer()
 
 	if err := s.registerEntryRoutes(); err != nil {

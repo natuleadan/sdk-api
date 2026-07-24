@@ -121,6 +121,10 @@ type AuthCookieConfig struct {
 // ---- Server ----
 
 type ServerConf struct {
+	// Mode sets the server operating mode: "monolith" (default) or "micro".
+	// In monolith mode, gRPC is disabled and all communication is direct.
+	// In micro mode, gRPC server and clients are enabled for inter-service calls.
+	Mode string `json:"mode" config:",default=monolith"`
 	// Host is a constant.
 	Host string `json:"host" config:",default=0.0.0.0"`
 	// Prefork is a constant.
@@ -192,6 +196,10 @@ type GrpcServerConf struct {
 	CpuThreshold int64 `json:"cpu_threshold" config:",default=900"`
 	// Health enables the gRPC health check service.
 	Health bool `json:"health" config:",default=true"`
+	// EtcdEndpoints are the etcd cluster hosts for service registration (micro mode).
+	EtcdEndpoints []string `json:"etcd_endpoints" config:",optional"`
+	// EtcdKey is the service key to register in etcd (e.g. "user-svc").
+	EtcdKey string `json:"etcd_key" config:",optional"`
 }
 
 type GrpcClientConf struct {
@@ -199,6 +207,8 @@ type GrpcClientConf struct {
 	Name string `json:"name"`
 	// Target is the gRPC target address (e.g. "dns:///product-svc:8081").
 	Target string `json:"target" config:",optional"`
+	// Secure enables TLS transport credentials instead of insecure.
+	Secure bool `json:"secure" config:",optional"`
 	// Endpoints are direct gRPC endpoints (e.g. ["localhost:8081"]).
 	Endpoints []string `json:"endpoints" config:",optional"`
 	// Timeout is the default RPC timeout in milliseconds.
@@ -827,6 +837,9 @@ type AsyncStoreConf struct {
 	// ResultTTL is how long completed/failed jobs are kept before cleanup.
 	// Default: 0 (keep forever)
 	ResultTTL string `json:"result_ttl" config:",optional"`
+	// MaxConcurrent limits the number of jobs processed simultaneously.
+	// Default: 0 (unlimited)
+	MaxConcurrent int `json:"max_concurrent" config:",optional"`
 }
 
 // AsyncReassignConf configures automatic recovery of stuck processing jobs.
@@ -1051,7 +1064,10 @@ func (e *EntryDef) validateFile() error {
 
 func (e *EntryDef) validateAsync() error {
 	if e.Path == "" {
-		return fmt.Errorf("async: path is required")
+		if e.Resource == "" {
+			return fmt.Errorf("async: path or resource is required")
+		}
+		e.Path = "/" + strings.TrimPrefix(e.Resource, "/")
 	}
 	if e.Handler == "" {
 		return fmt.Errorf("async: handler is required")
@@ -1295,6 +1311,9 @@ func ParseConfig(content []byte) (*ServiceConfig, error) {
 		return nil, err
 	}
 	applyEnvOverrides(&cfg)
+	if err := validateServerMode(&cfg); err != nil {
+		return nil, err
+	}
 	if err := validateConfigDeploy(&cfg); err != nil {
 		return nil, err
 	}

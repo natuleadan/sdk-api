@@ -21,6 +21,7 @@ import (
 	"github.com/natuleadan/sdk-api/db"
 	"github.com/natuleadan/sdk-api/events"
 	"github.com/natuleadan/sdk-api/infra/collection"
+	"github.com/natuleadan/sdk-api/infra/discov"
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/natuleadan/sdk-api/infra/proc"
 	"github.com/natuleadan/sdk-api/infra/stores/cache"
@@ -644,6 +645,17 @@ func (s *Service) PoolPGTyped(name string) *pgxpool.Pool {
 }
 
 // KV returns a KV store (Redis/Dragonfly) connection by name, or nil.
+func (s *Service) GetGrpcServer() *GrpcServer {
+	return s.grpcServer
+}
+
+func (s *Service) GetGRPCClient(name string) *GrpcClient {
+	if s.grpcClients == nil {
+		return nil
+	}
+	return s.grpcClients[name]
+}
+
 func (s *Service) KV(name string) *redis.Redis {
 	if s.kvConns == nil {
 		s.kvConns = make(map[string]*redis.Redis)
@@ -937,12 +949,31 @@ func (s *Service) startCron(ctx context.Context) error {
 
 func (s *Service) initGrpc() {
 	sc := s.config.Server
+	if sc.Mode != "" && sc.Mode != "monolith" && sc.Mode != "micro" {
+		return // invalid mode, skip gRPC
+	}
+	if sc.Mode == "monolith" {
+		return // gRPC disabled in monolith mode
+	}
 	if sc.GrpcServer != nil {
 		gs, err := NewGrpcServer(sc.GrpcServer, nil)
 		if err != nil {
 			logx.Errorf("grpc: init server: %v", err)
 		} else {
 			s.grpcServer = gs
+			// Register in etcd if configured
+			if len(sc.GrpcServer.EtcdEndpoints) > 0 && sc.GrpcServer.EtcdKey != "" {
+				pub := discov.NewPublisher(sc.GrpcServer.EtcdEndpoints,
+					sc.GrpcServer.EtcdKey,
+					sc.GrpcServer.ListenOn)
+				go func() {
+					if err := pub.KeepAlive(); err != nil {
+						logx.Errorf("grpc: etcd keepalive: %v", err)
+					}
+				}()
+				logx.Infof("grpc: registered in etcd as %s → %s", sc.GrpcServer.EtcdKey, sc.GrpcServer.ListenOn)
+				s.grpcServer.etcdPub = pub
+			}
 		}
 	}
 	for _, gc := range sc.GrpcClients {

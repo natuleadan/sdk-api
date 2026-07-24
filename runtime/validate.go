@@ -17,6 +17,23 @@ const (
 	TargetBare   = "bare-metal"
 )
 
+func validateServerMode(cfg *ServiceConfig) error {
+	mode := cfg.Server.Mode
+	if mode == "" {
+		cfg.Server.Mode = "monolith"
+		mode = "monolith"
+	}
+	if mode != "monolith" && mode != "micro" {
+		return fmt.Errorf("server.mode must be 'monolith' or 'micro' (got %q)", mode)
+	}
+	if mode == "monolith" {
+		if cfg.Server.GrpcServer != nil && cfg.Server.GrpcServer.ListenOn != "" {
+			logx.Infof("server.mode is monolith: grpc_server configured but will not start")
+		}
+	}
+	return nil
+}
+
 var validTargets = map[string]bool{
 	TargetAuto:   true,
 	TargetVercel: true,

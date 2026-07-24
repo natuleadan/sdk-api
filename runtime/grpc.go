@@ -6,13 +6,16 @@ import (
 	"net"
 	"time"
 
+	"github.com/natuleadan/sdk-api/infra/discov"
 	"github.com/natuleadan/sdk-api/infra/load"
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/grpc/reflection"
 )
 
 type GrpcRegisterFn func(server *grpc.Server)
@@ -21,6 +24,7 @@ type GrpcServer struct {
 	server   *grpc.Server
 	cfg      *GrpcServerConf
 	listener net.Listener
+	etcdPub  *discov.Publisher
 }
 
 func NewGrpcServer(cfg *GrpcServerConf, register GrpcRegisterFn, interceptorCfg ...GrpcInterceptorsConfig) (*GrpcServer, error) {
@@ -39,29 +43,10 @@ func NewGrpcServer(cfg *GrpcServerConf, register GrpcRegisterFn, interceptorCfg 
 		ic = interceptorCfg[0]
 	}
 
-	var unaryInterceptors []grpc.UnaryServerInterceptor
-	if ic.Trace {
-		unaryInterceptors = append(unaryInterceptors, unaryTracingInterceptor)
-	}
-	if ic.Breaker {
-		unaryInterceptors = append(unaryInterceptors, unaryBreakerInterceptor)
-	}
-	if ic.Timeout && cfg.Timeout > 0 {
-		unaryInterceptors = append(unaryInterceptors, unaryTimeoutInterceptor(time.Duration(cfg.Timeout)*time.Millisecond))
-	}
-	if ic.Shedding && cfg.CpuThreshold > 0 {
-		shedder := load.NewAdaptiveShedder(load.WithCpuThreshold(cfg.CpuThreshold))
-		unaryInterceptors = append(unaryInterceptors, unarySheddingInterceptor(shedder, nil))
-	}
-
-	var opts []grpc.ServerOption
+	opts := buildGrpcServerOptions(cfg, ic)
 	opts = append(opts, grpc.KeepaliveParams(keepalive.ServerParameters{
 		MaxConnectionIdle: 5 * time.Minute,
 	}))
-
-	if len(unaryInterceptors) > 0 {
-		opts = append(opts, grpc.ChainUnaryInterceptor(unaryInterceptors...))
-	}
 
 	server := grpc.NewServer(opts...)
 	if register != nil {
@@ -74,11 +59,51 @@ func NewGrpcServer(cfg *GrpcServerConf, register GrpcRegisterFn, interceptorCfg 
 		healthServer.Resume()
 	}
 
+	reflection.Register(server)
+
 	return &GrpcServer{
 		server:   server,
 		cfg:      cfg,
 		listener: listener,
 	}, nil
+}
+
+func buildGrpcServerOptions(cfg *GrpcServerConf, ic GrpcInterceptorsConfig) []grpc.ServerOption {
+	var unary []grpc.UnaryServerInterceptor
+	unary = append(unary, unaryRecoverInterceptor)
+	if ic.Trace {
+		unary = append(unary, unaryTracingInterceptor)
+	}
+	if ic.Breaker {
+		unary = append(unary, unaryBreakerInterceptor)
+	}
+	if ic.Timeout && cfg.Timeout > 0 {
+		unary = append(unary, unaryTimeoutInterceptor(time.Duration(cfg.Timeout)*time.Millisecond))
+	}
+	if ic.Shedding && cfg.CpuThreshold > 0 {
+		shedder := load.NewAdaptiveShedder(load.WithCpuThreshold(cfg.CpuThreshold))
+		unary = append(unary, unarySheddingInterceptor(shedder, nil))
+	}
+	if ic.Prometheus {
+		unary = append(unary, unaryPrometheusInterceptor)
+	}
+
+	var stream []grpc.StreamServerInterceptor
+	if ic.Trace {
+		stream = append(stream, streamTracingInterceptor)
+	}
+	if ic.Breaker {
+		stream = append(stream, streamBreakerInterceptor)
+	}
+
+	var opts []grpc.ServerOption
+	if len(unary) > 0 {
+		opts = append(opts, grpc.ChainUnaryInterceptor(unary...))
+	}
+	if len(stream) > 0 {
+		opts = append(opts, grpc.ChainStreamInterceptor(stream...))
+	}
+	return opts
 }
 
 func (gs *GrpcServer) Start() {
@@ -93,6 +118,9 @@ func (gs *GrpcServer) Start() {
 func (gs *GrpcServer) Stop() {
 	if gs.server != nil {
 		gs.server.GracefulStop()
+	}
+	if gs.etcdPub != nil {
+		gs.etcdPub.Stop()
 	}
 }
 
@@ -124,7 +152,15 @@ func NewGrpcClient(cfg *GrpcClientConf) (*GrpcClient, error) {
 	}
 
 	var dialOpts []grpc.DialOption
-	dialOpts = append(dialOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if cfg.Secure {
+		creds, err := credentials.NewClientTLSFromFile("", "")
+		if err != nil {
+			return nil, fmt.Errorf("grpc: client %s: tls: %w", cfg.Name, err)
+		}
+		dialOpts = append(dialOpts, grpc.WithTransportCredentials(creds))
+	} else {
+		dialOpts = append(dialOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	}
 
 	ic := defaultGrpcInterceptorsConfig()
 	var unaryInterceptors []grpc.UnaryClientInterceptor
@@ -136,6 +172,9 @@ func NewGrpcClient(cfg *GrpcClientConf) (*GrpcClient, error) {
 	}
 	if ic.Timeout && cfg.Timeout > 0 {
 		unaryInterceptors = append(unaryInterceptors, clientTimeoutInterceptor(time.Duration(cfg.Timeout)*time.Millisecond))
+	}
+	if ic.Prometheus {
+		unaryInterceptors = append(unaryInterceptors, clientPrometheusInterceptor)
 	}
 	if len(unaryInterceptors) > 0 {
 		dialOpts = append(dialOpts, grpc.WithChainUnaryInterceptor(unaryInterceptors...))

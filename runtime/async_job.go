@@ -25,13 +25,15 @@ type AsyncHandler func(body []byte, job *JobState) error
 
 // AsyncJobManager coordinates async job creation, processing, and status retrieval.
 type AsyncJobManager struct {
-	store      JobStore
-	processor  AsyncHandler
-	maxRetry   int
-	callback   *AsyncCallbackConf
-	cleanupTTL time.Duration
-	subs       map[string]map[chan JobState]struct{}
-	subsMu     sync.RWMutex
+	store             JobStore
+	processor         AsyncHandler
+	maxRetry          int
+	callback          *AsyncCallbackConf
+	cleanupTTL        time.Duration
+	processingTimeout time.Duration
+	subs              map[string]map[chan JobState]struct{}
+	subsMu            sync.RWMutex
+	sem               chan struct{} // max_concurrent semaphore
 }
 
 func NewAsyncJobManager(store JobStore, processor AsyncHandler) *AsyncJobManager {
@@ -60,13 +62,31 @@ func (m *AsyncJobManager) HandleSubmit() fiber.Handler {
 		js := m.store.Create(id)
 		status := js.Status
 		body := append([]byte{}, c.Body()...)
+
+		// Parse _callback_url from body if present
+		var bodyMap map[string]any
+		if err := json.Unmarshal(body, &bodyMap); err == nil {
+			if cbURL, ok := bodyMap["_callback_url"].(string); ok {
+				js.CallbackURL = cbURL
+				// Remove from body so processor doesn't see it
+				delete(bodyMap, "_callback_url")
+				body, _ = json.Marshal(bodyMap)
+			}
+		}
+
 		if m.processor != nil {
 			js.MaxRetries = m.maxRetry
 			reqCtx := c.Context()
+			if m.sem != nil {
+				m.sem <- struct{}{}
+			}
 			go func() {
+				if m.sem != nil {
+					defer func() { <-m.sem }()
+				}
 				m.store.Update(id, JobProcessing, nil, "")
 				m.broadcast(id)
-				dl := time.Now().Add(5 * time.Minute)
+				dl := time.Now().Add(m.processingTimeout)
 				js.ProcessingDeadline = &dl
 				if err := m.processor(body, js); err != nil {
 					m.store.Update(id, JobFailed, nil, err.Error())
@@ -113,6 +133,17 @@ func (m *AsyncJobManager) HandleCancel() fiber.Handler {
 	}
 }
 
+// HandleList returns a Fiber handler for GET /path requests.
+func (m *AsyncJobManager) HandleList() fiber.Handler {
+	return func(c fiber.Ctx) error {
+		jobs, err := m.store.List()
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		}
+		return c.JSON(fiber.Map{"jobs": jobs, "total": len(jobs)})
+	}
+}
+
 // HandleStatusSSE returns a Fiber handler for SSE streaming of job status changes.
 func (m *AsyncJobManager) HandleStatusSSE() fiber.Handler {
 	return func(c fiber.Ctx) error {
@@ -127,7 +158,6 @@ func (m *AsyncJobManager) HandleStatusSSE() fiber.Handler {
 		c.Set("Cache-Control", "no-cache")
 		c.Set("Connection", "keep-alive")
 
-		// Send current state
 		data, _ := json.Marshal(js)
 		if _, err := c.Write([]byte("data: " + string(data) + "\n\n")); err != nil {
 			return nil
@@ -195,14 +225,30 @@ func (m *AsyncJobManager) broadcast(id string) {
 	}
 }
 
+// VerifyCallbackSignature verifies an HMAC-SHA256 signature for an async callback payload.
+func VerifyCallbackSignature(payload []byte, secret string, signature string) bool {
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(payload)
+	expected := hex.EncodeToString(mac.Sum(nil))
+	return hmac.Equal([]byte(expected), []byte(signature))
+}
+
 func (m *AsyncJobManager) notifyCallback(ctx context.Context, id string) {
-	if m.callback == nil || m.callback.URL == "" {
-		return
-	}
 	js, ok := m.store.Get(id)
 	if !ok {
 		return
 	}
+	// Per-request callback URL takes precedence over static config
+	callbackURL := js.CallbackURL
+	secret := ""
+	if callbackURL == "" {
+		if m.callback == nil || m.callback.URL == "" {
+			return
+		}
+		callbackURL = m.callback.URL
+		secret = m.callback.Secret
+	}
+
 	payload, _ := json.Marshal(js)
 	maxRetry := m.callback.Retry
 	if maxRetry <= 0 {
@@ -216,14 +262,14 @@ func (m *AsyncJobManager) notifyCallback(ctx context.Context, id string) {
 		if attempt > 0 {
 			time.Sleep(retryDelay)
 		}
-		req, err := http.NewRequestWithContext(ctx, "POST", m.callback.URL, bytes.NewReader(payload))
+		req, err := http.NewRequestWithContext(ctx, "POST", callbackURL, bytes.NewReader(payload))
 		if err != nil {
 			logx.Errorf("async callback: create request: %v", err)
 			return
 		}
 		req.Header.Set("Content-Type", "application/json")
-		if m.callback.Secret != "" {
-			mac := hmac.New(sha256.New, []byte(m.callback.Secret))
+		if secret != "" {
+			mac := hmac.New(sha256.New, []byte(secret))
 			mac.Write(payload)
 			sig := hex.EncodeToString(mac.Sum(nil))
 			req.Header.Set("X-Job-Signature", sig)

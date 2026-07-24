@@ -29,6 +29,7 @@ type JobState struct {
 	RetryCount         int        `json:"retry_count,omitempty"`
 	MaxRetries         int        `json:"max_retries,omitempty"`
 	ProcessingDeadline *time.Time `json:"processing_deadline,omitempty"`
+	CallbackURL        string     `json:"callback_url,omitempty"`
 }
 
 // JobStore persists and retrieves job state.
@@ -37,6 +38,8 @@ type JobStore interface {
 	Get(id string) (*JobState, bool)
 	Update(id string, status JobStatus, result any, errMsg string)
 	Delete(id string)
+	// List returns all jobs (best-effort, limited).
+	List() ([]*JobState, error)
 	// ReapStale resets jobs stuck in "processing" for longer than the deadline.
 	// Returns the number of jobs reaped.
 	ReapStale(ctx context.Context, timeout time.Duration, maxRetries int) (int, error)
@@ -106,12 +109,13 @@ func (r *Reaper) Stop() {
 // memoryJobStore is an in-memory implementation of JobStore for testing
 // and single-instance use without NATS.
 type memoryJobStore struct {
-	mu   sync.RWMutex
-	jobs map[string]*JobState
+	mu                sync.RWMutex
+	jobs              map[string]*JobState
+	processingTimeout time.Duration
 }
 
 func newMemoryJobStore() *memoryJobStore {
-	return &memoryJobStore{jobs: make(map[string]*JobState)}
+	return &memoryJobStore{jobs: make(map[string]*JobState), processingTimeout: 5 * time.Minute}
 }
 
 func (s *memoryJobStore) Create(id string) *JobState {
@@ -139,12 +143,22 @@ func (s *memoryJobStore) Update(id string, status JobStatus, result any, errMsg 
 		js.Error = errMsg
 		js.UpdatedAt = time.Now()
 		if status == JobProcessing {
-			dl := time.Now().Add(5 * time.Minute)
+			dl := time.Now().Add(s.processingTimeout)
 			js.ProcessingDeadline = &dl
 		} else {
 			js.ProcessingDeadline = nil
 		}
 	}
+}
+
+func (s *memoryJobStore) List() ([]*JobState, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	result := make([]*JobState, 0, len(s.jobs))
+	for _, js := range s.jobs {
+		result = append(result, js)
+	}
+	return result, nil
 }
 
 func (s *memoryJobStore) Delete(id string) {

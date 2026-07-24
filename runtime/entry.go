@@ -307,7 +307,7 @@ func registerOneEntry(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, 
 		var store JobStore
 		store, err = resolveAsyncStore(entry, pools, kvConns, brokers)
 		if err == nil {
-			err = registerAsync(app, entry, handlers, versionPrefix, mws, store)
+			err = registerAsync(app, entry, handlers, versionPrefix, mws, store, brokers)
 		}
 	case "grpc":
 		err = registerGRPC(app, entry, handlers, versionPrefix, brokers, models, mws)

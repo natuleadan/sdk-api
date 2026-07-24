@@ -11,12 +11,13 @@ import (
 
 // redisJobStore persists job state in Redis.
 type redisJobStore struct {
-	client *redis.Redis
-	prefix string
+	client            *redis.Redis
+	prefix            string
+	processingTimeout time.Duration
 }
 
 func newRedisJobStore(client *redis.Redis, prefix string) *redisJobStore {
-	return &redisJobStore{client: client, prefix: prefix}
+	return &redisJobStore{client: client, prefix: prefix, processingTimeout: 5 * time.Minute}
 }
 
 func (s *redisJobStore) key(id string) string {
@@ -55,7 +56,7 @@ func (s *redisJobStore) Update(id string, status JobStatus, result any, errMsg s
 	js.Error = errMsg
 	js.UpdatedAt = time.Now()
 	if status == JobProcessing {
-		dl := time.Now().Add(5 * time.Minute)
+		dl := time.Now().Add(s.processingTimeout)
 		js.ProcessingDeadline = &dl
 	} else {
 		js.ProcessingDeadline = nil
@@ -64,6 +65,33 @@ func (s *redisJobStore) Update(id string, status JobStatus, result any, errMsg s
 	if err := s.client.SetCtx(context.Background(), s.key(id), string(data)); err != nil {
 		logx.Errorf("redisJobStore.Update: %v", err)
 	}
+}
+
+func (s *redisJobStore) List() ([]*JobState, error) {
+	cursor := uint64(0)
+	var result []*JobState
+	for {
+		keys, next, err := s.client.Scan(cursor, s.prefix+"*", 100)
+		if err != nil {
+			return result, err
+		}
+		for _, key := range keys {
+			data, err := s.client.Get(key)
+			if err != nil {
+				continue
+			}
+			var js JobState
+			if err := json.Unmarshal([]byte(data), &js); err != nil {
+				continue
+			}
+			result = append(result, &js)
+		}
+		if next == 0 {
+			break
+		}
+		cursor = next
+	}
+	return result, nil
 }
 
 func (s *redisJobStore) Delete(id string) {

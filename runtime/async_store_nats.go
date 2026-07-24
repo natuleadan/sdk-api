@@ -11,12 +11,13 @@ import (
 
 // natsKVJobStore persists job state in a NATS KV bucket.
 type natsKVJobStore struct {
-	conn   *events.Conn
-	bucket string
+	conn              *events.Conn
+	bucket            string
+	processingTimeout time.Duration
 }
 
 func newNATSKVJobStore(conn *events.Conn, bucket string) *natsKVJobStore {
-	return &natsKVJobStore{conn: conn, bucket: bucket}
+	return &natsKVJobStore{conn: conn, bucket: bucket, processingTimeout: 5 * time.Minute}
 }
 
 func (s *natsKVJobStore) Create(id string) *JobState {
@@ -51,7 +52,7 @@ func (s *natsKVJobStore) Update(id string, status JobStatus, result any, errMsg 
 	js.Error = errMsg
 	js.UpdatedAt = time.Now()
 	if status == JobProcessing {
-		dl := time.Now().Add(5 * time.Minute)
+		dl := time.Now().Add(s.processingTimeout)
 		js.ProcessingDeadline = &dl
 	} else {
 		js.ProcessingDeadline = nil
@@ -60,6 +61,26 @@ func (s *natsKVJobStore) Update(id string, status JobStatus, result any, errMsg 
 	if _, err := s.conn.KVPut(s.bucket, id, data); err != nil {
 		logx.Errorf("natsKVJobStore.Update: %v", err)
 	}
+}
+
+func (s *natsKVJobStore) List() ([]*JobState, error) {
+	keys, err := s.conn.KVKeys(s.bucket)
+	if err != nil {
+		return nil, err
+	}
+	var result []*JobState
+	for _, key := range keys {
+		data, err := s.conn.KVGet(s.bucket, key)
+		if err != nil {
+			continue
+		}
+		var js JobState
+		if err := json.Unmarshal(data, &js); err != nil {
+			continue
+		}
+		result = append(result, &js)
+	}
+	return result, nil
 }
 
 func (s *natsKVJobStore) Delete(id string) {

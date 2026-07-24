@@ -12,12 +12,13 @@ import (
 
 // pgJobStore persists job state in a PostgreSQL table.
 type pgJobStore struct {
-	pool  *pgxpool.Pool
-	table string
+	pool              *pgxpool.Pool
+	table             string
+	processingTimeout time.Duration
 }
 
 func newPGJobStore(pool *pgxpool.Pool, table string) *pgJobStore {
-	return &pgJobStore{pool: pool, table: table}
+	return &pgJobStore{pool: pool, table: table, processingTimeout: 5 * time.Minute}
 }
 
 func (s *pgJobStore) ensureTable(ctx context.Context) error {
@@ -65,7 +66,7 @@ func (s *pgJobStore) Get(id string) (*JobState, bool) {
 func (s *pgJobStore) Update(id string, status JobStatus, result any, errMsg string) {
 	dl := any(nil)
 	if status == JobProcessing {
-		dl = time.Now().Add(5 * time.Minute)
+		dl = time.Now().Add(s.processingTimeout)
 	}
 	q := fmt.Sprintf(`UPDATE %s SET status = $1, result = $2, error = $3, updated_at = NOW(),
 		processing_deadline = $4 WHERE id = $5`, s.table)
@@ -76,6 +77,30 @@ func (s *pgJobStore) Update(id string, status JobStatus, result any, errMsg stri
 	if _, err := s.pool.Exec(context.Background(), q, string(status), resultBytes, errMsg, dl, id); err != nil {
 		logx.Errorf("pgJobStore.Update: %v", err)
 	}
+}
+
+func (s *pgJobStore) List() ([]*JobState, error) {
+	q := fmt.Sprintf("SELECT id, status, result, error, created_at, updated_at, retry_count, max_retries, processing_deadline FROM %s ORDER BY created_at DESC LIMIT 100", s.table)
+	rows, err := s.pool.Query(context.Background(), q)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var result []*JobState
+	for rows.Next() {
+		var js JobState
+		var resultBytes []byte
+		if err := rows.Scan(&js.ID, (*string)(&js.Status), &resultBytes, &js.Error, &js.CreatedAt, &js.UpdatedAt, &js.RetryCount, &js.MaxRetries, &js.ProcessingDeadline); err != nil {
+			return nil, err
+		}
+		if len(resultBytes) > 0 {
+			if uErr := json.Unmarshal(resultBytes, &js.Result); uErr != nil {
+				logx.Errorf("pgJobStore.List: unmarshal result: %v", uErr)
+			}
+		}
+		result = append(result, &js)
+	}
+	return result, nil
 }
 
 func (s *pgJobStore) Delete(id string) {

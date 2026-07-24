@@ -475,7 +475,9 @@ func TestRegisterEntries_Async_CancelRejectsProcessing(t *testing.T) {
 	resp1, _ := request(app, "POST", "/api/v1/jobs/slow", stringsReader(`{}`))
 	body1, _ := io.ReadAll(resp1.Body)
 	resp1.Body.Close()
-	var submit struct{ StatusURL string `json:"status_url"` }
+	var submit struct {
+		StatusURL string `json:"status_url"`
+	}
 	json.Unmarshal(body1, &submit)
 
 	time.Sleep(100 * time.Millisecond)
@@ -486,4 +488,3 @@ func TestRegisterEntries_Async_CancelRejectsProcessing(t *testing.T) {
 	}
 	block <- struct{}{}
 }
-

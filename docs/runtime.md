@@ -39,6 +39,13 @@ svc.WithCron("onCleanup", handler)
 svc.RegisterModel("Product", (*Product)(nil))
 svc.MustRegister("Product", runtime.NewCRUDProvider(table, hooks)) // Panics on error (convenience)
 
+// Seed data (runs after initDatabases, before HTTP starts)
+svc.WithSeed(func(ctx context.Context, s *runtime.Service) error {
+    pool := s.PoolPGTyped("primary")
+    _, err := pool.Exec(ctx, "INSERT INTO ...")
+    return err
+})
+
 // Register gRPC service
 svc.WithGRPC("ProductGRPC", grpcHandler)
 
@@ -93,11 +100,12 @@ NewFromYAML(content) ────────────┘    │
                                        ├─ validateConfig*()       ← databases, entries, exits, cron
                                        ├─ applyEnvOverrides()     ← resolves PORT env
                                        │
-                                   → Run()
-                                       1. validateConfigDeploy() — check deploy.target rules
-                                       2. validateAuthConfig()   — check auth driver config
-                                       3. initDatabases()        — connect PG/Turso/MySQL/Mongo pools (dedup by URL)
-                                       4. initKvConns()          — lazy-init Redis/Dragonfly connections
+                                    → Run()
+                                        1. validateConfigDeploy() — check deploy.target rules
+                                        2. validateAuthConfig()   — check auth driver config
+                                        3. initDatabases()        — connect PG/Turso/MySQL/Mongo pools (dedup by URL)
+                                        4. runSeeds()             — WithSeed callbacks (DDL, data seeding, app setup)
+                                        5. initKvConns()          — lazy-init Redis/Dragonfly connections
                                        5. initStreamConns()      — connect NATS/Kafka + create streams
                                        6. initSSRF()             — SafeHTTPClient (if configured)
                                        7. initGrpc()             — gRPC server (if grpc_server configured) + clients
@@ -574,9 +582,44 @@ svc.WithAPIKeyValidator(func(ctx context.Context, key string) (*middleware.AuthC
 
 The returned `AuthContext` must include at least `UserID` and `Roles`. The function receives the raw key value (already stripped of any configured prefix).
 
+### Auth Utilities
+
+The `runtime/auth` package provides password, token, and role utilities:
+
+| Function | Description |
+|----------|-------------|
+| `HashPassword(password string) (string, error)` | bcrypt hash (cost 10) |
+| `VerifyPassword(hash, password string) bool` | bcrypt verify |
+| `GenerateToken() (string, error)` | 32-byte crypto/rand token as hex |
+| `TokenHash(raw string) string` | SHA-256 hex digest for storing API keys, tokens |
+| `CheckPasswordStrength(password string) error` | Validates 8+ chars, upper+lower+digit |
+
+```go
+token, _ := auth.GenerateToken()
+hash := auth.TokenHash(token)          // store this
+auth.TokenHash(token) == storedHash    // verify
+
+err := auth.CheckPasswordStrength("Weak1")  // too short
+```
+
+**RoleHierarchy:**
+
+```go
+type RoleHierarchy map[string][]string
+
+roles := auth.RoleHierarchy{
+    "viewer": {},
+    "editor": {"viewer"},
+    "admin":  {"editor", "viewer"},
+}
+roles.Inherits("admin", "viewer")  // true
+```
+
+Implement your own hierarchy and use it in `WithAuthValidator`.
+
 ### TOTP Helpers
 
-The `runtime/auth` package provides TOTP (Time-based One-Time Password) utilities for MFA:
+The `runtime/auth` package also provides TOTP (Time-based One-Time Password) utilities for MFA:
 
 | Function | Description |
 |----------|-------------|

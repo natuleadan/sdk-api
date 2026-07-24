@@ -12,16 +12,17 @@ General-purpose Go SDK for event-driven microservices and monoliths. YAML-driven
 
 | Topic | Location |
 |-------|----------|
-| Full documentation | `docs/` (18 files) |
+| Full documentation | `docs/` (21 files) |
 | YAML config schema (all entry types, security) | `docs/configuration.md` |
 | Security guide (headers, CSRF, rate limit, TLS, SSRF, validation, cookie encryption) | `docs/security.md` |
 | HTTP server & middlewares | `docs/http-server.md` |
 | Runtime API | `docs/runtime.md` |
+| gRPC microservices | `docs/runtime.md#grpc` |
 | NATS + Kafka messaging | `docs/messaging.md` |
 | Database drivers & CRUD | `docs/database.md` |
-| GraphQL entry type | `docs/entry-graphql.md` |
 | Async jobs entry type | `docs/entry-async.md` |
 | Secrets management | `docs/secrets.md` |
+| Debugging with delve | `docs/debugging.md` |
 | API patterns (all entry types) | `docs/api-patterns.md` |
 | CLI commands | `docs/cli.md` |
 | Best practices & gotchas | `docs/best-practices.md` |
@@ -29,9 +30,9 @@ General-purpose Go SDK for event-driven microservices and monoliths. YAML-driven
 
 ## Entrypoints
 
-- `cmd/sdk-api/` — CLI generator (new/docker/kube/client)
-- `runtime/` — Service orchestrator, entry router, exit workers, cron, hooks
-- `server/` — Fiber HTTP + 14 middlewares + storage backends
+- `cmd/sdk-api/` — CLI generator (new/docker/kube/client/validate/dev)
+- `runtime/` — Service orchestrator, entry router, exit workers, cron, hooks, gRPC
+- `server/` — Fiber HTTP + 34+ middlewares + storage backends
 - `db/` — Table[T] CRUD (pgx, Turso, MySQL, MongoDB) + AutoInit
 - `events/` — NATS JetStream: producers, consumers, KV cache, request-reply
 - `infra/` — 45+ go-zero packages (conf, logx, trace, breaker, redis, discover)
@@ -58,6 +59,8 @@ General-purpose Go SDK for event-driven microservices and monoliths. YAML-driven
 - **NATS exit worker** — add `exit:[].subscribe.stream` + `.handler` to YAML → `svc.WithExit()` → return `([]byte, error)` (reply if enabled)
 - **Multi-DB** — add `databases:[]` with separate names → reference via `entry[].db` or `exit[].db`
 - **OpenAPI** — set `server.openapi.enabled: true` → `svc.RegisterModel("Product", (*Product)(nil))`
+- **Async job with persistent store** — add `type: async` + `async_store.driver: postgres|redis|nats_kv` → `type: async` with `handler` → job store auto-initialized from YAML
+- **gRPC microservices** — set `server.mode: micro` → `grpc_server.listen_on` + `grpc_clients[].target` → proto registration via `svc.GetGrpcServer().Server()`
 
 ## Workflows (for AI assistants)
 
@@ -85,6 +88,18 @@ General-purpose Go SDK for event-driven microservices and monoliths. YAML-driven
 1. Add `deploy.target: vercel` to `service.yaml`
 2. `sdk-api vercel --output vercel.json` (validates prefork=false, tls=false)
 3. `vercel deploy --prod`
+
+### Add an async job with persistent store
+1. Add `entry: - type: async path: /jobs/report handler: processReport`
+2. Add `async_store: {driver: nats_kv, stream: default, bucket: my-jobs, reassign: {enabled: true}}`
+3. `svc.WithAsync("processReport", func(body []byte, job *JobState) error { ... })`
+4. DELETE `/path/:job_id` and SSE `/path/:job_id/status` are auto-registered
+
+### Add a gRPC service (micro mode)
+1. Set `server.mode: micro` and `server.grpc_server.listen_on: ":50051"`
+2. Create a proto file or manual pb.go with service definition
+3. Register: `pb.RegisterUserServiceServer(svc.GetGrpcServer().Server(), &userServer{})`
+4. Client: `gc := svc.GetGRPCClient("user-svc"); conn := gc.Conn()`
 
 ### Change runtime mode
 1. By default, the generated project uses `runtime.NewFromYAML` with embedded config
@@ -116,6 +131,11 @@ go test ./...                 # All tests (requires Docker: PG + NATS)
 - **Turso `_busy_timeout`** — set via DSN: `"mydb.db?_busy_timeout=30000"` or via YAML `turso: {mode: local, busy_timeout: 30000}`. `mode: remote` skips PRAGMAs (for Turso Cloud).
 - **RPS benchmarks** — `docker compose up --abort-on-container-exit` runs only functional tests by default. Add `RPS_BENCH=1` to run wrk benchmarks with 6 endpoints.
 - **Mongo pool config** — set via YAML `pool.max_conns` (appends `?maxPoolSize=N&maxConnecting=10` to URI). Does not improve RPS; MongoDB's bottleneck is BSON overhead.
+- **gRPC only in micro mode** — `server.mode: monolith` (default) disables gRPC. Set `server.mode: micro` to enable `grpc_server` and `grpc_clients`.
+- **Async job store uses `memory` by default** — jobs disappear on restart. Set `async_store.driver: postgres|redis|nats_kv` for persistence across restarts and multi-instance deployments.
+- **Async processing deadline** — controlled by `reassign.processing_timeout` (default 5m). Jobs stuck in `processing` past the deadline are reset to `pending`.
+- **`go mod tidy` in examples** — when the SDK adds or updates dependencies, run `go mod tidy` in each example directory that has its own `go.mod`.
+- **Integration tests** — use `//go:build integration` build tag. Run with `go test -tags=integration -c -o /tmp/test.bin .` and execute inside Docker.
 
 ## Linting Rules
 

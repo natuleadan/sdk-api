@@ -61,7 +61,7 @@ Clients are stored in PostgreSQL. The seed client `test-client` with secret `tes
 | File | Purpose |
 |------|---------|
 | `cmd/main.go` | Bootstrap — pool, seed data, validators, DDL |
-| `internal/handler/helpers.go` | Shared: ValidateJWT, roleInherits, getAuth, password validation |
+| `internal/handler/helpers.go` | Shared: ValidateJWT (uses SDK auth.RoleHierarchy) + getAuth |
 | `internal/handler/rest_routes.go` | Route registration for all endpoints |
 | `internal/handler/auth_*.go` | Auth handlers (login, signup, MFA, magic link, SMS, social, etc.) |
 | `internal/handler/products_*.go` | Product CRUD handlers |

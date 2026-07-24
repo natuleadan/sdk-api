@@ -64,6 +64,8 @@ type Product struct {
 | `default=...` | DEFAULT constraint value |
 | `unique` | UNIQUE INDEX |
 | `index` | INDEX |
+| `type=...` | Override SQL type (e.g. `type=DECIMAL(10,2)`, `type=JSONB`, `type=TEXT[]`) |
+| `fk=table.col` | Foreign key reference (e.g. `fk=users.id` generates `REFERENCES users(id)`) |
 | `-` | Skip this field |
 
 The `db` and `json` tags are independent. DB tags control column names, JSON tags control API serialization.
@@ -149,7 +151,27 @@ table.AutoInit(ctx)
 
 - Creates `CREATE TABLE IF NOT EXISTS ...` with columns from struct tags
 - Creates indexes for `index` and `unique` fields
+- Applies table-level constraints declared via `TableConstraints` interface (composite UNIQUE, INDEX, CHECK)
 - Does NOT run migrations (ALTER TABLE). Schema changes must be manual.
+
+#### TableConstraints
+
+For composite constraints (UNIQUE across multiple columns), implement the optional interface:
+
+```go
+type OAuthSession struct {
+    Signature string `db:"signature,required"`
+    Type      string `db:"type,required"`
+}
+
+func (OAuthSession) Constraints() []db.Constraint {
+    return []db.Constraint{
+        {Type: "UNIQUE", Columns: []string{"signature", "type"}},
+    }
+}
+```
+
+Supported constraint types: `UNIQUE`, `INDEX`, `CHECK`.
 
 ## Helpers
 

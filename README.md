@@ -351,6 +351,8 @@ infra/           # 45+ go-zero packages (conf, logx, trace, breaker, redis, disc
 docs/            # Documentation + API patterns
 examples/200-url-shortener/  # URL shortener with 8 backend variants (PG, MySQL, Turso, NATS, Dragonfly...)
 examples/300-file-storage/   # File storage patterns: ephemeral, proxy, s3, cached, pg-nats
+examples/400-auth/           # Authentication: manual-pg (full stack), third-fga, third-ory
+examples/500-tickets/        # Event-driven ticket sales: 7 patterns, 45 integration tests
 ```
 
 ## 10. License

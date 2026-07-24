@@ -54,7 +54,9 @@ Creates a new microservice scaffold with a proper project structure (handler/, l
 | `--cron` | Cron jobs: `handler:name` | — |
 | `--grpc` | Enable gRPC server generation | `false` |
 | `--grpc-port` | gRPC server port | HTTP port + 1 |
+| `--split` | Generate one handler file per endpoint | `false` |
 | `--dir` | Output directory | Service name |
+| `--output` | Output format (text, json, table) | `text` |
 
 **Examples:**
 

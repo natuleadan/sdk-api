@@ -38,6 +38,11 @@ import (
 // ErrNotFound is returned when a database record is not found.
 var ErrNotFound = db.ErrNotFound
 
+// SeedFunc is a function that runs after databases are initialized but before
+// the HTTP server starts. Use WithSeed to register seeds for DDL creation,
+// data seeding, and other startup tasks that need database access.
+type SeedFunc func(context.Context, *Service) error
+
 // Service is the main runtime orchestrator. It reads a service YAML,
 // initializes databases, NATS connections, entry endpoints, and
 // optionally exit workers and cron jobs.
@@ -48,6 +53,7 @@ type Service struct {
 	kvConns         map[string]*redis.Redis
 	streamConns     map[string]events.EventBroker
 	natsConns       map[string]events.EventBroker
+	seeds           []SeedFunc
 	handlers        *EntryHandlers
 	hooks           map[string]any // model → EntryHooks[T]
 	tables          map[string]any // model → *db.Table[T] (set by MustRegister)
@@ -599,6 +605,31 @@ func (s *Service) WithJWTBlacklist(fn func(rawToken string) bool) *Service {
 	return s
 }
 
+// WithSeed registers a seed function that runs after database initialization
+// but before the HTTP server starts. Seeds receive the Service with all pools
+// already initialized. Use for DDL, data seeding, and startup validation.
+//
+// Example:
+//
+//	svc.WithSeed(func(ctx context.Context, s *runtime.Service) error {
+//	    pool := s.PoolPGTyped("primary")
+//	    _, err := pool.Exec(ctx, "CREATE TABLE IF NOT EXISTS ...")
+//	    return err
+//	})
+func (s *Service) WithSeed(fn SeedFunc) *Service {
+	s.seeds = append(s.seeds, fn)
+	return s
+}
+
+func (s *Service) runSeeds(ctx context.Context) error {
+	for i, seed := range s.seeds {
+		if err := seed(ctx, s); err != nil {
+			return fmt.Errorf("seed %d: %w", i, err)
+		}
+	}
+	return nil
+}
+
 // RegisterValidation registers a validation model by name for input validation.
 // Usage: svc.RegisterValidation("CreateProduct", CreateProductInput{}).
 func (s *Service) RegisterValidation(name string, model any) *Service {
@@ -752,6 +783,9 @@ func (s *Service) RunWithContext(ctx context.Context) error {
 	}
 
 	if err := s.initDatabases(ctx); err != nil {
+		return err
+	}
+	if err := s.runSeeds(ctx); err != nil {
 		return err
 	}
 	s.initKvConns()

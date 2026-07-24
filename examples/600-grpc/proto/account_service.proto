@@ -1,0 +1,59 @@
+syntax = "proto3";
+package accountsvc;
+option go_package = "600-grpc/pb/accountpb";
+
+message Account {
+  string id = 1;
+  string user_id = 2;
+  string currency = 3;
+  double balance = 4;
+  string status = 5;
+  string created_at = 6;
+}
+
+message CreateAccountRequest {
+  string user_id = 1;
+  string currency = 2;
+}
+message CreateAccountResponse {
+  Account account = 1;
+  bool ok = 2;
+  string error = 3;
+}
+
+message GetBalanceRequest {
+  string account_id = 1;
+}
+message GetBalanceResponse {
+  double balance = 1;
+  bool ok = 2;
+}
+
+message DeductBalanceRequest {
+  string account_id = 1;
+  double amount = 2;
+  string idempotency_key = 3;
+}
+message DeductBalanceResponse {
+  bool ok = 1;
+  double new_balance = 2;
+  string error = 3;
+}
+
+message CreditBalanceRequest {
+  string account_id = 1;
+  double amount = 2;
+  string idempotency_key = 3;
+}
+message CreditBalanceResponse {
+  bool ok = 1;
+  double new_balance = 2;
+  string error = 3;
+}
+
+service AccountService {
+  rpc CreateAccount(CreateAccountRequest) returns (CreateAccountResponse);
+  rpc GetBalance(GetBalanceRequest) returns (GetBalanceResponse);
+  rpc DeductBalance(DeductBalanceRequest) returns (DeductBalanceResponse);
+  rpc CreditBalance(CreditBalanceRequest) returns (CreditBalanceResponse);
+}

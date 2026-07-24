@@ -1,0 +1,10 @@
+name: fraud-svc
+port: 23607
+server:
+  host: "0.0.0.0"
+  api_prefix: /api/v1
+entry:
+  - type: rest
+    method: POST
+    path: /fraud/check
+    handler: checkFraud

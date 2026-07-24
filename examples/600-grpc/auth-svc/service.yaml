@@ -1,0 +1,47 @@
+name: auth-svc
+port: 23601
+
+server:
+  host: "0.0.0.0"
+  mode: micro
+  api_prefix: /api/v1
+  grpc_server:
+    listen_on: ":50051"
+    health: true
+
+databases:
+  - name: primary
+    driver: postgres
+    url: "${DATABASE_URL_SHARED}"
+
+auth:
+  enabled: true
+  driver: manual
+  secret: "${JWT_SECRET}"
+  algorithm: HS256
+  expiry: 3600
+
+entry:
+  - type: rest
+    method: POST
+    path: /auth/signup
+    handler: signup
+  - type: rest
+    method: POST
+    path: /auth/login
+    handler: login
+  - type: rest
+    method: POST
+    path: /credits/buy
+    handler: buyCredits
+    auth_modes: [jwt]
+  - type: rest
+    method: GET
+    path: /credits/balance
+    handler: getBalance
+    auth_modes: [jwt]
+  - type: rest
+    method: POST
+    path: /credits/deduct
+    handler: deductCredits
+    auth_modes: [jwt]

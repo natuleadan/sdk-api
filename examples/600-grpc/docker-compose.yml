@@ -1,0 +1,132 @@
+name: grpc-bench
+
+services:
+  # ============================================================================
+  # Infrastructure
+  # ============================================================================
+  postgres:
+    image: postgres:17-alpine
+    environment: &pg-env
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    healthcheck: &pg-health
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+    networks: [grpc-net]
+
+  nats:
+    image: docker.io/library/nats:latest
+    command: "-js"
+    networks: [grpc-net]
+
+  redis:
+    image: redis:alpine
+    networks: [grpc-net]
+
+  minio:
+    image: minio/minio
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    networks: [grpc-net]
+
+  # ============================================================================
+  # Microservices — each built from its own Dockerfile
+  # ============================================================================
+  auth-svc:
+    build: {context: ../../.., dockerfile: sdk-api/examples/600-grpc/auth-svc/Dockerfile}
+    ports: ["23601:23601"]
+    depends_on: {postgres: {condition: service_healthy}}
+    environment: &svc-env
+      JWT_SECRET: dev-secret-hs256
+      DATABASE_URL_SHARED: postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable
+    networks: [grpc-net]
+
+  url-svc:
+    build: {context: ../../.., dockerfile: sdk-api/examples/600-grpc/url-svc/Dockerfile}
+    ports: ["23602:23602"]
+    depends_on: {postgres: {condition: service_healthy}}
+    environment:
+      <<: *svc-env
+    networks: [grpc-net]
+
+  file-svc:
+    build: {context: ../../.., dockerfile: sdk-api/examples/600-grpc/file-svc/Dockerfile}
+    ports: ["23603:23603"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      minio: {condition: service_started}
+    environment:
+      <<: *svc-env
+      S3_ENDPOINT: http://minio:9000
+      S3_BUCKET: files
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+    networks: [grpc-net]
+
+  ticket-svc:
+    build: {context: ../../.., dockerfile: sdk-api/examples/600-grpc/ticket-svc/Dockerfile}
+    ports: ["23604:23604"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      nats: {condition: service_started}
+    environment:
+      <<: *svc-env
+      NATS_URL: nats:4222
+    networks: [grpc-net]
+
+  account-svc:
+    build: {context: ../../.., dockerfile: sdk-api/examples/600-grpc/account-svc/Dockerfile}
+    ports: ["23605:23605"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      nats: {condition: service_started}
+      redis: {condition: service_started}
+    environment:
+      <<: *svc-env
+      NATS_URL: nats:4222
+      REDIS_URL: redis:6379
+    networks: [grpc-net]
+
+  transfer-svc:
+    build: {context: ../../.., dockerfile: sdk-api/examples/600-grpc/transfer-svc/Dockerfile}
+    ports: ["23606:23606"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      nats: {condition: service_started}
+    environment:
+      <<: *svc-env
+      NATS_URL: nats:4222
+    networks: [grpc-net]
+
+  fraud-svc:
+    build: {context: ../../.., dockerfile: sdk-api/examples/600-grpc/fraud-svc/Dockerfile}
+    ports: ["23607:23607"]
+    networks: [grpc-net]
+
+  receipt-svc:
+    build: {context: ../../.., dockerfile: sdk-api/examples/600-grpc/receipt-svc/Dockerfile}
+    ports: ["23608:23608"]
+    depends_on: {postgres: {condition: service_healthy}}
+    environment:
+      <<: *svc-env
+    networks: [grpc-net]
+
+  bench:
+    build: {context: ../../.., dockerfile: sdk-api/examples/600-grpc/Dockerfile}
+    depends_on:
+      postgres: {condition: service_healthy}
+      nats: {condition: service_started}
+      redis: {condition: service_started}
+      minio: {condition: service_started}
+    environment:
+      JWT_SECRET: dev-secret-hs256
+      SVC_HOST: docker
+    networks: [grpc-net]
+
+networks:
+  grpc-net:
+    driver: bridge

@@ -1,0 +1,34 @@
+syntax = "proto3";
+package urlsvc;
+option go_package = "600-grpc/pb/urlpb";
+
+message Link {
+  int64 id = 1;
+  string short_code = 2;
+  string target_url = 3;
+  string user_id = 4;
+}
+
+message CreateLinkRequest {
+  string target_url = 1;
+  string user_id = 2;
+  string token = 3;
+}
+message CreateLinkResponse {
+  Link link = 1;
+  bool ok = 2;
+  string error = 3;
+}
+
+message ExpandLinkRequest {
+  string short_code = 1;
+}
+message ExpandLinkResponse {
+  string target_url = 1;
+  bool ok = 2;
+}
+
+service LinkService {
+  rpc CreateLink(CreateLinkRequest) returns (CreateLinkResponse);
+  rpc ExpandLink(ExpandLinkRequest) returns (ExpandLinkResponse);
+}

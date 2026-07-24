@@ -1,0 +1,37 @@
+syntax = "proto3";
+package filesvc;
+option go_package = "600-grpc/pb/filepb";
+
+message FileMetadata {
+  int64 id = 1;
+  string filename = 2;
+  int64 size = 3;
+  string user_id = 4;
+  string content_type = 5;
+}
+
+message UploadFileRequest {
+  string filename = 1;
+  bytes data = 2;
+  string user_id = 3;
+  string token = 4;
+}
+message UploadFileResponse {
+  FileMetadata file = 1;
+  bool ok = 2;
+  string error = 3;
+}
+
+message GetFileRequest {
+  int64 id = 1;
+}
+message GetFileResponse {
+  FileMetadata file = 1;
+  bytes data = 2;
+  bool ok = 3;
+}
+
+service FileService {
+  rpc UploadFile(UploadFileRequest) returns (UploadFileResponse);
+  rpc GetFile(GetFileRequest) returns (GetFileResponse);
+}

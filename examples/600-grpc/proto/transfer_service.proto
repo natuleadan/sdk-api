@@ -1,0 +1,40 @@
+syntax = "proto3";
+package transfersvc;
+option go_package = "600-grpc/pb/transferpb";
+
+message Transfer {
+  string id = 1;
+  string from_account = 2;
+  string to_account = 3;
+  double amount = 4;
+  string currency = 5;
+  string status = 6;
+  string idempotency_key = 7;
+  string created_at = 8;
+}
+
+message InitiateTransferRequest {
+  string from_account = 1;
+  string to_account = 2;
+  double amount = 3;
+  string currency = 4;
+  string idempotency_key = 5;
+}
+message InitiateTransferResponse {
+  Transfer transfer = 1;
+  bool ok = 2;
+  string error = 3;
+}
+
+message GetTransferRequest {
+  string transfer_id = 1;
+}
+message GetTransferResponse {
+  Transfer transfer = 1;
+  bool ok = 2;
+}
+
+service TransferService {
+  rpc InitiateTransfer(InitiateTransferRequest) returns (InitiateTransferResponse);
+  rpc GetTransfer(GetTransferRequest) returns (GetTransferResponse);
+}

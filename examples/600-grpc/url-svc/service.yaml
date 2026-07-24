@@ -1,0 +1,33 @@
+name: url-svc
+port: 23602
+
+server:
+  host: "0.0.0.0"
+  mode: micro
+  api_prefix: /api/v1
+  grpc_clients:
+    - name: auth-svc
+      target: direct:///auth-svc:50051
+
+databases:
+  - name: primary
+    driver: postgres
+    url: "${DATABASE_URL_SHARED}"
+
+auth:
+  enabled: true
+  driver: manual
+  secret: "${JWT_SECRET}"
+  algorithm: HS256
+  expiry: 3600
+
+entry:
+  - type: rest
+    method: POST
+    path: /links
+    handler: createLink
+    auth_modes: [jwt]
+  - type: rest
+    method: GET
+    path: /links/:code
+    handler: expandLink

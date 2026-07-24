@@ -1,0 +1,44 @@
+name: transfer-svc
+port: 23606
+
+server:
+  host: "0.0.0.0"
+  mode: micro
+  api_prefix: /api/v1
+  grpc_clients:
+    - name: account-svc
+      target: direct:///account-svc:50055
+
+stream:
+  - name: default
+    driver: nats
+    url: "${NATS_URL}"
+    streams:
+      - name: transfers
+
+databases:
+  - name: primary
+    driver: postgres
+    url: "${DATABASE_URL_SHARED}"
+
+auth:
+  enabled: true
+  driver: manual
+  secret: "${JWT_SECRET}"
+  algorithm: HS256
+  expiry: 3600
+
+entry:
+  - type: rest
+    method: POST
+    path: /transfers
+    handler: initiateTransfer
+    auth_modes: [jwt]
+
+exit:
+  - name: onTransferCompleted
+    subscribe:
+      stream: transfers
+      subject: transfers.completed
+      durable: transfer-completed-handler
+    handler: onTransferCompleted

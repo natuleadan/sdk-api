@@ -1,0 +1,29 @@
+name: ticket-svc
+port: 23604
+
+server:
+  host: "0.0.0.0"
+  mode: micro
+  api_prefix: /api/v1
+  grpc_clients:
+    - name: auth-svc
+      target: direct:///auth-svc:50051
+
+databases:
+  - name: primary
+    driver: postgres
+    url: "${DATABASE_URL_SHARED}"
+
+auth:
+  enabled: true
+  driver: manual
+  secret: "${JWT_SECRET}"
+  algorithm: HS256
+  expiry: 3600
+
+entry:
+  - type: rest
+    method: POST
+    path: /orders/buy
+    handler: buyTicket
+    auth_modes: [jwt]

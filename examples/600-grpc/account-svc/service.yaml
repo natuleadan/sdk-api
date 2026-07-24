@@ -1,0 +1,61 @@
+name: account-svc
+port: 23605
+
+server:
+  host: "0.0.0.0"
+  mode: micro
+  api_prefix: /api/v1
+  grpc_server:
+    listen_on: ":50055"
+    health: true
+  rate_limit:
+    enabled: true
+    kv: cache-main
+    algorithm: sliding_window
+    ttl: 1m
+    requests_per_second: 100
+
+kv:
+  - name: cache-main
+    driver: redis
+    url: "${REDIS_URL}"
+
+stream:
+  - name: default
+    driver: nats
+    url: "${NATS_URL}"
+    streams:
+      - name: transfers
+
+databases:
+  - name: primary
+    driver: postgres
+    url: "${DATABASE_URL_SHARED}"
+
+auth:
+  enabled: true
+  driver: manual
+  secret: "${JWT_SECRET}"
+  algorithm: HS256
+  expiry: 3600
+
+entry:
+  - type: rest
+    method: POST
+    path: /accounts
+    handler: createAccount
+    auth_modes: [jwt]
+  - type: rest
+    method: GET
+    path: /accounts/:id/balance
+    handler: getBalance
+    auth_modes: [jwt]
+
+exit:
+  - name: onTransferInitiated
+    subscribe:
+      stream: transfers
+      subject: transfers.initiated
+      durable: account-transfer-handler
+    handler: onTransferInitiated
+    max_concurrent: 10

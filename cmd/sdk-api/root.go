@@ -14,3 +14,7 @@ It generates project scaffolding, Dockerfiles, Kubernetes manifests,
 and client SDKs from simple YAML configurations.`,
 	SilenceUsage: true,
 }
+
+func init() {
+	rootCmd.PersistentFlags().String("output", "", "Output format (json, table, text)")
+}

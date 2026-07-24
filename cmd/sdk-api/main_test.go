@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
@@ -547,4 +548,80 @@ func TestHooksFile(t *testing.T) {
 	}
 
 	checkFile(t, dir, "models/model.go", "DefaultHooks")
+}
+
+func TestOutputWriter_Text(t *testing.T) {
+	rootCmd.SetArgs([]string{"--output", "text"})
+	defer rootCmd.SetArgs([]string{})
+
+	var buf bytes.Buffer
+	ow := NewOutput(&buf)
+	if err := ow.Write("hello"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), "hello") {
+		t.Errorf("output = %q, want hello", buf.String())
+	}
+}
+
+func TestOutputWriter_JSON(t *testing.T) {
+	rootCmd.SetArgs([]string{"--output", "json"})
+	defer rootCmd.SetArgs([]string{})
+
+	var buf bytes.Buffer
+	ow := NewOutput(&buf)
+	if err := ow.Write(map[string]string{"key": "value"}); err != nil {
+		t.Fatal(err)
+	}
+	var result map[string]string
+	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result["key"] != "value" {
+		t.Errorf("key = %q, want value", result["key"])
+	}
+}
+
+func TestProgressIndicator(t *testing.T) {
+	var buf bytes.Buffer
+	p := NewProgress([]string{"step1", "step2"}).WithWriter(&buf)
+	p.Step("step1")
+	p.Step("step2")
+	p.Done()
+	output := buf.String()
+	if !strings.Contains(output, "2/2") {
+		t.Errorf("output = %q, want 2/2", output)
+	}
+}
+
+func TestOutputFormat_Flag(t *testing.T) {
+	// Simulate --output json via flag set + parse
+	rootCmd.SetArgs([]string{"--output", "json", "completion", "bash"})
+	rootCmd.Execute()
+	format := GetOutputFormat()
+	if format != FormatJSON {
+		t.Errorf("format = %q, want json", format)
+	}
+}
+
+func TestValidateCmd_JSONOutput(t *testing.T) {
+	dir := t.TempDir()
+	yamlPath := filepath.Join(dir, "service.yaml")
+	os.WriteFile(yamlPath, []byte("name: test\nport: 8080\n"), 0o644)
+
+	var buf bytes.Buffer
+	rootCmd.SetArgs([]string{"--output", "json", "validate", yamlPath})
+	rootCmd.SetOut(&buf)
+	rootCmd.SetErr(&buf)
+	err := rootCmd.Execute()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result["valid"] != true {
+		t.Errorf("valid = %v, want true", result["valid"])
+	}
 }

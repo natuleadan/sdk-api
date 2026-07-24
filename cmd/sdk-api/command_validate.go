@@ -67,18 +67,28 @@ Defaults to service.yaml if no file is specified.`,
 			}
 		}
 
+		if GetOutputFormat() == FormatJSON {
+			result := map[string]any{
+				"valid":    len(warnings) == 0,
+				"warnings": warnings,
+				"strict":   strict,
+			}
+			ow := NewOutput(cmd.OutOrStdout())
+			return ow.Write(result)
+		}
+
 		if len(warnings) == 0 {
-			fmt.Println("✓ configuration is valid")
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "✓ configuration is valid")
 			return nil
 		}
 
 		for _, w := range warnings {
-			fmt.Fprintf(os.Stderr, "⚠ %s\n", w)
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "⚠ %s\n", w)
 		}
 		if strict {
 			return fmt.Errorf("validation failed with %d warnings", len(warnings))
 		}
-		fmt.Printf("✓ configuration is valid (%d warnings)\n", len(warnings))
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "✓ configuration is valid (%d warnings)\n", len(warnings))
 		return nil
 	},
 }

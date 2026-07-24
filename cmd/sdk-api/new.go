@@ -570,6 +570,7 @@ func generate(cfg newConfig) error {
 		"add":       func(a, b int) int { return a + b },
 	}
 
+	prog := NewProgress([]string{fmt.Sprintf("Creating %s", cfg.Dir)})
 	for _, f := range files {
 		t, err := template.New(f.rel).Funcs(funcMap).Parse(f.src)
 		if err != nil {
@@ -587,8 +588,9 @@ func generate(cfg newConfig) error {
 		if err := os.WriteFile(path, buf.Bytes(), 0o600); err != nil {
 			return fmt.Errorf("write %s: %w", f.rel, err)
 		}
-		fmt.Printf("  created %s\n", path)
+		prog.Step(f.rel)
 	}
+	prog.Done()
 
 	return nil
 }

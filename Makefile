@@ -65,6 +65,26 @@ security-sbom:
 security-audit: security-deps security-sast security-sbom
 	@echo "Security audit complete"
 
+# ---- Secrets Management (SOPS) ----
+
+# Decrypt a SOPS-encrypted config file
+# Usage: make decrypt-config FILE=service.enc.yaml
+decrypt-config:
+	@if ! command -v sops >/dev/null 2>&1; then \
+		echo "Error: sops not found. Install: brew install sops"; \
+		exit 1; \
+	fi
+	sops --decrypt --input-type yaml --output-type yaml $(FILE)
+
+# Encrypt a plain config file with SOPS
+# Usage: make encrypt-config FILE=service.yaml
+encrypt-config:
+	@if ! command -v sops >/dev/null 2>&1; then \
+		echo "Error: sops not found. Install: brew install sops"; \
+		exit 1; \
+	fi
+	sops --encrypt --input-type yaml --output-type yaml $(FILE) > $(FILE:.yaml=.enc.yaml)
+
 golangci:
 	@echo "Running golangci-lint..."
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest

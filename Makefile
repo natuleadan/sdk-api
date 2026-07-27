@@ -1,4 +1,4 @@
-.PHONY: all build test test-unit test-integration test-coverage lint clean third-party security-deps security-sast security-sbom security-audit
+.PHONY: all build test test-unit test-integration test-coverage lint clean third-party security-deps security-sast security-sbom security-audit bench bench-compare pgo-profile
 
 COVERAGE_THRESHOLD = 50
 
@@ -44,6 +44,41 @@ clean:
 
 third-party:
 	@bash .github/scripts/generate-third-party.sh
+
+bench:
+	@echo "Running benchmarks..."
+	@go test -bench=. -benchmem -count=5 -benchtime=100ms ./runtime/benchmarks/...
+
+bench-compare:
+	@echo "Running benchmarks with comparison to main..."
+	@tmp_main=$$(mktemp); tmp_pr=$$(mktemp); \
+	go test -bench=. -benchmem -count=10 -benchtime=100ms ./runtime/benchmarks/... | tee $$tmp_pr; \
+	git stash && git checkout main 2>/dev/null || true; \
+	go test -bench=. -benchmem -count=10 -benchtime=100ms ./runtime/benchmarks/... | tee $$tmp_main; \
+	git checkout - 2>/dev/null && git stash pop 2>/dev/null || true; \
+	if command -v benchstat &>/dev/null; then \
+		echo "=== benchstat comparison ==="; \
+		benchstat $$tmp_main $$tmp_pr; \
+	else \
+		echo "benchstat not installed; install with: go install golang.org/x/perf/cmd/benchstat@latest"; \
+	fi; \
+	rm -f $$tmp_main $$tmp_pr
+
+pgo-profile:
+	@echo "To collect a PGO profile from a running service:"
+	@echo "  curl -o default.pgo 'http://localhost:6060/debug/pprof/profile?seconds=30'"
+	@echo "  cp default.pgo cmd/sdk-api/default.pgo"
+	@echo ""
+	@echo "Or use a production endpoint:"
+	@echo "  curl -o default.pgo '$(PROD_URL)/debug/pprof/profile?seconds=30'"
+	@echo "  cp default.pgo cmd/sdk-api/default.pgo"
+	@echo ""
+	@echo "The Go compiler detects default.pgo automatically on next build."
+	@echo "Verify with: go build -o /dev/null ./cmd/sdk-api 2>&1 | grep -q 'building with PGO' && echo 'PGO enabled'"
+
+pgo-verify:
+	@go build -o /dev/null ./cmd/sdk-api 2>&1 | grep -q "building with PGO" && \
+		echo "✅ PGO enabled" || echo "⚠️  PGO not applied (no default.pgo found)"
 
 # --- Security Scanning ---
 

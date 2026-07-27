@@ -62,6 +62,16 @@ jobs:
             exit 1
           fi
 
+      - name: Escape analysis
+        run: |
+          go build -gcflags="-m -m" ./... 2>&1 | tee /tmp/escape.log
+          count=$(grep -c "escapes to heap" /tmp/escape.log || true)
+          echo "Variables escaping to heap: $count"
+          allocs=$(grep -c "escapes to heap" /tmp/escape.log || true)
+          if [ "$allocs" -gt 0 ]; then
+              echo "⚠️  Review allocation hot spots"
+          fi
+
   test:
     name: Unit Tests
     runs-on: ubuntu-latest

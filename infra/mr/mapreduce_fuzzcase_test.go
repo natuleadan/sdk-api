@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/natuleadan/sdk-api/infra/threading"
+	"github.com/stretchr/testify/assert"
 	"gopkg.in/cheggaaa/pb.v1"
 )
 

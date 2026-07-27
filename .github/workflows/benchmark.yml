@@ -1,0 +1,77 @@
+name: Benchmark Regression
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+jobs:
+  benchmark:
+    name: Benchmark
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install benchstat
+        run: go install golang.org/x/perf/cmd/benchstat@latest
+
+      - name: Benchmark PR changes
+        run: |
+          go test -bench=. -benchmem -count=10 -benchtime=100ms \
+            ./runtime/benchmarks/... 2>&1 | tee /tmp/pr-bench.txt
+
+      - name: Checkout main
+        run: |
+          git fetch origin main
+          git checkout origin/main
+
+      - name: Benchmark main baseline
+        run: |
+          go test -bench=. -benchmem -count=10 -benchtime=100ms \
+            ./runtime/benchmarks/... 2>&1 | tee /tmp/main-bench.txt
+
+      - name: Restore PR branch
+        run: git checkout -
+
+      - name: Compare with benchstat
+        id: benchstat
+        continue-on-error: true
+        run: |
+          benchstat /tmp/main-bench.txt /tmp/pr-bench.txt 2>&1 | tee /tmp/benchstat.txt
+          echo "report<<EOFMARKER" >> $GITHUB_OUTPUT
+          cat /tmp/benchstat.txt >> $GITHUB_OUTPUT
+          echo "EOFMARKER" >> $GITHUB_OUTPUT
+
+      - name: Check for regressions
+        run: |
+          if grep -q "[-+][5-9][0-9]*\.[0-9]%" /tmp/benchstat.txt; then
+            echo "❌ Performance regression detected (>5% change)"
+            echo "See benchstat report above for details."
+            exit 1
+          fi
+          echo "✅ No significant performance regression detected"
+
+      - name: Comment PR with benchstat
+        if: github.event_name == 'pull_request' && steps.benchstat.outputs.report != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const report = `${{ steps.benchstat.outputs.report }}`;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## Benchmark Regression Report\n\n\`\`\`\n${report}\n\`\`\``
+            });

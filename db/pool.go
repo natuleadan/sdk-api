@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -18,6 +19,8 @@ type PoolConfig struct {
 	MaxConnLifetime   time.Duration
 	MaxConnIdleTime   time.Duration
 	HealthCheckPeriod time.Duration
+	StatementTimeout  time.Duration
+	ApplicationName   string
 }
 
 func DefaultPoolConfig() PoolConfig {
@@ -84,6 +87,26 @@ func NewPool(ctx context.Context, cfg PoolConfig) (*pgxpool.Pool, error) {
 	}
 	if cfg.HealthCheckPeriod > 0 {
 		pgCfg.HealthCheckPeriod = cfg.HealthCheckPeriod
+	}
+
+	pgCfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		if cfg.StatementTimeout > 0 {
+			_, err := conn.Exec(ctx, fmt.Sprintf("SET statement_timeout = '%dms'", cfg.StatementTimeout.Milliseconds()))
+			if err != nil {
+				return fmt.Errorf("set statement_timeout: %w", err)
+			}
+		}
+		if cfg.ApplicationName != "" {
+			_, err := conn.Exec(ctx, fmt.Sprintf("SET application_name = '%s'", cfg.ApplicationName))
+			if err != nil {
+				return fmt.Errorf("set application_name: %w", err)
+			}
+		}
+		return nil
+	}
+
+	if cfg.MaxConnLifetime > 0 {
+		pgCfg.MaxConnLifetimeJitter = cfg.MaxConnLifetime / 4
 	}
 
 	pool, err := pgxpool.NewWithConfig(ctx, pgCfg)

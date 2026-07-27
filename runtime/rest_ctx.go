@@ -140,6 +140,13 @@ func (c *RestCtx) PoolPG(name string) *pgxpool.Pool {
 	return PoolPG(c.pools, name)
 }
 
+func (c *RestCtx) PoolRead(name string) *pgxpool.Pool {
+	if c.pools == nil {
+		return nil
+	}
+	return PoolPGRead(c.pools, name)
+}
+
 func (c *RestCtx) PoolSQL(name string) *sql.DB {
 	if c.pools == nil {
 		return nil

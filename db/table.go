@@ -16,6 +16,8 @@ import (
 
 var slowThreshold time.Duration
 
+const defaultListLimit = 1000
+
 func SetSlowThreshold(d time.Duration) {
 	slowThreshold = d
 }
@@ -83,8 +85,8 @@ func Col(col string, val any) ColumnValue {
 
 func (t *Table[T]) List(ctx context.Context) ([]T, error) {
 	defer logSlowQuery("List", time.Now(), t.tableName)
-	query := fmt.Sprintf("SELECT %s FROM %s ORDER BY %s",
-		t.columnsList(), t.tableName, t.info.PrimaryKey)
+	query := fmt.Sprintf("SELECT %s FROM %s ORDER BY %s LIMIT %d",
+		t.columnsList(), t.tableName, t.info.PrimaryKey, defaultListLimit)
 	rows, err := t.pool.Query(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("db: list: %w", err)
@@ -102,7 +104,7 @@ func (t *Table[T]) ListScoped(ctx context.Context, tenantField string, tenantID 
 	if _, err := t.validColumn(tenantField); err != nil {
 		return nil, err
 	}
-	return t.QueryWhere(ctx, map[string]any{tenantField: tenantID}, t.info.PrimaryKey, 0, 0)
+	return t.QueryWhere(ctx, map[string]any{tenantField: tenantID}, t.info.PrimaryKey, defaultListLimit, 0)
 }
 
 func (t *Table[T]) Get(ctx context.Context, id any) (*T, error) {
@@ -353,6 +355,12 @@ func (t *Table[T]) DeleteScoped(ctx context.Context, id any, tenantField string,
 	return nil
 }
 
+func writeBindParam(query *strings.Builder, clause string, idx int) int {
+	idx++
+	fmt.Fprintf(query, "%s$%d", clause, idx)
+	return idx
+}
+
 func (t *Table[T]) validColumn(col string) (string, error) {
 	for _, f := range t.info.Fields {
 		if f.Column == col {
@@ -577,10 +585,12 @@ func (t *Table[T]) QueryWhere(ctx context.Context, where map[string]any, orderBy
 	}
 	query.WriteString(" ORDER BY " + orderBy)
 	if limit > 0 {
-		fmt.Fprintf(&query, " LIMIT %d", limit)
+		idx = writeBindParam(&query, " LIMIT ", idx)
+		args = append(args, limit)
 	}
 	if offset > 0 {
-		fmt.Fprintf(&query, " OFFSET %d", offset)
+		writeBindParam(&query, " OFFSET ", idx)
+		args = append(args, offset)
 	}
 	rows, err := t.pool.Query(ctx, query.String(), args...)
 	if err != nil {

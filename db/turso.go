@@ -213,6 +213,7 @@ func (t *TursoTable[T]) List(ctx context.Context) ([]T, error) {
 	b.WriteString(t.tableName)
 	b.WriteString(" ORDER BY ")
 	b.WriteString(t.info.PrimaryKey)
+	fmt.Fprintf(&b, " LIMIT %d", defaultListLimit)
 	query := b.String()
 	rows, err := t.db.QueryContext(ctx, query)
 	if err != nil {
@@ -224,6 +225,59 @@ func (t *TursoTable[T]) List(ctx context.Context) ([]T, error) {
 		}
 	}()
 	return t.scanRows(rows)
+}
+
+func (t *TursoTable[T]) ListPaginated(ctx context.Context, limit, offset int) ([]T, error) {
+	var b strings.Builder
+	b.Grow(128)
+	b.WriteString("SELECT ")
+	b.WriteString(t.columnsList())
+	b.WriteString(" FROM ")
+	b.WriteString(t.tableName)
+	b.WriteString(" ORDER BY ")
+	b.WriteString(t.info.PrimaryKey)
+	b.WriteString(" LIMIT ? OFFSET ?")
+	rows, err := t.db.QueryContext(ctx, b.String(), limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("db: turso list paginated: %w", err)
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			fmt.Printf("close error: %v\n", err)
+		}
+	}()
+	return t.scanRows(rows)
+}
+
+func (t *TursoTable[T]) Count(ctx context.Context) (int64, error) {
+	var b strings.Builder
+	b.Grow(64)
+	b.WriteString("SELECT COUNT(*) FROM ")
+	b.WriteString(t.tableName)
+	var total int64
+	if err := t.db.QueryRowContext(ctx, b.String()).Scan(&total); err != nil {
+		return 0, fmt.Errorf("db: turso count: %w", err)
+	}
+	return total, nil
+}
+
+func (t *TursoTable[T]) CountScoped(ctx context.Context, tenantField, tenantID string) (int64, error) {
+	f := t.columnField(tenantField)
+	if f == nil {
+		return 0, fmt.Errorf("db: turso count scoped: invalid column %q", tenantField)
+	}
+	var b strings.Builder
+	b.Grow(64)
+	b.WriteString("SELECT COUNT(*) FROM ")
+	b.WriteString(t.tableName)
+	b.WriteString(" WHERE ")
+	b.WriteString(f.Column)
+	b.WriteString(" = ?")
+	var total int64
+	if err := t.db.QueryRowContext(ctx, b.String(), tenantID).Scan(&total); err != nil {
+		return 0, fmt.Errorf("db: turso count scoped: %w", err)
+	}
+	return total, nil
 }
 
 func (t *TursoTable[T]) QueryKeyset(ctx context.Context, cursor string, size int, orderBy string, where map[string]any) ([]T, string, error) {
@@ -422,9 +476,34 @@ func (t *TursoTable[T]) ListScoped(ctx context.Context, tenantField string, tena
 	b.WriteString(f.Column)
 	b.WriteString(" = ? ORDER BY ")
 	b.WriteString(t.info.PrimaryKey)
+	fmt.Fprintf(&b, " LIMIT %d", defaultListLimit)
 	rows, err := t.db.QueryContext(ctx, b.String(), tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("db: turso list scoped: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	return t.scanRows(rows)
+}
+
+func (t *TursoTable[T]) ListScopedPaginated(ctx context.Context, tenantField, tenantID string, limit, offset int) ([]T, error) {
+	f := t.columnField(tenantField)
+	if f == nil {
+		return nil, fmt.Errorf("db: turso list scoped paginated: invalid column %q", tenantField)
+	}
+	var b strings.Builder
+	b.Grow(128)
+	b.WriteString("SELECT ")
+	b.WriteString(t.columnsList())
+	b.WriteString(" FROM ")
+	b.WriteString(t.tableName)
+	b.WriteString(" WHERE ")
+	b.WriteString(f.Column)
+	b.WriteString(" = ? ORDER BY ")
+	b.WriteString(t.info.PrimaryKey)
+	b.WriteString(" LIMIT ? OFFSET ?")
+	rows, err := t.db.QueryContext(ctx, b.String(), tenantID, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("db: turso list scoped paginated: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 	return t.scanRows(rows)
@@ -530,5 +609,7 @@ func (t *TursoTable[T]) DeleteScoped(ctx context.Context, id any, tenantField st
 	}
 	return nil
 }
+
+func (t *TursoTable[T]) DB() *sql.DB { return t.db }
 
 func (t *TursoTable[T]) Close() error { return t.db.Close() }

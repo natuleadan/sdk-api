@@ -204,6 +204,7 @@ func (t *MySQLTable[T]) List(ctx context.Context) ([]T, error) {
 	b.WriteString(t.tableName)
 	b.WriteString(" ORDER BY ")
 	b.WriteString(t.info.PrimaryKey)
+	fmt.Fprintf(&b, " LIMIT %d", defaultListLimit)
 	query := b.String()
 	rows, err := t.db.QueryContext(ctx, query)
 	if err != nil {
@@ -215,6 +216,58 @@ func (t *MySQLTable[T]) List(ctx context.Context) ([]T, error) {
 		}
 	}()
 	return t.scanRows(rows)
+}
+
+func (t *MySQLTable[T]) ListPaginated(ctx context.Context, limit, offset int) ([]T, error) {
+	var b strings.Builder
+	b.Grow(128)
+	b.WriteString("SELECT ")
+	b.WriteString(t.columnsList())
+	b.WriteString(" FROM ")
+	b.WriteString(t.tableName)
+	b.WriteString(" ORDER BY ")
+	b.WriteString(t.info.PrimaryKey)
+	b.WriteString(" LIMIT ? OFFSET ?")
+	rows, err := t.db.QueryContext(ctx, b.String(), limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("db: mysql list paginated: %w", err)
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			fmt.Printf("close error: %v\n", err)
+		}
+	}()
+	return t.scanRows(rows)
+}
+
+func (t *MySQLTable[T]) Count(ctx context.Context) (int64, error) {
+	var b strings.Builder
+	b.Grow(64)
+	b.WriteString("SELECT COUNT(*) FROM ")
+	b.WriteString(t.tableName)
+	var total int64
+	if err := t.db.QueryRowContext(ctx, b.String()).Scan(&total); err != nil {
+		return 0, fmt.Errorf("db: mysql count: %w", err)
+	}
+	return total, nil
+}
+
+func (t *MySQLTable[T]) CountScoped(ctx context.Context, tenantField, tenantID string) (int64, error) {
+	if t.columnField(tenantField) == nil {
+		return 0, fmt.Errorf("db: mysql count scoped: invalid column %q", tenantField)
+	}
+	var b strings.Builder
+	b.Grow(64)
+	b.WriteString("SELECT COUNT(*) FROM ")
+	b.WriteString(t.tableName)
+	b.WriteString(" WHERE ")
+	b.WriteString(tenantField)
+	b.WriteString(" = ?")
+	var total int64
+	if err := t.db.QueryRowContext(ctx, b.String(), tenantID).Scan(&total); err != nil {
+		return 0, fmt.Errorf("db: mysql count scoped: %w", err)
+	}
+	return total, nil
 }
 
 func (t *MySQLTable[T]) ListScoped(ctx context.Context, tenantField string, tenantID string) ([]T, error) {
@@ -231,9 +284,37 @@ func (t *MySQLTable[T]) ListScoped(ctx context.Context, tenantField string, tena
 	b.WriteString(tenantField)
 	b.WriteString(" = ? ORDER BY ")
 	b.WriteString(t.info.PrimaryKey)
+	fmt.Fprintf(&b, " LIMIT %d", defaultListLimit)
 	rows, err := t.db.QueryContext(ctx, b.String(), tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("db: mysql list scoped: %w", err)
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			fmt.Printf("close error: %v\n", err)
+		}
+	}()
+	return t.scanRows(rows)
+}
+
+func (t *MySQLTable[T]) ListScopedPaginated(ctx context.Context, tenantField, tenantID string, limit, offset int) ([]T, error) {
+	if t.columnField(tenantField) == nil {
+		return nil, fmt.Errorf("db: mysql list scoped paginated: invalid column %q", tenantField)
+	}
+	var b strings.Builder
+	b.Grow(128)
+	b.WriteString("SELECT ")
+	b.WriteString(t.columnsList())
+	b.WriteString(" FROM ")
+	b.WriteString(t.tableName)
+	b.WriteString(" WHERE ")
+	b.WriteString(tenantField)
+	b.WriteString(" = ? ORDER BY ")
+	b.WriteString(t.info.PrimaryKey)
+	b.WriteString(" LIMIT ? OFFSET ?")
+	rows, err := t.db.QueryContext(ctx, b.String(), tenantID, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("db: mysql list scoped paginated: %w", err)
 	}
 	defer func() {
 		if err := rows.Close(); err != nil {
@@ -412,6 +493,8 @@ func (t *MySQLTable[T]) Update(ctx context.Context, id any, patch map[string]any
 	}
 
 	return t.Get(ctx, id)
+	// Note: MySQL does not support RETURNING. The extra SELECT is unavoidable.
+	// PGX Table.Update uses RETURNING and avoids this round trip.
 }
 
 func (t *MySQLTable[T]) Delete(ctx context.Context, id any) error {

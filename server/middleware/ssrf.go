@@ -107,10 +107,10 @@ func (c *SafeHTTPClient) DoURL(ctx context.Context, urlStr, method string, body 
 		return nil, fmt.Errorf("ssrf: scheme %q not allowed", scheme)
 	}
 
-	cleanPath := filepath.Clean(parsed.Path)
-	if strings.Contains(cleanPath, "..") {
+	if strings.Contains(parsed.Path, "..") {
 		return nil, fmt.Errorf("ssrf: path traversal blocked")
 	}
+	cleanPath := filepath.Clean(parsed.Path)
 
 	safeURL := &url.URL{
 		Scheme: scheme,

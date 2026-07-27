@@ -2,10 +2,11 @@ package middleware
 
 import (
 	"bytes"
-	"encoding/json"
 	"time"
 
+	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v3"
+
 	"github.com/natuleadan/sdk-api/infra/stores/cache"
 )
 

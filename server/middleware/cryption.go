@@ -15,7 +15,7 @@ import (
 
 func Cryption(key []byte) fiber.Handler {
 	return func(c fiber.Ctx) error {
-		encrypted := c.Body()
+		encrypted := getRequestBody(c)
 		if len(encrypted) == 0 {
 			return c.Next()
 		}
@@ -34,7 +34,7 @@ func Cryption(key []byte) fiber.Handler {
 				"code": 400, "message": "decryption failed",
 			})
 		}
-		c.Request().SetBody(decrypted)
+		setRequestBody(c, decrypted)
 		return c.Next()
 	}
 }

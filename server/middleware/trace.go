@@ -113,6 +113,8 @@ func Trace(cfg TraceConfig) fiber.Handler {
 		spanCtx, span := tracer.Start(ctx, path, opts...)
 		defer span.End()
 
+		c.Locals("trace_id", span.SpanContext().TraceID().String())
+
 		if cfg.TraceResponseHeader != "" {
 			c.Set(cfg.TraceResponseHeader, span.SpanContext().TraceID().String())
 		}

@@ -6,7 +6,7 @@ import (
 
 func MaxBytes(limit int) fiber.Handler {
 	return func(c fiber.Ctx) error {
-		if len(c.Body()) > limit {
+		if len(getRequestBody(c)) > limit {
 			return c.Status(fiber.StatusRequestEntityTooLarge).JSON(fiber.Map{
 				"code":    413,
 				"message": "request body too large",

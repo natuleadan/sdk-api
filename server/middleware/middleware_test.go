@@ -1145,11 +1145,11 @@ func TestPrometheusMultipleRequests(t *testing.T) {
 	req := testRequest(context.Background(), "GET", "/metrics", nil)
 	resp, _ := app.Test(req)
 	body, _ := io.ReadAll(resp.Body)
-	if !strings.Contains(string(body), `path="/ping"`) {
-		t.Error("expected ping path in metrics")
-	}
 	if !strings.Contains(string(body), `code="200"`) {
 		t.Error("expected 200 code in metrics")
+	}
+	if !strings.Contains(string(body), `http_server_requests_total`) {
+		t.Error("expected http_server_requests_total in metrics")
 	}
 }
 

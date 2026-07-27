@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/compress"
 	"github.com/gofiber/fiber/v3/middleware/encryptcookie"
 	"github.com/gofiber/fiber/v3/middleware/healthcheck"
 	"github.com/gofiber/fiber/v3/middleware/recover"
@@ -30,6 +31,9 @@ type Config struct {
 	Prefork         bool
 	BodyLimit       int
 	Timeout         time.Duration
+	ReadTimeout     time.Duration
+	WriteTimeout    time.Duration
+	IdleTimeout     time.Duration
 	MaxConns        int
 	MaxBytes        int
 	MetricsPath     string
@@ -39,9 +43,12 @@ type Config struct {
 	APIPrefix       string
 	Routes          []RouteConfig
 
-	Logger       bool
-	LoadShedding bool
-	Breaker      bool
+	Logger            bool
+	LoadShedding      bool
+	Breaker           bool
+	Compression       bool
+	StreamRequestBody bool
+	ReduceMemoryUsage bool
 
 	// Security
 	SecurityHeaders *middleware.SecurityHeadersConfig
@@ -51,6 +58,10 @@ type Config struct {
 	SSRF            *middleware.SSRFConfig
 	// Correlation enables the X-Correlation-ID tracking middleware.
 	Correlation *CorrelationConfig
+
+	// Logger config
+	LogSkipPaths  []string
+	LogSampleRate float64
 }
 
 type CorrelationConfig struct {
@@ -107,21 +118,29 @@ type EncryptCookieConf struct {
 
 func DefaultConfig() Config {
 	return Config{
-		Port:            8080,
-		Host:            "0.0.0.0",
-		Prefork:         false,
-		BodyLimit:       4 * 1024 * 1024,
-		Timeout:         30 * time.Second,
-		MaxConns:        1000,
-		MaxBytes:        4 << 20,
-		MetricsPath:     "/metrics",
-		HealthPath:      "/health",
-		ShutdownTimeout: 10 * time.Second,
-		RecoverStack:    true,
-		APIPrefix:       "/api",
-		Logger:          true,
-		LoadShedding:    true,
-		Breaker:         true,
+		Port:              8080,
+		Host:              "0.0.0.0",
+		Prefork:           false,
+		BodyLimit:         4 * 1024 * 1024,
+		Timeout:           30 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		MaxConns:          1000,
+		MaxBytes:          4 << 20,
+		MetricsPath:       "/metrics",
+		HealthPath:        "/health",
+		ShutdownTimeout:   10 * time.Second,
+		RecoverStack:      true,
+		APIPrefix:         "/api",
+		Logger:            true,
+		LoadShedding:      true,
+		Breaker:           true,
+		LogSkipPaths:      []string{"/health", "/metrics"},
+		LogSampleRate:     0,
+		Compression:       false,
+		StreamRequestBody: false,
+		ReduceMemoryUsage: false,
 	}
 }
 
@@ -147,11 +166,13 @@ func New(cfg Config, telemetry TelemetryConfig, security SecurityConfig, corsCfg
 	}
 
 	app := fiber.New(fiber.Config{
-		BodyLimit:    cfg.BodyLimit,
-		ReadTimeout:  cfg.Timeout,
-		WriteTimeout: cfg.Timeout,
-		IdleTimeout:  cfg.Timeout,
-		ErrorHandler: errorHandler,
+		BodyLimit:         cfg.BodyLimit,
+		ReadTimeout:       cfg.ReadTimeout,
+		WriteTimeout:      cfg.WriteTimeout,
+		IdleTimeout:       cfg.IdleTimeout,
+		ErrorHandler:      errorHandler,
+		StreamRequestBody: cfg.StreamRequestBody,
+		ReduceMemoryUsage: cfg.ReduceMemoryUsage,
 	})
 
 	setupGlobalMiddlewares(app, cfg, telemetry)
@@ -159,12 +180,12 @@ func New(cfg Config, telemetry TelemetryConfig, security SecurityConfig, corsCfg
 	setupRouteOrGlobalMiddlewares(app, cfg, corsCfg)
 
 	s := &Server{app: app, config: cfg}
-	s.registerShutdown()
 	return s
 }
 
 func setupGlobalMiddlewares(app *fiber.App, cfg Config, telemetry TelemetryConfig) {
 	app.Use(recover.New(recover.Config{EnableStackTrace: cfg.RecoverStack}))
+	app.Use(middleware.BodyReader())
 	app.Use(middleware.HeaderSanitize())
 	if cfg.Correlation != nil && cfg.Correlation.Enabled {
 		app.Use(middleware.Correlation(middleware.CorrelationConfig{
@@ -237,13 +258,19 @@ func setupPerRouteMiddlewares(app *fiber.App, cfg Config, corsCfg *CORSConfig) {
 
 func setupGlobalStandardMiddlewares(app *fiber.App, cfg Config, corsCfg *CORSConfig) {
 	if cfg.Logger {
-		app.Use(middleware.Logger())
+		app.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
+			SkipPaths:  cfg.LogSkipPaths,
+			SampleRate: cfg.LogSampleRate,
+		}))
 	}
 	if cfg.LoadShedding {
 		app.Use(middleware.Shedding())
 	}
 	if cfg.Breaker {
 		app.Use(middleware.Breaker())
+	}
+	if cfg.Compression {
+		app.Use(compress.New())
 	}
 	app.Use(middleware.MaxConns(cfg.MaxConns))
 	app.Use(middleware.MaxBytes(cfg.MaxBytes))
@@ -263,7 +290,10 @@ func setupGlobalStandardMiddlewares(app *fiber.App, cfg Config, corsCfg *CORSCon
 func applyMiddlewareByType(grp fiber.Router, name string, cfg Config, corsCfg *CORSConfig) {
 	switch name {
 	case "logger":
-		grp.Use(middleware.Logger())
+		grp.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
+			SkipPaths:  cfg.LogSkipPaths,
+			SampleRate: cfg.LogSampleRate,
+		}))
 	case "shedding":
 		grp.Use(middleware.Shedding())
 	case "breaker":
@@ -334,7 +364,7 @@ func (s *Server) Stop() {
 	}
 }
 
-func (s *Server) registerShutdown() {
+func (s *Server) registerShutdown() { //nolint:unused
 	proc.AddShutdownListener(func() {
 		s.Stop()
 	})

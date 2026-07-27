@@ -54,7 +54,7 @@ require (
 	gopkg.in/h2non/gock.v1 v1.1.2
 	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/utils v0.0.0-20260707023825-cf1189d6abe3
-	turso.tech/database/tursogo v0.7.0
+	turso.tech/database/tursogo v0.7.1
 )
 
 require (
@@ -116,7 +116,7 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/stretchr/objx v0.5.3 // indirect
 	github.com/tinylib/msgp v1.6.4 // indirect
-	github.com/tursodatabase/turso-go-platform-libs v0.7.0 // indirect
+	github.com/tursodatabase/turso-go-platform-libs v0.7.1 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.2.0 // indirect

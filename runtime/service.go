@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -13,17 +12,22 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
+	"runtime/debug"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v3"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/natuleadan/sdk-api/db"
 	"github.com/natuleadan/sdk-api/events"
 	"github.com/natuleadan/sdk-api/infra/collection"
 	"github.com/natuleadan/sdk-api/infra/discov"
 	"github.com/natuleadan/sdk-api/infra/logx"
-	"github.com/natuleadan/sdk-api/infra/proc"
 	"github.com/natuleadan/sdk-api/infra/stores/cache"
 	"github.com/natuleadan/sdk-api/infra/stores/mon"
 	"github.com/natuleadan/sdk-api/infra/stores/redis"
@@ -189,13 +193,13 @@ func CachedCRUD[T any](svc *Service, name, poolName, tableName string,
 	}
 
 	svc.WithCRUDFactory(name, func() CRUDProvider {
-		var cc cache.Cache
+		var l2 cache.Cache
 		if kvName != "" {
 			redisClient := svc.KV(kvName)
 			if redisClient == nil {
 				log.Fatalf("runtime: kv %q not found for cache %s", kvName, name)
 			}
-			cc = cache.NewNode(
+			l2 = cache.NewNode(
 				redisClient,
 				syncx.NewSingleFlight(),
 				&cache.Stat{},
@@ -214,7 +218,13 @@ func CachedCRUD[T any](svc *Service, name, poolName, tableName string,
 		if err := tbl.AutoInit(context.Background()); err != nil {
 			log.Fatalf("runtime: autoinit %s: %v", name, err)
 		}
-		return &cachedCRUD[T]{table: tbl, l2: cc, l1: l1, keyPrefix: keyPrefix}
+		crud := &cachedCRUD[T]{table: tbl, l2: l2, l1: l1, keyPrefix: keyPrefix, name: name}
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			crud.warmCache(ctx)
+		}()
+		return crud
 	})
 }
 
@@ -223,9 +233,41 @@ type cachedCRUD[T any] struct {
 	l2        cache.Cache
 	l1        *collection.Cache
 	keyPrefix string
+	name      string
 }
 
 func (c *cachedCRUD[T]) isCached() {}
+
+func (c *cachedCRUD[T]) warmCache(ctx context.Context) {
+	items, _, err := c.table.QueryPaginated(ctx, 1, 100, "")
+	if err != nil || len(items) == 0 {
+		return
+	}
+	for _, item := range items {
+		if c.l1 == nil {
+			break
+		}
+		id := extractID(item)
+		if id == "" {
+			continue
+		}
+		data, _ := json.Marshal(item)
+		c.l1.Set(id, data)
+	}
+	logx.Infof("cache warmed: %s (%d items)", c.name, len(items))
+}
+
+func extractID(item any) string {
+	v := reflect.ValueOf(item)
+	if v.Kind() == reflect.Pointer {
+		v = v.Elem()
+	}
+	field := v.FieldByName("ID")
+	if !field.IsValid() {
+		return ""
+	}
+	return fmt.Sprintf("%v", field.Interface())
+}
 
 func (c *cachedCRUD[T]) delCache(keys ...string) {
 	for _, k := range keys {
@@ -675,6 +717,11 @@ func (s *Service) PoolPGTyped(name string) *pgxpool.Pool {
 	return PoolPG(s.pools, name)
 }
 
+// PoolRead returns a read replica pool if available, falling back to write pool.
+func (s *Service) PoolRead(name string) *pgxpool.Pool {
+	return PoolPGRead(s.pools, name)
+}
+
 // KV returns a KV store (Redis/Dragonfly) connection by name, or nil.
 func (s *Service) GetGrpcServer() *GrpcServer {
 	return s.grpcServer
@@ -769,6 +816,8 @@ func (s *Service) RunWithContext(ctx context.Context) error {
 	ctx, cancel = context.WithCancel(ctx)
 	s.stop = cancel
 
+	initGC(s.config.Server.GC)
+
 	if err := s.initLogger(); err != nil {
 		return fmt.Errorf("log init: %w", err)
 	}
@@ -782,13 +831,17 @@ func (s *Service) RunWithContext(ctx context.Context) error {
 		return fmt.Errorf("auth validation: %w", err)
 	}
 
-	if err := s.initDatabases(ctx); err != nil {
+	g, gCtx := errgroup.WithContext(ctx)
+	g.Go(func() error { return s.initDatabases(gCtx) })
+	g.Go(func() error { return s.initStreamConns(gCtx) })
+	if err := g.Wait(); err != nil {
 		return err
 	}
+	if len(s.pools) > 0 {
+		startPoolMetricsCollector(ctx, s.pools, s.config.Databases)
+	}
+	startRuntimeMetricsCollector(ctx)
 	s.initKvConns()
-	if err := s.initStreamConns(ctx); err != nil {
-		return err
-	}
 	s.initSSRF()
 	s.initGrpc()
 	if err := s.runSeeds(ctx); err != nil {
@@ -814,7 +867,6 @@ func (s *Service) RunWithContext(ctx context.Context) error {
 	}
 
 	logx.Infof("%s starting on :%d", s.config.Name, s.config.Port)
-	proc.AddShutdownListener(func() { s.shutdown() })
 	return s.srv.Start()
 }
 
@@ -888,16 +940,136 @@ func (s *Service) initDatabases(ctx context.Context) error {
 	}
 	s.pools = pools
 
+	threshold := s.config.Server.SlowQueryThreshold
 	for _, dbCfg := range s.config.Databases {
-		if dbCfg.SlowQuery != nil && dbCfg.SlowQuery.Enabled {
-			d, err := time.ParseDuration(dbCfg.SlowQuery.Threshold)
-			if err == nil && d > 0 {
-				db.SetSlowThreshold(d)
-				break
-			}
+		if dbCfg.SlowQuery != nil && dbCfg.SlowQuery.Enabled && dbCfg.SlowQuery.Threshold != "" {
+			threshold = dbCfg.SlowQuery.Threshold
+			break
+		}
+	}
+	if threshold != "" {
+		d, err := time.ParseDuration(threshold)
+		if err == nil && d > 0 {
+			db.SetSlowThreshold(d)
 		}
 	}
 	return nil
+}
+
+func startRuntimeMetricsCollector(ctx context.Context) {
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				var m runtime.MemStats
+				runtime.ReadMemStats(&m)
+				logx.Infof("runtime: goroutines=%d alloc=%dMB sys=%dMB gc=%d",
+					runtime.NumGoroutine(), m.Alloc>>20, m.Sys>>20, m.NumGC)
+			}
+		}
+	}()
+}
+
+var cgroupMemoryLimitPath = "/sys/fs/cgroup/memory.max"
+
+func initGC(cfg *GCConfig) {
+	if cfg == nil {
+		return
+	}
+	if cfg.GOGC > 0 {
+		prev := debug.SetGCPercent(cfg.GOGC)
+		logx.Infof("gc: GOGC set to %d (was %d)", cfg.GOGC, prev)
+	}
+	if cfg.MemoryLimit != "" {
+		limit := parseMemoryLimit(cfg.MemoryLimit)
+		if limit > 0 {
+			prev := debug.SetMemoryLimit(limit)
+			logx.Infof("gc: GOMEMLIMIT set to %d bytes (was %d)", limit, prev)
+		}
+	}
+}
+
+func parseMemoryLimit(val string) int64 {
+	if val == "" {
+		return 0
+	}
+	if before, ok := strings.CutSuffix(val, "%"); ok {
+		pctStr := before
+		pct, err := strconv.ParseInt(pctStr, 10, 64)
+		if err != nil || pct <= 0 || pct > 100 {
+			logx.Errorf("gc: invalid memory_limit percentage %q, ignoring", val)
+			return 0
+		}
+		memLimit := readCgroupMemoryLimit()
+		if memLimit <= 0 {
+			logx.Infof("gc: cannot read cgroup memory limit, using default")
+			return 0
+		}
+		return memLimit * pct / 100
+	}
+	return parseBytes(val)
+}
+
+func readCgroupMemoryLimit() int64 {
+	data, err := os.ReadFile(cgroupMemoryLimitPath)
+	if err != nil {
+		data, err = os.ReadFile("/sys/fs/cgroup/memory/memory.limit_in_bytes")
+		if err != nil {
+			return 0
+		}
+	}
+	trimmed := strings.TrimSpace(string(data))
+	limit, err := strconv.ParseInt(trimmed, 10, 64)
+	if err != nil {
+		return 0
+	}
+	return limit
+}
+
+func parseBytes(s string) int64 {
+	if s == "" {
+		return 0
+	}
+	s = strings.ToUpper(strings.TrimSpace(s))
+	var multiplier int64 = 1
+	switch {
+	case strings.HasSuffix(s, "TIB"):
+		multiplier = 1 << 40
+		s = strings.TrimSuffix(s, "TIB")
+	case strings.HasSuffix(s, "GIB"):
+		multiplier = 1 << 30
+		s = strings.TrimSuffix(s, "GIB")
+	case strings.HasSuffix(s, "MIB"):
+		multiplier = 1 << 20
+		s = strings.TrimSuffix(s, "MIB")
+	case strings.HasSuffix(s, "KIB"):
+		multiplier = 1 << 10
+		s = strings.TrimSuffix(s, "KIB")
+	case strings.HasSuffix(s, "TB"):
+		multiplier = 1e12
+		s = strings.TrimSuffix(s, "TB")
+	case strings.HasSuffix(s, "GB"):
+		multiplier = 1e9
+		s = strings.TrimSuffix(s, "GB")
+	case strings.HasSuffix(s, "MB"):
+		multiplier = 1e6
+		s = strings.TrimSuffix(s, "MB")
+	case strings.HasSuffix(s, "KB"):
+		multiplier = 1e3
+		s = strings.TrimSuffix(s, "KB")
+	case strings.HasSuffix(s, "B"):
+		s = strings.TrimSuffix(s, "B")
+	}
+	n, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		logx.Errorf("gc: cannot parse memory_limit %q, ignoring", s)
+		return 0
+	}
+	return n * multiplier
 }
 
 func (s *Service) initKvConns() {}
@@ -1053,28 +1225,36 @@ func (s *Service) initServer() {
 	}
 
 	srvCfg := server.Config{
-		Port:            s.config.Port,
-		Host:            sc.Host,
-		Prefork:         sc.Prefork,
-		BodyLimit:       sc.BodyLimit,
-		Timeout:         parseServerDuration(sc.Timeout, 30*time.Second),
-		MaxConns:        sc.MaxConns,
-		MaxBytes:        sc.MaxBytes,
-		MetricsPath:     sc.MetricsPath,
-		HealthPath:      sc.HealthPath,
-		ShutdownTimeout: parseServerDuration(sc.ShutdownTimeout, 10*time.Second),
-		RecoverStack:    sc.RecoverStack,
-		APIPrefix:       sc.APIPrefix,
-		Routes:          routes,
-		SecurityHeaders: convertSecurityHeaders(sc.SecurityHeaders),
-		CSRF:            convertCSRF(sc.CSRF, sc.Cookies),
-		RateLimit:       convertRateLimit(sc.RateLimit),
-		TLS:             convertTLS(sc.TLS),
-		SSRF:            convertSSRF(sc.SSRF),
-		Correlation:     convertCorrelation(sc.Correlation),
-		Logger:          sc.Logger,
-		LoadShedding:    sc.LoadShedding,
-		Breaker:         sc.Breaker,
+		Port:              s.config.Port,
+		Host:              sc.Host,
+		Prefork:           sc.Prefork,
+		BodyLimit:         sc.BodyLimit,
+		Timeout:           parseServerDuration(sc.Timeout, 30*time.Second),
+		ReadTimeout:       parseServerDuration(sc.ReadTimeout, 15*time.Second),
+		WriteTimeout:      parseServerDuration(sc.WriteTimeout, 30*time.Second),
+		IdleTimeout:       parseServerDuration(sc.IdleTimeout, 120*time.Second),
+		Compression:       sc.Compression,
+		StreamRequestBody: sc.StreamRequestBody,
+		ReduceMemoryUsage: sc.ReduceMemoryUsage,
+		MaxConns:          sc.MaxConns,
+		MaxBytes:          sc.MaxBytes,
+		MetricsPath:       sc.MetricsPath,
+		HealthPath:        sc.HealthPath,
+		ShutdownTimeout:   parseServerDuration(sc.ShutdownTimeout, 10*time.Second),
+		RecoverStack:      sc.RecoverStack,
+		APIPrefix:         sc.APIPrefix,
+		Routes:            routes,
+		SecurityHeaders:   convertSecurityHeaders(sc.SecurityHeaders),
+		CSRF:              convertCSRF(sc.CSRF, sc.Cookies),
+		RateLimit:         convertRateLimit(sc.RateLimit),
+		TLS:               convertTLS(sc.TLS),
+		SSRF:              convertSSRF(sc.SSRF),
+		Correlation:       convertCorrelation(sc.Correlation),
+		Logger:            sc.Logger,
+		LogSkipPaths:      sc.LogSkipPaths,
+		LogSampleRate:     sc.LogSampleRate,
+		LoadShedding:      sc.LoadShedding,
+		Breaker:           sc.Breaker,
 	}
 
 	s.srv = server.New(srvCfg, convertTelemetry(sc.Telemetry), securityConfig(sc), corsCfg)
@@ -1103,6 +1283,9 @@ func (s *Service) initServer() {
 
 func (s *Service) shutdown() {
 	logx.Info("runtime: shutting down...")
+	if s.srv != nil {
+		s.srv.Stop()
+	}
 	if s.grpcServer != nil {
 		s.grpcServer.Stop()
 	}
@@ -1114,6 +1297,11 @@ func (s *Service) shutdown() {
 	}
 	if s.exitMgr != nil {
 		s.exitMgr.Shutdown(5 * time.Second)
+	}
+	if s.handlers != nil {
+		for _, r := range s.handlers.Reapers {
+			r.Stop()
+		}
 	}
 	for name, broker := range s.natsConns {
 		if err := broker.Close(); err != nil {

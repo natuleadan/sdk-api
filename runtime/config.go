@@ -133,6 +133,18 @@ type ServerConf struct {
 	BodyLimit int `json:"body_limit" config:",default=4194304"`
 	// Timeout is a constant.
 	Timeout string `json:"timeout" config:",default=30s"`
+	// ReadTimeout is a constant.
+	ReadTimeout string `json:"read_timeout" config:",default=15s"`
+	// WriteTimeout is a constant.
+	WriteTimeout string `json:"write_timeout" config:",default=30s"`
+	// IdleTimeout is a constant.
+	IdleTimeout string `json:"idle_timeout" config:",default=120s"`
+	// Compression is a constant.
+	Compression bool `json:"compression" config:",optional"`
+	// StreamRequestBody is a constant.
+	StreamRequestBody bool `json:"stream_request_body" config:",optional"`
+	// ReduceMemoryUsage is a constant.
+	ReduceMemoryUsage bool `json:"reduce_memory_usage" config:",optional"`
 	// MaxConns is a constant.
 	MaxConns int `json:"max_conns" config:",default=1000"`
 	// MaxBytes is a constant.
@@ -171,6 +183,8 @@ type ServerConf struct {
 	Security *SecurityDef `json:"security" config:",optional"`
 	// SlowQueryThreshold is a constant.
 	SlowQueryThreshold string `json:"slow_query_threshold" config:",default=100ms"`
+	// GC configures Go runtime garbage collection.
+	GC *GCConfig `json:"gc" config:",optional"`
 	// Logger is a constant.
 	Logger bool `json:"logger" config:",default=true"`
 	// LoadShedding is a constant.
@@ -181,6 +195,10 @@ type ServerConf struct {
 	Telemetry *TelemetryConf `json:"telemetry" config:",optional"`
 	// Correlation enables the X-Correlation-ID tracking middleware.
 	Correlation *CorrelationConf `json:"correlation" config:",optional"`
+	// LogSkipPaths is a constant.
+	LogSkipPaths []string `json:"log_skip_paths" config:",optional"`
+	// LogSampleRate is a constant.
+	LogSampleRate float64 `json:"log_sample_rate" config:",default=0"`
 	// GrpcServer configures the gRPC server.
 	GrpcServer *GrpcServerConf `json:"grpc_server" config:",optional"`
 	// GrpcClients defines gRPC client connections to other services.
@@ -529,6 +547,8 @@ type OpenAPIConf struct {
 	Theme string `json:"theme" config:",default=moon"`
 	// DarkMode is a constant.
 	DarkMode bool `json:"dark_mode" config:",default=true"`
+	// SpecCacheTTL sets Cache-Control max-age for /openapi.json
+	SpecCacheTTL string `json:"spec_cache_ttl" config:",default=1h"`
 }
 
 // ---- Database ----
@@ -547,6 +567,8 @@ type DBConfig struct {
 	Driver string `json:"driver" config:",default=postgres"`
 	// URL is a constant.
 	URL string `json:"url"`
+	// ReadURL is the read replica connection URL for read/write splitting.
+	ReadURL string `json:"read_url" config:",optional"`
 	// Database is a constant.
 	Database string `json:"database" config:",optional"`
 	// Pool is a constant.
@@ -587,6 +609,8 @@ type PoolConf struct {
 	HealthCheckPeriod string `json:"health_check_period" config:",optional"`
 	// ReservedConns is a constant.
 	ReservedConns int32 `json:"reserved_conns" config:",default=10"`
+	// StatementTimeout sets statement_timeout per connection.
+	StatementTimeout string `json:"statement_timeout" config:",default=30s"`
 }
 
 func (d *DBConfig) Validate() error {
@@ -918,6 +942,16 @@ type CacheConfig struct {
 	L2 string `json:"l2" config:",optional"` // disk | none
 	// L2Path is a constant.
 	L2Path string `json:"l2_path" config:",optional"`
+}
+
+// GCConfig configures Go runtime garbage collection parameters.
+type GCConfig struct {
+	// GOGC sets the GC target percentage. Default 100. Higher = less GC, more memory.
+	// Set to 200 for higher throughput at the cost of ~2x memory.
+	GOGC int `json:"go_gc" config:",default=100"`
+	// MemoryLimit sets GOMEMLIMIT. Can be a percentage of container memory (e.g. "80%")
+	// or an absolute value (e.g. "2GiB", "512MiB"). Empty means no limit.
+	MemoryLimit string `json:"memory_limit" config:",optional"`
 }
 
 type StorageDef struct {

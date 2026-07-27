@@ -13,6 +13,11 @@ log:
   level: info                  # debug | info | error | severe
   encoding: json               # json | plain (use plain for development)
 
+# ---- Go GC tuning (optional) ----
+gc:
+  go_gc: 100                   # GOGC target percentage
+  # memory_limit: "80%"        # GOMEMLIMIT: "80%", "512MiB", "1GB"
+
 # ---- Deploy target (optional, CLI validation) ----
 # deploy:
 #   target: auto               # auto | vercel | docker | kube | bare-metal
@@ -167,7 +172,12 @@ server:
   host: "0.0.0.0"
   prefork: false
   body_limit: 4194304
-  timeout: 30s
+  read_timeout: 15s
+  write_timeout: 30s
+  idle_timeout: 120s
+  compression: false
+  stream_request_body: false
+  reduce_memory_usage: false
   max_conns: 1000
   max_bytes: 4194304
   metrics_path: /metrics
@@ -342,6 +352,7 @@ Token blacklist: use `svc.WithJWTBlacklist()` at runtime to register a callback.
 |-------|------|---------|-------------|
 | `name` | string | — | Service name (required) |
 | `port` | int | `8080` | HTTP port. Overridden by `$PORT` env var |
+| `gc` | object | `nil` | GC tuning: GOGC and GOMEMLIMIT |
 | `databases` | array | `[]` | Database connections |
 | `kv` | array | `[]` | Key-value store connections (Redis / Dragonfly) |
 | `stream` | array | `[]` | Stream connections (NATS or Kafka) |
@@ -359,9 +370,15 @@ databases:
   - name: pg-main
     driver: postgres
     url: "${DATABASE_URL}"
+    read_url: "${DATABASE_READ_URL}"   # optional read replica
     pool:
-      max_conns: 10
-      min_conns: 2
+      max_conns: 20
+      min_conns: 5
+      max_conn_lifetime: 30m
+      max_conn_idle_time: 5m
+      health_check_period: 1m
+      reserved_conns: 10
+      statement_timeout: 30s
   - name: mongo-main
     driver: mongo
     url: "${MONGO_URI}"
@@ -383,9 +400,15 @@ databases:
 | `name` | Reference name. Used by `entry[].db` and `exit[].db` |
 | `driver` | `postgres` (or `pg`), `turso`, `mysql`, `mongo` |
 | `url` | Connection string. Supports `${VAR}` env interpolation |
+| `read_url` | Optional read replica URL. Creates {name}-read pool |
 | `database` | Database name (required for `mongo` driver) |
 | `pool.max_conns` | Max open connections (Postgres: pgx pool, Turso/MySQL: `SetMaxOpenConns`, Mongo: `maxPoolSize` query param) |
 | `pool.min_conns` | Min idle connections (**Mongo**: `maxConnecting` query param) |
+| `pool.max_conn_lifetime` | Maximum connection lifetime |
+| `pool.max_conn_idle_time` | Maximum connection idle time |
+| `pool.health_check_period` | Health check period |
+| `pool.reserved_conns` | Reserved connections kept alive |
+| `pool.statement_timeout` | Per-query timeout set via AfterConnect |
 | `turso.mode` | `local` (apply PRAGMA busy_timeout) or `remote` (skip PRAGMAs for Turso Cloud) |
 | `turso.busy_timeout` | Busy timeout in ms (default: 30000). Only used when `mode: local` |
 
@@ -438,6 +461,8 @@ Default subjects for a NATS stream named `orders`: `[orders, orders.>]`.
 log:
   level: info                   # debug | info | error | severe
   encoding: json                # json | plain
+  skip_paths: [/health, /metrics]
+  sample_rate: 0
   mode: console                 # console | file | volume
   path: /var/log/my-service     # log directory (mode=file only)
   keep_days: 30                 # delete logs older than N days
@@ -839,6 +864,12 @@ Slow query logging writes a structured log entry for any database query that exc
 | `prefork` | `false` | Fiber prefork (SO_REUSEPORT) |
 | `body_limit` | `4194304` | Max body size (Fiber level) |
 | `timeout` | `30s` | Read/write/idle timeout |
+| `read_timeout` | `15s` | Max duration for reading the entire request |
+| `write_timeout` | `30s` | Max duration for writing the response |
+| `idle_timeout` | `120s` | Max duration for idle keep-alive connections |
+| `compression` | `false` | Enable HTTP response gzip compression |
+| `stream_request_body` | `false` | Enable streaming request body |
+| `reduce_memory_usage` | `false` | Trade ~5% throughput for lower memory |
 | `api_prefix` | `/api` | Prefix prepended to all entry paths (version via `api_version`) |
 | `correlation.enabled` | `false` | Enable X-Correlation-ID tracking middleware |
 | `correlation.request_header` | `X-Correlation-ID` | Incoming correlation ID header |
@@ -848,6 +879,16 @@ Slow query logging writes a structured log entry for any database query that exc
 | `logger` | `true` | Enable request logging middleware |
 | `load_shedding` | `true` | Enable adaptive load shedding |
 | `breaker` | `true` | Enable circuit breaker per route |
+| `shutdown_timeout` | `10s` | Max wait for graceful shutdown |
+| `log.skip_paths` | `[]` | Paths excluded from request logging |
+| `log.sample_rate` | `0` | Request log sampling rate (0=all, 0.9=10%) |
+
+### GC Config
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `gc.go_gc` | `100` | GOGC target percentage. Higher = less GC pauses, more memory |
+| `gc.memory_limit` | `""` | GOMEMLIMIT. "80%" = 80% of cgroup limit. "512MiB", "1GB" |
 
 ### KV Store connections
 

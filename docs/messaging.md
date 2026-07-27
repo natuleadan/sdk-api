@@ -60,9 +60,18 @@ entry:
 
 The `event_publish:` field defines publish targets for event streams.
 
-## Exit Workers (Event → Handler)
+## Exit Workers (NATS Consumer → Handler)
 
-Exit workers consume from event streams and process messages:
+Exit workers consume from event streams using a **fixed goroutine pool**.
+Instead of creating a goroutine per message, `max_concurrent` goroutines
+read from a shared channel:
+
+- Each message acquires a pool slot; if the pool is full, the message waits
+- `processTask` uses a cancellable `context.Context`
+- Empty reply responses are logged as `"empty reply"` instead of silently skipped
+- The pool is drained on shutdown (all in-flight handlers complete before exit)
+- This replaces the old goroutine-per-message model which could leak goroutines
+  during rapid shutdown
 
 ```yaml
 exit:
@@ -198,3 +207,7 @@ cache.Set(ctx, "user:123", user)
 ## Graceful Shutdown
 
 On shutdown, all event stream connections are drained (in-flight messages are processed before exit).
+
+On shutdown, the exit worker pool stops accepting new messages and drains
+in-flight handlers. The `shutdownCh` signal and channel close pattern ensures
+all workers exit within the shutdown timeout.

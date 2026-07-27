@@ -110,16 +110,29 @@ curl http://localhost:8080/health
 | | `handler` mode | Call a Go function on schedule |
 | | `internal` mode | System tick without handler |
 | **Databases** | PostgreSQL | `pgxpool` with auto-sizing pool |
+| | Read replicas | `read_url` for read/write split, `PoolPGRead()` helper |
+| | Prepared statements | `PreparedTable[T]` with explicit pgx statement caching |
+| | AfterConnect hooks | Auto `statement_timeout` and `application_name` per connection |
+| | LIMIT 1000 default | Prevents accidental full-table scans in `List()` operations |
 | | MySQL | via `go-sql-driver/mysql` |
 | | Turso | Embedded SQLite via libsql |
 | | Multi-DB | Each entry/exit can use a different database |
-| **Server** | 14 built-in middlewares | Logger, breaker, JWT, CORS, tracing, shedding, timeout, etc. |
+| **Server** | 16 built-in middlewares | BodyReader, Logger, breaker, JWT, CORS, tracing, shedding, timeout, etc. |
+| | Sharded Prometheus | 16-way FNV sharding, atomic active counter, lock-free |
+| | BodyReader | Single body read — cached in locals, no duplicate reads |
+| | sync.Pool buffers | Reusable 64KB buffers for crypto/JSON hot paths |
+| | Logger sampling | `skip_paths` + `sample_rate` for high-volume deployments |
 | | Per-route middleware | Configure middlewares per path in YAML |
 | | Security headers + CSRF + Rate limit | YAML-driven security layers |
 | | TLS (manual + autocert) | HTTPS + HTTP→HTTPS redirect |
 | | Error sanitization + CRLF protection | Built-in, always on |
 | | OpenAPI 3.0.3 + Scalar | Auto-generated spec + UI `/docs` |
 | | Health + Metrics | `/health`, `/metrics` |
+| | Trace-log correlation | `trace_id` injected into Fiber locals and log output |
+| **Benchmarking** | Benchmark suite | `runtime/benchmarks/`: middleware chain, JSON, CRUD, cache, NATS |
+| | Benchstat CI | Automatic PR regression detection (>5% change fails) |
+| | PGO support | `default.pgo` marker + Makefile targets |
+| **SLO** | Error budget | Prometheus counters for total/error requests, budget gauge |
 | **Storage** | S3-compatible | MinIO, R2, AWS S3 |
 | | Local filesystem | Path-constrained uploads |
 
@@ -141,6 +154,13 @@ curl http://localhost:8080/health
 | File upload (S3 proxy) | SDK (S3) | ~2k |
 
 Full benchmarks in [`docs/benchmarks.md`](docs/benchmarks.md).
+
+```bash
+make bench              # Run local benchmark suite
+make bench-compare      # Compare PR vs main with benchstat
+make pgo-profile        # Collect PGO profile from production
+make pgo-verify         # Verify PGO is active in build
+```
 
 ## 4. Use as Go SDK
 
@@ -175,11 +195,31 @@ resp, _ := client.Request("orders", "orders.transform", []byte(`{"id": 1}`))
 | `host` | `0.0.0.0` | Bind address |
 | `prefork` | `false` | Fiber prefork (SO_REUSEPORT, Linux only) |
 | `body_limit` | `4194304` | Max body size |
-| `timeout` | `30s` | Read/write/idle timeout |
+| `timeout` | `30s` | Read/write/idle timeout (legacy, replaced by timeouts below) |
+| `read_timeout` | `15s` | Max duration for reading the entire request |
+| `write_timeout` | `30s` | Max duration for writing the response |
+| `idle_timeout` | `120s` | Max duration for idle keep-alive connections |
+| `compression` | `false` | Enable HTTP response gzip compression |
+| `stream_request_body` | `false` | Enable streaming request body (uploads) |
+| `reduce_memory_usage` | `false` | Trade ~5% throughput for lower memory usage |
 | `api_prefix` | `/api/v1` | Prefix for all entry paths |
 | `health_path` | `/health` | Liveness probe |
 | `metrics_path` | `/metrics` | Prometheus endpoint |
 | `shutdown_timeout` | `10s` | Graceful shutdown wait |
+
+#### GC Tuning
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `gc.go_gc` | `100` | GOGC target percentage. Higher = less GC, more memory |
+| `gc.memory_limit` | `""` | GOMEMLIMIT: `"80%"` (percentage of cgroup), `"512MiB"`, `"1GB"` |
+
+#### Logging
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `log.skip_paths` | `[]` | Paths excluded from request logging: `[/health, /metrics]` |
+| `log.sample_rate` | `0` | Request log sampling rate: `0` = all, `0.9` = 10% |
 
 ### Entry types
 
@@ -201,9 +241,9 @@ resp, _ := client.Request("orders", "orders.transform", []byte(`{"id": 1}`))
 | `subscribe.stream` | required | NATS stream name |
 | `subscribe.subject` | stream name | Subject to subscribe to |
 | `handler` | required | Go function name |
-| `max_concurrent` | 1 | Max concurrent messages |
+| `max_concurrent` | 1 | Fixed goroutine pool size (not goroutine-per-msg) |
 | `reply` | false | Enable request-reply via `msg.Respond()` |
-| `reply_timeout` | `30s` | Reply timeout |
+| `reply_timeout` | `30s` | Reply timeout (empty responses logged, not silently skipped) |
 | `consumer_mode` | `push` | `push` or `pull` |
 | `pull_batch` | 0 | Batch size for pull consumers |
 
@@ -250,7 +290,8 @@ Packages involved:
 | [docs/best-practices.md](docs/best-practices.md) | Gotchas, patterns, anti-patterns |
 | [docs/cli.md](docs/cli.md) | `sdk-api new/docker/kube/vercel/client` subcommands |
 | [docs/deployment-vercel.md](docs/deployment-vercel.md) | Vercel deployment guide with embed config and validation |
-| [docs/benchmarks.md](docs/benchmarks.md) | Full benchmark results and methodology |
+| [docs/benchmarks.md](docs/benchmarks.md) | Benchmark suite, PGO, benchstat CI, escape analysis |
+| [docs/slo.md](docs/slo.md) | SLO/error budget configuration and alerting |
 | [docs/architecture.md](docs/architecture.md) | Architecture, entry router, exit system, cron design |
 | [docs/getting-started.md](docs/getting-started.md) | Step-by-step tutorial for first service |
 
@@ -342,10 +383,10 @@ svc.WithCron("onDailyReport", func(ctx context.Context) error {
 ## 9. Project Structure
 
 ```
-cmd/sdk-api/     # CLI generator (new/docker/kube/client)
-runtime/         # Service orchestrator, entry router, exit workers, cron, hooks
-server/          # Fiber HTTP + 14 middlewares + storage backends
-db/              # Table[T] CRUD (PG, Turso, MySQL) + AutoInit
+cmd/sdk-api/     # CLI generator + PGO marker (default.pgo)
+runtime/         # Service orchestrator, entry router, exit workers, cron, hooks, benchmarks
+server/          # Fiber HTTP + 16 middlewares + storage backends
+db/              # Table[T] CRUD (PG, Turso, MySQL) + PreparedTable + AutoInit
 events/          # NATS JetStream producers, consumers, KV cache, request-reply
 infra/           # 45+ go-zero packages (conf, logx, trace, breaker, redis, discover, ...)
 docs/            # Documentation + API patterns

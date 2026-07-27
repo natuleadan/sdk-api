@@ -87,6 +87,19 @@ runtime.RedisConfig{Host: "localhost:6379", Type: runtime.NodeType, Database: 1}
 svc.Run()
 ```
 
+### GC Configuration
+
+When `gc:` is defined in YAML, `initGC()` configures Go runtime GC before any startup:
+
+```yaml
+gc:
+  go_gc: 100
+  memory_limit: "80%"
+```
+
+- `go_gc`: `debug.SetGCPercent()`. Default 100. Set to 200 for higher throughput at ~2x memory cost.
+- `memory_limit`: `debug.SetMemoryLimit()`. Supports `"80%"` (cgroup percentage), `"512MiB"`, `"1GB"`.
+
 ## Lifecycle
 
 ### Standard (file or embedded config)
@@ -103,18 +116,19 @@ NewFromYAML(content) ────────────┘    │
                                     → Run()
                                         1. validateConfigDeploy() — check deploy.target rules
                                         2. validateAuthConfig()   — check auth driver config
-                                        3. initDatabases()        — connect PG/Turso/MySQL/Mongo pools (dedup by URL)
-                                        4. initKvConns()          — lazy-init Redis/Dragonfly connections
-                                       5. initStreamConns()      — connect NATS/Kafka + create streams
-                                       6. initSSRF()             — SafeHTTPClient (if configured)
-                                        7. initGrpc()             — gRPC server (if grpc_server configured) + clients
-                                        8. runSeeds()             — WithSeed callbacks (DDL, data seeding, gRPC registration)
-                                        9. initServer()           — Fiber HTTP + middlewares + TLS + security + CSRF + rate limit
-                                       10. registerEntryRoutes()  — register all entry routes (9 types)
-                                       11. serveStaticFiles()
-                                       12. registerDocs()         — OpenAPI + Scalar UI
-                                       13. startExitWorkers()     — start all event workers (NATS/Kafka consumers)
-                                       14. startCron()            — start cron scheduler
+                                         3. initDatabases() + initStreamConns() — parallel via errgroup
+                                         4. initKvConns()               — lazy-init Redis/Dragonfly connections
+                                        5. startPoolMetricsCollector()        — Prometheus gauges per pool
+                                        6. startRuntimeMetricsCollector()     — goroutine/mem stats logged every 30s
+                                         7. initSSRF()                  — SafeHTTPClient (if configured)
+                                         8. initGrpc()                  — gRPC server (if grpc_server configured) + clients
+                                         9. runSeeds()                  — WithSeed callbacks (DDL, data seeding, gRPC registration)
+                                        10. initServer()                — Fiber HTTP + middlewares + TLS + security + CSRF + rate limit
+                                        11. registerEntryRoutes()       — register all entry routes (9 types)
+                                        12. serveStaticFiles()
+                                        13. registerDocs()              — OpenAPI + Scalar UI
+                                        14. startExitWorkers()          — start all event workers (NATS/Kafka consumers)
+                                        15. startCron()                 — start cron scheduler
                                        → HTTP server starts
 ```
 
@@ -205,19 +219,47 @@ Returns `nil` if SSRF protection is not configured in YAML (`server.ssrf.enabled
 
 ## Graceful Shutdown
 
-On SIGINT/SIGTERM, two paths run concurrently:
+On SIGINT/SIGTERM:
 
-**Service shutdown** (`svc.Shutdown()`):
-1. Stop cron scheduler (waits for running jobs)
-2. Drain exit workers (waits for in-flight handlers, 5s timeout)
-3. Drain all event broker connections
-4. Close all DB pools
+1. `s.srv.Stop()` — immediately stops HTTP listener, unblocks Run()
+2. Stop GRPC server, cron scheduler
+3. Drain exit workers (waits for in-flight handlers, 5s timeout)
+4. Stop all reapers (async job cleanup goroutines)
+5. Close all NATS/Kafka connections
+6. Close all DB pools
 
-**HTTP server shutdown** (runs concurrently via a separate signal listener):
-- Fiber server stops accepting new requests
-- Waits for in-flight requests to complete (up to `server.shutdown_timeout`)
+The old `proc.AddShutdownListener` pattern was removed to prevent listener leaks.
 
-Both paths must finish before the process exits. No manual cleanup needed.
+### Exit Worker Pool
+
+Exit workers use a fixed goroutine pool instead of one goroutine per message.
+`max_concurrent` controls the pool size. Messages queue when all slots are busy.
+
+```yaml
+exit:
+  - name: email-sender
+    subscribe:
+      stream: orders
+    handler: onEmail
+    max_concurrent: 10
+```
+
+- `processTask` uses a cancellable `context.Context`
+- Empty reply responses are logged as `"empty reply"` instead of silently skipped
+- Pool is drained on shutdown (all in-flight handlers complete before exit)
+
+### SLO / Error Budget
+
+Prometheus counters for availability tracking:
+
+```go
+runtime.SLOEvent("api-availability", isError)
+```
+
+Exposed metrics:
+- `slo_requests_total{name="..."}`
+- `slo_errors_total{name="..."}`
+- `slo_remaining_error_budget{name="..."}`
 
 ## gRPC
 
@@ -474,12 +516,14 @@ runtime.MySQLCachedCRUD[Order](svc, "cachedOrders", "mysql-main", "orders", "cac
 ```go
 runtime.Pool(pools, name)      // any — returns pool by name
 runtime.PoolPG(pools, name)    // *pgxpool.Pool
+runtime.PoolPGRead(pools, name)     // Read replica pool (falls back to write pool)
 runtime.PoolSQL(pools, name)   // *sql.DB for Turso/MySQL
 runtime.TableFor[T](pools, poolName, tableName)  // *db.Table[T]
 
 // On the Service:
 svc.Pool("pg-main")
 svc.PoolPG("pg-main")
+svc.PoolRead("pg-main")          // *pgxpool.Pool — read replica, falls back to write pool
 ```
 
 ### svc.KV

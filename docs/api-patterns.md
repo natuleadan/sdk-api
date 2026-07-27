@@ -57,7 +57,8 @@ func main() {
 
 | Method | Path | Hook integration |
 |--------|------|-----------------|
-| GET | `/api/v1/products` | — |
+| GET | `/api/v1/products` | Supports `?fields=id,name` for response field filtering |
+| GET | `/api/v1/products/:id` | — |
 | GET | `/api/v1/products/:id` | — |
 | POST | `/api/v1/products` | `BeforeCreate` → DB → `AfterCreate` |
 | PATCH | `/api/v1/products/:id` | `BeforeUpdate` → DB → `AfterUpdate` |
@@ -507,7 +508,8 @@ local, _ := server.NewLocalStorage("/data/uploads")
 
 ## 10. Exit Worker (Push Consumer)
 
-Process NATS messages as they arrive. Fire-and-forget.
+Process NATS messages as they arrive. Uses a fixed goroutine pool
+(bounded by `max_concurrent`), not one goroutine per message.
 
 **YAML:**
 

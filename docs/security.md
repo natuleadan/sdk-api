@@ -626,6 +626,26 @@ resp, err := client.Do(req)   // Validates host before connecting
 
 The implementation uses a sub-package to break gosec cross-package taint analysis for G704 (SSRF).
 
+**Path traversal fix:** The SSRF middleware now checks path traversal patterns (`..`) in the URL path BEFORE host resolution. Previously, `filepath.Clean()` resolved `..` segments before the check could detect them, making the check a no-op. The order was corrected: check first, then clean.
+
+## Request Logging Security
+
+```yaml
+log:
+  skip_paths: [/health, /metrics]
+  sample_rate: 0
+```
+
+`sdk-api` supports two security-conscious logging features:
+
+- **`skip_paths`**: Exclude infrastructure endpoints (`/health`, `/metrics`) from request logs.
+  Prevents health-check polling from filling log storage and leaking internal paths.
+- **`sample_rate`**: Log only a fraction of requests (`0` = all, `0.9` = 10%).
+  Reduces log volume in high-throughput deployments while preserving a representative sample.
+
+When a `trace_id` is present (via the Trace middleware), it is included in the log line
+for request-level correlation across services.
+
 ## Input Validation
 
 ### Struct Validation (opt-in)

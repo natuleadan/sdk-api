@@ -9,9 +9,15 @@ databases:
   - name: pg-main
     driver: postgres
     url: "${DATABASE_URL}"
+    read_url: "${DATABASE_READ_URL}"       # optional read replica
     pool:
-      max_conns: 10
-      min_conns: 2
+      max_conns: 20
+      min_conns: 5
+      max_conn_lifetime: 30m
+      max_conn_idle_time: 5m
+      health_check_period: 1m
+      reserved_conns: 10
+      statement_timeout: 30s               # per-query timeout
   - name: mongo-main
     driver: mongo
     url: "${MONGO_URI}"
@@ -140,6 +146,55 @@ max(1, (PG_SERVER_MAX_CONNS - reserved_conns) / REPLICA_COUNT)
 | `REPLICA_COUNT` | `1` | Number of service replicas |
 
 `reserved_conns` is set per-database in YAML (default: `10`).
+
+### Read Replicas
+
+PostgreSQL databases support a separate read replica pool via `read_url`:
+
+```yaml
+databases:
+  - name: pg-main
+    driver: postgres
+    url: "${DATABASE_URL}"
+    read_url: "${DATABASE_READ_URL}"
+```
+
+Two pools are created: `pg-main` (write) and `pg-main-read` (read-only).
+Use `PoolPGRead(name)` to get the read pool with automatic fallback to write:
+```go
+pool := svc.PoolRead("pg-main")          // returns read pool or write pool
+pool := runtime.PoolPGRead(svc.Pools(), "pg-main")  // same, from pools map
+```
+
+### Prepared Statements (PostgreSQL)
+
+`PreparedTable[T]` wraps `Table[T]` with explicit pgx statement caching:
+
+```go
+table := db.NewTable[Product](pool, "products")
+pt := db.NewPreparedTable[Product](pool, "products")
+items, _ := pt.List(ctx)   // uses prepared statement
+item, _ := pt.Get(ctx, id)  // uses prepared statement
+```
+
+Supported operations: `List`, `Get`, `Count`, `Exists`, `Delete`.
+Falls back to `Table[T]` methods if preparation fails.
+
+Additionally, `QueryWhere` uses `$N` bind parameters for LIMIT/OFFSET,
+enabling pgx's internal statement cache even with dynamic pagination.
+
+### AfterConnect Hooks (PostgreSQL)
+
+Each new PostgreSQL connection runs these session setup commands:
+
+- `SET statement_timeout = '<value>'` — per-query timeout
+- `SET application_name = '<name>'` — session identifier
+
+Configured via `pool.statement_timeout` and the database name.
+Prevents hung queries and provides visibility in `pg_stat_activity`.
+
+> **Default List Limit:** All `List()` and `ListScoped()` calls apply a limit of 1000
+> to prevent accidental full-table scans. This applies to PostgreSQL, Turso, and MySQL.
 
 ## AutoInit
 

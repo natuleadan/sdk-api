@@ -85,3 +85,55 @@ The warmup stabilizes connections, caches, and Go runtime before measurement.
 | Docker | Docker Desktop (macOS) |
 | Go | 1.26.4 |
 | Benchmark tool | `wrk -t10 -c1000 -d5s` |
+
+## Benchmark Suite (`runtime/benchmarks/`)
+
+| File | Benchmarks |
+|------|-----------|
+| `middleware_bench_test.go` | Middleware chain overhead (no/prometheus/bodyreader/maxbytes) |
+| `json_bench_test.go` | JSON marshal/unmarshal throughput |
+| `crud_bench_test.go` | CRUD struct serialization |
+| `cache_bench_test.go` | In-memory cache get/set |
+| `nats_bench_test.go` | NATS publish/subscribe (requires NATS) |
+| `http_bench_test.go` | HTTP serialization (requires server) |
+
+Run: `make bench` or `go test -bench=. -benchmem ./runtime/benchmarks/...`
+
+## Benchstat CI (Regression Detection)
+
+Pull requests automatically run benchmark comparisons:
+
+```yaml
+# .github/workflows/benchmark.yml
+# On PR: benchmark PR changes, checkout main, benchmark main
+# benchstat comparison, fail on >5% regression
+# Comment PR with results
+```
+
+Manual comparison: `make bench-compare`
+Requires: `go install golang.org/x/perf/cmd/benchstat@latest`
+
+## Profile-Guided Optimization (PGO)
+
+The project includes a PGO marker at `cmd/sdk-api/default.pgo`:
+
+```bash
+# Verify PGO is enabled
+make pgo-verify
+
+# Collect production profile
+curl -o default.pgo 'http://localhost:6060/debug/pprof/profile?seconds=30'
+cp default.pgo cmd/sdk-api/default.pgo
+```
+
+PGO provides 2-7% throughput improvement at zero code cost.
+
+## Escape Analysis CI
+
+The CI workflow includes escape analysis to detect unintended heap allocations:
+
+```bash
+go build -gcflags='-m=2' ./... 2>&1 | grep "escapes to heap"
+```
+
+This runs as part of the `lint` job in `.github/workflows/ci.yml`.

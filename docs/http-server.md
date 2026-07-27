@@ -9,7 +9,12 @@ server:
   host: "0.0.0.0"
   prefork: false
   body_limit: 4194304       # 4 MB
-  timeout: 30s
+  read_timeout: 15s
+  write_timeout: 30s
+  idle_timeout: 120s
+  compression: false
+  stream_request_body: false
+  reduce_memory_usage: false
   max_conns: 1000
   max_bytes: 4194304
   api_prefix: /api
@@ -24,7 +29,12 @@ server:
 | `host` | `0.0.0.0` | Bind address |
 | `prefork` | `false` | Fiber prefork (SO_REUSEPORT, Linux only) |
 | `body_limit` | `4194304` | Max body size (Fiber level) |
-| `timeout` | `30s` | Read/write/idle timeout |
+| `read_timeout` | `15s` | Max duration for reading request body |
+| `write_timeout` | `30s` | Max duration for writing the response |
+| `idle_timeout` | `120s` | Max duration for idle keep-alive connections |
+| `compression` | `false` | Enable HTTP response gzip compression via Fiber middlware |
+| `stream_request_body` | `false` | Enable streaming request body |
+| `reduce_memory_usage` | `false` | Trade ~5% throughput for lower memory |
 | `max_conns` | `1000` | Concurrency limit via middleware |
 | `max_bytes` | `4194304` | Per-request max bytes |
 | `api_prefix` | `/api` | Prefix prepended to all entry paths (version via `api_version`) |
@@ -285,6 +295,10 @@ When `cors` is omitted, CORS defaults to same-origin only (secure default).
 | `SSRF()` | `ssrf.go` | `server.ssrf.enabled` | Blocks private, loopback, and cloud metadata IPs in `SafeHTTPClient()` |
 | `WebSocket()` | `websocket.go` | `entry[].type: websocket` | Upgrades HTTP to WebSocket (`github.com/gofiber/contrib/websocket`) |
 | `OryJWT()` | `ory_jwt.go` | `auth.driver: ory` (Ory JWKS) | JWT validation via Ory JWKS endpoint (RS256) |
+| `BodyReader` | `body_reader.go` | Always-on (after Recover) | Reads c.Body() once, caches in locals |
+| `LoggerWithConfig` | `logger_config.go` | When Logger is enabled | Request logging with skip_paths + sample_rate |
+
+Trace injects `trace_id` into `c.Locals("trace_id")` for downstream access.
 
 ## Error Response
 
@@ -312,6 +326,17 @@ server:
   load_shedding: false  # disable adaptive load shedding (default true)
   breaker: false        # disable circuit breaker (default true)
 ```
+
+## Logger Configuration
+
+```yaml
+log:
+  skip_paths: [/health, /metrics]
+  sample_rate: 0
+```
+
+`skip_paths` excludes infrastructure endpoints from request logs.
+`sample_rate` limits log volume in high-throughput deployments.
 
 ## Per-entry Timeout
 
@@ -398,6 +423,10 @@ Returns `200 OK` as long as the process is alive.
 ## Metrics
 
 Prometheus metrics at `metrics_path` (default: `/metrics`):
+
+- **16-way FNV sharding**: metrics are distributed across 16 shards by FNV-1a hash
+  of `method:path:code`. Reduces mutex contention by ~94% at high RPS.
+- **Atomic active counter**: uses `atomic.Int64` for lock-free request tracking.
 
 ```
 go_requests_total{...,method="GET",path="/api/v1/products",status="200"}

@@ -6,11 +6,62 @@
 - **6 endpoints are measured**: expand, list, getbyid, create, update, delete — each with 30s warmup + 30s measure.
 - **Turso/Mongo writes are slow at high concurrency**: SQLite is single-writer; MongoDB BSON overhead limits throughput. Use Dragonfly/Redis as an L2 cache for read-heavy workloads.
 
-## Entry vs Exit
+## BodyReader (Single Body Read)
 
-- **Entry** = HTTP. User-initiated requests. Runs in `--mode entry`.
-- **Exit** = NATS. Event-driven processing. Runs in `--mode exit`.
-- A single binary + YAML can run both modes.
+The BodyReader middleware caches `c.Body()` in Fiber locals on the first read.
+All downstream middleware access the cached body via `getRequestBody(c)`:
+
+```go
+body := getRequestBody(c)  // cached, zero-copy
+```
+
+**Best practice:** Never call `c.Body()` directly. Use `getRequestBody(c)` and
+`setRequestBody(c, data)` in custom middleware. This ensures the body is read
+exactly once, preventing "body already read" errors and reducing allocations.
+
+The `wrapEventPublish` wrapper publishes `c.Response().Body()` (the handler's
+response) rather than `c.Body()` (the raw request body). This ensures the event
+stream receives the processed result, not the original input.
+
+## Egress Optimization
+
+Reduce response payload size by specifying only the fields needed:
+
+```yaml
+# Request: GET /api/v1/products?fields=id,name
+# Response: Only "id" and "name" are returned per item
+```
+
+Use `ListParams.Fields` in your Go code:
+
+```go
+params := ListParams{Fields: []string{"id", "name"}}
+```
+
+The `filterFields` / `filterSlice` helpers apply field filtering at the JSON
+serialization level. This reduces bandwidth, serialization time, and client
+processing — especially for list endpoints returning large datasets.
+
+## Exit Worker Pool
+
+Exit workers use a **fixed goroutine pool**, not one goroutine per message:
+
+```yaml
+exit:
+  - name: email-sender
+    subscribe: { stream: orders }
+    handler: onEmail
+    max_concurrent: 10
+```
+
+`max_concurrent` controls the pool size. When all slots are busy, messages queue.
+This prevents unbounded goroutine growth under load spikes.
+
+The pool is drained on shutdown: all in-flight handlers complete before the
+process exits. `processTask` receives a cancellable `context.Context` so
+long-running handlers can abort when shutdown begins.
+
+## Entry vs Exit
 
 ## gRPC Communication
 

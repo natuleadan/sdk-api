@@ -33,7 +33,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/titanous/json5 v1.0.0
 	github.com/valyala/fasthttp v1.72.0
-	go.etcd.io/etcd/api/v3 v3.7.0
+	go.etcd.io/etcd/api/v3 v3.7.1
 	go.etcd.io/etcd/client/v3 v3.7.0
 	go.mongodb.org/mongo-driver/v2 v2.8.0
 	go.opentelemetry.io/otel v1.44.0

@@ -1,6 +1,9 @@
 package runtime
 
 import (
+	"reflect"
+	"strings"
+
 	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v3"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -55,7 +58,8 @@ func (t *tableCRUD[T]) List(ctx fiber.Ctx, params ListParams) error {
 		if err != nil {
 			return errcode.ErrDBQuery("QueryKeyset", "table", err)
 		}
-		return ctx.JSON(KeysetResponse{Data: items, NextCursor: nextCursor, PageSize: params.Size})
+		data := filterSlice(items, params.Fields)
+		return ctx.JSON(KeysetResponse{Data: data, NextCursor: nextCursor, PageSize: params.Size})
 	}
 
 	if len(params.Filters) > 0 || (tf != "" && tid != "") {
@@ -77,14 +81,16 @@ func (t *tableCRUD[T]) List(ctx fiber.Ctx, params ListParams) error {
 		if err != nil {
 			return errcode.ErrDBQuery("Count", "table", err)
 		}
-		return ctx.JSON(PaginatedResponse{Data: items, Total: total, Page: params.Page, Size: params.Size})
+		data := filterSlice(items, params.Fields)
+		return ctx.JSON(PaginatedResponse{Data: data, Total: total, Page: params.Page, Size: params.Size})
 	}
 
 	items, total, err := t.table.QueryPaginated(ctx.Context(), params.Page, params.Size, params.Sort)
 	if err != nil {
 		return errcode.ErrDBQuery("QueryPaginated", "table", err)
 	}
-	return ctx.JSON(PaginatedResponse{Data: items, Total: total, Page: params.Page, Size: params.Size})
+	data := filterSlice(items, params.Fields)
+	return ctx.JSON(PaginatedResponse{Data: data, Total: total, Page: params.Page, Size: params.Size})
 }
 
 func (t *tableCRUD[T]) Get(ctx fiber.Ctx, id string) error {
@@ -258,20 +264,31 @@ func (t *mysqlCRUD[T]) List(ctx fiber.Ctx, params ListParams) error {
 		}
 		return ctx.JSON(KeysetResponse{Data: items, NextCursor: nextCursor, PageSize: params.Size})
 	}
+	limit := params.Size
+	if limit <= 0 {
+		limit = 10
+	}
+	offset := max((params.Page-1)*limit, 0)
+	var total int64
 	var items []T
 	var err error
 	if tf != "" && tid != "" {
-		items, err = t.table.ListScoped(ctx.Context(), tf, tid)
+		total, err = t.table.CountScoped(ctx.Context(), tf, tid)
+		if err != nil {
+			return errcode.ErrDBQuery("op", "table", err)
+		}
+		items, err = t.table.ListScopedPaginated(ctx.Context(), tf, tid, limit, offset)
 	} else {
-		items, err = t.table.List(ctx.Context())
+		total, err = t.table.Count(ctx.Context())
+		if err != nil {
+			return errcode.ErrDBQuery("op", "table", err)
+		}
+		items, err = t.table.ListPaginated(ctx.Context(), limit, offset)
 	}
 	if err != nil {
 		return errcode.ErrDBQuery("op", "table", err)
 	}
-	total := int64(len(items))
-	start := min(max((params.Page-1)*params.Size, 0), len(items))
-	end := min(start+params.Size, len(items))
-	return ctx.JSON(PaginatedResponse{Data: items[start:end], Total: total, Page: params.Page, Size: params.Size})
+	return ctx.JSON(PaginatedResponse{Data: items, Total: total, Page: params.Page, Size: params.Size})
 }
 
 func (t *mysqlCRUD[T]) Get(ctx fiber.Ctx, id string) error {
@@ -420,20 +437,31 @@ func (t *tursoCRUD[T]) List(ctx fiber.Ctx, params ListParams) error {
 		}
 		return ctx.JSON(KeysetResponse{Data: items, NextCursor: nextCursor, PageSize: params.Size})
 	}
+	limit := params.Size
+	if limit <= 0 {
+		limit = 10
+	}
+	offset := max((params.Page-1)*limit, 0)
+	var total int64
 	var items []T
 	var err error
 	if tf != "" && tid != "" {
-		items, err = t.table.ListScoped(ctx.Context(), tf, tid)
+		total, err = t.table.CountScoped(ctx.Context(), tf, tid)
+		if err != nil {
+			return errcode.ErrDBQuery("op", "table", err)
+		}
+		items, err = t.table.ListScopedPaginated(ctx.Context(), tf, tid, limit, offset)
 	} else {
-		items, err = t.table.List(ctx.Context())
+		total, err = t.table.Count(ctx.Context())
+		if err != nil {
+			return errcode.ErrDBQuery("op", "table", err)
+		}
+		items, err = t.table.ListPaginated(ctx.Context(), limit, offset)
 	}
 	if err != nil {
 		return errcode.ErrDBQuery("op", "table", err)
 	}
-	total := int64(len(items))
-	start := min(max((params.Page-1)*params.Size, 0), len(items))
-	end := min(start+params.Size, len(items))
-	return ctx.JSON(PaginatedResponse{Data: items[start:end], Total: total, Page: params.Page, Size: params.Size})
+	return ctx.JSON(PaginatedResponse{Data: items, Total: total, Page: params.Page, Size: params.Size})
 }
 
 func (t *tursoCRUD[T]) Get(ctx fiber.Ctx, id string) error {
@@ -677,4 +705,55 @@ func (m *mongoCRUD) filterFor(id string) bson.M {
 		}
 	}
 	return bson.M{m.lookupField: id}
+}
+
+// filterFields returns a filtered representation of an item containing only the requested fields.
+func filterFields(item any, fields []string) any {
+	if len(fields) == 0 {
+		return item
+	}
+	v := reflect.ValueOf(item)
+	if v.Kind() == reflect.Pointer {
+		v = v.Elem()
+	}
+	if v.Kind() != reflect.Struct {
+		return item
+	}
+	fieldSet := make(map[string]bool, len(fields))
+	for _, f := range fields {
+		fieldSet[f] = true
+	}
+	result := make(map[string]any, len(fields))
+	t := v.Type()
+	for i := range v.NumField() {
+		ft := t.Field(i)
+		if !ft.IsExported() {
+			continue
+		}
+		name := ft.Tag.Get("json")
+		if name == "" || name == "-" {
+			name = ft.Name
+		} else if idx := strings.IndexByte(name, ','); idx >= 0 {
+			name = name[:idx]
+		}
+		if fieldSet[name] {
+			result[name] = v.Field(i).Interface()
+		}
+	}
+	return result
+}
+
+func filterSlice(items any, fields []string) any {
+	if len(fields) == 0 {
+		return items
+	}
+	v := reflect.ValueOf(items)
+	if v.Kind() != reflect.Slice {
+		return items
+	}
+	filtered := make([]any, v.Len())
+	for i := range v.Len() {
+		filtered[i] = filterFields(v.Index(i).Interface(), fields)
+	}
+	return filtered
 }

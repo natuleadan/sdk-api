@@ -59,8 +59,9 @@ type ListParams struct {
 	Size       int
 	Sort       string
 	Filters    map[string]string
-	Cursor     string // keyset pagination cursor
-	Pagination string // "offset" | "keyset"
+	Cursor     string   // keyset pagination cursor
+	Pagination string   // "offset" | "keyset"
+	Fields     []string // column subset for egress optimization (empty = all)
 }
 
 type EntryHandlers struct {
@@ -71,6 +72,7 @@ type EntryHandlers struct {
 	Storage   map[string]server.StorageBackend
 	Async     map[string]AsyncHandler
 	Transform map[string]any
+	Reapers   []*Reaper
 }
 
 func RegisterEntries(app *fiber.App, cfg *ServiceConfig, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, models map[string]*db.TableInfo, jwtCfg *middleware.JWTConfig, authValidator func(context.Context, *middleware.AuthContext, []string, []string) error, apiKeyValidator func(ctx context.Context, key string) (*middleware.AuthContext, error), fgaClient openfga.Checker, oryClient *ory.Client, zitadelClient *zitadel.Client, rlRdb ...*redis.Redis) error {
@@ -282,12 +284,14 @@ func registerOneEntry(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, 
 	registerDeprecation(app, entry, versionPrefix)
 	registerValidationMiddleware(app, entry, versionPrefix)
 	registerEntryRateLimit(app, entry, versionPrefix, rlAlgorithm, rlTTL, rlRdb...)
-	registerEntryTimeout(app, entry, versionPrefix)
 	registerRetry(app, entry, versionPrefix)
+	registerEntryTimeout(app, entry, versionPrefix)
 	registerFallback(app, entry, versionPrefix)
 	registerBulkhead(entry)
-
 	mws := registerAuthMiddleware(entry, driver, jwtCfg, authValidator, apiKeyValidator, fgaClient, oryClient, zitadelClient, serverPerUser, serverPerKey, rlAlgorithm, rlTTL, rlRdb...)
+	if len(entry.Bulkhead) > 0 {
+		mws = append(mws, bulkheadMiddleware(entry))
+	}
 
 	var err error
 	switch entry.Type {
@@ -510,6 +514,28 @@ func registerBulkhead(entry *EntryDef) {
 		if limit > 0 {
 			BulkheadRegister(name, limit)
 		}
+	}
+}
+
+func bulkheadMiddleware(entry *EntryDef) fiber.Handler {
+	return func(c fiber.Ctx) error {
+		if len(entry.Bulkhead) == 0 {
+			return c.Next()
+		}
+		for name := range entry.Bulkhead {
+			sem := BulkheadGet(name)
+			if sem == nil {
+				continue
+			}
+			if !sem.TryBorrow() {
+				return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+					"code":    503,
+					"message": "bulkhead limit reached for " + name,
+				})
+			}
+			defer func() { _ = sem.Return() }()
+		}
+		return c.Next()
 	}
 }
 

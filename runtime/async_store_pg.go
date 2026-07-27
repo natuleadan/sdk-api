@@ -2,11 +2,12 @@ package runtime
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
+	"github.com/goccy/go-json"
 	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/natuleadan/sdk-api/infra/logx"
 )
 

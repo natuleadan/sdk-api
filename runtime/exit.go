@@ -13,19 +13,24 @@ import (
 
 type ExitHandler func(ctx context.Context, msg []byte) ([]byte, error)
 
-type workerState struct {
-	shutdownCh chan struct{}
-	tasks      atomic.Int64
+type msgTask struct {
+	msg events.Message
+	cfg ExitWorker
 }
 
 type exitWorker struct {
-	name    string
-	cfg     ExitWorker
-	handler ExitHandler
-	hooks   ExitHooks
-	sub     events.Subscription
-	sem     chan struct{}
-	state   *workerState
+	name     string
+	handler  ExitHandler
+	hooks    ExitHooks
+	sub      events.Subscription
+	consumer events.PullConsumer
+	tasks    chan msgTask
+	state    *workerState
+}
+
+type workerState struct {
+	shutdownCh chan struct{}
+	inFlight   atomic.Int64
 }
 
 func startExitWorker(ctx context.Context, broker events.EventBroker, cfg ExitWorker, handler ExitHandler, hooks ExitHooks) (*exitWorker, error) {
@@ -36,17 +41,26 @@ func startExitWorker(ctx context.Context, broker events.EventBroker, cfg ExitWor
 		return nil, fmt.Errorf("exit %q: handler is nil", cfg.Name)
 	}
 
+	maxConcurrent := cfg.MaxConcurrent
+	if maxConcurrent <= 0 {
+		maxConcurrent = 1
+	}
+
+	taskCh := make(chan msgTask, maxConcurrent*2)
 	state := &workerState{
 		shutdownCh: make(chan struct{}, 1),
 	}
 
 	w := &exitWorker{
 		name:    cfg.Name,
-		cfg:     cfg,
 		handler: handler,
 		hooks:   hooks,
-		sem:     make(chan struct{}, cfg.MaxConcurrent),
+		tasks:   taskCh,
 		state:   state,
+	}
+
+	for i := 0; i < maxConcurrent; i++ {
+		go workerLoop(ctx, state, taskCh, handler, hooks)
 	}
 
 	if cfg.PullBatch > 0 || strings.ToLower(cfg.ConsumerMode) == "pull" {
@@ -54,7 +68,7 @@ func startExitWorker(ctx context.Context, broker events.EventBroker, cfg ExitWor
 		if err != nil {
 			return nil, fmt.Errorf("exit %q pull subscribe: %w", cfg.Name, err)
 		}
-		w.sub = consumer
+		w.consumer = consumer
 
 		pullBatch := cfg.PullBatch
 		if pullBatch <= 0 {
@@ -62,13 +76,6 @@ func startExitWorker(ctx context.Context, broker events.EventBroker, cfg ExitWor
 		}
 		pullMaxWait := parseServerDuration(cfg.PullMaxWait, 5*time.Second)
 
-		sem := w.sem
-		handler := w.handler
-		hooks := w.hooks
-		cfgW := w.cfg
-		nameW := w.name
-		stateW := w.state
-		shutdownCh := state.shutdownCh
 		go func() {
 			defer func() {
 				if err := consumer.Unsubscribe(); err != nil {
@@ -76,43 +83,108 @@ func startExitWorker(ctx context.Context, broker events.EventBroker, cfg ExitWor
 				}
 			}()
 			for {
-				select {
-				case <-shutdownCh:
+				if err := fetchAndEnqueue(state, taskCh, consumer, pullBatch, pullMaxWait, cfg); err != nil {
 					return
-				default:
-				}
-				msgs, fetchErr := consumer.Fetch(pullBatch, pullMaxWait)
-				if fetchErr != nil {
-					continue
-				}
-				for _, m := range msgs {
-					processMsg(stateW, sem, handler, hooks, cfgW, nameW, m)
 				}
 			}
 		}()
 	} else {
 		sub, err := broker.Subscribe(ctx, cfg.Subscribe.Subject, cfg.Subscribe.Durable, func(ctx context.Context, msg events.Message) error {
-			processMsg(state, w.sem, w.handler, w.hooks, w.cfg, w.name, msg)
+			enqueueMsg(state, taskCh, msgTask{msg: msg, cfg: cfg})
 			return nil
 		})
 		if err != nil {
 			return nil, fmt.Errorf("exit %q subscribe: %w", cfg.Name, err)
 		}
 		w.sub = sub
-
-		shutdownCh := state.shutdownCh
-		go func() {
-			<-shutdownCh
-			if err := sub.Unsubscribe(); err != nil {
-				logx.Errorf("exit: sub unsubscribe error: %v", err)
-			}
-		}()
 	}
 
 	logx.Infof("exit worker started: %s stream=%s subject=%s concurrent=%d reply=%v",
 		cfg.Name, cfg.Subscribe.Stream, cfg.Subscribe.Subject, cfg.MaxConcurrent, cfg.Reply)
 
 	return w, nil
+}
+
+func fetchAndEnqueue(state *workerState, taskCh chan<- msgTask, consumer events.PullConsumer, batch int, maxWait time.Duration, cfg ExitWorker) error {
+	select {
+	case <-state.shutdownCh:
+		return fmt.Errorf("shutting down")
+	default:
+	}
+
+	msgs, err := consumer.Fetch(batch, maxWait)
+	if err != nil {
+		return nil
+	}
+	for _, m := range msgs {
+		enqueueMsg(state, taskCh, msgTask{msg: m, cfg: cfg})
+	}
+	return nil
+}
+
+func enqueueMsg(state *workerState, taskCh chan<- msgTask, task msgTask) {
+	select {
+	case taskCh <- task:
+	case <-state.shutdownCh:
+		nakWithLog(task.msg, task.cfg.Name, "shutdown")
+	}
+}
+
+func workerLoop(ctx context.Context, state *workerState, taskCh <-chan msgTask, handler ExitHandler, hooks ExitHooks) {
+	for task := range taskCh {
+		state.inFlight.Add(1)
+		processTask(ctx, task, handler, hooks)
+		state.inFlight.Add(-1)
+	}
+}
+
+func processTask(ctx context.Context, task msgTask, handler ExitHandler, hooks ExitHooks) {
+	m := task.msg
+	cfg := task.cfg
+	name := cfg.Name
+
+	msg := m.Data()
+	if hooks != nil {
+		var err error
+		msg, err = hooks.OnMessage(ctx, m.Data())
+		if err != nil {
+			logx.Errorf("exit %s onMessage hook: %v", name, err)
+			nakWithLog(m, name, "hook")
+			return
+		}
+	}
+
+	resp, err := handler(ctx, msg)
+	if err != nil {
+		if hooks != nil {
+			hooks.OnError(ctx, err)
+		}
+		logx.Errorf("exit %s handler error: %v", name, err)
+		if cfg.TermOnFailure {
+			termWithLog(m, name, "handler-dlq")
+		} else {
+			nakWithLog(m, name, "handler")
+		}
+		return
+	}
+
+	if hooks != nil {
+		hooks.OnSuccess(ctx)
+	}
+
+	if cfg.Reply {
+		if len(resp) == 0 {
+			logx.Infof("exit %s reply skipped: empty response", name)
+		} else if rErr := m.Respond(resp); rErr != nil {
+			logx.Errorf("exit %s reply error: %v", name, rErr)
+			nakWithLog(m, name, "reply")
+			return
+		}
+	}
+
+	if err := m.Ack(); err != nil {
+		logx.Errorf("exit %s ack error: %v", name, err)
+	}
 }
 
 func nakWithLog(m events.Message, name, context string) {
@@ -127,91 +199,36 @@ func termWithLog(m events.Message, name, context string) {
 	}
 }
 
-func processMsg(state *workerState, sem chan struct{}, handler ExitHandler, hooks ExitHooks, cfg ExitWorker, name string, m events.Message) {
-	select {
-	case sem <- struct{}{}:
-	case <-state.shutdownCh:
-		nakWithLog(m, name, "shutdown")
-		return
-	}
-
-	state.tasks.Add(1)
-	go func() {
-		defer func() {
-			<-sem
-			state.tasks.Add(-1)
-		}()
-
-		msg := m.Data()
-		if hooks != nil {
-			var err error
-			msg, err = hooks.OnMessage(context.Background(), m.Data())
-			if err != nil {
-				logx.Errorf("exit %s onMessage hook: %v", name, err)
-				nakWithLog(m, name, "hook")
-				return
-			}
-		}
-
-		resp, err := handler(context.Background(), msg)
-		if err != nil {
-			if hooks != nil {
-				hooks.OnError(context.Background(), err)
-			}
-			logx.Errorf("exit %s handler error: %v", name, err)
-			if cfg.TermOnFailure {
-				termWithLog(m, name, "handler-dlq")
-			} else {
-				nakWithLog(m, name, "handler")
-			}
-			return
-		}
-
-		if hooks != nil {
-			hooks.OnSuccess(context.Background())
-		}
-
-		if cfg.Reply && len(resp) > 0 {
-			if rErr := m.Respond(resp); rErr != nil {
-				logx.Errorf("exit %s reply error: %v", name, rErr)
-				nakWithLog(m, name, "reply")
-				return
-			}
-		}
-
-		if err := m.Ack(); err != nil {
-			logx.Errorf("exit %s ack error: %v", name, err)
-		}
-	}()
-}
-
 func (w *exitWorker) shutdown(timeout time.Duration) {
 	logx.Infof("exit worker %s shutting down...", w.name)
 	w.state.shutdownCh <- struct{}{}
 
-	done := make(chan struct{})
-	go func() {
-		tick := time.NewTicker(10 * time.Millisecond)
-		defer tick.Stop()
-		for {
-			if w.state.tasks.Load() == 0 {
-				close(done)
-				return
-			}
-			select {
-			case <-tick.C:
-			case <-time.After(timeout):
-				close(done)
-				return
-			}
-		}
-	}()
+	close(w.tasks)
 
-	select {
-	case <-done:
-		logx.Infof("exit worker %s drained", w.name)
-	case <-time.After(timeout):
-		logx.Errorf("exit worker %s shutdown timeout after %v", w.name, timeout)
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
+
+	tick := time.NewTicker(10 * time.Millisecond)
+	defer tick.Stop()
+
+	for {
+		if w.state.inFlight.Load() == 0 {
+			logx.Infof("exit worker %s drained", w.name)
+			break
+		}
+		select {
+		case <-tick.C:
+		case <-deadline.C:
+			logx.Errorf("exit worker %s shutdown timeout after %v (%d tasks remaining)",
+				w.name, timeout, w.state.inFlight.Load())
+			return
+		}
+	}
+
+	if w.sub != nil {
+		if err := w.sub.Unsubscribe(); err != nil {
+			logx.Errorf("exit: unsubscribe %s error: %v", w.name, err)
+		}
 	}
 }
 

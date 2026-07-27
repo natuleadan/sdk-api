@@ -20,7 +20,10 @@ func registerAsync(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, pre
 		return fmt.Errorf("async handler %q not found", entry.Handler)
 	}
 
-	maxRetries, ttl, _ := setupAsyncReaper(entry, store)
+	maxRetries, ttl, reaper := setupAsyncReaper(entry, store)
+	if reaper != nil {
+		handlers.Reapers = append(handlers.Reapers, reaper)
+	}
 
 	mgr := NewAsyncJobManagerWithRetry(store, processor, maxRetries)
 	if entry.AsyncStore != nil {

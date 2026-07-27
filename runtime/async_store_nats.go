@@ -2,8 +2,9 @@ package runtime
 
 import (
 	"context"
-	"encoding/json"
 	"time"
+
+	"github.com/goccy/go-json"
 
 	"github.com/natuleadan/sdk-api/events"
 	"github.com/natuleadan/sdk-api/infra/logx"

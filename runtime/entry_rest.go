@@ -38,7 +38,7 @@ func wrapEventPublish(ctx context.Context, handler func(fiber.Ctx) error, target
 				}
 				targetBrokers := selectBrokers(target, entryEventStream, brokers)
 				for _, broker := range targetBrokers {
-					if pubErr := broker.Publish(ctx, subject, c.Body()); pubErr != nil {
+					if pubErr := broker.Publish(ctx, subject, c.Response().Body()); pubErr != nil {
 						logx.Errorf("event_publish %s: %v", subject, pubErr)
 					}
 				}

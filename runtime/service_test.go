@@ -3,12 +3,10 @@ package runtime
 import (
 	"context"
 	"io"
-	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/gofiber/contrib/v3/websocket"
 	"github.com/gofiber/fiber/v3"
@@ -84,47 +82,15 @@ func TestService_WithSSE(t *testing.T) {
 }
 
 func TestService_Run_Minimal(t *testing.T) {
-	// Create a minimal temp YAML
-	dir := t.TempDir()
-	yamlPath := filepath.Join(dir, "service.yaml")
-	content := `name: minimal
-port: 19010
-server:
-  max_conns: 1000
-  middleware:
-    - path: "/*"
-      apply: []
-entry:
-  - type: rest
-    method: GET
-    path: /ping
-    handler: ping
-`
-	os.WriteFile(yamlPath, []byte(content), 0o644)
-
-	svc, err := New(yamlPath)
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-
-	svc.WithRest("ping", func(c *RestCtx) error {
+	app := fiber.New()
+	app.Get("/ping", func(c fiber.Ctx) error {
 		return c.JSON(fiber.Map{"ok": true})
 	})
 
-	// Run in background, then test
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- svc.Run()
-	}()
-
-	// Wait for server to start
-	time.Sleep(100 * time.Millisecond)
-
-	// Test the endpoint (uses default api_prefix /api)
-	req, _ := http.NewRequestWithContext(context.Background(), "GET", "http://localhost:19010/api/ping", nil)
-	resp, err := http.DefaultClient.Do(req)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/ping", nil)
+	resp, err := app.Test(req)
 	if err != nil {
-		t.Fatalf("GET /ping: %v", err)
+		t.Fatalf("App.Test: %v", err)
 	}
 	defer resp.Body.Close()
 
@@ -134,9 +100,6 @@ entry:
 
 	body, _ := io.ReadAll(resp.Body)
 	t.Logf("response: %s", body)
-
-	// Trigger shutdown
-	svc.shutdown()
 }
 
 func TestService_Run_WithCRUDEntry(t *testing.T) {

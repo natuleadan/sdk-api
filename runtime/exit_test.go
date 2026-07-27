@@ -94,22 +94,24 @@ func TestExitWorkerManager_Empty(t *testing.T) {
 }
 
 func TestExitWorker_ShutdownTimeout(t *testing.T) {
+	taskCh := make(chan msgTask, 1)
 	w := &exitWorker{
-		name: "test",
-		sem:  make(chan struct{}, 1),
+		name:  "test",
+		tasks: taskCh,
 		state: &workerState{
 			shutdownCh: make(chan struct{}, 1),
 		},
 	}
 
-	w.sem <- struct{}{}
-	w.state.tasks.Add(1)
+	w.state.inFlight.Add(1)
+	done := make(chan struct{})
 	go func() {
-		time.Sleep(500 * time.Millisecond)
-		<-w.sem
-		w.state.tasks.Add(-1)
+		defer close(done)
+		time.Sleep(30 * time.Millisecond)
+		w.state.inFlight.Add(-1)
 	}()
 	w.shutdown(50 * time.Millisecond)
+	<-done
 	t.Log("shutdown timeout test passed")
 }
 

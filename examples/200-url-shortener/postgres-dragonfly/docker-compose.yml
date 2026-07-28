@@ -1,7 +1,7 @@
 name: url-shortener-pg-dfly-bench
 services:
   pgdog:
-    image: ghcr.io/pgdogdev/pgdog:main
+    image: ghcr.io/pgdogdev/pgdog:v0.1.44
     volumes:
       - ./pgdog.toml:/pgdog/pgdog.toml:ro
       - ./users.toml:/pgdog/users.toml:ro
@@ -31,7 +31,7 @@ services:
       retries: 10
 
   dragonfly:
-    image: docker.dragonflydb.io/dragonflydb/dragonfly
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:v1.39.0
     command: ["--cluster_mode=emulated"]
     healthcheck:
       test: redis-cli -h 127.0.0.1 -p 6379 PING >/dev/null 2>&1

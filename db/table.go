@@ -355,12 +355,6 @@ func (t *Table[T]) DeleteScoped(ctx context.Context, id any, tenantField string,
 	return nil
 }
 
-func writeBindParam(query *strings.Builder, clause string, idx int) int {
-	idx++
-	fmt.Fprintf(query, "%s$%d", clause, idx)
-	return idx
-}
-
 func (t *Table[T]) validColumn(col string) (string, error) {
 	for _, f := range t.info.Fields {
 		if f.Column == col {

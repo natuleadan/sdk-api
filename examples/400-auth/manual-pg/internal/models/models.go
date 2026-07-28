@@ -1,6 +1,8 @@
 package models
 
 import (
+	"time"
+
 	"github.com/natuleadan/sdk-api/db"
 )
 
@@ -66,7 +68,7 @@ type AuditLog struct {
 	ChangedBy string `db:"changed_by,required"`
 	OldValue  string `db:"old_value,type=JSONB"`
 	NewValue  string `db:"new_value,type=JSONB"`
-	CreatedAt string `db:"created_at,default=now()"`
+	CreatedAt time.Time `db:"created_at,default=now()"`
 }
 
 // ============================================================================
@@ -76,8 +78,8 @@ type AuditLog struct {
 type FailedLogin struct {
 	Username    string `db:"username,primary"`
 	Attempts    int    `db:"attempts,default=1"`
-	LastAttempt string `db:"last_attempt,default=now()"`
-	LockedUntil string `db:"locked_until"`
+	LastAttempt time.Time `db:"last_attempt,default=now()"`
+	LockedUntil *time.Time `db:"locked_until"`
 }
 
 // ============================================================================
@@ -105,11 +107,11 @@ type MFASecret struct {
 // ============================================================================
 
 type EmailVerification struct {
-	UserID    string `db:"user_id,primary"`
-	Token     string `db:"token,required"`
-	Verified  bool   `db:"verified,default=false"`
-	CreatedAt string `db:"created_at,default=now()"`
-	ExpiresAt string `db:"expires_at,required"`
+	UserID    string    `db:"user_id,primary"`
+	Token     string    `db:"token,required"`
+	Verified  bool      `db:"verified,default=false"`
+	CreatedAt time.Time `db:"created_at,default=now()"`
+	ExpiresAt time.Time `db:"expires_at,required"`
 }
 
 // ============================================================================
@@ -117,10 +119,10 @@ type EmailVerification struct {
 // ============================================================================
 
 type PasswordReset struct {
-	UserID    string `db:"user_id,primary"`
-	Token     string `db:"token,required"`
-	CreatedAt string `db:"created_at,default=now()"`
-	ExpiresAt string `db:"expires_at,required"`
+	UserID    string    `db:"user_id,primary"`
+	Token     string    `db:"token,required"`
+	CreatedAt time.Time `db:"created_at,default=now()"`
+	ExpiresAt time.Time `db:"expires_at,required"`
 }
 
 // ============================================================================
@@ -134,10 +136,10 @@ type AuthCode struct {
 	Purpose        string `db:"purpose,required,default=access"`
 	DeliveredTo    string `db:"delivered_to"`
 	DeliveryMethod string `db:"delivery_method,required,default=console"`
-	ExpiresAt      string `db:"expires_at,required"`
-	Attempts       int    `db:"attempts,default=0"`
-	Used           bool   `db:"used,default=false"`
-	CreatedAt      string `db:"created_at,default=now()"`
+	ExpiresAt      time.Time `db:"expires_at,required"`
+	Attempts       int       `db:"attempts,default=0"`
+	Used           bool      `db:"used,default=false"`
+	CreatedAt      time.Time `db:"created_at,default=now()"`
 }
 
 // ============================================================================

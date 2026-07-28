@@ -62,6 +62,9 @@ func TestMain(m *testing.M) {
 	ON CONFLICT (id) DO NOTHING`); err != nil {
 		log.Fatalf("seed: %v", err)
 	}
+	if _, err := pool.Exec(ctx, `SELECT setval('tickets_id_seq', 4, true)`); err != nil {
+		log.Fatalf("setval: %v", err)
+	}
 
 	os.Exit(m.Run())
 }

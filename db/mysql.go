@@ -143,7 +143,11 @@ func (t *MySQLTable[T]) buildColumnDef(f FieldInfo) string {
 			parts = append(parts, "PRIMARY KEY")
 		}
 		if f.Default != "" {
-			parts = append(parts, "DEFAULT "+f.Default)
+			def := f.Default
+			if needsQuotedDefault(def) {
+				def = "'" + def + "'"
+			}
+			parts = append(parts, "DEFAULT "+def)
 		}
 	}
 	return strings.Join(parts, " ")

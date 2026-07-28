@@ -140,7 +140,11 @@ func (t *TursoTable[T]) buildColumnDef(f FieldInfo) string {
 			parts = append(parts, "NOT NULL")
 		}
 		if f.Default != "" {
-			parts = append(parts, "DEFAULT "+f.Default)
+			def := f.Default
+			if needsQuotedDefault(def) {
+				def = "'" + def + "'"
+			}
+			parts = append(parts, "DEFAULT "+def)
 		}
 	}
 	if f.Primary && !f.Auto {

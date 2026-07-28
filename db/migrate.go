@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 )
 
@@ -82,13 +83,38 @@ func buildColumnDef(f FieldInfo) string {
 		parts = append(parts, "NOT NULL")
 	}
 	if f.Default != "" {
-		parts = append(parts, "DEFAULT "+f.Default)
+		def := f.Default
+		if needsQuotedDefault(def) {
+			def = "'" + def + "'"
+		}
+		parts = append(parts, "DEFAULT "+def)
 	}
 	if f.FK != "" {
-		parts = append(parts, "REFERENCES "+f.FK)
+		fk := f.FK
+		if i := strings.IndexByte(fk, '.'); i > 0 {
+			fk = fk[:i] + "(" + fk[i+1:] + ")"
+		}
+		parts = append(parts, "REFERENCES "+fk)
 	}
 
 	return strings.Join(parts, " ")
+}
+
+func needsQuotedDefault(s string) bool {
+	if s == "" {
+		return false
+	}
+	if strings.Contains(s, "(") || strings.HasPrefix(s, "'") {
+		return false
+	}
+	switch strings.ToLower(s) {
+	case "true", "false", "null":
+		return false
+	}
+	if _, err := strconv.ParseFloat(s, 64); err == nil {
+		return false
+	}
+	return true
 }
 
 func sqlType(t reflect.Type) string {

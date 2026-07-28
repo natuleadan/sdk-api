@@ -70,6 +70,32 @@ func ParseStructReflect(typ reflect.Type) (*TableInfo, error) {
 	return parseType(typ), nil
 }
 
+func splitTag(tag string) []string {
+	var parts []string
+	var b strings.Builder
+	depth := 0
+	for i := 0; i < len(tag); i++ {
+		c := tag[i]
+		switch {
+		case c == '(' || c == '[' || c == '{':
+			depth++
+			b.WriteByte(c)
+		case c == ')' || c == ']' || c == '}':
+			depth--
+			b.WriteByte(c)
+		case c == ',' && depth == 0:
+			parts = append(parts, b.String())
+			b.Reset()
+		default:
+			b.WriteByte(c)
+		}
+	}
+	if b.Len() > 0 {
+		parts = append(parts, b.String())
+	}
+	return parts
+}
+
 func parseType(typ reflect.Type) *TableInfo {
 	info := &TableInfo{Fields: make([]FieldInfo, 0, typ.NumField())}
 	for f := range typ.Fields() {
@@ -82,7 +108,7 @@ func parseType(typ reflect.Type) *TableInfo {
 			FieldType: f.Type,
 			Tags:      f.Tag,
 		}
-		parts := strings.Split(tag, ",")
+		parts := splitTag(tag)
 		col := strings.TrimSpace(parts[0])
 		if col == "" || col == "-" {
 			if col == "-" {

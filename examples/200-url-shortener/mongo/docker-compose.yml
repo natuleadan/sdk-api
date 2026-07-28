@@ -1,7 +1,7 @@
 name: url-shortener-mongo-bench
 services:
   mongo:
-    image: mongo:7
+    image: mongo:7.0.14
     ports:
       - "24206:27017"
     healthcheck:

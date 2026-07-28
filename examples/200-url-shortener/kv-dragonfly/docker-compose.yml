@@ -1,7 +1,7 @@
 name: kv-only-bench
 services:
   dragonfly:
-    image: docker.dragonflydb.io/dragonflydb/dragonfly
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:v1.39.0
     command: ["--cluster_mode=emulated"]
 
   bench:

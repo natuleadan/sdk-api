@@ -6,7 +6,7 @@ RUN go mod edit -replace github.com/natuleadan/sdk-api=/sdk-api && go mod tidy &
 RUN CGO_ENABLED=0 go build -o /svc ./cmd/
 RUN CGO_ENABLED=0 go test -tags=integration -c -o /tester .
 
-FROM alpine:latest
+FROM alpine:3.21
 RUN apk add --no-cache ca-certificates curl
 WORKDIR /app
 COPY --from=builder /svc /app/svc

@@ -8,7 +8,7 @@ COPY sdk-api/examples/600-grpc ./
 RUN go mod edit -replace github.com/natuleadan/sdk-api=/sdk-api && go mod tidy && go mod download
 RUN protoc --proto_path=proto --go_out=. --go_opt=module=600-grpc --go-grpc_out=. --go-grpc_opt=module=600-grpc proto/*.proto
 RUN CGO_ENABLED=0 go build -o /svc ./'account-svc'/cmd/
-FROM alpine:latest
+FROM alpine:3.21
 RUN apk add --no-cache ca-certificates curl
 WORKDIR /app
 COPY --from=builder /svc /app/svc

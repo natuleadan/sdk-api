@@ -9,7 +9,7 @@ RUN go mod edit -replace github.com/natuleadan/sdk-api=/sdk-api && go mod tidy &
 RUN protoc --proto_path=proto --go_out=. --go_opt=module=600-grpc --go-grpc_out=. --go-grpc_opt=module=600-grpc proto/auth_service.proto proto/url_service.proto proto/file_service.proto proto/ticket_service.proto proto/account_service.proto proto/transfer_service.proto
 RUN CGO_ENABLED=0 go test -tags=integration -c -o /tester ./tests/
 
-FROM alpine:latest
+FROM alpine:3.21
 RUN apk add --no-cache ca-certificates curl
 WORKDIR /app
 COPY --from=builder /tester /app/tester

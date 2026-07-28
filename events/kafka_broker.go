@@ -2,11 +2,11 @@ package events
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
 
-	"github.com/goccy/go-json"
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/segmentio/kafka-go"
 )

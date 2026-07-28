@@ -2,10 +2,10 @@ package events
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
-	"github.com/goccy/go-json"
 	"github.com/nats-io/nats.go"
 )
 

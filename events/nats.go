@@ -2,11 +2,11 @@ package events
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
 
-	"github.com/goccy/go-json"
 	"github.com/nats-io/nats.go"
 	"github.com/natuleadan/sdk-api/infra/logx"
 )

@@ -3,12 +3,12 @@ package db
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
 	"time"
 
-	"github.com/goccy/go-json"
 	"github.com/jackc/pgx/v5"
 )
 

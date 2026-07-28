@@ -1,10 +1,10 @@
 package runtime
 
 import (
+	"encoding/json"
 	"reflect"
 	"strings"
 
-	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v3"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"

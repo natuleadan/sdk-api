@@ -67,9 +67,6 @@ func initDatabases(ctx context.Context, databases []DBConfig) (map[string]any, e
 func initPostgres(ctx context.Context, cfg *DBConfig) (*pgxpool.Pool, error) {
 	poolCfg := db.PoolConfig{URL: cfg.URL}
 	applyPoolConf(cfg.Pool, &poolCfg)
-	if cfg.Name != "" {
-		poolCfg.ApplicationName = cfg.Name
-	}
 	return db.NewPool(ctx, poolCfg)
 }
 

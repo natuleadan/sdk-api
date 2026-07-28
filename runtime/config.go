@@ -610,7 +610,7 @@ type PoolConf struct {
 	// ReservedConns is a constant.
 	ReservedConns int32 `json:"reserved_conns" config:",default=10"`
 	// StatementTimeout sets statement_timeout per connection.
-	StatementTimeout string `json:"statement_timeout" config:",default=30s"`
+	StatementTimeout string `json:"statement_timeout" config:",optional"`
 }
 
 func (d *DBConfig) Validate() error {

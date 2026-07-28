@@ -9,7 +9,7 @@ import (
 // ============================================================================
 
 type User struct {
-	ID           string `db:"id,primary,default=gen_random_uuid()::text"`
+	ID           string `db:"id,primary,default=gen_random_uuid()"`
 	Username     string `db:"username,unique,required"`
 	PasswordHash string `db:"password_hash,required"`
 	Role         string `db:"role,required,default=viewer"`
@@ -21,7 +21,7 @@ type User struct {
 // ============================================================================
 
 type APIKey struct {
-	ID        string `db:"id,primary,default=gen_random_uuid()::text"`
+	ID        string `db:"id,primary,default=gen_random_uuid()"`
 	KeyHash   string `db:"key_hash,unique,required"`
 	Label     string `db:"label"`
 	Role      string `db:"role,required"`
@@ -34,7 +34,7 @@ type APIKey struct {
 // ============================================================================
 
 type Product struct {
-	ID          string `db:"id,primary,default=gen_random_uuid()::text"`
+	ID          string `db:"id,primary,default=gen_random_uuid()"`
 	Name        string `db:"name,required"`
 	Description string `db:"description,default=''"`
 	Price       string `db:"price,type=DECIMAL(10,2),default=0"`
@@ -49,7 +49,7 @@ type Product struct {
 // ============================================================================
 
 type TenantProduct struct {
-	ID       string  `db:"id,primary,default=gen_random_uuid()::text" json:"id"`
+	ID       string  `db:"id,primary,default=gen_random_uuid()" json:"id"`
 	Name     string  `db:"name,required" json:"name"`
 	Price    float64 `db:"price,type=DECIMAL(10,2),default=0" json:"price"`
 	TenantID string  `db:"tenant_id,required" json:"tenant_id"`
@@ -60,7 +60,7 @@ type TenantProduct struct {
 // ============================================================================
 
 type AuditLog struct {
-	ID        string `db:"id,primary,default=gen_random_uuid()::text"`
+	ID        string `db:"id,primary,default=gen_random_uuid()"`
 	ProductID string `db:"product_id"`
 	Action    string `db:"action,required"`
 	ChangedBy string `db:"changed_by,required"`
@@ -128,7 +128,7 @@ type PasswordReset struct {
 // ============================================================================
 
 type AuthCode struct {
-	ID             string `db:"id,primary,default=gen_random_uuid()::text"`
+	ID             string `db:"id,primary,default=gen_random_uuid()"`
 	UserID         string `db:"user_id"`
 	Code           string `db:"code,required"`
 	Purpose        string `db:"purpose,required,default=access"`
@@ -145,7 +145,7 @@ type AuthCode struct {
 // ============================================================================
 
 type LinkedAccount struct {
-	ID         string `db:"id,primary,default=gen_random_uuid()::text"`
+	ID         string `db:"id,primary,default=gen_random_uuid()"`
 	UserID     string `db:"user_id,required,fk=users.id"`
 	Provider   string `db:"provider,required"`
 	ProviderID string `db:"provider_id,required"`
@@ -163,7 +163,7 @@ func (LinkedAccount) Constraints() []db.Constraint {
 // ============================================================================
 
 type WebAuthnUser struct {
-	ID        string `db:"id,primary,default=gen_random_uuid()::text"`
+	ID        string `db:"id,primary,default=gen_random_uuid()"`
 	UserID    string `db:"user_id,required,fk=users.id"`
 	Handle    []byte `db:"handle,required,unique"`
 	CreatedAt string `db:"created_at,default=now()"`
@@ -174,7 +174,7 @@ type WebAuthnUser struct {
 // ============================================================================
 
 type WebAuthnCredential struct {
-	ID                string `db:"id,primary,default=gen_random_uuid()::text"`
+	ID                string `db:"id,primary,default=gen_random_uuid()"`
 	UserID            string `db:"user_id,required,fk=users.id"`
 	KID               []byte `db:"kid,required"`
 	PublicKey         []byte `db:"public_key,required"`
@@ -204,7 +204,7 @@ func (WebAuthnCredential) Constraints() []db.Constraint {
 // ============================================================================
 
 type WebAuthnSession struct {
-	ID            string `db:"id,primary,default=gen_random_uuid()::text"`
+	ID            string `db:"id,primary,default=gen_random_uuid()"`
 	UserID        string `db:"user_id"`
 	CeremonyType  string `db:"ceremony_type,required"`
 	SessionData   string `db:"session_data,type=JSONB,required"`
@@ -233,7 +233,7 @@ type OAuthClient struct {
 // ============================================================================
 
 type OAuthSession struct {
-	ID                string `db:"id,primary,default=gen_random_uuid()::text"`
+	ID                string `db:"id,primary,default=gen_random_uuid()"`
 	Signature         string `db:"signature,required"`
 	Type              string `db:"type,required"`
 	RequestID         string `db:"request_id"`

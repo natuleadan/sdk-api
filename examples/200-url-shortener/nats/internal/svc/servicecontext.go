@@ -21,7 +21,6 @@ type ServiceContext struct {
 	eventSvc     events.EventBroker
 	cacheConn    *events.Conn
 	cacheOnce    sync.Once
-	eventSvcOnce sync.Once
 	EventList    []models.URLEvent
 	eventMu      sync.RWMutex
 	PullMessages [][]byte
@@ -33,11 +32,12 @@ func NewServiceContext(s *runtime.Service) *ServiceContext {
 }
 
 func (c *ServiceContext) ensureEventSvc() {
-	c.eventSvcOnce.Do(func() {
-		if s := c.svc; s != nil {
-			c.eventSvc = s.NATS("primary")
-		}
-	})
+	if c.eventSvc != nil {
+		return
+	}
+	if s := c.svc; s != nil {
+		c.eventSvc = s.NATS("primary")
+	}
 }
 
 func (c *ServiceContext) ensureCacheConn() *events.Conn {

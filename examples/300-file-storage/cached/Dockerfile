@@ -14,6 +14,7 @@ COPY --from=builder /tester /app/tester
 COPY sdk-api/examples/300-file-storage/cached/*.lua /app/
 COPY sdk-api/examples/300-file-storage/cached/run.sh /app/run.sh
 COPY sdk-api/examples/300-file-storage/cached/run-test-logic.sh /app/run-test-logic.sh
+COPY --from=builder /build/service.yaml /app/service.yaml
 RUN chmod +x /app/run.sh /app/run-test-logic.sh /app/svc /app/tester
 EXPOSE 23302
 ENTRYPOINT ["/app/run.sh"]

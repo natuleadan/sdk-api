@@ -585,12 +585,10 @@ func (t *Table[T]) QueryWhere(ctx context.Context, where map[string]any, orderBy
 	}
 	query.WriteString(" ORDER BY " + orderBy)
 	if limit > 0 {
-		idx = writeBindParam(&query, " LIMIT ", idx)
-		args = append(args, limit)
+		fmt.Fprintf(&query, " LIMIT %d", limit)
 	}
 	if offset > 0 {
-		writeBindParam(&query, " OFFSET ", idx)
-		args = append(args, offset)
+		fmt.Fprintf(&query, " OFFSET %d", offset)
 	}
 	rows, err := t.pool.Query(ctx, query.String(), args...)
 	if err != nil {

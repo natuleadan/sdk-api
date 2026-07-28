@@ -153,14 +153,12 @@ func (s *ProductStore) List(c *runtime.RestCtx) error {
 	var products []product
 	for rows.Next() {
 		var p product
-		var deletedAt *time.Time
-		var updatedAt time.Time
+		var deletedAt *string
 		var price float64
-		if err := rows.Scan(&p.ID, &p.Name, &p.Description, &price, &p.Visibility, &p.CreatedBy, &deletedAt, &updatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.Description, &price, &p.Visibility, &p.CreatedBy, &deletedAt, &p.UpdatedAt); err != nil {
 			break
 		}
 		p.Price = fmt.Sprintf("%.2f", price)
-		p.UpdatedAt = updatedAt.Format(time.RFC3339)
 		if p.Visibility == "confidential" && !s.hasRole(a, "admin") {
 			p.Description = "[restricted]"
 		}
@@ -176,10 +174,9 @@ func (s *ProductStore) Get(c *runtime.RestCtx) error {
 	a := s.auth(c)
 	id := c.Params("id")
 	pool := c.PoolPG("primary")
-	var idOut, name, description, visibility, createdBy string
+	var idOut, name, description, visibility, createdBy, updatedAt string
 	var price float64
-	var deletedAt *time.Time
-	var updatedAt time.Time
+	var deletedAt *string
 	err := pool.QueryRow(c.Context(),
 		`SELECT id, name, description, price, visibility, created_by, deleted_at, updated_at
 		 FROM products WHERE id = $1 AND deleted_at IS NULL`, id).
@@ -197,7 +194,7 @@ func (s *ProductStore) Get(c *runtime.RestCtx) error {
 		"price":       price,
 		"visibility":  visibility,
 		"created_by":  createdBy,
-		"updated_at":  updatedAt.Format(time.RFC3339),
+		"updated_at":  updatedAt,
 	})
 }
 

@@ -670,6 +670,169 @@ func TestErrorHandler_Timeout(t *testing.T) {
 	assert.Equal(t, errcode.ErrCodeTimeout, errResp.Error)
 }
 
+// --- CORS Preflight ---
+
+func TestCORS_Preflight_NoCORSConfig(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, nil)
+	app.app.Get("/test", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+	req, _ := http.NewRequestWithContext(context.Background(), "OPTIONS", "/test", nil)
+	req.Host = "test.com"
+	req.Header.Set("Origin", "https://example.com")
+	resp, err := app.app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 405, resp.StatusCode)
+}
+
+func TestCORS_Preflight_ReturnsHeaders(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+	corsCfg := &CORSConfig{
+		Origins:     []string{"https://example.com"},
+		Methods:     []string{"GET", "POST"},
+		Headers:     []string{"Content-Type", "Authorization"},
+		Credentials: true,
+		MaxAge:      600,
+	}
+	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, corsCfg)
+	app.app.Get("/test", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+	req, _ := http.NewRequestWithContext(context.Background(), "OPTIONS", "/test", nil)
+	req.Host = "test.com"
+	req.Header.Set("Origin", "https://example.com")
+	resp, err := app.app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 204, resp.StatusCode)
+	assert.Equal(t, "https://example.com", resp.Header.Get("Access-Control-Allow-Origin"))
+	assert.Contains(t, resp.Header.Get("Access-Control-Allow-Methods"), "GET")
+	assert.Contains(t, resp.Header.Get("Access-Control-Allow-Methods"), "POST")
+	assert.Equal(t, "Content-Type, Authorization", resp.Header.Get("Access-Control-Allow-Headers"))
+	assert.Equal(t, "true", resp.Header.Get("Access-Control-Allow-Credentials"))
+	assert.Equal(t, "600", resp.Header.Get("Access-Control-Max-Age"))
+}
+
+func TestCORS_Preflight_WildcardOrigin(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, &CORSConfig{
+		Origins: []string{"*"},
+	})
+	app.app.Get("/test", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+	req, _ := http.NewRequestWithContext(context.Background(), "OPTIONS", "/test", nil)
+	req.Host = "test.com"
+	req.Header.Set("Origin", "https://any-origin.com")
+	resp, err := app.app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 204, resp.StatusCode)
+	assert.Equal(t, "https://any-origin.com", resp.Header.Get("Access-Control-Allow-Origin"))
+}
+
+func TestCORS_Preflight_DisallowedOrigin(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, &CORSConfig{
+		Origins: []string{"https://allowed.com"},
+	})
+	app.app.Get("/test", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+	req, _ := http.NewRequestWithContext(context.Background(), "OPTIONS", "/test", nil)
+	req.Host = "test.com"
+	req.Header.Set("Origin", "https://evil.com")
+	resp, err := app.app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 204, resp.StatusCode)
+	assert.Empty(t, resp.Header.Get("Access-Control-Allow-Origin"))
+}
+
+func TestCORS_Preflight_NoOrigin(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, &CORSConfig{Origins: []string{"*"}})
+	app.app.Get("/test", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+	req, _ := http.NewRequestWithContext(context.Background(), "OPTIONS", "/test", nil)
+	req.Host = "test.com"
+	resp, err := app.app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 204, resp.StatusCode)
+	assert.Empty(t, resp.Header.Get("Access-Control-Allow-Origin"))
+	assert.Empty(t, resp.Header.Get("Access-Control-Allow-Methods"))
+}
+
+func TestCORS_Preflight_SubdomainOrigin(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, &CORSConfig{
+		Origins: []string{"https://*.example.com"},
+	})
+	app.app.Get("/test", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+	req, _ := http.NewRequestWithContext(context.Background(), "OPTIONS", "/test", nil)
+	req.Host = "test.com"
+	req.Header.Set("Origin", "https://sub.example.com")
+	resp, err := app.app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 204, resp.StatusCode)
+	assert.Equal(t, "https://sub.example.com", resp.Header.Get("Access-Control-Allow-Origin"))
+}
+
+func TestCORS_Preflight_SubdomainRootNotAllowed(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, &CORSConfig{
+		Origins: []string{"https://*.example.com"},
+	})
+	app.app.Get("/test", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+	req, _ := http.NewRequestWithContext(context.Background(), "OPTIONS", "/test", nil)
+	req.Host = "test.com"
+	req.Header.Set("Origin", "https://example.com")
+	resp, err := app.app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 204, resp.StatusCode)
+	assert.Empty(t, resp.Header.Get("Access-Control-Allow-Origin"))
+}
+
+func TestCORS_Preflight_StillWorksAfterGET(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+	corsCfg := &CORSConfig{
+		Origins: []string{"https://example.com"},
+		Methods: []string{"GET"},
+	}
+	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, corsCfg)
+	app.app.Get("/test", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	// GET with CORS still works
+	getReq := testRequest("/test")
+	getReq.Header.Set("Origin", "https://example.com")
+	getResp, err := app.app.Test(getReq)
+	require.NoError(t, err)
+	assert.Equal(t, 200, getResp.StatusCode)
+	assert.Equal(t, "https://example.com", getResp.Header.Get("Access-Control-Allow-Origin"))
+
+	// OPTIONS preflight also works
+	optReq, _ := http.NewRequestWithContext(context.Background(), "OPTIONS", "/test", nil)
+	optReq.Host = "test.com"
+	optReq.Header.Set("Origin", "https://example.com")
+	optResp, err := app.app.Test(optReq)
+	require.NoError(t, err)
+	assert.Equal(t, 204, optResp.StatusCode)
+	assert.Equal(t, "https://example.com", optResp.Header.Get("Access-Control-Allow-Origin"))
+}
+
 func mustReadBody(resp *http.Response) []byte {
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()

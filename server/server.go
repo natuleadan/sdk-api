@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -245,6 +246,9 @@ func setupRouteOrGlobalMiddlewares(app *fiber.App, cfg Config, corsCfg *CORSConf
 	} else {
 		setupGlobalStandardMiddlewares(app, cfg, corsCfg)
 	}
+	if corsCfg != nil {
+		app.Options("/*", preflightHandler(corsCfg))
+	}
 }
 
 func setupPerRouteMiddlewares(app *fiber.App, cfg Config, corsCfg *CORSConfig) {
@@ -345,6 +349,46 @@ func joinOrDefault(items []string, def string) string {
 		joined.WriteString(s)
 	}
 	return joined.String()
+}
+
+func preflightHandler(cfg *CORSConfig) fiber.Handler {
+	return func(c fiber.Ctx) error {
+		origin := string(c.Request().Header.Peek("Origin"))
+		if origin == "" {
+			return c.SendStatus(204)
+		}
+		if !isOriginAllowed(origin, cfg.Origins) {
+			return c.SendStatus(204)
+		}
+		c.Set("Access-Control-Allow-Origin", origin)
+		c.Set("Access-Control-Allow-Methods", joinOrDefault(cfg.Methods, "GET,POST,PUT,PATCH,DELETE,OPTIONS"))
+		c.Set("Access-Control-Allow-Headers", joinOrDefault(cfg.Headers, "Origin,Content-Type,Accept,Authorization"))
+		if cfg.Credentials {
+			c.Set("Access-Control-Allow-Credentials", "true")
+		}
+		if cfg.MaxAge > 0 {
+			c.Set("Access-Control-Max-Age", strconv.Itoa(cfg.MaxAge))
+		}
+		return c.SendStatus(204)
+	}
+}
+
+func isOriginAllowed(origin string, allowedOrigins []string) bool {
+	for _, allowed := range allowedOrigins {
+		if allowed == "*" || allowed == origin {
+			return true
+		}
+		if starIdx := strings.Index(allowed, "*."); starIdx > 0 {
+			prefix := allowed[:starIdx]
+			suffix := allowed[starIdx+1:]
+			if strings.HasPrefix(origin, prefix) && strings.HasSuffix(origin, suffix) {
+				if len(origin) > len(prefix)+len(suffix) {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func (s *Server) App() *fiber.App {

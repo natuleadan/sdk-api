@@ -89,20 +89,15 @@ func PrometheusHandler() fiber.Handler {
 		b.WriteString("# HELP http_server_requests_total Total HTTP requests\n")
 		b.WriteString("# TYPE http_server_requests_total counter\n")
 
-		var shardMaps [numMetricShards]map[string]uint64
 		for i := range numMetricShards {
 			shard := &metrics.shards[i]
 			shard.mu.Lock()
-			shardMaps[i] = shard.count
-			shard.mu.Unlock()
-		}
-
-		for _, snap := range shardMaps {
-			for key, val := range snap {
+			for key, val := range shard.count {
 				parts := strings.SplitN(key, ":", 3)
 				fmt.Fprintf(&b, "http_server_requests_total{method=%q,path=%q,code=%q} %d\n", parts[0], parts[1], parts[2], val)
 				total += val
 			}
+			shard.mu.Unlock()
 		}
 		b.WriteString("\n")
 		b.WriteString("# HELP http_server_requests_active Active requests\n")
@@ -116,7 +111,6 @@ func PrometheusHandler() fiber.Handler {
 
 // ResetMetrics clears all collected metrics. Used in tests.
 func ResetMetrics() {
-	m := newShardedMetrics()
 	for i := range numMetricShards {
 		shard := &metrics.shards[i]
 		shard.mu.Lock()
@@ -124,5 +118,4 @@ func ResetMetrics() {
 		shard.mu.Unlock()
 	}
 	metrics.active.Store(0)
-	_ = m
 }

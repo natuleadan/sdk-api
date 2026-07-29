@@ -1099,6 +1099,7 @@ func TestCryptionInvalidKey(t *testing.T) {
 func TestPrometheus(t *testing.T) {
 	t.Parallel()
 	logx.Disable()
+	ResetMetrics()
 	app := fiber.New()
 	app.Use(Prometheus())
 	app.Get("/metrics", PrometheusHandler())
@@ -1127,6 +1128,7 @@ func TestPrometheus(t *testing.T) {
 func TestPrometheusMultipleRequests(t *testing.T) {
 	t.Parallel()
 	logx.Disable()
+	ResetMetrics()
 	app := fiber.New()
 	app.Use(Prometheus())
 	app.Get("/metrics", PrometheusHandler())

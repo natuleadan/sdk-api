@@ -5,8 +5,10 @@ import (
 	"log"
 	"os"
 
+	transferpb "600-grpc/pb/transferpb"
 	"600-grpc/transfer-svc/internal/handler"
 	"600-grpc/transfer-svc/internal/models"
+	"600-grpc/transfer-svc/internal/server"
 
 	"github.com/natuleadan/sdk-api/db"
 	"github.com/natuleadan/sdk-api/runtime"
@@ -31,6 +33,10 @@ func main() {
 
 	svc.WithSeed(func(ctx context.Context, s *runtime.Service) error {
 		pool := s.PoolPGTyped("primary")
+
+		transferpb.RegisterTransferServiceServer(runtime.MustGetGrpcServer(s),
+			server.NewTransferGRPCServer(pool))
+
 		tbl, err := db.NewTable[models.Transfer](pool, "transfers")
 		if err != nil {
 			return err

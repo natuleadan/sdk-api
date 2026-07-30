@@ -5,6 +5,9 @@ server:
   host: "0.0.0.0"
   mode: micro
   api_prefix: /api/v1
+  grpc_server:
+    listen_on: ":50056"
+    health: true
   grpc_clients:
     - name: account-svc
       target: direct:///account-svc:50055

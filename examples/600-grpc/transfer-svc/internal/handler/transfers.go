@@ -4,6 +4,7 @@ import (
 	"context"
 	"strconv"
 
+	accountpb "600-grpc/pb/accountpb"
 	"600-grpc/transfer-svc/internal/models"
 
 	"github.com/natuleadan/sdk-api/db"
@@ -33,6 +34,22 @@ func InitiateTransfer(svcCtx *ServiceContext) func(*runtime.RestCtx) error {
 		}
 		if body.Currency == "" {
 			body.Currency = "USD"
+		}
+
+		cr, err := runtime.GrpcCall(c.Context(), svcCtx.svc.GetGRPCClient("account-svc"),
+			func(conn runtime.ClientConnInterface) (*accountpb.DeductBalanceResponse, error) {
+				return accountpb.NewAccountServiceClient(conn).DeductBalance(c.Context(),
+					&accountpb.DeductBalanceRequest{
+						AccountId:      body.FromAccountID,
+						Amount:         body.Amount,
+						IdempotencyKey: body.IdempotencyKey,
+					})
+			})
+		if err != nil {
+			return c.Status(500).JSON(runtime.Map{"error": "gRPC error: " + err.Error()})
+		}
+		if !cr.Ok {
+			return c.Status(402).JSON(runtime.Map{"error": "insufficient balance"})
 		}
 
 		fID, _ := strconv.ParseInt(body.FromAccountID, 10, 64)

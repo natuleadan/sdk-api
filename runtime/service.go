@@ -22,6 +22,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc"
 
 	"github.com/natuleadan/sdk-api/db"
 	"github.com/natuleadan/sdk-api/events"
@@ -79,6 +80,7 @@ type Service struct {
 	rlMaxFunc       func(c fiber.Ctx) int
 	grpcServer      *GrpcServer
 	grpcClients     map[string]*GrpcClient
+	grpcRegistrars  map[string]func(srv *grpc.Server)
 
 	stop context.CancelFunc
 }
@@ -680,6 +682,21 @@ func (s *Service) RegisterValidation(name string, model any) *Service {
 	return s
 }
 
+// RegisterGrpcService registers a gRPC service factory by proto service name.
+// The factory is called when a "grpc" entry type with matching service_name is
+// declared in the YAML config. Usage:
+//
+//	svc.RegisterGrpcService("AccountService", func(srv *grpc.Server) {
+//	    accountpb.RegisterAccountServiceServer(srv, server.NewAccountGRPCServer(pool))
+//	})
+func (s *Service) RegisterGrpcService(name string, fn func(srv *grpc.Server)) *Service {
+	if s.grpcRegistrars == nil {
+		s.grpcRegistrars = make(map[string]func(srv *grpc.Server))
+	}
+	s.grpcRegistrars[name] = fn
+	return s
+}
+
 // RegisterModel registers a model for OpenAPI schema generation.
 // Usage: svc.RegisterModel("Product", (*Product)(nil)).
 func (s *Service) RegisterModel(name string, model any) *Service {
@@ -1129,7 +1146,18 @@ func (s *Service) registerEntryRoutes() error {
 	if s.config.Server.RateLimit != nil && s.config.Server.RateLimit.KV != "" && s.kvConns != nil {
 		rlRedis = s.kvConns[s.config.Server.RateLimit.KV]
 	}
-	return registerEntries(s.srv.App(), s.config, s.handlers, s.config.Server.APIPrefix, s.natsConns, s.models, s.jwtCfg, s.authValidator, s.apiKeyValidator, s.fgaClient, s.oryClient, s.zitadelClient, s.pools, s.kvConns, rlRedis)
+	if err := registerEntries(s.srv.App(), s.config, s.handlers, s.config.Server.APIPrefix, s.natsConns, s.models, s.jwtCfg, s.authValidator, s.apiKeyValidator, s.fgaClient, s.oryClient, s.zitadelClient, s.pools, s.kvConns, rlRedis); err != nil {
+		return err
+	}
+
+	for _, entry := range s.config.Entry {
+		if entry.Type == "grpc" && s.grpcRegistrars != nil {
+			if fn, ok := s.grpcRegistrars[entry.ServiceName]; ok {
+				fn(MustGetGrpcServer(s))
+			}
+		}
+	}
+	return nil
 }
 
 func (s *Service) serveStaticFiles() {

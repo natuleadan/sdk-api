@@ -38,6 +38,11 @@ entry:
     handler: {{.HandlerName}}
 {{- end}}
 {{- end}}
+{{- if .GrpcEnabled}}
+  - type: grpc
+    service_name: {{.ModelName}}Service
+    model: {{.ModelName}}
+{{- end}}
 {{- if .HasNATS}}
 {{- range .Consumers}}
 
@@ -54,6 +59,12 @@ exit:
 
 server:
   host: "0.0.0.0"
+{{- if .GrpcEnabled}}
+  mode: micro
+  grpc_server:
+    listen_on: ":{{.GrpcPort}}"
+    health: true
+{{- end}}
   api_prefix: /api
   middleware:
     - path: "/api/*"

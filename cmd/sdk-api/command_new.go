@@ -45,6 +45,12 @@ var newCmd = &cobra.Command{
 				allArgs = append(allArgs, "--rest", r)
 			}
 		}
+		if grpcSvc, _ := cmd.Flags().GetString("grpc-service"); grpcSvc != "" {
+			allArgs = append(allArgs, "--grpc-service", grpcSvc)
+		}
+		if grpcAutoCRUD, _ := cmd.Flags().GetBool("grpc-auto-crud"); grpcAutoCRUD {
+			allArgs = append(allArgs, "--grpc-auto-crud")
+		}
 		if split, _ := cmd.Flags().GetBool("split"); split {
 			allArgs = append(allArgs, "--split")
 		}
@@ -66,8 +72,10 @@ func init() {
 	newCmd.Flags().String("publish", "", "NATS producers: \"stream:after_event\"")
 	newCmd.Flags().String("exit", "", "Exit workers: \"stream:handler:name\"")
 	newCmd.Flags().String("cron", "", "Cron jobs: \"handler:name\"")
-	newCmd.Flags().Bool("grpc", false, "Enable gRPC server generation")
+		newCmd.Flags().Bool("grpc", false, "Enable gRPC server generation")
 	newCmd.Flags().Int("grpc-port", 0, "gRPC server port (default: HTTP port + 1)")
+	newCmd.Flags().String("grpc-service", "", "gRPC proto service name (default: ModelName + Service)")
+	newCmd.Flags().Bool("grpc-auto-crud", false, "Generate CRUD RPCs from model")
 	newCmd.Flags().Bool("with-tests", false, "Generate test stubs")
 	newCmd.Flags().StringArray("rest", []string{}, "REST endpoints: \"GROUP|METHOD:/path:Handler\"")
 	newCmd.Flags().Bool("split", false, "Generate one handler file per endpoint")

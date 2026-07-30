@@ -37,11 +37,7 @@ func main() {
 	svc.WithSeed(func(ctx context.Context, s *runtime.Service) error {
 		pool := s.PoolPGTyped("primary")
 
-		gs := s.GetGrpcServer()
-		if gs == nil {
-			log.Fatal("gRPC not available in monolith mode")
-		}
-		authpb.RegisterAuthServiceServer(gs.Server(), server.NewAuthGRPCServer(pool))
+		authpb.RegisterAuthServiceServer(runtime.MustGetGrpcServer(s), server.NewAuthGRPCServer(pool))
 
 		userTbl, err := db.NewTable[models.User](pool, "users")
 		if err != nil {

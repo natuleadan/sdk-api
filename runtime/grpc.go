@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"fmt"
+	"log"
 	"net"
 	"time"
 
@@ -17,6 +18,26 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
 )
+
+// MustGetGrpcServer returns the gRPC server, or panics if gRPC is not available
+// (server.mode must be "micro" with grpc_server.listen_on set).
+func MustGetGrpcServer(svc *Service) *grpc.Server {
+	gs := svc.GetGrpcServer()
+	if gs == nil {
+		log.Fatal("runtime: gRPC server not available (set server.mode: micro)")
+	}
+	return gs.Server()
+}
+
+// GrpcCall makes a typed gRPC call on the given client connection.
+// Returns an error if the client is nil (not configured).
+func GrpcCall[T any](ctx context.Context, gc *GrpcClient, fn func(clientConn any) (T, error)) (T, error) {
+	var zero T
+	if gc == nil {
+		return zero, fmt.Errorf("grpc: client not available (not configured)")
+	}
+	return fn(gc.Conn())
+}
 
 type GrpcRegisterFn func(server *grpc.Server)
 

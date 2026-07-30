@@ -36,10 +36,7 @@ func main() {
 
 		svcCtx.SetService(s)
 
-		gs := s.GetGrpcServer()
-		if gs != nil {
-			accountpb.RegisterAccountServiceServer(gs.Server(), server.NewAccountGRPCServer(pool))
-		}
+		accountpb.RegisterAccountServiceServer(runtime.MustGetGrpcServer(s), server.NewAccountGRPCServer(pool))
 
 		accTbl, err := db.NewTable[models.Account](pool, "accounts")
 		if err != nil {

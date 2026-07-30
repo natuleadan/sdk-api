@@ -28,6 +28,7 @@ import (
 	"github.com/natuleadan/sdk-api/infra/collection"
 	"github.com/natuleadan/sdk-api/infra/discov"
 	"github.com/natuleadan/sdk-api/infra/logx"
+	"github.com/natuleadan/sdk-api/infra/prometheus"
 	"github.com/natuleadan/sdk-api/infra/stores/cache"
 	"github.com/natuleadan/sdk-api/infra/stores/mon"
 	"github.com/natuleadan/sdk-api/infra/stores/redis"
@@ -817,6 +818,10 @@ func (s *Service) RunWithContext(ctx context.Context) error {
 	s.stop = cancel
 
 	initGC(s.config.Server.GC)
+
+	if s.config.Prometheus != nil && s.config.Prometheus.Enabled {
+		prometheus.Enable()
+	}
 
 	if err := s.initLogger(); err != nil {
 		return fmt.Errorf("log init: %w", err)

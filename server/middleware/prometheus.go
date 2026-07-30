@@ -1,8 +1,10 @@
 package middleware
 
 import (
+	"bytes"
 	"fmt"
 	"hash/fnv"
+	"net/http"
 	"strconv"
 	"strings"
 	"sync"
@@ -11,7 +13,16 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/natuleadan/sdk-api/infra/metric"
+	"github.com/natuleadan/sdk-api/infra/prometheus"
+	prom "github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
+
+var promRegistryHandler http.Handler
+
+func init() {
+	promRegistryHandler = promhttp.HandlerFor(prom.DefaultGatherer, promhttp.HandlerOpts{})
+}
 
 const numMetricShards = 16
 
@@ -82,6 +93,21 @@ func Prometheus() fiber.Handler {
 	}
 }
 
+type captureResponseWriter struct {
+	buf    *bytes.Buffer
+	header http.Header
+}
+
+func (w *captureResponseWriter) Header() http.Header {
+	return w.header
+}
+
+func (w *captureResponseWriter) Write(b []byte) (int, error) {
+	return w.buf.Write(b)
+}
+
+func (w *captureResponseWriter) WriteHeader(int) {}
+
 func PrometheusHandler() fiber.Handler {
 	return func(c fiber.Ctx) error {
 		var total uint64
@@ -103,6 +129,13 @@ func PrometheusHandler() fiber.Handler {
 		b.WriteString("# HELP http_server_requests_active Active requests\n")
 		b.WriteString("# TYPE http_server_requests_active gauge\n")
 		fmt.Fprintf(&b, "http_server_requests_active %d\n", metrics.active.Load())
+
+		if prometheus.Enabled() {
+			var buf bytes.Buffer
+			cw := &captureResponseWriter{buf: &buf, header: make(http.Header)}
+			promRegistryHandler.ServeHTTP(cw, &http.Request{Method: "GET"})
+			b.Write(buf.Bytes())
+		}
 
 		c.Set("Content-Type", "text/plain; version=0.0.4")
 		return c.SendString(b.String())

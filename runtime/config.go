@@ -22,6 +22,17 @@ type DeployConfig struct {
 	Target string `json:"target" config:",default=auto"`
 }
 
+type PrometheusConfig struct {
+	// Enabled enables the prometheus metrics agent and infra/metric counters.
+	Enabled bool `json:"enabled"`
+	// Host is the prometheus agent listen address.
+	Host string `json:"host" config:",default=0.0.0.0"`
+	// Port is the prometheus agent listen port.
+	Port int `json:"port" config:",default=9101"`
+	// Path is the prometheus metrics endpoint path.
+	Path string `json:"path" config:",default=/metrics"`
+}
+
 type ServiceConfig struct {
 	// Name is a constant.
 	Name string `json:"name"`
@@ -47,6 +58,8 @@ type ServiceConfig struct {
 	Auth *AuthConfig `json:"auth" config:",optional"`
 	// Log is a constant.
 	Log *logx.LogConf `json:"log" config:",optional"`
+	// Prometheus enables prometheus metrics via infra/metric.
+	Prometheus *PrometheusConfig `json:"prometheus" config:",optional"`
 }
 
 type AuthConfig struct {

@@ -19,6 +19,10 @@ import (
 	"google.golang.org/grpc/reflection"
 )
 
+// ClientConnInterface is a type alias for grpc.ClientConnInterface, exported so
+// example projects can reference the type without importing grpc directly.
+type ClientConnInterface = grpc.ClientConnInterface
+
 // MustGetGrpcServer returns the gRPC server, or panics if gRPC is not available
 // (server.mode must be "micro" with grpc_server.listen_on set).
 func MustGetGrpcServer(svc *Service) *grpc.Server {
@@ -29,9 +33,19 @@ func MustGetGrpcServer(svc *Service) *grpc.Server {
 	return gs.Server()
 }
 
+// MustGetGrpcClientConn returns the gRPC client connection for a named client.
+// Returns nil if the client is not configured.
+func MustGetGrpcClientConn(svc *Service, name string) ClientConnInterface {
+	gc := svc.GetGRPCClient(name)
+	if gc == nil {
+		return nil
+	}
+	return gc.Conn()
+}
+
 // GrpcCall makes a typed gRPC call on the given client connection.
 // Returns an error if the client is nil (not configured).
-func GrpcCall[T any](ctx context.Context, gc *GrpcClient, fn func(clientConn any) (T, error)) (T, error) {
+func GrpcCall[T any](ctx context.Context, gc *GrpcClient, fn func(conn ClientConnInterface) (T, error)) (T, error) {
 	var zero T
 	if gc == nil {
 		return zero, fmt.Errorf("grpc: client not available (not configured)")

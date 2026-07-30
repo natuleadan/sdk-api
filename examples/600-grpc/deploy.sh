@@ -67,7 +67,9 @@ echo "  minio ready"
 for entry in $SERVICES; do
     name="${entry%:*}"
     port="${entry#*:}"
-    echo "=== $name ==="
+    echo "=== build $name ==="
+    docker compose build "$name" 2>&1 | tail -1
+    echo "=== start $name ==="
     docker compose up -d "$name" 2>&1 | tail -1
     wait_svc "$name" "$port" || EXIT_CODE=1
 done

@@ -26,13 +26,13 @@ func UploadFile(svcCtx *ServiceContext) func(*runtime.RestCtx) error {
 	return func(c *runtime.RestCtx) error {
 		a := c.Locals("auth").(*middleware.AuthContext)
 
-		gc := svcCtx.svc.GetGRPCClient("auth-svc")
-		if gc != nil {
-			cr, err := authpb.NewAuthServiceClient(gc.Conn()).DeductCredit(c.Context(),
-				&authpb.DeductCreditRequest{UserId: a.UserID, Amount: 1})
-			if err != nil || !cr.Ok {
-				return c.Status(402).JSON(runtime.Map{"error": "insufficient credits"})
-			}
+		cr, err := runtime.GrpcCall(c.Context(), svcCtx.svc.GetGRPCClient("auth-svc"),
+			func(conn runtime.ClientConnInterface) (*authpb.DeductCreditResponse, error) {
+				return authpb.NewAuthServiceClient(conn).DeductCredit(c.Context(),
+					&authpb.DeductCreditRequest{UserId: a.UserID, Amount: 1})
+			})
+		if err == nil && !cr.Ok {
+			return c.Status(402).JSON(runtime.Map{"error": "insufficient credits"})
 		}
 
 		key := runtime.GenerateShortCode(16)

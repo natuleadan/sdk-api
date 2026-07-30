@@ -28,12 +28,11 @@ func CreateLink(svcCtx *ServiceContext) func(*runtime.RestCtx) error {
 		}
 		a := c.Locals("auth").(*middleware.AuthContext)
 
-		gc := svcCtx.svc.GetGRPCClient("auth-svc")
-		if gc == nil {
-			return c.Status(500).JSON(runtime.Map{"error": "gRPC client not available"})
-		}
-		authClient := authpb.NewAuthServiceClient(gc.Conn())
-		cr, err := authClient.DeductCredit(c.Context(), &authpb.DeductCreditRequest{UserId: a.UserID, Amount: 1})
+		cr, err := runtime.GrpcCall(c.Context(), svcCtx.svc.GetGRPCClient("auth-svc"),
+			func(conn runtime.ClientConnInterface) (*authpb.DeductCreditResponse, error) {
+				return authpb.NewAuthServiceClient(conn).DeductCredit(c.Context(),
+					&authpb.DeductCreditRequest{UserId: a.UserID, Amount: 1})
+			})
 		if err != nil {
 			return c.Status(500).JSON(runtime.Map{"error": "gRPC error: " + err.Error()})
 		}

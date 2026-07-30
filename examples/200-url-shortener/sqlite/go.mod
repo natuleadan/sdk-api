@@ -2,10 +2,7 @@ module 201-url-shortener-turso
 
 go 1.26.5
 
-require (
-	github.com/natuleadan/sdk-api v0.0.0
-	turso.tech/database/tursogo v0.7.1
-)
+require github.com/natuleadan/sdk-api v0.0.0
 
 require (
 	filippo.io/edwards25519 v1.2.0 // indirect
@@ -119,6 +116,7 @@ require (
 	gopkg.in/ini.v1 v1.67.3 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
+	turso.tech/database/tursogo v0.7.1 // indirect
 )
 
 replace github.com/natuleadan/sdk-api => ../../..

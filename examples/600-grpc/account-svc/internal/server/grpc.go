@@ -6,15 +6,15 @@ import (
 
 	accountpb "600-grpc/pb/accountpb"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/natuleadan/sdk-api/runtime"
 )
 
 type AccountGRPCServer struct {
 	accountpb.UnimplementedAccountServiceServer
-	pool *pgxpool.Pool
+	pool *runtime.PGPool
 }
 
-func NewAccountGRPCServer(pool *pgxpool.Pool) *AccountGRPCServer {
+func NewAccountGRPCServer(pool *runtime.PGPool) *AccountGRPCServer {
 	return &AccountGRPCServer{pool: pool}
 }
 

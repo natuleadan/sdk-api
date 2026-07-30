@@ -3,7 +3,6 @@ module 600-grpc
 go 1.26.5
 
 require (
-	github.com/jackc/pgx/v5 v5.10.0
 	github.com/natuleadan/sdk-api v0.0.0-00010101000000-000000000000
 	google.golang.org/grpc v1.82.1
 	google.golang.org/protobuf v1.36.11
@@ -42,6 +41,7 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
+	github.com/jackc/pgx/v5 v5.10.0 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/klauspost/compress v1.19.1 // indirect
 	github.com/klauspost/cpuid/v2 v2.4.0 // indirect

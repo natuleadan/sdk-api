@@ -5,15 +5,15 @@ import (
 
 	authpb "600-grpc/pb/authpb"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/natuleadan/sdk-api/runtime"
 )
 
 type AuthGRPCServer struct {
 	authpb.UnimplementedAuthServiceServer
-	pool *pgxpool.Pool
+	pool *runtime.PGPool
 }
 
-func NewAuthGRPCServer(pool *pgxpool.Pool) *AuthGRPCServer {
+func NewAuthGRPCServer(pool *runtime.PGPool) *AuthGRPCServer {
 	return &AuthGRPCServer{pool: pool}
 }
 

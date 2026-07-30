@@ -9,7 +9,6 @@ import (
 
 	"tickets/models"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/natuleadan/sdk-api/db"
 	"github.com/natuleadan/sdk-api/events"
 	"github.com/natuleadan/sdk-api/runtime"
@@ -29,7 +28,7 @@ func NewServiceContext(s *runtime.Service) *ServiceContext {
 	return &ServiceContext{svc: s}
 }
 
-func (c *ServiceContext) Pool() *pgxpool.Pool {
+func (c *ServiceContext) Pool() *runtime.PGPool {
 	return c.svc.PoolPGTyped("pg-main")
 }
 

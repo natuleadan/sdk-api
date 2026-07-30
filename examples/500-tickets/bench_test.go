@@ -18,11 +18,11 @@ import (
 
 	"tickets/models"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/natuleadan/sdk-api/db"
+	"github.com/natuleadan/sdk-api/runtime"
 )
 
-var benchPool *pgxpool.Pool
+var benchPool *runtime.PGPool
 
 func TestMain(m *testing.M) {
 	poolURL := os.Getenv("DATABASE_URL")

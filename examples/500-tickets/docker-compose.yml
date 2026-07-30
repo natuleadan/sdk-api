@@ -15,7 +15,7 @@ services:
 
   dragonfly:
     image: docker.dragonflydb.io/dragonflydb/dragonfly:v1.39.0
-    command: ["--cluster_mode=emulated"]
+    command: ["--cluster_mode=emulated", "--maxmemory=512mb"]
 
   nats:
     image: docker.io/library/nats:2.14-alpine

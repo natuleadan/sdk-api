@@ -703,6 +703,10 @@ func (s *Service) RegisterModel(name string, model any) *Service {
 	return s
 }
 
+// PGPool is a type alias for pgxpool.Pool, exported so example projects
+// can reference the pool type without importing pgx directly.
+type PGPool = pgxpool.Pool
+
 // Pool returns a DB pool by name.
 func (s *Service) Pool(name string) any {
 	return s.pools[name]

@@ -60,7 +60,7 @@ General-purpose Go SDK for event-driven microservices and monoliths. YAML-driven
 - **Multi-DB** — add `databases:[]` with separate names → reference via `entry[].db` or `exit[].db`
 - **OpenAPI** — set `server.openapi.enabled: true` → `svc.RegisterModel("Product", (*Product)(nil))`
 - **Async job with persistent store** — add `type: async` + `async_store.driver: postgres|redis|nats_kv` → `type: async` with `handler` → job store auto-initialized from YAML
-- **gRPC microservices** — set `server.mode: micro` → `grpc_server.listen_on` + `grpc_clients[].target` → proto registration via `svc.GetGrpcServer().Server()`
+- **gRPC microservices** — set `server.mode: micro` → `grpc_server.listen_on` + `grpc_clients[].target` → proto registration via `svc.RegisterGrpcService(name, fn)` or `runtime.MustGetGrpcServer(s)`
 
 ## Workflows (for AI assistants)
 
@@ -98,8 +98,9 @@ General-purpose Go SDK for event-driven microservices and monoliths. YAML-driven
 ### Add a gRPC service (micro mode)
 1. Set `server.mode: micro` and `server.grpc_server.listen_on: ":50051"`
 2. Create a proto file or manual pb.go with service definition
-3. Register: `pb.RegisterUserServiceServer(svc.GetGrpcServer().Server(), &userServer{})`
-4. Client: `gc := svc.GetGRPCClient("user-svc"); conn := gc.Conn()`
+3. Register: `svc.RegisterGrpcService("UserService", func(srv *grpc.Server) { pb.RegisterUserServiceServer(srv, &userServer{}) })`
+4. Or with YAML entry: add `entry: - type: grpc, service_name: UserService` + `svc.RegisterGrpcService("UserService", fn)`
+5. Client: `runtime.GrpcCall(ctx, svc.GetGRPCClient("user-svc"), func(conn runtime.ClientConnInterface) (T, error) { ... })`
 
 ### Change runtime mode
 1. By default, the generated project uses `runtime.NewFromYAML` with embedded config

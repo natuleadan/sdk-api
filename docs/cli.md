@@ -54,6 +54,8 @@ Creates a new microservice scaffold with a proper project structure (handler/, l
 | `--cron` | Cron jobs: `handler:name` | — |
 | `--grpc` | Enable gRPC server generation | `false` |
 | `--grpc-port` | gRPC server port | HTTP port + 1 |
+| `--grpc-service` | gRPC proto service name (default: ModelName+Service) | — |
+| `--grpc-auto-crud` | Generate CRUD RPCs from model | `false` |
 | `--split` | Generate one handler file per endpoint | `false` |
 | `--dir` | Output directory | Service name |
 | `--output` | Output format (text, json, table) | `text` |
@@ -66,12 +68,20 @@ sdk-api new products-svc \
     --model Product \
     --fields "name:string,price:float64,stock:int"
 
-# With NATS and gRPC
+# With NATS and gRPC (uses SDK runtime.GrpcServer, not raw net.Listen)
 sdk-api new orders-svc \
     --model Order \
     --fields "total:float64,status:string" \
     --consume "orders:ord-consumer:onOrderCreated" \
-    --grpc
+    --grpc \
+    --grpc-service OrderService
+
+# With gRPC auto-CRUD from model
+sdk-api new payments-svc \
+    --model Payment \
+    --fields "amount:float64,currency:string" \
+    --grpc \
+    --grpc-auto-crud
 
 # With exit workers and cron
 sdk-api new analytics-svc \

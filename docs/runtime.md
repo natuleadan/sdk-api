@@ -46,13 +46,15 @@ svc.WithSeed(func(ctx context.Context, s *runtime.Service) error {
     return err
 })
 
-// Register gRPC service
-svc.WithGRPC("ProductGRPC", grpcHandler)
+// Register gRPC service (wires to type: grpc entry in YAML)
+svc.RegisterGrpcService("AccountService", func(srv *grpc.Server) {
+    accountpb.RegisterAccountServiceServer(srv, myServer)
+})
 
 // Access databases and event streams
 svc.Pool("pg-main")              // any — returns the pool by name
 svc.PoolPG("pg-main")            // *pgxpool.Pool — typed access
-svc.PoolPGTyped("pg-main")       // *pgxpool.Pool — returns nil if not a pgx pool
+svc.PoolPGTyped("pg-main")       // *runtime.PGPool — typed pool, alias for *pgxpool.Pool
 svc.NATS("primary")              // events.EventBroker — event broker by stream name
 svc.Stream("primary")            // events.EventBroker — same as NATS, returns broker by stream name
 svc.SafeHTTPClient()             // *middleware.SafeHTTPClient — SSRF-protected HTTP client
@@ -63,9 +65,12 @@ svc.GetGrpcServer()              // *GrpcServer — gRPC server instance (nil if
 svc.GetGRPCClient("user-svc")    // *GrpcClient — named gRPC client connection
 svc.Table("Product")             // any — *db.Table[T] registered via MustRegister
 
-// gRPC server and client (micro mode only)
-gs := svc.GetGrpcServer()            // *GrpcServer — register proto services, nil in monolith mode
-gc := svc.GetGRPCClient("user-svc")  // *GrpcClient — access named gRPC client connection
+// gRPC server and client (micro mode only) — use helpers (no grpc import needed)
+runtime.MustGetGrpcServer(svc)         // *grpc.Server — panics if gRPC not available
+runtime.MustGetGrpcClientConn(svc, "user-svc") // runtime.ClientConnInterface — nil if not configured
+runtime.GrpcCall(ctx, gc, func(conn runtime.ClientConnInterface) (T, error)) // typed gRPC call with nil guard
+runtime.PGPool                                   // type alias for *pgxpool.Pool
+runtime.ClientConnInterface                       // type alias for grpc.ClientConnInterface
 
 runtime.NewGrpcServer(cfg, register)  // Create gRPC server with interceptors (trace, breaker, timeout, shedding, recovery, prometheus)
 runtime.NewGrpcClient(cfg)            // Create gRPC client with service discovery (direct, etcd), TLS option
@@ -74,7 +79,7 @@ runtime.BulkheadGet("openai")         // *syncx.Limit — named semaphore for ex
 // Package-level helpers
 runtime.GetTable[Product](svc, "Product")   // *db.Table[T] — typed table by model name
 runtime.TableFor[Product](pools, "pg-main", "link") // *db.Table[T] — new table from pools map
-runtime.PoolPG(pools, "pg-main")           // *pgxpool.Pool — typed pool from pools map
+runtime.PoolPG(pools, "pg-main")           // *runtime.PGPool — typed pool from pools map
 runtime.PoolSQL(pools, "pg-main")          // *sql.DB — SQL pool by name
 runtime.ErrNotFound                        // error — record not found sentinel
 
@@ -300,14 +305,28 @@ server:
       secure: true
 ```
 
-### Server API
+### Server Registration
 
+**Method 1 — Manual (via WithSeed):**
 ```go
-gs := svc.GetGrpcServer()
-if gs == nil {
-    // gRPC not available (monolith mode)
-}
-pb.RegisterUserServiceServer(gs.Server(), &userServer{})
+svc.WithSeed(func(ctx context.Context, s *runtime.Service) error {
+    pool := s.PoolPGTyped("primary")
+    pb.RegisterAccountServiceServer(runtime.MustGetGrpcServer(s),
+        server.NewAccountGRPCServer(pool))
+    return nil
+})
+```
+
+**Method 2 — YAML-driven (via type: grpc entry):**
+```yaml
+entry:
+  - type: grpc
+    service_name: AccountService
+```
+```go
+svc.RegisterGrpcService("AccountService", func(srv *grpc.Server) {
+    accountpb.RegisterAccountServiceServer(srv, server.NewAccountGRPCServer(pool))
+})
 ```
 
 The gRPC server is created with interceptors: trace, breaker, timeout, adaptive shedding, panic recovery, and Prometheus metrics. Reflection is registered for development tooling.
@@ -315,10 +334,20 @@ The gRPC server is created with interceptors: trace, breaker, timeout, adaptive 
 ### Client API
 
 ```go
-client := svc.GetGRPCClient("users-svc")
-conn := client.Conn()  // *grpc.ClientConn
-userClient := pb.NewUserServiceClient(conn)
-user, err := userClient.GetUser(ctx, &pb.GetUserRequest{Id: 1})
+gc := svc.GetGRPCClient("auth-svc")
+if gc == nil {
+    // gRPC client not configured
+}
+cr, err := authpb.NewAuthServiceClient(gc.Conn()).DeductCredit(ctx, req)
+```
+
+Or using the `GrpcCall` helper (no manual nil guard):
+
+```go
+cr, err := runtime.GrpcCall(ctx, svc.GetGRPCClient("auth-svc"),
+    func(conn runtime.ClientConnInterface) (*authpb.DeductCreditResponse, error) {
+        return authpb.NewAuthServiceClient(conn).DeductCredit(ctx, req)
+    })
 ```
 
 ### Service Discovery

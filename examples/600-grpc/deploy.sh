@@ -70,6 +70,7 @@ for entry in $SERVICES; do
     echo "=== build $name ==="
     docker compose build "$name" 2>&1 | tail -1
     echo "=== start $name ==="
+    docker compose rm -f -v 2>/dev/null
     docker compose up -d "$name" 2>&1 | tail -1
     wait_svc "$name" "$port" || EXIT_CODE=1
 done

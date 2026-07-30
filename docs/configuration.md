@@ -723,18 +723,20 @@ Auto-generated GraphQL schema from registered models.
 Queries and mutations are auto-generated from `CRUDProvider` registrations. Models must be registered via `svc.RegisterModel()`.
 
 ### `type: grpc`
-gRPC service definition. Generates scaffold code (proto, server, pb). At runtime, registers as informational; the gRPC server is started by the generated main.go.
+gRPC service definition paired with `svc.RegisterGrpcService()`. The SDK auto-wires the proto server onto the gRPC server when the entry is declared in YAML.
 
 ```yaml
 - type: grpc
   service_name: ProductService
-  handler: onProductGRPC
+  model: Product          # optional: for proto auto-generation
+  auto_crud: true         # optional: generates Get/List/Create/Update/Delete RPCs
 ```
 
 | Field | Description |
 |-------|-------------|
-| `service_name` | gRPC service name (required) |
-| `handler` | Handler reference (required) |
+| `service_name` | gRPC proto service name (required; maps to `RegisterGrpcService`) |
+| `model` | Model name for proto auto-generation (optional) |
+| `auto_crud` | Generate CRUD RPCs from model fields (optional, requires `model`) |
 
 ### Common entry fields
 

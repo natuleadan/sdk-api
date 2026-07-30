@@ -998,7 +998,7 @@ svc.WithRateLimitMaxFunc(func(c fiber.Ctx) int {
 
 ## 24. gRPC Service
 
-Define a gRPC service that shares business logic with HTTP handlers.
+Define a gRPC service that shares business logic with HTTP handlers. Uses `svc.RegisterGrpcService()` to wire the proto server onto the runtime gRPC server.
 
 **YAML:**
 
@@ -1006,9 +1006,9 @@ Define a gRPC service that shares business logic with HTTP handlers.
 entry:
   - type: grpc
     service_name: ProductService
-    handler: onProductGRPC
 
 server:
+  mode: micro
   grpc_server:
     listen_on: ":8081"
     health: true
@@ -1018,23 +1018,35 @@ server:
       timeout: 5000
 ```
 
-**Go (generated scaffold):**
+**Go (wiring in main.go):**
 
 ```go
-// grpcserver/product.go — delegates to internal/logic/
-type ProductServer struct {
-    svcCtx *svc.ServiceContext
-    pb.UnimplementedProductServiceServer
-}
-
-func (s *ProductServer) ListProducts(ctx context.Context, req *pb.ListProductsRequest) (*pb.ListProductsResponse, error) {
-    l := logic.NewProductLogic(s.svcCtx)
-    items, err := l.List(ctx)
-    // ... map to proto response
-}
+svc.RegisterGrpcService("ProductService", func(srv *grpc.Server) {
+    pb.RegisterProductServiceServer(srv, grpcserver.NewProductServer(svcCtx))
+})
 ```
 
 HTTP and gRPC share the same `internal/logic/` package. The gRPC server auto-registers interceptors: tracing, circuit breaker, timeout, and CPU shedding.
+
+### Client calls
+
+Use `runtime.GrpcCall` to call a gRPC service from an HTTP handler without importing `google.golang.org/grpc`:
+
+```go
+cr, err := runtime.GrpcCall(ctx, svc.GetGRPCClient("auth-svc"),
+    func(conn runtime.ClientConnInterface) (*authpb.DeductCreditResponse, error) {
+        return authpb.NewAuthServiceClient(conn).DeductCredit(ctx, req)
+    })
+if err != nil || !cr.Ok {
+    return c.Status(402).JSON(runtime.Map{"error": "insufficient credits"})
+}
+```
+
+For server registration, `runtime.MustGetGrpcServer` replaces the manual nil guard:
+
+```go
+pb.RegisterAccountServiceServer(runtime.MustGetGrpcServer(s), myServer)
+```
 
 ## 25. Lifecycle Hooks
 

@@ -15,5 +15,5 @@ COPY --from=builder /svc /app/svc
 COPY sdk-api/examples/600-grpc/transfer-svc/service.yaml /app/service.yaml
 COPY sdk-api/examples/600-grpc/transfer-svc/run.sh /app/run.sh
 RUN chmod +x /app/run.sh /app/svc
-EXPOSE 23605
+EXPOSE 23606
 ENTRYPOINT ["/app/run.sh"]

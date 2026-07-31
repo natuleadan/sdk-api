@@ -7,6 +7,14 @@ set -e
 
 SERVICES="auth-svc:23601 url-svc:23602 file-svc:23603 ticket-svc:23604 account-svc:23605 transfer-svc:23606 fraud-svc:23607 receipt-svc:23608"
 EXIT_CODE=0
+TEST_PATTERN=""
+
+for arg in "$@"; do
+    case "$arg" in
+        --test:*) TEST_PATTERN="${arg#--test:}" ;;
+        -*) ;;
+    esac
+done
 
 wait_svc() {
     name=$1 port=$2
@@ -70,7 +78,7 @@ for entry in $SERVICES; do
     echo "=== build $name ==="
     docker compose build "$name" 2>&1 | tail -1
     echo "=== start $name ==="
-    docker compose rm -f -v 2>/dev/null
+    docker compose rm -f -v "$name" 2>/dev/null
     docker compose up -d "$name" 2>&1 | tail -1
     wait_svc "$name" "$port" || EXIT_CODE=1
 done
@@ -81,7 +89,12 @@ done
 if [ "$EXIT_CODE" -eq 0 ]; then
     echo ""
     echo "=== tests ==="
-    docker compose run --rm bench 2>&1
+    if [ -n "$TEST_PATTERN" ]; then
+        echo "  pattern: $TEST_PATTERN"
+        docker compose run --rm bench -test.v -test.run="$TEST_PATTERN" -test.count=1 -test.timeout=60s 2>&1
+    else
+        docker compose run --rm bench 2>&1
+    fi
     EXIT_CODE=$?
 fi
 

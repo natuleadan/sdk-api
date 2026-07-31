@@ -427,6 +427,10 @@ Prometheus metrics at `metrics_path` (default: `/metrics`):
 - **16-way FNV sharding**: metrics are distributed across 16 shards by FNV-1a hash
   of `method:path:code`. Reduces mutex contention by ~94% at high RPS.
 - **Atomic active counter**: uses `atomic.Int64` for lock-free request tracking.
+- **Custom metrics**: with `prometheus.enabled: true` in the service YAML, the
+  global Prometheus registry is merged into this endpoint, so counters created
+  via `infra/metric` (e.g. `metric.NewCounterVec`) appear alongside the sharded
+  metrics.
 
 ```
 go_requests_total{...,method="GET",path="/api/v1/products",status="200"}

@@ -55,7 +55,6 @@ Creates a new microservice scaffold with a proper project structure (handler/, l
 | `--grpc` | Enable gRPC server generation | `false` |
 | `--grpc-port` | gRPC server port | HTTP port + 1 |
 | `--grpc-service` | gRPC proto service name (default: ModelName+Service) | — |
-| `--grpc-auto-crud` | Generate CRUD RPCs from model | `false` |
 | `--split` | Generate one handler file per endpoint | `false` |
 | `--dir` | Output directory | Service name |
 | `--output` | Output format (text, json, table) | `text` |
@@ -75,13 +74,6 @@ sdk-api new orders-svc \
     --consume "orders:ord-consumer:onOrderCreated" \
     --grpc \
     --grpc-service OrderService
-
-# With gRPC auto-CRUD from model
-sdk-api new payments-svc \
-    --model Payment \
-    --fields "amount:float64,currency:string" \
-    --grpc \
-    --grpc-auto-crud
 
 # With exit workers and cron
 sdk-api new analytics-svc \

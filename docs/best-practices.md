@@ -76,9 +76,36 @@ server:
 ```
 
 ```go
-client := svc.GrpcClient("product-service")
-conn := client.Conn()
-productClient := pb.NewProductServiceClient(conn)
+gc := svc.GetGRPCClient("product-service")
+if gc == nil {
+    // client not configured
+}
+productClient := pb.NewProductServiceClient(gc.Conn())
+```
+
+Or use the `GrpcCall` helper, which handles the nil guard:
+
+```go
+cr, err := runtime.GrpcCall(ctx, svc.GetGRPCClient("auth-svc"),
+    func(conn runtime.ClientConnInterface) (*authpb.DeductCreditResponse, error) {
+        return authpb.NewAuthServiceClient(conn).DeductCredit(ctx, req)
+    })
+```
+
+### Registering a gRPC service
+
+Pair the YAML entry with `RegisterGrpcService` to auto-wire the proto server:
+
+```yaml
+entry:
+  - type: grpc
+    service_name: ProductService
+```
+
+```go
+svc.RegisterGrpcService("ProductService", func(srv *grpc.Server) {
+    pb.RegisterProductServiceServer(srv, grpcserver.NewProductServer(svcCtx))
+})
 ```
 
 ### gRPC + HTTP share logic

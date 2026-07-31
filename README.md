@@ -119,6 +119,8 @@ curl http://localhost:8080/health
 | | Multi-DB | Each entry/exit can use a different database |
 | **Server** | 16 built-in middlewares | BodyReader, Logger, breaker, JWT, CORS, tracing, shedding, timeout, etc. |
 | | Sharded Prometheus | 16-way FNV sharding, atomic active counter, lock-free |
+| | Custom metrics | `prometheus.enabled: true` activates `infra/metric` + exposes custom counters on `/metrics` |
+| | gRPC helpers | `RegisterGrpcService`, `GrpcCall`, `MustGetGrpcServer`, `PGPool` — no raw grpc imports |
 | | BodyReader | Single body read — cached in locals, no duplicate reads |
 | | sync.Pool buffers | Reusable 64KB buffers for crypto/JSON hot paths |
 | | Logger sampling | `skip_paths` + `sample_rate` for high-volume deployments |
@@ -232,6 +234,7 @@ resp, _ := client.Request("orders", "orders.transform", []byte(`{"id": 1}`))
 | `sse` | GET | SSE handler | No |
 | `file` | GET, POST, PUT, PATCH, DELETE | Upload handler | No |
 | `async` | POST, GET | Async handler | No |
+| `grpc` | — | `RegisterGrpcService` | Optional |
 | `graphql` | POST | Nothing | No |
 
 ### Exit worker fields

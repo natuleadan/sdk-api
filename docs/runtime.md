@@ -374,7 +374,9 @@ Configured via `GrpcInterceptorsConfig` (all enabled by default).
 
 ### Prometheus Metrics
 
-When the Prometheus agent is enabled (`infra/prometheus`), the following metrics are collected automatically:
+When `prometheus.enabled: true` is set in the service YAML, the runtime calls `prometheus.Enable()` at startup. This activates `infra/metric` recording (all `Inc()`/`Add()`/`Observe()` calls) and merges the global Prometheus registry into the HTTP `/metrics` handler, so custom counters appear alongside the built-in sharded metrics.
+
+The following gRPC metrics are collected automatically (via gRPC interceptors):
 
 | Metric | Type | Labels |
 |--------|------|--------|

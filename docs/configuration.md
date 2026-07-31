@@ -362,6 +362,26 @@ Token blacklist: use `svc.WithJWTBlacklist()` at runtime to register a callback.
 | `auth` | object | `nil` | Authentication configuration |
 | `deploy` | object | `nil` | Deployment target for platform-specific validation |
 | `server` | object | (defaults) | HTTP server + security configuration |
+| `prometheus` | object | `nil` | Prometheus metrics configuration |
+
+## Prometheus
+
+Enables custom business metrics recorded via `infra/metric` (e.g. `metric.NewCounterVec`). When disabled (default), all `Inc()`/`Add()`/`Observe()` calls are no-ops and `/metrics` only serves the built-in sharded HTTP counters. When enabled, counters are recorded and the `/metrics` endpoint also exposes the global Prometheus registry (custom counters included).
+
+```yaml
+prometheus:
+  enabled: true     # required to record metrics (default: false)
+  host: "0.0.0.0"   # reserved for the standalone agent (not yet active)
+  port: 9101        # reserved for the standalone agent (not yet active)
+  path: /metrics    # reserved for the standalone agent (not yet active)
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | bool | `false` | Enable `infra/metric` recording and expose custom metrics on `/metrics` |
+| `host` | string | `0.0.0.0` | Reserved for a standalone agent |
+| `port` | int | `9101` | Reserved for a standalone agent |
+| `path` | string | `/metrics` | Reserved for a standalone agent |
 
 ## Databases
 

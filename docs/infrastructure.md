@@ -22,7 +22,7 @@
 |---------|------|---------|
 | trace | `infra/trace` | OpenTelemetry tracing agent |
 | metric | `infra/metric` | Prometheus counters, gauges, histograms |
-| prometheus | `infra/prometheus` | Prometheus agent config |
+| prometheus | `infra/prometheus` | Metrics enablement gate (`prometheus.enabled` YAML) |
 | stat | `infra/stat` | System metrics, CPU, alerting |
 
 ## Resilience

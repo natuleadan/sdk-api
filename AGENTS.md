@@ -21,6 +21,8 @@ General-purpose Go SDK for event-driven microservices and monoliths. YAML-driven
 | NATS + Kafka messaging | `docs/messaging.md` |
 | Database drivers & CRUD | `docs/database.md` |
 | Async jobs entry type | `docs/entry-async.md` |
+| GraphQL entry type | `docs/entry-graphql.md` |
+| gRPC entry type | `docs/entry-grpc.md` |
 | Secrets management | `docs/secrets.md` |
 | Debugging with delve | `docs/debugging.md` |
 | API patterns (all entry types) | `docs/api-patterns.md` |

@@ -45,7 +45,7 @@ func GenerateProto(info *db.TableInfo, modelName, svcName, pkg string) string {
 	}
 
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf(`syntax = "proto3";
+	fmt.Fprintf(&b, `syntax = "proto3";
 
 package %s;
 
@@ -65,7 +65,7 @@ message %s {
 		modelName, modelName, modelName,
 		modelName, modelName, modelName,
 		modelName, modelName, modelName,
-		modelName))
+		modelName)
 
 	idx := 1
 	for _, f := range info.Fields {
@@ -73,11 +73,11 @@ message %s {
 			continue
 		}
 		pt := protoType(f.FieldType)
-		b.WriteString(fmt.Sprintf("  %s %s = %d;\n", pt, f.Column, idx))
+		fmt.Fprintf(&b, "  %s %s = %d;\n", pt, f.Column, idx)
 		idx++
 	}
 
-	b.WriteString(fmt.Sprintf(`}
+	fmt.Fprintf(&b, `}
 
 message Get%sRequest {
   int64 id = 1;
@@ -94,7 +94,7 @@ message List%sResponse {
 }
 
 message Create%sRequest {
-`, modelName, modelName, modelName, modelName, modelName))
+`, modelName, modelName, modelName, modelName, modelName)
 
 	idx = 2
 	for _, f := range info.Fields {
@@ -102,15 +102,15 @@ message Create%sRequest {
 			continue
 		}
 		pt := protoType(f.FieldType)
-		b.WriteString(fmt.Sprintf("  %s %s = %d;\n", pt, f.Column, idx))
+		fmt.Fprintf(&b, "  %s %s = %d;\n", pt, f.Column, idx)
 		idx++
 	}
 
-	b.WriteString(fmt.Sprintf(`}
+	fmt.Fprintf(&b, `}
 
 message Update%sRequest {
   int64 id = 1;
-`, modelName))
+`, modelName)
 
 	idx = 2
 	for _, f := range info.Fields {
@@ -118,11 +118,11 @@ message Update%sRequest {
 			continue
 		}
 		pt := protoType(f.FieldType)
-		b.WriteString(fmt.Sprintf("  optional %s %s = %d;\n", pt, f.Column, idx))
+		fmt.Fprintf(&b, "  optional %s %s = %d;\n", pt, f.Column, idx)
 		idx++
 	}
 
-	b.WriteString(fmt.Sprintf(`}
+	fmt.Fprintf(&b, `}
 
 message Delete%sRequest {
   int64 id = 1;
@@ -131,7 +131,7 @@ message Delete%sRequest {
 message Delete%sResponse {
   bool ok = 1;
 }
-`, modelName, modelName))
+`, modelName, modelName)
 
 	return b.String()
 }

@@ -72,7 +72,7 @@ func init() {
 	newCmd.Flags().String("publish", "", "NATS producers: \"stream:after_event\"")
 	newCmd.Flags().String("exit", "", "Exit workers: \"stream:handler:name\"")
 	newCmd.Flags().String("cron", "", "Cron jobs: \"handler:name\"")
-		newCmd.Flags().Bool("grpc", false, "Enable gRPC server generation")
+	newCmd.Flags().Bool("grpc", false, "Enable gRPC server generation")
 	newCmd.Flags().Int("grpc-port", 0, "gRPC server port (default: HTTP port + 1)")
 	newCmd.Flags().String("grpc-service", "", "gRPC proto service name (default: ModelName + Service)")
 	newCmd.Flags().Bool("grpc-auto-crud", false, "Generate CRUD RPCs from model")

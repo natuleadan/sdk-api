@@ -126,34 +126,34 @@ type fieldDef struct {
 }
 
 type newConfig struct {
-	ServiceName   string
-	ModelName     string
-	ResourceName  string
-	ResourcePath  string
-	DBName        string
-	Port          int
+	ServiceName     string
+	ModelName       string
+	ResourceName    string
+	ResourcePath    string
+	DBName          string
+	Port            int
 	GrpcPort        int
 	GrpcEnabled     bool
 	GrpcServiceName string
 	GrpcAutoCRUD    bool
 	WithTests       bool
-	Dir           string
-	Consumers     []consumerDef
-	Producers     []producerDef
-	ExitWorkers   []exitWorkerDef
-	CronJobs      []cronJobDef
-	RestEndpoints []restEndpointDef
-	ExtraFields   []fieldDef
-	SDKModule     string
-	ModulePath    string
-	DBTable       string
-	HasDB         bool
-	HasRest       bool
-	HasNATS       bool
-	HasCache      bool
-	CacheKV       string
-	Split         bool
-	StreamNames   []string
+	Dir             string
+	Consumers       []consumerDef
+	Producers       []producerDef
+	ExitWorkers     []exitWorkerDef
+	CronJobs        []cronJobDef
+	RestEndpoints   []restEndpointDef
+	ExtraFields     []fieldDef
+	SDKModule       string
+	ModulePath      string
+	DBTable         string
+	HasDB           bool
+	HasRest         bool
+	HasNATS         bool
+	HasCache        bool
+	CacheKV         string
+	Split           bool
+	StreamNames     []string
 }
 
 func runNew(args []string) error {
@@ -196,10 +196,10 @@ func parseNewFlags(flags []string, cfg *newConfig) {
 		"--dir":     handleDirFlag,
 	}
 	boolFlags := map[string]*bool{
-		"--grpc":          &cfg.GrpcEnabled,
+		"--grpc":           &cfg.GrpcEnabled,
 		"--grpc-auto-crud": &cfg.GrpcAutoCRUD,
-		"--with-tests":    &cfg.WithTests,
-		"--split":         &cfg.Split,
+		"--with-tests":     &cfg.WithTests,
+		"--split":          &cfg.Split,
 	}
 
 	for i := 0; i < len(flags); i++ {

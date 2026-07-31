@@ -1150,14 +1150,25 @@ func (s *Service) registerEntryRoutes() error {
 		return err
 	}
 
+	s.registerGrpcEntries()
+	return nil
+}
+
+// registerGrpcEntries wires proto services declared with entry type "grpc"
+// to the runtime gRPC server via the registrars registered by
+// RegisterGrpcService.
+func (s *Service) registerGrpcEntries() {
+	if s.grpcRegistrars == nil || s.grpcServer == nil {
+		return
+	}
 	for _, entry := range s.config.Entry {
-		if entry.Type == "grpc" && s.grpcRegistrars != nil {
-			if fn, ok := s.grpcRegistrars[entry.ServiceName]; ok {
-				fn(MustGetGrpcServer(s))
-			}
+		if entry.Type != "grpc" {
+			continue
+		}
+		if fn, ok := s.grpcRegistrars[entry.ServiceName]; ok {
+			fn(s.grpcServer.Server())
 		}
 	}
-	return nil
 }
 
 func (s *Service) serveStaticFiles() {

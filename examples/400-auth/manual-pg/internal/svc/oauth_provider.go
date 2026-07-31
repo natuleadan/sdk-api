@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/go-jose/go-jose/v3"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/natuleadan/sdk-api/runtime"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/compose"
 )
@@ -59,7 +59,7 @@ func buildJWKS(key *rsa.PrivateKey) *jose.JSONWebKeySet {
 	return &jose.JSONWebKeySet{Keys: []jose.JSONWebKey{pub}}
 }
 
-func NewOAuthProvider(pool *pgxpool.Pool, jwtSecret string) *OAuthProvider {
+func NewOAuthProvider(pool *runtime.PGPool, jwtSecret string) *OAuthProvider {
 	store := NewOAuthStore(pool)
 
 	privateKey := loadOrFailPrivateKey()

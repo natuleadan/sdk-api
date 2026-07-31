@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/natuleadan/sdk-api/runtime"
 	"github.com/natuleadan/sdk-api/runtime/auth"
 	"github.com/natuleadan/sdk-api/server/middleware"
@@ -24,7 +23,7 @@ type ServiceContext struct {
 	LockoutDuration  time.Duration
 	OAuth            *OAuthProvider
 	SMSProvider      SMSProvider
-	pools            map[string]*pgxpool.Pool
+	pools            map[string]*runtime.PGPool
 }
 
 func NewServiceContext() *ServiceContext {
@@ -38,18 +37,18 @@ func NewServiceContext() *ServiceContext {
 	}
 }
 
-func (s *ServiceContext) InitOAuth(pool *pgxpool.Pool) {
+func (s *ServiceContext) InitOAuth(pool *runtime.PGPool) {
 	s.OAuth = NewOAuthProvider(pool, s.JWTSecret)
 }
 
-func (s *ServiceContext) SetPool(name string, pool *pgxpool.Pool) {
+func (s *ServiceContext) SetPool(name string, pool *runtime.PGPool) {
 	if s.pools == nil {
-		s.pools = make(map[string]*pgxpool.Pool)
+		s.pools = make(map[string]*runtime.PGPool)
 	}
 	s.pools[name] = pool
 }
 
-func (s *ServiceContext) Pool(name string) *pgxpool.Pool {
+func (s *ServiceContext) Pool(name string) *runtime.PGPool {
 	if s.pools == nil {
 		return nil
 	}

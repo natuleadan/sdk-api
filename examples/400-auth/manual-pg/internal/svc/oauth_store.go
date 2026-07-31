@@ -6,11 +6,11 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/ory/fosite"
-	"golang.org/x/crypto/bcrypt"
-	"golang.org/x/text/language"
 	"github.com/go-jose/go-jose/v3"
+	"github.com/natuleadan/sdk-api/runtime"
+	"github.com/natuleadan/sdk-api/runtime/auth"
+	"github.com/ory/fosite"
+	"golang.org/x/text/language"
 )
 
 type oauthSession struct {
@@ -54,10 +54,10 @@ func (s *oauthSession) toRequester(client fosite.Client) *fosite.AuthorizeReques
 }
 
 type OAuthStore struct {
-	pool *pgxpool.Pool
+	pool *runtime.PGPool
 }
 
-func NewOAuthStore(pool *pgxpool.Pool) *OAuthStore {
+func NewOAuthStore(pool *runtime.PGPool) *OAuthStore {
 	return &OAuthStore{pool: pool}
 }
 
@@ -273,7 +273,7 @@ func (s *OAuthStore) Authenticate(ctx context.Context, clientID string, secret s
 	if err != nil {
 		return "", fosite.ErrNotFound
 	}
-	if err := bcrypt.CompareHashAndPassword(client.GetHashedSecret(), []byte(secret)); err != nil {
+	if !auth.VerifyPassword(string(client.GetHashedSecret()), secret) {
 		return "", fosite.ErrInvalidClient
 	}
 	return clientID, nil

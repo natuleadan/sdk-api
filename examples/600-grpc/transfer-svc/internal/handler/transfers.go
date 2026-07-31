@@ -35,21 +35,20 @@ func InitiateTransfer(svcCtx *ServiceContext) func(*runtime.RestCtx) error {
 		if body.Currency == "" {
 			body.Currency = "USD"
 		}
+		if body.IdempotencyKey == "" {
+			body.IdempotencyKey = "transfer-" + runtime.GenerateShortCode(16)
+		}
 
-		cr, err := runtime.GrpcCall(c.Context(), svcCtx.svc.GetGRPCClient("account-svc"),
-			func(conn runtime.ClientConnInterface) (*accountpb.DeductBalanceResponse, error) {
-				return accountpb.NewAccountServiceClient(conn).DeductBalance(c.Context(),
-					&accountpb.DeductBalanceRequest{
-						AccountId:      body.FromAccountID,
-						Amount:         body.Amount,
-						IdempotencyKey: body.IdempotencyKey,
-					})
+		bal, err := runtime.GrpcCall(c.Context(), svcCtx.svc.GetGRPCClient("account-svc"),
+			func(conn runtime.ClientConnInterface) (*accountpb.GetBalanceResponse, error) {
+				return accountpb.NewAccountServiceClient(conn).GetBalance(c.Context(),
+					&accountpb.GetBalanceRequest{AccountId: body.FromAccountID})
 			})
 		if err != nil {
 			return c.Status(500).JSON(runtime.Map{"error": "gRPC error: " + err.Error()})
 		}
-		if !cr.Ok {
-			return c.Status(402).JSON(runtime.Map{"error": "insufficient balance"})
+		if !bal.Ok {
+			return c.Status(402).JSON(runtime.Map{"error": "account not found"})
 		}
 
 		fID, _ := strconv.ParseInt(body.FromAccountID, 10, 64)

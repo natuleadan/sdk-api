@@ -62,5 +62,16 @@ func TestGRPC_TransferSvcInsufficientBalance(t *testing.T) {
 		fromID, toID)
 	cr := doJSONAuth("POST", baseURL["transfer"]+"/api/v1/transfers", body, demoToken)
 	t.Logf("insufficient response: status=%v body=%v", cr["_status"], cr)
-	assertStatus(t, cr["_status"].(float64), 402, "insufficient balance")
+	// Async design: HTTP accepts (201), account-svc worker enforces balance
+	assertStatus(t, cr["_status"].(float64), 201, "initiated (async enforcement)")
+}
+
+func TestGRPC_TransferSvcAccountNotFound(t *testing.T) {
+	toID := createAccount(t)
+
+	body := fmt.Sprintf(`{"from_account_id":"%s","to_account_id":"%s","amount":50,"currency":"USD"}`,
+		"999999", toID)
+	cr := doJSONAuth("POST", baseURL["transfer"]+"/api/v1/transfers", body, demoToken)
+	t.Logf("not-found response: status=%v body=%v", cr["_status"], cr)
+	assertStatus(t, cr["_status"].(float64), 402, "account not found")
 }

@@ -73,6 +73,44 @@ func TestRunNewWithNATS(t *testing.T) {
 	checkFile(t, dir, "cmd/main.go", `WithExit("onOrderCreated"`)
 }
 
+func TestRunNewWithGRPC(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "grpc-svc")
+	err := runNew([]string{
+		"grpc-svc", "--model", "Product",
+		"--fields", "name:string,price:float64",
+		"--grpc", "--grpc-port", "50052",
+		"--dir", dir,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	checkFile(t, dir, "service.yaml", "mode: micro")
+	checkFile(t, dir, "service.yaml", "grpc_server:")
+	checkFile(t, dir, "service.yaml", "listen_on: \":50052\"")
+	checkFile(t, dir, "service.yaml", "type: grpc")
+	checkFile(t, dir, "service.yaml", "service_name: ProductService")
+	checkFile(t, dir, "cmd/main.go", `RegisterGrpcService("ProductService"`)
+	checkFile(t, dir, "cmd/main.go", `pb.RegisterProductServiceServer`)
+	checkFile(t, dir, "grpcserver/products.go", "type ProductServer struct")
+}
+
+func TestRunNewWithGRPCCustomServiceName(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "grpc-custom-svc")
+	err := runNew([]string{
+		"grpc-custom-svc", "--model", "Product",
+		"--fields", "name:string",
+		"--grpc", "--grpc-service", "InventoryService",
+		"--dir", dir,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	checkFile(t, dir, "service.yaml", "service_name: InventoryService")
+	checkFile(t, dir, "cmd/main.go", `RegisterGrpcService("InventoryService"`)
+}
+
 func TestRunNewDefaultFields(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "default-svc")
 	err := runNew([]string{"default-svc", "--dir", dir})

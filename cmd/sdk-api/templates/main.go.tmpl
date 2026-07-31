@@ -49,7 +49,7 @@ func main() {
 {{- end}}
 
 {{- if .GrpcEnabled}}
-	s.RegisterGrpcService("{{.ModelName}}Service", func(srv *grpc.Server) {
+	s.RegisterGrpcService("{{if .GrpcServiceName}}{{.GrpcServiceName}}{{else}}{{.ModelName}}Service{{end}}", func(srv *grpc.Server) {
 		pb.Register{{.ModelName}}ServiceServer(srv, grpcserver.New{{.ModelName}}Server(svcCtx))
 	})
 {{- end}}

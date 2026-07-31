@@ -728,15 +728,11 @@ gRPC service definition paired with `svc.RegisterGrpcService()`. The SDK auto-wi
 ```yaml
 - type: grpc
   service_name: ProductService
-  model: Product          # optional: for proto auto-generation
-  auto_crud: true         # optional: generates Get/List/Create/Update/Delete RPCs
 ```
 
 | Field | Description |
 |-------|-------------|
 | `service_name` | gRPC proto service name (required; maps to `RegisterGrpcService`) |
-| `model` | Model name for proto auto-generation (optional) |
-| `auto_crud` | Generate CRUD RPCs from model fields (optional, requires `model`) |
 
 ### Common entry fields
 

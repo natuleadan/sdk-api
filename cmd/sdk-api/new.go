@@ -135,7 +135,6 @@ type newConfig struct {
 	GrpcPort        int
 	GrpcEnabled     bool
 	GrpcServiceName string
-	GrpcAutoCRUD    bool
 	WithTests       bool
 	Dir             string
 	Consumers       []consumerDef
@@ -196,10 +195,9 @@ func parseNewFlags(flags []string, cfg *newConfig) {
 		"--dir":     handleDirFlag,
 	}
 	boolFlags := map[string]*bool{
-		"--grpc":           &cfg.GrpcEnabled,
-		"--grpc-auto-crud": &cfg.GrpcAutoCRUD,
-		"--with-tests":     &cfg.WithTests,
-		"--split":          &cfg.Split,
+		"--grpc":       &cfg.GrpcEnabled,
+		"--with-tests": &cfg.WithTests,
+		"--split":      &cfg.Split,
 	}
 
 	for i := 0; i < len(flags); i++ {

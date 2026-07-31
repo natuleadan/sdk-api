@@ -40,7 +40,7 @@ entry:
 {{- end}}
 {{- if .GrpcEnabled}}
   - type: grpc
-    service_name: {{.ModelName}}Service
+    service_name: {{if .GrpcServiceName}}{{.GrpcServiceName}}{{else}}{{.ModelName}}Service{{end}}
     model: {{.ModelName}}
 {{- end}}
 {{- if .HasNATS}}

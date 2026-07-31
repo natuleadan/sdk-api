@@ -371,6 +371,44 @@ func TestLoadConfig_Defaults(t *testing.T) {
 	_ = cfg
 }
 
+func TestParseConfig_Prometheus(t *testing.T) {
+	cfg, err := ParseConfig([]byte(`
+name: prom-test
+prometheus:
+  enabled: true
+  host: "0.0.0.0"
+  port: 9102
+  path: /custom-metrics
+`))
+	if err != nil {
+		t.Fatalf("ParseConfig: %v", err)
+	}
+	if cfg.Prometheus == nil {
+		t.Fatal("expected Prometheus config to be parsed")
+	}
+	if !cfg.Prometheus.Enabled {
+		t.Error("expected Prometheus.Enabled = true")
+	}
+	if cfg.Prometheus.Port != 9102 {
+		t.Errorf("expected port 9102, got %d", cfg.Prometheus.Port)
+	}
+	if cfg.Prometheus.Path != "/custom-metrics" {
+		t.Errorf("expected path /custom-metrics, got %q", cfg.Prometheus.Path)
+	}
+}
+
+func TestParseConfig_PrometheusDisabled(t *testing.T) {
+	cfg, err := ParseConfig([]byte(`
+name: prom-test
+`))
+	if err != nil {
+		t.Fatalf("ParseConfig: %v", err)
+	}
+	if cfg.Prometheus != nil {
+		t.Error("expected nil Prometheus config when not declared in YAML")
+	}
+}
+
 func TestDBConfig_Validate(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -419,6 +457,8 @@ func TestEntryDef_Validate(t *testing.T) {
 		{"file local missing path", EntryDef{Type: "file", Method: "POST", Path: "/f", Handler: "f", Storage: &StorageDef{Mode: "local"}}, true},
 		{"unknown type", EntryDef{Type: "invalid", Path: "/g", Handler: "f"}, true},
 		{"valid grpc", EntryDef{Type: "grpc", ServiceName: "Greeter", Handler: "onGreet"}, false},
+		{"valid grpc no handler", EntryDef{Type: "grpc", ServiceName: "Greeter"}, false},
+		{"grpc missing service name", EntryDef{Type: "grpc"}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -32,6 +32,8 @@ auth:
   expiry: 3600
 
 entry:
+  - type: grpc
+    service_name: TransferService
   - type: rest
     method: POST
     path: /transfers

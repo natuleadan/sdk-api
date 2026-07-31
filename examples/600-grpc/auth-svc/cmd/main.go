@@ -13,6 +13,7 @@ import (
 	"github.com/natuleadan/sdk-api/db"
 	"github.com/natuleadan/sdk-api/runtime"
 	"github.com/natuleadan/sdk-api/runtime/auth"
+	"google.golang.org/grpc"
 	"github.com/natuleadan/sdk-api/server/middleware"
 )
 
@@ -34,10 +35,13 @@ func main() {
 
 	runtime.MustRegister[models.User](svc, "User", "primary", "users", nil)
 
+	svc.RegisterGrpcService("AuthService", func(srv *grpc.Server) {
+		pool := svc.PoolPGTyped("primary")
+		authpb.RegisterAuthServiceServer(srv, server.NewAuthGRPCServer(pool))
+	})
+
 	svc.WithSeed(func(ctx context.Context, s *runtime.Service) error {
 		pool := s.PoolPGTyped("primary")
-
-		authpb.RegisterAuthServiceServer(runtime.MustGetGrpcServer(s), server.NewAuthGRPCServer(pool))
 
 		userTbl, err := db.NewTable[models.User](pool, "users")
 		if err != nil {

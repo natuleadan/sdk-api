@@ -12,6 +12,7 @@ import (
 
 	"github.com/natuleadan/sdk-api/db"
 	"github.com/natuleadan/sdk-api/runtime"
+	"google.golang.org/grpc"
 	"github.com/natuleadan/sdk-api/server/middleware"
 )
 
@@ -31,12 +32,15 @@ func main() {
 		return nil
 	})
 
+	svc.RegisterGrpcService("AccountService", func(srv *grpc.Server) {
+		pool := svc.PoolPGTyped("primary")
+		accountpb.RegisterAccountServiceServer(srv, server.NewAccountGRPCServer(pool))
+	})
+
 	svc.WithSeed(func(ctx context.Context, s *runtime.Service) error {
 		pool := s.PoolPGTyped("primary")
 
 		svcCtx.SetService(s)
-
-		accountpb.RegisterAccountServiceServer(runtime.MustGetGrpcServer(s), server.NewAccountGRPCServer(pool))
 
 		accTbl, err := db.NewTable[models.Account](pool, "accounts")
 		if err != nil {

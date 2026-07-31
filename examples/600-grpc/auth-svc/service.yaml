@@ -22,6 +22,8 @@ auth:
   expiry: 3600
 
 entry:
+  - type: grpc
+    service_name: AuthService
   - type: rest
     method: POST
     path: /auth/signup

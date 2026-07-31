@@ -1126,9 +1126,6 @@ func (e *EntryDef) validateGRPC() error {
 	if e.ServiceName == "" {
 		return fmt.Errorf("grpc: service name is required")
 	}
-	if e.Handler == "" {
-		return fmt.Errorf("grpc: handler is required")
-	}
 	return nil
 }
 

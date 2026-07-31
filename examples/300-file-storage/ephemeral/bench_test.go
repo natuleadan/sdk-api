@@ -174,19 +174,28 @@ func TestFile_UploadTwice(t *testing.T) {
 	code := fmt.Sprintf("twice-%d", time.Now().UnixNano())
 	url := apiUpload + "/" + code + ".dat"
 
-	resp, _ := http.Post(url, "text/plain", strings.NewReader("first"))
+	resp, err := http.Post(url, "text/plain", strings.NewReader("first"))
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
 	resp.Body.Close()
 	if resp.StatusCode != 200 {
 		t.Fatalf("first upload status %d", resp.StatusCode)
 	}
 
-	resp2, _ := http.Post(url, "text/plain", strings.NewReader("second"))
+	resp2, err := http.Post(url, "text/plain", strings.NewReader("second"))
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
 	defer resp2.Body.Close()
 	if resp2.StatusCode != 200 {
 		t.Fatalf("second upload status %d", resp2.StatusCode)
 	}
 
-	resp3, _ := http.Get(apiDownload + "/" + code + ".dat")
+	resp3, err := http.Get(apiDownload + "/" + code + ".dat")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
 	defer resp3.Body.Close()
 	body, _ := io.ReadAll(resp3.Body)
 	if string(body) != "second" {
@@ -238,7 +247,10 @@ func TestFile_DeleteFile(t *testing.T) {
 		t.Fatalf("delete status %d: %s", resp.StatusCode, string(body))
 	}
 
-	resp2, _ := http.Get(apiDownload + "/" + code + ".dat")
+	resp2, err := http.Get(apiDownload + "/" + code + ".dat")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
 	defer resp2.Body.Close()
 	if resp2.StatusCode != 404 {
 		t.Fatalf("expected 404 after delete, got %d", resp2.StatusCode)

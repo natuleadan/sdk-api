@@ -174,19 +174,28 @@ func TestFile_UploadTwice(t *testing.T) {
 	code := fmt.Sprintf("twice-%d", time.Now().UnixNano())
 	url := apiUpload + "/" + code + ".dat"
 
-	resp, _ := http.Post(url, "text/plain", strings.NewReader("first"))
+	resp, err := http.Post(url, "text/plain", strings.NewReader("first"))
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
 	resp.Body.Close()
 	if resp.StatusCode != 200 {
 		t.Fatalf("first upload status %d", resp.StatusCode)
 	}
 
-	resp2, _ := http.Post(url, "text/plain", strings.NewReader("second"))
+	resp2, err := http.Post(url, "text/plain", strings.NewReader("second"))
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
 	defer resp2.Body.Close()
 	if resp2.StatusCode != 200 {
 		t.Fatalf("second upload status %d", resp2.StatusCode)
 	}
 
-	resp3, _ := http.Get(apiDownload + "/" + code + ".dat")
+	resp3, err := http.Get(apiDownload + "/" + code + ".dat")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
 	defer resp3.Body.Close()
 	body, _ := io.ReadAll(resp3.Body)
 	if string(body) != "second" {
@@ -211,14 +220,20 @@ func TestFile_CacheHitRAM(t *testing.T) {
 	code := fmt.Sprintf("cache-hit-%d", time.Now().UnixNano())
 	payload := "for-cache-test"
 
-	resp, _ := http.Post(apiUpload+"/"+code+".dat", "text/plain", strings.NewReader(payload))
+	resp, err := http.Post(apiUpload+"/"+code+".dat", "text/plain", strings.NewReader(payload))
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
 		t.Fatalf("upload status %d", resp.StatusCode)
 	}
 
 	// First download (cache miss → S3)
-	r1, _ := http.Get(apiDownload + "/" + code + ".dat")
+	r1, err := http.Get(apiDownload + "/" + code + ".dat")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
 	body1, _ := io.ReadAll(r1.Body)
 	r1.Body.Close()
 	if r1.StatusCode != 200 {
@@ -230,7 +245,10 @@ func TestFile_CacheHitRAM(t *testing.T) {
 
 	// Second download (cache hit — async write should have completed)
 	time.Sleep(100 * time.Millisecond)
-	r2, _ := http.Get(apiDownload + "/" + code + ".dat")
+	r2, err := http.Get(apiDownload + "/" + code + ".dat")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
 	defer r2.Body.Close()
 	if r2.StatusCode != 200 {
 		t.Fatalf("second download: %d", r2.StatusCode)

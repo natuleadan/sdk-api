@@ -132,7 +132,10 @@ func authenticated(method, url, token string, body io.Reader) *http.Response {
 	if method != "GET" || body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	resp, _ := http.DefaultClient.Do(req)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(fmt.Sprintf("request failed: %v", err))
+	}
 	return resp
 }
 
@@ -145,7 +148,10 @@ func cookieAuth(method, url, token string, body io.Reader) *http.Response {
 	if method != "GET" || body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	resp, _ := http.DefaultClient.Do(req)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(fmt.Sprintf("request failed: %v", err))
+	}
 	return resp
 }
 
@@ -157,7 +163,10 @@ func apiKeyRequest(method, url, key string, body io.Reader) *http.Response {
 	if method != "GET" || body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	resp, _ := http.DefaultClient.Do(req)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(fmt.Sprintf("request failed: %v", err))
+	}
 	return resp
 }
 
@@ -188,7 +197,10 @@ func TestLoginWrongPassword(t *testing.T) {
 	waitHTTP(t, 30*time.Second)
 
 	body, _ := json.Marshal(map[string]string{"username": "admin", "password": "wrong"})
-	resp, _ := http.Post(baseURL+"/login", "application/json", bytes.NewReader(body))
+	resp, err := http.Post(baseURL+"/login", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 401 {
 		t.Fatalf("expected 401, got %d", resp.StatusCode)
@@ -1021,11 +1033,17 @@ func TestSignup_DuplicateUser(t *testing.T) {
 	waitHTTP(t, 30*time.Second)
 
 	body, _ := json.Marshal(map[string]string{"username": "dupuser", "password": "pass123"})
-	resp, _ := http.Post(baseURL+"/signup", "application/json", bytes.NewReader(body))
+	resp, err := http.Post(baseURL+"/signup", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
 	defer resp.Body.Close()
 	// Second signup with same username — should succeed (ON CONFLICT DO NOTHING) or return error
 	body2, _ := json.Marshal(map[string]string{"username": "dupuser", "password": "pass456"})
-	resp2, _ := http.Post(baseURL+"/signup", "application/json", bytes.NewReader(body2))
+	resp2, err := http.Post(baseURL+"/signup", "application/json", bytes.NewReader(body2))
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
 	defer resp2.Body.Close()
 	if resp2.StatusCode == 201 {
 		t.Log("duplicate signup returned 201 (idempotent)")
@@ -1063,7 +1081,10 @@ func TestProfile_Unauthenticated(t *testing.T) {
 	}
 	waitHTTP(t, 30*time.Second)
 
-	resp, _ := http.Get(baseURL + "/profile")
+	resp, err := http.Get(baseURL + "/profile")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 401 {
 		t.Fatalf("expected 401, got %d", resp.StatusCode)
@@ -2134,7 +2155,10 @@ func TestDisabledUser_Rejected(t *testing.T) {
 	t.Log("JWT valid but user gone → profile returns 404 (expected)")
 
 	// Login fails (user no longer exists)
-	resp2, _ := http.Post(baseURL+"/login", "application/json", bytes.NewReader(signupBody))
+	resp2, err := http.Post(baseURL+"/login", "application/json", bytes.NewReader(signupBody))
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
 	defer resp2.Body.Close()
 	if resp2.StatusCode != 401 {
 		t.Fatalf("login after deletion: expected 401, got %d", resp2.StatusCode)
@@ -2554,11 +2578,17 @@ func TestAccountLockout_AfterNFailures(t *testing.T) {
 
 	body, _ := json.Marshal(map[string]string{"username": "admin", "password": "wrong"})
 	for i := 0; i < 5; i++ {
-		resp, _ := http.Post(baseURL+"/login", "application/json", bytes.NewReader(body))
+		resp, err := http.Post(baseURL+"/login", "application/json", bytes.NewReader(body))
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
 		resp.Body.Close()
 	}
 	// 6th attempt should be locked
-	resp, _ := http.Post(baseURL+"/login", "application/json", bytes.NewReader(body))
+	resp, err := http.Post(baseURL+"/login", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 429 {
 		t.Fatalf("expected 429 (locked), got %d", resp.StatusCode)
@@ -2574,14 +2604,20 @@ func TestAccountLockout_ResetsAfterSuccess(t *testing.T) {
 
 	body, _ := json.Marshal(map[string]string{"username": "editor", "password": "wrong"})
 	for i := 0; i < 4; i++ {
-		resp, _ := http.Post(baseURL+"/login", "application/json", bytes.NewReader(body))
+		resp, err := http.Post(baseURL+"/login", "application/json", bytes.NewReader(body))
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
 		resp.Body.Close()
 	}
 	// Successful login resets counter
 	login(t, "editor", seedPass)
 	// Next wrong attempt should NOT be locked
 	body2, _ := json.Marshal(map[string]string{"username": "editor", "password": "still-wrong"})
-	resp, _ := http.Post(baseURL+"/login", "application/json", bytes.NewReader(body2))
+	resp, err := http.Post(baseURL+"/login", "application/json", bytes.NewReader(body2))
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
 	defer resp.Body.Close()
 	if resp.StatusCode == 429 {
 		t.Fatal("lockout should have been reset after successful login")
@@ -2602,7 +2638,10 @@ func TestPasswordStrength_WeakRejected(t *testing.T) {
 	}
 	for _, tt := range tests {
 		body, _ := json.Marshal(map[string]string{"username": "weak-user", "password": tt.pwd})
-		resp, _ := http.Post(baseURL+"/signup", "application/json", bytes.NewReader(body))
+		resp, err := http.Post(baseURL+"/signup", "application/json", bytes.NewReader(body))
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
 		resp.Body.Close()
 		if resp.StatusCode != 400 {
 			t.Fatalf("expected 400 for weak password %q, got %d", tt.pwd, resp.StatusCode)
@@ -2621,7 +2660,10 @@ func TestEmailVerification_Flow(t *testing.T) {
 
 	// Signup creates user and logs verify URL
 	body, _ := json.Marshal(map[string]string{"username": "verify-me", "password": "StrongPwd1"})
-	resp, _ := http.Post(baseURL+"/signup", "application/json", bytes.NewReader(body))
+	resp, err := http.Post(baseURL+"/signup", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 201 {
 		t.Fatalf("signup: expected 201, got %d", resp.StatusCode)
@@ -2638,7 +2680,10 @@ func TestEmailVerification_Flow(t *testing.T) {
 		t.Fatal("no verification token found")
 	}
 
-	resp2, _ := http.Get(baseURL + "/auth/verify-email?token=" + token)
+	resp2, err := http.Get(baseURL + "/auth/verify-email?token=" + token)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
 	defer resp2.Body.Close()
 	if resp2.StatusCode != 200 {
 		t.Fatalf("verify email: expected 200, got %d", resp2.StatusCode)
@@ -2652,7 +2697,10 @@ func TestEmailVerification_MissingToken(t *testing.T) {
 	}
 	waitHTTP(t, 30*time.Second)
 
-	resp, _ := http.Get(baseURL + "/auth/verify-email")
+	resp, err := http.Get(baseURL + "/auth/verify-email")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 400 {
 		t.Fatalf("expected 400 for missing token, got %d", resp.StatusCode)
@@ -2670,7 +2718,10 @@ func TestPasswordReset_Flow(t *testing.T) {
 
 	// Request reset
 	body, _ := json.Marshal(map[string]string{"username": "admin"})
-	resp, _ := http.Post(baseURL+"/auth/forgot-password", "application/json", bytes.NewReader(body))
+	resp, err := http.Post(baseURL+"/auth/forgot-password", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
 		t.Fatalf("forgot password: expected 200, got %d", resp.StatusCode)
@@ -2689,7 +2740,10 @@ func TestPasswordReset_Flow(t *testing.T) {
 
 	// Use token to reset password
 	body2, _ := json.Marshal(map[string]string{"token": token, "password": "NewStrong1"})
-	resp2, _ := http.Post(baseURL+"/auth/reset-password", "application/json", bytes.NewReader(body2))
+	resp2, err := http.Post(baseURL+"/auth/reset-password", "application/json", bytes.NewReader(body2))
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
 	defer resp2.Body.Close()
 	if resp2.StatusCode != 200 {
 		t.Fatalf("reset password: expected 200, got %d", resp2.StatusCode)
@@ -2704,7 +2758,10 @@ func TestPasswordReset_ExpiredToken(t *testing.T) {
 	waitHTTP(t, 30*time.Second)
 
 	body, _ := json.Marshal(map[string]string{"token": "nonexistent-token", "password": "NewStrong1"})
-	resp, _ := http.Post(baseURL+"/auth/reset-password", "application/json", bytes.NewReader(body))
+	resp, err := http.Post(baseURL+"/auth/reset-password", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 400 {
 		t.Fatalf("expected 400 for invalid token, got %d", resp.StatusCode)
@@ -2723,7 +2780,10 @@ func TestCORS_Headers(t *testing.T) {
 	req, _ := http.NewRequest("OPTIONS", "http://localhost:23400/healthz", nil)
 	req.Header.Set("Origin", "http://example.com")
 	req.Header.Set("Access-Control-Request-Method", "GET")
-	resp, _ := http.DefaultClient.Do(req)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
 	defer resp.Body.Close()
 	allowOrigin := resp.Header.Get("Access-Control-Allow-Origin")
 	if allowOrigin != "" {
@@ -4486,7 +4546,10 @@ func TestOAuth_IntrospectAfterRevoke(t *testing.T) {
 	req1, _ := http.NewRequest("POST", baseURL+"/oauth/introspect", bytes.NewReader(payload))
 	req1.Header.Set("Content-Type", "application/json")
 	req1.Header.Set("Authorization", auth)
-	intro1, _ := http.DefaultClient.Do(req1)
+	intro1, err := http.DefaultClient.Do(req1)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
 	var active1 struct{ Active bool }
 	json.NewDecoder(intro1.Body).Decode(&active1)
 	intro1.Body.Close()
@@ -4499,7 +4562,10 @@ func TestOAuth_IntrospectAfterRevoke(t *testing.T) {
 	req2, _ := http.NewRequest("POST", baseURL+"/oauth/revoke", bytes.NewReader(payload))
 	req2.Header.Set("Content-Type", "application/json")
 	req2.Header.Set("Authorization", auth)
-	revoke, _ := http.DefaultClient.Do(req2)
+	revoke, err := http.DefaultClient.Do(req2)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
 	revoke.Body.Close()
 	if revoke.StatusCode != 200 {
 		t.Fatalf("revoke: expected 200, got %d", revoke.StatusCode)
@@ -4511,7 +4577,10 @@ func TestOAuth_IntrospectAfterRevoke(t *testing.T) {
 	req3, _ := http.NewRequest("POST", baseURL+"/oauth/introspect", bytes.NewReader(payload))
 	req3.Header.Set("Content-Type", "application/json")
 	req3.Header.Set("Authorization", auth)
-	intro2, _ := http.DefaultClient.Do(req3)
+	intro2, err := http.DefaultClient.Do(req3)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
 	defer intro2.Body.Close()
 	t.Logf("introspect after revoke: status=%d", intro2.StatusCode)
 }

@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 	"log"
+	"os"
 
-	_ "embed"
 {{- if .GrpcEnabled}}
 	"{{.ModulePath}}/grpcserver"
 	"{{.ModulePath}}/pb"
@@ -15,24 +15,34 @@ import (
 	"{{.ModulePath}}/models"
 	"{{.SDKModule}}/db"
 	"{{.SDKModule}}/runtime"
+{{- if eq .AuthDriver "manual"}}
+	"{{.SDKModule}}/server/middleware"
+{{- end}}
 {{- if .HasRest}}
 	"{{.ModulePath}}/internal/handler"
 {{- end}}
 )
 
-//go:embed service.yaml
-var configYAML []byte
-
 func main() {
-	s, err := runtime.NewFromYAML(configYAML)
+	cfgPath := os.Getenv("CONFIG_PATH")
+	if cfgPath == "" {
+		cfgPath = "service.yaml"
+	}
+	s, err := runtime.New(cfgPath)
 	if err != nil {
 		log.Fatalf("init: %v", err)
 	}
 
 	svcCtx := svc.NewServiceContext()
 
+{{- if eq .AuthDriver "manual"}}
+	s.WithAuthValidator(func(ctx context.Context, a *middleware.AuthContext, roles, permissions []string) error {
+		return nil // TODO: implement role/permission validation
+	})
+{{- end}}
+
 {{- if .HasDB}}
-	pool := s.PoolPG("{{.DBName}}")
+	pool := s.PoolPGTyped("{{.DBName}}")
 	if pool != nil {
 		svcCtx.SetPool("{{.DBName}}", pool)
 	}
@@ -44,6 +54,7 @@ func main() {
 	if err := table.AutoInit(context.Background()); err != nil {
 		log.Fatalf("auto init: %v", err)
 	}
+	svcCtx.SetTable("{{.ModelName}}", table)
 	s.WithCRUD("{{.ModelName}}", runtime.NewCRUDProvider(table, &models.{{.ModelName}}Hooks{}))
 	s.WithHooks("{{.ModelName}}", &models.{{.ModelName}}Hooks{})
 {{- end}}

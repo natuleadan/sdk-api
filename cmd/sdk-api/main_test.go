@@ -29,7 +29,7 @@ func TestRunNew(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	checkFile(t, dir, "cmd/main.go", `runtime.NewFromYAML(configYAML)`)
+	checkFile(t, dir, "cmd/main.go", `runtime.New(cfgPath)`)
 	checkFile(t, dir, "cmd/main.go", "db.NewTable[models.Product]")
 	checkFile(t, dir, "cmd/main.go", `runtime.NewCRUDProvider`)
 	checkFile(t, dir, "service.yaml", "name: my-service")
@@ -109,6 +109,39 @@ func TestRunNewWithGRPCCustomServiceName(t *testing.T) {
 
 	checkFile(t, dir, "service.yaml", "service_name: InventoryService")
 	checkFile(t, dir, "cmd/main.go", `RegisterGrpcService("InventoryService"`)
+}
+
+func TestRunNewWithAuthManual(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "auth-svc")
+	err := runNew([]string{
+		"auth-svc", "--model", "User",
+		"--fields", "name:string,email:string",
+		"--auth", "manual",
+		"--features", "mfa,magic-link,sms",
+		"--dir", dir,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	checkFile(t, dir, "service.yaml", "driver: manual")
+	checkFile(t, dir, "service.yaml", "secret: \"${JWT_SECRET}\"")
+	checkFile(t, dir, "service.yaml", "path: /auth/mfa/enable")
+	checkFile(t, dir, "service.yaml", "handler: MFAEnable")
+	checkFile(t, dir, "service.yaml", "path: /auth/magic-link/verify")
+	checkFile(t, dir, "service.yaml", "path: /auth/sms/send")
+	checkFile(t, dir, "cmd/main.go", `WithAuthValidator`)
+	checkFile(t, dir, "internal/handler/auth_mfa.go", "func MFAEnable")
+	checkFile(t, dir, "internal/handler/auth_magic-link.go", "func MagicLinkSend")
+	checkFile(t, dir, "internal/handler/auth_sms.go", "func SMSSend")
+}
+
+func TestRunNewAuthInvalidDriver(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "bad-auth")
+	err := runNew([]string{"bad-auth", "--auth", "oidc", "--dir", dir})
+	if err == nil {
+		t.Fatal("expected error for invalid auth driver")
+	}
 }
 
 func TestRunNewDefaultFields(t *testing.T) {

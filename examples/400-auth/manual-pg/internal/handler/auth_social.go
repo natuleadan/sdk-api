@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"auth-roles/internal/svc"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/natuleadan/sdk-api/runtime"
 	"github.com/natuleadan/sdk-api/runtime/auth"
 	"github.com/natuleadan/sdk-api/server/middleware"
@@ -33,14 +32,8 @@ func buildStateJWT(secret, provider string) (string, error) {
 }
 
 func verifyStateJWT(secret, tokenStr, expectedProvider string) bool {
-	token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (any, error) {
-		return []byte(secret), nil
-	})
-	if err != nil || !token.Valid {
-		return false
-	}
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
+	claims, err := middleware.ParseToken(tokenStr, secret, "HS256")
+	if err != nil {
 		return false
 	}
 	if claims["purpose"] != "oauth_state" {

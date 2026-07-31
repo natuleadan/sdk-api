@@ -20,8 +20,83 @@ nats:
       - name: {{.}}
 {{- end}}
 {{- end}}
+{{- if eq .AuthDriver "manual"}}
+
+auth:
+  enabled: true
+  driver: manual
+  secret: "${JWT_SECRET}"
+  algorithm: HS256
+  expiry: 3600
+{{- end}}
 
 entry:
+{{- if eq .AuthDriver "manual"}}
+  - type: rest
+    method: POST
+    path: /auth/login
+    handler: login
+{{- range .AuthFeatures}}
+{{- if eq . "mfa"}}
+  - type: rest
+    method: POST
+    path: /auth/mfa/enable
+    handler: MFAEnable
+    auth_modes: [jwt]
+  - type: rest
+    method: POST
+    path: /auth/mfa/verify
+    handler: MFAVerify
+    auth_modes: [jwt]
+{{- else if eq . "magic-link"}}
+  - type: rest
+    method: POST
+    path: /auth/magic-link
+    handler: MagicLinkSend
+  - type: rest
+    method: GET
+    path: /auth/magic-link/verify
+    handler: MagicLinkVerify
+{{- else if eq . "sms"}}
+  - type: rest
+    method: POST
+    path: /auth/sms/send
+    handler: SMSSend
+  - type: rest
+    method: POST
+    path: /auth/sms/verify
+    handler: SMSVerify
+{{- else if eq . "social"}}
+  - type: rest
+    method: GET
+    path: /auth/:provider/login
+    handler: SocialLogin
+  - type: rest
+    method: GET
+    path: /auth/:provider/callback
+    handler: SocialCallback
+{{- else if eq . "webauthn"}}
+  - type: rest
+    method: POST
+    path: /auth/webauthn/register/begin
+    handler: WebAuthnRegisterBegin
+    auth_modes: [jwt]
+  - type: rest
+    method: POST
+    path: /auth/webauthn/login/begin
+    handler: WebAuthnLoginBegin
+{{- else if eq . "oauth-server"}}
+  - type: rest
+    method: GET
+    path: /oauth/authorize
+    handler: OAuthAuthorize
+  - type: rest
+    method: POST
+    path: /oauth/token
+    handler: OAuthToken
+{{- end}}
+{{- end}}
+{{- end}}
 {{- if .HasDB}}
   - type: crud
     model: {{.ModelName}}

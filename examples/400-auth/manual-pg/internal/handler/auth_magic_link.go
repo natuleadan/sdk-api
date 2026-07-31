@@ -4,7 +4,6 @@ import (
 	"log"
 
 	"auth-roles/internal/svc"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/natuleadan/sdk-api/runtime"
 	"github.com/natuleadan/sdk-api/server/middleware"
 )
@@ -58,15 +57,12 @@ func handleMagicLinkVerify(svcCtx *svc.ServiceContext) func(c *runtime.RestCtx) 
 			return c.Status(400).JSON(runtime.Map{"code": 400, "message": "token required"})
 		}
 
-		token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (any, error) {
-			return []byte(svcCtx.JWTSecret), nil
-		})
-		if err != nil || !token.Valid {
+		claims, err := middleware.ParseToken(tokenStr, svcCtx.JWTSecret, "HS256")
+		if err != nil {
 			return c.Status(401).JSON(runtime.Map{"code": 401, "message": "invalid or expired token"})
 		}
 
-		claims, ok := token.Claims.(jwt.MapClaims)
-		if !ok || claims["purpose"] != "magic_link" {
+		if claims["purpose"] != "magic_link" {
 			return c.Status(401).JSON(runtime.Map{"code": 401, "message": "invalid token purpose"})
 		}
 

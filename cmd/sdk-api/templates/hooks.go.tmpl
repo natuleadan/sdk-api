@@ -2,9 +2,6 @@ package models
 
 import (
 	"context"
-	"fmt"
-
-	"{{.SDKModule}}/runtime"
 )
 
 // BeforeCreate{{.ModelName}} is called before creating a {{.ModelName}}.
@@ -20,7 +17,7 @@ func (h *{{.ModelName}}Hooks) AfterCreate(ctx context.Context, entity *{{.ModelN
 
 // BeforeUpdate{{.ModelName}} is called before updating a {{.ModelName}}.
 // Return the modified patch or an error to abort.
-func (h *{{.ModelName}}Hooks) BeforeUpdate(ctx context.Context, id any, patch map[string]any) (map[string]any, error) {
+func (h *{{.ModelName}}Hooks) BeforeUpdate(ctx context.Context, id string, patch map[string]any) (map[string]any, error) {
 	return patch, nil
 }
 
@@ -31,11 +28,11 @@ func (h *{{.ModelName}}Hooks) AfterUpdate(ctx context.Context, entity *{{.ModelN
 
 // BeforeDelete{{.ModelName}} is called before deleting a {{.ModelName}}.
 // Return an error to abort.
-func (h *{{.ModelName}}Hooks) BeforeDelete(ctx context.Context, id any) error {
+func (h *{{.ModelName}}Hooks) BeforeDelete(ctx context.Context, id string) error {
 	return nil
 }
 
 // AfterDelete{{.ModelName}} is called after a {{.ModelName}} is deleted.
-func (h *{{.ModelName}}Hooks) AfterDelete(ctx context.Context, id any) error {
+func (h *{{.ModelName}}Hooks) AfterDelete(ctx context.Context, id string) error {
 	return nil
 }

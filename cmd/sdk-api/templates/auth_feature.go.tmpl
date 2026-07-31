@@ -1,0 +1,105 @@
+package handler
+
+import (
+	"{{.ModulePath}}/internal/svc"
+
+	"github.com/natuleadan/sdk-api/runtime"
+	"github.com/natuleadan/sdk-api/server/middleware"
+)
+
+// {{.FeatureName}} auth handlers (generated scaffold).
+// Reference implementation: examples/400-auth/manual-pg/
+
+{{- if eq .FeatureKey "mfa"}}
+
+func MFAEnable(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		// TODO: generate TOTP secret, return otpauth:// URI
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented"})
+	}
+}
+
+func MFAVerify(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		// TODO: validate TOTP code, re-issue JWT with mfa claim
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented"})
+	}
+}
+{{- else if eq .FeatureKey "magic-link"}}
+
+func MagicLinkSend(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		// TODO: sign JWT with purpose=magic_link, deliver link
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented"})
+	}
+}
+
+func MagicLinkVerify(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		// TODO: validate token via middleware.ParseToken, issue session
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented"})
+	}
+}
+{{- else if eq .FeatureKey "sms"}}
+
+func SMSSend(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		// TODO: generate 6-digit code, send via provider
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented"})
+	}
+}
+
+func SMSVerify(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		// TODO: validate code, issue session token
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented"})
+	}
+}
+{{- else if eq .FeatureKey "social"}}
+
+func SocialLogin(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		// TODO: build state JWT, redirect to provider OAuth
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented"})
+	}
+}
+
+func SocialCallback(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		// TODO: exchange code, fetch userinfo, issue session
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented"})
+	}
+}
+{{- else if eq .FeatureKey "webauthn"}}
+
+func WebAuthnRegisterBegin(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		// TODO: create credential creation options
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented"})
+	}
+}
+
+func WebAuthnLoginBegin(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		// TODO: create assertion options
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented"})
+	}
+}
+{{- else if eq .FeatureKey "oauth-server"}}
+
+func OAuthAuthorize(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		// TODO: OAuth 2.1 authorize endpoint (fosite)
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented"})
+	}
+}
+
+func OAuthToken(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		// TODO: OAuth 2.1 token endpoint (fosite)
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented"})
+	}
+}
+{{- end}}
+
+var _ = middleware.AuthContext{}

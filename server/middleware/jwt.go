@@ -315,26 +315,59 @@ func SignToken(secret string, algorithm string, claims map[string]any) (string, 
 		method = jwt.SigningMethodHS256
 	}
 	tok := jwt.NewWithClaims(method, jwt.MapClaims(claims))
-	var key any
-	switch {
-	case strings.HasPrefix(algorithm, "HS"):
-		key = []byte(secret)
-	case strings.HasPrefix(algorithm, "RS"):
-		key = parseRSAPrivateKey([]byte(secret))
-		if key == nil {
-			return "", ErrInvalidKey
-		}
-	case strings.HasPrefix(algorithm, "ES"):
-		key = parseECDSAPrivateKey([]byte(secret))
-		if key == nil {
-			return "", ErrInvalidKey
-		}
+	key, err := signingKey(algorithm, secret)
+	if err != nil {
+		return "", err
 	}
 	signed, err := tok.SignedString(key)
 	if err != nil {
 		return "", err
 	}
 	return signed, nil
+}
+
+func signingKey(algorithm, secret string) (any, error) {
+	switch {
+	case strings.HasPrefix(algorithm, "HS") || algorithm == "":
+		return []byte(secret), nil
+	case strings.HasPrefix(algorithm, "RS"):
+		key := parseRSAPrivateKey([]byte(secret))
+		if key == nil {
+			return nil, ErrInvalidKey
+		}
+		return key, nil
+	case strings.HasPrefix(algorithm, "ES"):
+		key := parseECDSAPrivateKey([]byte(secret))
+		if key == nil {
+			return nil, ErrInvalidKey
+		}
+		return key, nil
+	}
+	return nil, ErrInvalidKey
+}
+
+// ParseToken validates a JWT signature and returns its claims.
+// secret must match the algorithm used to sign (HS*: raw secret, RS*/ES*: PEM public key).
+func ParseToken(tokenStr, secret, algorithm string) (jwt.MapClaims, error) {
+	if algorithm == "" {
+		algorithm = "HS256"
+	}
+	p := newParser(JWTConfig{Secret: secret, Algorithm: algorithm})
+	return p.parse(tokenStr)
+}
+
+// ParseTokenUnverified decodes a JWT without validating its signature.
+// Use only for introspection flows where signature checking is done elsewhere.
+func ParseTokenUnverified(tokenStr string) (jwt.MapClaims, error) {
+	token, _, err := new(jwt.Parser).ParseUnverified(tokenStr, jwt.MapClaims{})
+	if err != nil {
+		return nil, err
+	}
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return nil, jwt.ErrTokenInvalidClaims
+	}
+	return claims, nil
 }
 
 // DefaultClaims builds standard JWT claims for a user session.

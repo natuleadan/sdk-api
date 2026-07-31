@@ -5,7 +5,6 @@ go 1.26.5
 require (
 	github.com/go-jose/go-jose/v3 v3.0.5
 	github.com/go-webauthn/webauthn v0.17.4
-	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/natuleadan/sdk-api v0.0.0
 	github.com/ory/fosite v0.49.0
 	github.com/twilio/twilio-go v1.30.9
@@ -50,6 +49,7 @@ require (
 	github.com/gofiber/schema v1.8.3 // indirect
 	github.com/gofiber/utils/v2 v2.2.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
+	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/go-tpm v0.9.8 // indirect

@@ -6,42 +6,36 @@ import (
 
 	"{{.ModulePath}}/internal/svc"
 	"{{.ModulePath}}/models"
-	"{{.SDKModule}}/db"
-	"{{.SDKModule}}/infra/logx"
 )
 
 type {{.ModelName}}Logic struct {
 	svcCtx *svc.ServiceContext
-	logx.Logger
 }
 
 func New{{.ModelName}}Logic(svcCtx *svc.ServiceContext) *{{.ModelName}}Logic {
-	return &{{.ModelName}}Logic{
-		svcCtx: svcCtx,
-		Logger: logx.With("logic", "{{.ModelName}}"),
-	}
+	return &{{.ModelName}}Logic{svcCtx: svcCtx}
 }
 
 func (l *{{.ModelName}}Logic) List(ctx context.Context) ([]models.{{.ModelName}}, error) {
-	table, err := l.svcCtx.Table("{{.ModelName}}")
-	if err != nil {
-		return nil, fmt.Errorf("table: %w", err)
+	table := svc.Table[models.{{.ModelName}}](l.svcCtx, "{{.ModelName}}")
+	if table == nil {
+		return nil, fmt.Errorf("table not registered")
 	}
 	return table.List(ctx)
 }
 
 func (l *{{.ModelName}}Logic) Get(ctx context.Context, id string) (*models.{{.ModelName}}, error) {
-	table, err := l.svcCtx.Table("{{.ModelName}}")
-	if err != nil {
-		return nil, fmt.Errorf("table: %w", err)
+	table := svc.Table[models.{{.ModelName}}](l.svcCtx, "{{.ModelName}}")
+	if table == nil {
+		return nil, fmt.Errorf("table not registered")
 	}
 	return table.Get(ctx, id)
 }
 
 func (l *{{.ModelName}}Logic) Create(ctx context.Context, req models.{{.ModelName}}) (*models.{{.ModelName}}, error) {
-	table, err := l.svcCtx.Table("{{.ModelName}}")
-	if err != nil {
-		return nil, fmt.Errorf("table: %w", err)
+	table := svc.Table[models.{{.ModelName}}](l.svcCtx, "{{.ModelName}}")
+	if table == nil {
+		return nil, fmt.Errorf("table not registered")
 	}
 	if err := table.Create(ctx, &req); err != nil {
 		return nil, fmt.Errorf("create: %w", err)
@@ -49,22 +43,18 @@ func (l *{{.ModelName}}Logic) Create(ctx context.Context, req models.{{.ModelNam
 	return &req, nil
 }
 
-func (l *{{.ModelName}}Logic) Update(ctx context.Context, id string, req models.{{.ModelName}}) (*models.{{.ModelName}}, error) {
-	table, err := l.svcCtx.Table("{{.ModelName}}")
-	if err != nil {
-		return nil, fmt.Errorf("table: %w", err)
-	}
-	patch := map[string]any{}
-	if req.Name != "" {
-		patch["name"] = req.Name
+func (l *{{.ModelName}}Logic) Update(ctx context.Context, id string, patch map[string]any) (*models.{{.ModelName}}, error) {
+	table := svc.Table[models.{{.ModelName}}](l.svcCtx, "{{.ModelName}}")
+	if table == nil {
+		return nil, fmt.Errorf("table not registered")
 	}
 	return table.Update(ctx, id, patch)
 }
 
 func (l *{{.ModelName}}Logic) Delete(ctx context.Context, id string) error {
-	table, err := l.svcCtx.Table("{{.ModelName}}")
-	if err != nil {
-		return fmt.Errorf("table: %w", err)
+	table := svc.Table[models.{{.ModelName}}](l.svcCtx, "{{.ModelName}}")
+	if table == nil {
+		return fmt.Errorf("table not registered")
 	}
 	return table.Delete(ctx, id)
 }

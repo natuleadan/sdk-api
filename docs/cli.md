@@ -25,7 +25,7 @@ Creates a new microservice scaffold with a proper project structure (handler/, l
 ```
 <name>/
 ├── cmd/
-│   └── main.go                   # Bootstrap with runtime.NewFromYAML()
+│   └── main.go                   # Bootstrap with runtime.New(cfgPath)
 ├── internal/
 │   ├── config/
 │   │   └── config.go             # Typed config struct
@@ -215,7 +215,7 @@ sdk-api completion fish > ~/.config/fish/completions/sdk-api.fish       # fish
 ```
 my-svc/
 ├── cmd/
-│   └── main.go                   # Bootstrap with //go:embed + runtime.NewFromYAML()
+│   └── main.go                   # Bootstrap with runtime.New(cfgPath)
 ├── internal/
 │   ├── config/
 │   │   └── config.go             # Typed Config struct
@@ -227,7 +227,7 @@ my-svc/
 │       └── servicecontext.go     # ServiceContext — dependency injection container
 ├── models/
 │   └── model.go                  # Struct + EntryHooks
-├── service.yaml                  # YAML config (embedded via //go:embed)
+├── service.yaml                  # YAML config (runtime.New reads it)
 └── .env                          # Environment variables
 ```
 
@@ -239,4 +239,4 @@ With `--grpc`:
 └── pb/<resource>.pb.go            # Generated Go structs with protobuf tags
 ```
 
-The generated `cmd/main.go` uses `//go:embed` to embed `service.yaml` directly into the binary. This eliminates filesystem dependencies at runtime and works on any deployment platform (Vercel, Docker, Kubernetes, bare-metal).
+The generated `cmd/main.go` reads `service.yaml` at startup via `runtime.New("service.yaml")`, overridable with the `CONFIG_PATH` env var. This keeps the config editable without rebuilding and works on any deployment platform (Docker, Kubernetes, bare-metal).

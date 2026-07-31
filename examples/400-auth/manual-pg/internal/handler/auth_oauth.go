@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"auth-roles/internal/svc"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/natuleadan/sdk-api/runtime"
 	"github.com/natuleadan/sdk-api/runtime/auth"
+	"github.com/natuleadan/sdk-api/server/middleware"
 	"github.com/ory/fosite"
 )
 
@@ -297,13 +297,11 @@ func handleOIDCUserInfo(svcCtx *svc.ServiceContext) func(c *runtime.RestCtx) err
 		}
 
 		// Try JWT from login
-		token, _, err := new(jwt.Parser).ParseUnverified(tokenStr, jwt.MapClaims{})
+		claims, err := middleware.ParseTokenUnverified(tokenStr)
 		if err == nil {
-			if claims, ok := token.Claims.(jwt.MapClaims); ok {
-				sub, _ := claims["sub"].(string)
-				if sub != "" {
-					return c.JSON(runtime.Map{"sub": sub})
-				}
+			sub, _ := claims["sub"].(string)
+			if sub != "" {
+				return c.JSON(runtime.Map{"sub": sub})
 			}
 		}
 

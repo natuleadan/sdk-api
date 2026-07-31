@@ -1,37 +1,45 @@
 package svc
 
 import (
+	"context"
 	"fmt"
 
 	"{{.ModulePath}}/internal/config"
 	"{{.SDKModule}}/db"
-	"{{.SDKModule}}/runtime"
 	"{{.SDKModule}}/infra/syncx"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"{{.SDKModule}}/runtime"
 )
 
 type ServiceContext struct {
 	Config config.Config
-	pools  map[string]*pgxpool.Pool
+	pools  map[string]*runtime.PGPool
+	tables map[string]any
 }
 
-func NewServiceContext(c config.Config) *ServiceContext {
+func NewServiceContext() *ServiceContext {
 	return &ServiceContext{
-		Config: c,
-		pools:  make(map[string]*pgxpool.Pool),
+		pools:  make(map[string]*runtime.PGPool),
+		tables: make(map[string]any),
 	}
 }
 
-func (s *ServiceContext) SetPool(name string, pool *pgxpool.Pool) {
+func (s *ServiceContext) SetPool(name string, pool *runtime.PGPool) {
 	s.pools[name] = pool
 }
 
-func (s *ServiceContext) Pool(name string) *pgxpool.Pool {
+func (s *ServiceContext) Pool(name string) *runtime.PGPool {
 	return s.pools[name]
 }
 
-func (s *ServiceContext) NewTable[T any](pool *pgxpool.Pool, tableName string) (*db.Table[T], error) {
-	return db.NewTable[T](pool, tableName)
+// SetTable stores a table operator by model name.
+func (s *ServiceContext) SetTable(name string, table any) {
+	s.tables[name] = table
+}
+
+// Table returns a typed *db.Table[T] for a model, or nil if not registered.
+func Table[T any](s *ServiceContext, name string) *db.Table[T] {
+	tbl, _ := s.tables[name].(*db.Table[T])
+	return tbl
 }
 
 func BulkheadGet(name string) *syncx.Limit {
@@ -44,6 +52,7 @@ func (s *ServiceContext) RegisterTables(ctx context.Context) error {
 	for name, pool := range s.pools {
 		_ = name
 		_ = pool
+		_ = ctx
 	}
 	return fmt.Errorf("not implemented: register tables for your models")
 }

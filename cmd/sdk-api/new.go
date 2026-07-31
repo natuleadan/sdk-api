@@ -84,6 +84,9 @@ var tmplRestAll string
 //go:embed templates/rest_routes.go.tmpl
 var tmplRestRoutes string
 
+//go:embed templates/auth_feature.go.tmpl
+var tmplAuthFeature string
+
 type consumerDef struct {
 	Stream  string
 	Durable string
@@ -135,6 +138,8 @@ type newConfig struct {
 	GrpcPort        int
 	GrpcEnabled     bool
 	GrpcServiceName string
+	AuthDriver      string
+	AuthFeatures    []string
 	WithTests       bool
 	Dir             string
 	Consumers       []consumerDef
@@ -183,16 +188,18 @@ func runNew(args []string) error {
 
 func parseNewFlags(flags []string, cfg *newConfig) {
 	flagHandlers := map[string]func([]string, int, *newConfig) int{
-		"--model":   handleModelFlag,
-		"--port":    handlePortFlag,
-		"--fields":  handleFieldsFlag,
-		"--consume": handleConsumeFlag,
-		"--publish": handlePublishFlag,
-		"--exit":    handleExitFlag,
-		"--cron":    handleCronFlag,
-		"--cache":   handleCacheFlag,
-		"--rest":    handleRestFlag,
-		"--dir":     handleDirFlag,
+		"--model":    handleModelFlag,
+		"--port":     handlePortFlag,
+		"--fields":   handleFieldsFlag,
+		"--consume":  handleConsumeFlag,
+		"--publish":  handlePublishFlag,
+		"--exit":     handleExitFlag,
+		"--cron":     handleCronFlag,
+		"--cache":    handleCacheFlag,
+		"--rest":     handleRestFlag,
+		"--dir":      handleDirFlag,
+		"--auth":     handleAuthFlag,
+		"--features": handleFeaturesFlag,
 	}
 	boolFlags := map[string]*bool{
 		"--grpc":       &cfg.GrpcEnabled,
@@ -267,7 +274,17 @@ func finalizeConfig(cfg *newConfig) error {
 	if cfg.GrpcPort == 0 {
 		cfg.GrpcPort = cfg.Port + 1
 	}
+	if err := validateAuthDriver(cfg.AuthDriver); err != nil {
+		return err
+	}
 	return nil
+}
+
+func validateAuthDriver(driver string) error {
+	if driver == "" || driver == "none" || driver == "manual" {
+		return nil
+	}
+	return fmt.Errorf("auth driver %q invalid (use none or manual)", driver)
 }
 
 func handleModelFlag(args []string, i int, cfg *newConfig) int {
@@ -442,6 +459,27 @@ func handleDirFlag(args []string, i int, cfg *newConfig) int {
 	return i
 }
 
+func handleAuthFlag(args []string, i int, cfg *newConfig) int {
+	if i+1 < len(args) {
+		i++
+		cfg.AuthDriver = args[i]
+	}
+	return i
+}
+
+func handleFeaturesFlag(args []string, i int, cfg *newConfig) int {
+	if i+1 < len(args) {
+		i++
+		for f := range strings.SplitSeq(args[i], ",") {
+			f = strings.TrimSpace(f)
+			if f != "" {
+				cfg.AuthFeatures = append(cfg.AuthFeatures, f)
+			}
+		}
+	}
+	return i
+}
+
 type tmplDef struct {
 	rel  string
 	src  string
@@ -525,6 +563,17 @@ func collectTemplates(cfg newConfig) ([]tmplDef, []string) {
 			tmplDef{rel: "pb/" + cfg.ResourceName + ".pb.go", src: tmplPB},
 			tmplDef{rel: "grpcserver/" + cfg.ResourceName + ".go", src: tmplGrpcServer},
 		)
+	}
+
+	if cfg.AuthDriver == "manual" {
+		extraDirs = append(extraDirs, filepath.Join(cfg.Dir, "internal", "handler"))
+		for _, feat := range cfg.AuthFeatures {
+			files = append(files, tmplDef{
+				rel:  "internal/handler/auth_" + feat + ".go",
+				src:  tmplAuthFeature,
+				data: map[string]string{"FeatureName": pascalCase(feat), "FeatureKey": feat, "ModulePath": cfg.ModulePath},
+			})
+		}
 	}
 
 	return files, extraDirs

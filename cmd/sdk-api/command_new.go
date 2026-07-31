@@ -48,6 +48,12 @@ var newCmd = &cobra.Command{
 		if grpcSvc, _ := cmd.Flags().GetString("grpc-service"); grpcSvc != "" {
 			allArgs = append(allArgs, "--grpc-service", grpcSvc)
 		}
+		if auth, _ := cmd.Flags().GetString("auth"); auth != "" {
+			allArgs = append(allArgs, "--auth", auth)
+		}
+		if features, _ := cmd.Flags().GetString("features"); features != "" {
+			allArgs = append(allArgs, "--features", features)
+		}
 		if split, _ := cmd.Flags().GetBool("split"); split {
 			allArgs = append(allArgs, "--split")
 		}
@@ -72,6 +78,8 @@ func init() {
 	newCmd.Flags().Bool("grpc", false, "Enable gRPC server generation")
 	newCmd.Flags().Int("grpc-port", 0, "gRPC server port (default: HTTP port + 1)")
 	newCmd.Flags().String("grpc-service", "", "gRPC proto service name (default: ModelName + Service)")
+	newCmd.Flags().String("auth", "", "Auth driver: none (default) | manual")
+	newCmd.Flags().String("features", "", "Auth features (with --auth manual): mfa,magic-link,sms,social,webauthn,oauth-server")
 	newCmd.Flags().Bool("with-tests", false, "Generate test stubs")
 	newCmd.Flags().StringArray("rest", []string{}, "REST endpoints: \"GROUP|METHOD:/path:Handler\"")
 	newCmd.Flags().Bool("split", false, "Generate one handler file per endpoint")

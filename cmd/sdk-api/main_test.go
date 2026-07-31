@@ -117,7 +117,7 @@ func TestRunNewWithAuthManual(t *testing.T) {
 		"auth-svc", "--model", "User",
 		"--fields", "name:string,email:string",
 		"--auth", "manual",
-		"--features", "mfa,magic-link,sms",
+		"--features", "mfa,magic-link,sms,social,webauthn,oauth-server",
 		"--dir", dir,
 	})
 	if err != nil {
@@ -126,14 +126,43 @@ func TestRunNewWithAuthManual(t *testing.T) {
 
 	checkFile(t, dir, "service.yaml", "driver: manual")
 	checkFile(t, dir, "service.yaml", "secret: \"${JWT_SECRET}\"")
-	checkFile(t, dir, "service.yaml", "path: /auth/mfa/enable")
-	checkFile(t, dir, "service.yaml", "handler: MFAEnable")
-	checkFile(t, dir, "service.yaml", "path: /auth/magic-link/verify")
-	checkFile(t, dir, "service.yaml", "path: /auth/sms/send")
 	checkFile(t, dir, "cmd/main.go", `WithAuthValidator`)
+
+	// mfa (2 handlers)
 	checkFile(t, dir, "internal/handler/auth_mfa.go", "func MFAEnable")
+	checkFile(t, dir, "internal/handler/auth_mfa.go", "func MFAVerify")
+	// magic-link (2)
 	checkFile(t, dir, "internal/handler/auth_magic-link.go", "func MagicLinkSend")
+	checkFile(t, dir, "internal/handler/auth_magic-link.go", "func MagicLinkVerify")
+	// sms (2)
 	checkFile(t, dir, "internal/handler/auth_sms.go", "func SMSSend")
+	checkFile(t, dir, "internal/handler/auth_sms.go", "func SMSVerify")
+	// social (5)
+	checkFile(t, dir, "internal/handler/auth_social.go", "func SocialLogin")
+	checkFile(t, dir, "internal/handler/auth_social.go", "func SocialCallback")
+	checkFile(t, dir, "internal/handler/auth_social.go", "func LinkedAccounts")
+	checkFile(t, dir, "internal/handler/auth_social.go", "func LinkAccount")
+	checkFile(t, dir, "internal/handler/auth_social.go", "func UnlinkAccount")
+	// webauthn (8)
+	for _, fn := range []string{
+		"WebAuthnRegisterBegin", "WebAuthnRegisterFinish",
+		"WebAuthnLoginBegin", "WebAuthnLoginFinish",
+		"WebAuthnManualLoginBegin", "WebAuthnManualLoginFinish",
+		"WebAuthnCredentials", "WebAuthnDeleteCredential",
+	} {
+		checkFile(t, dir, "internal/handler/auth_webauthn.go", "func "+fn)
+	}
+	// oauth-server (10)
+	for _, fn := range []string{
+		"OAuthAuthorize", "OAuthToken", "OAuthIntrospect", "OAuthRevoke",
+		"OAuthClientsList", "OAuthClientsCreate", "OAuthClientsDelete",
+		"OIDCDiscovery", "OIDCJWKS", "OIDCUserInfo",
+	} {
+		checkFile(t, dir, "internal/handler/auth_oauth-server.go", "func "+fn)
+	}
+	// reference comments
+	checkFile(t, dir, "internal/handler/auth_oauth-server.go", "examples/400-auth/manual-pg")
+	checkFile(t, dir, "internal/handler/auth_webauthn.go", "examples/400-auth/manual-pg")
 }
 
 func TestRunNewAuthInvalidDriver(t *testing.T) {

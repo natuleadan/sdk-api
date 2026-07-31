@@ -15,6 +15,7 @@ General-purpose Go SDK for event-driven microservices and monoliths. YAML-driven
 | Full documentation | `docs/` (21 files) |
 | YAML config schema (all entry types, security) | `docs/configuration.md` |
 | Security guide (headers, CSRF, rate limit, TLS, SSRF, validation, cookie encryption) | `docs/security.md` |
+| Manual auth features (mfa, social, webauthn, oauth-server) | `docs/auth-manual.md` |
 | HTTP server & middlewares | `docs/http-server.md` |
 | Runtime API | `docs/runtime.md` |
 | gRPC microservices | `docs/runtime.md#grpc` |

@@ -55,6 +55,8 @@ Creates a new microservice scaffold with a proper project structure (handler/, l
 | `--grpc` | Enable gRPC server generation | `false` |
 | `--grpc-port` | gRPC server port | HTTP port + 1 |
 | `--grpc-service` | gRPC proto service name (default: ModelName+Service) | — |
+| `--auth` | Auth driver: `none` (default) or `manual` | — |
+| `--features` | Auth features (with `--auth manual`): `mfa,magic-link,sms,social,webauthn,oauth-server`. Generates 501 skeleton handlers referencing `examples/400-auth/manual-pg/`. See `docs/auth-manual.md` | — |
 | `--split` | Generate one handler file per endpoint | `false` |
 | `--dir` | Output directory | Service name |
 | `--output` | Output format (text, json, table) | `text` |
@@ -79,6 +81,13 @@ sdk-api new orders-svc \
 sdk-api new analytics-svc \
     --exit "events:onEvent:event-worker" \
     --cron "onDailyReport:daily-report"
+
+# With manual auth features (skeleton handlers with references)
+sdk-api new auth-svc \
+    --model User \
+    --fields "name:string,email:string" \
+    --auth manual \
+    --features mfa,magic-link,sms
 ```
 
 ### `sdk-api validate [file]`

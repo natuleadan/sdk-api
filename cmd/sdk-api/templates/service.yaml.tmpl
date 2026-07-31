@@ -75,6 +75,21 @@ entry:
     method: GET
     path: /auth/:provider/callback
     handler: SocialCallback
+  - type: rest
+    method: GET
+    path: /auth/linked-accounts
+    handler: LinkedAccounts
+    auth_modes: [jwt]
+  - type: rest
+    method: POST
+    path: /auth/link
+    handler: LinkAccount
+    auth_modes: [jwt]
+  - type: rest
+    method: DELETE
+    path: /auth/linked-accounts/:id
+    handler: UnlinkAccount
+    auth_modes: [jwt]
 {{- else if eq . "webauthn"}}
   - type: rest
     method: POST
@@ -83,17 +98,80 @@ entry:
     auth_modes: [jwt]
   - type: rest
     method: POST
+    path: /auth/webauthn/register/finish
+    handler: WebAuthnRegisterFinish
+    auth_modes: [jwt]
+  - type: rest
+    method: POST
     path: /auth/webauthn/login/begin
     handler: WebAuthnLoginBegin
+  - type: rest
+    method: POST
+    path: /auth/webauthn/login/finish
+    handler: WebAuthnLoginFinish
+  - type: rest
+    method: POST
+    path: /auth/webauthn/login/manual/begin
+    handler: WebAuthnManualLoginBegin
+  - type: rest
+    method: POST
+    path: /auth/webauthn/login/manual/finish
+    handler: WebAuthnManualLoginFinish
+  - type: rest
+    method: GET
+    path: /auth/webauthn/credentials
+    handler: WebAuthnCredentials
+    auth_modes: [jwt]
+  - type: rest
+    method: DELETE
+    path: /auth/webauthn/credentials/:id
+    handler: WebAuthnDeleteCredential
+    auth_modes: [jwt]
 {{- else if eq . "oauth-server"}}
   - type: rest
     method: GET
     path: /oauth/authorize
     handler: OAuthAuthorize
+    auth_modes: [jwt]
   - type: rest
     method: POST
     path: /oauth/token
     handler: OAuthToken
+  - type: rest
+    method: POST
+    path: /oauth/introspect
+    handler: OAuthIntrospect
+  - type: rest
+    method: POST
+    path: /oauth/revoke
+    handler: OAuthRevoke
+  - type: rest
+    method: GET
+    path: /oauth/clients
+    handler: OAuthClientsList
+    auth_modes: [jwt]
+  - type: rest
+    method: POST
+    path: /oauth/clients
+    handler: OAuthClientsCreate
+    auth_modes: [jwt]
+  - type: rest
+    method: DELETE
+    path: /oauth/clients/:id
+    handler: OAuthClientsDelete
+    auth_modes: [jwt]
+  - type: rest
+    method: GET
+    path: /.well-known/openid-configuration
+    handler: OIDCDiscovery
+  - type: rest
+    method: GET
+    path: /.well-known/jwks.json
+    handler: OIDCJWKS
+  - type: rest
+    method: GET
+    path: /userinfo
+    handler: OIDCUserInfo
 {{- end}}
 {{- end}}
 {{- end}}

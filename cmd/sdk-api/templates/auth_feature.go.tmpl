@@ -7,97 +7,226 @@ import (
 	"github.com/natuleadan/sdk-api/server/middleware"
 )
 
-// {{.FeatureName}} auth handlers (generated scaffold).
+// {{.FeatureName}} auth handlers (generated scaffold — return 501 until implemented).
+//
 // Reference implementation: examples/400-auth/manual-pg/
-
 {{- if eq .FeatureKey "mfa"}}
+//   Copy from:
+//     internal/handler/auth_mfa_enable.go   → MFAEnable  (TOTP secret + otpauth URI)
+//     internal/handler/auth_mfa_verify.go   → MFAVerify  (validate code, re-issue JWT)
+//     internal/models/models.go             → MFASecret  (table: mfa_secrets)
+//   Note: example uses handle* prefix; keep these names to match service.yaml.
+//   Needs: runtime/auth.GenerateTOTPSecret, GenerateTOTPURI, ValidateTOTP (SDK, no deps).
 
 func MFAEnable(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
 	return func(c *runtime.RestCtx) error {
-		// TODO: generate TOTP secret, return otpauth:// URI
-		return c.Status(501).JSON(runtime.Map{"error": "not implemented"})
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented — see examples/400-auth/manual-pg/internal/handler/auth_mfa_enable.go"})
 	}
 }
 
 func MFAVerify(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
 	return func(c *runtime.RestCtx) error {
-		// TODO: validate TOTP code, re-issue JWT with mfa claim
-		return c.Status(501).JSON(runtime.Map{"error": "not implemented"})
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented — see examples/400-auth/manual-pg/internal/handler/auth_mfa_verify.go"})
 	}
 }
 {{- else if eq .FeatureKey "magic-link"}}
+//   Copy from:
+//     internal/handler/auth_magic_link.go   → MagicLinkSend/Verify
+//     internal/models/models.go             → (uses users table only)
+//   Note: example uses handle* prefix; keep these names to match service.yaml.
+//   Needs: SDK middleware.SignToken + middleware.ParseToken (no extra deps).
 
 func MagicLinkSend(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
 	return func(c *runtime.RestCtx) error {
-		// TODO: sign JWT with purpose=magic_link, deliver link
-		return c.Status(501).JSON(runtime.Map{"error": "not implemented"})
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented — see examples/400-auth/manual-pg/internal/handler/auth_magic_link.go"})
 	}
 }
 
 func MagicLinkVerify(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
 	return func(c *runtime.RestCtx) error {
-		// TODO: validate token via middleware.ParseToken, issue session
-		return c.Status(501).JSON(runtime.Map{"error": "not implemented"})
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented — see examples/400-auth/manual-pg/internal/handler/auth_magic_link.go"})
 	}
 }
 {{- else if eq .FeatureKey "sms"}}
+//   Copy from:
+//     internal/handler/auth_sms.go          → SMSSend/Verify (6-digit codes)
+//     internal/svc/sms_provider.go          → SMSProvider interface + Twilio impl
+//     internal/models/models.go             → AuthCode (table: auth_codes)
+//   Note: example uses handle* prefix; keep these names to match service.yaml.
+//   Needs: go get github.com/twilio/twilio-go (or keep mock provider).
+//   Env:   TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER.
 
 func SMSSend(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
 	return func(c *runtime.RestCtx) error {
-		// TODO: generate 6-digit code, send via provider
-		return c.Status(501).JSON(runtime.Map{"error": "not implemented"})
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented — see examples/400-auth/manual-pg/internal/handler/auth_sms.go"})
 	}
 }
 
 func SMSVerify(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
 	return func(c *runtime.RestCtx) error {
-		// TODO: validate code, issue session token
-		return c.Status(501).JSON(runtime.Map{"error": "not implemented"})
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented — see examples/400-auth/manual-pg/internal/handler/auth_sms.go"})
 	}
 }
 {{- else if eq .FeatureKey "social"}}
+//   Copy from:
+//     internal/handler/auth_social.go       → SocialLogin/Callback + linked accounts (5 handlers)
+//     internal/handler/social_providers.go  → Google/GitHub provider configs
+//     internal/models/models.go             → LinkedAccount (table: linked_accounts)
+//   Note: example uses handle* prefix; keep these names to match service.yaml.
+//   Needs: go get golang.org/x/oauth2.
+//   Env:   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET.
 
 func SocialLogin(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
 	return func(c *runtime.RestCtx) error {
-		// TODO: build state JWT, redirect to provider OAuth
-		return c.Status(501).JSON(runtime.Map{"error": "not implemented"})
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented — see examples/400-auth/manual-pg/internal/handler/auth_social.go"})
 	}
 }
 
 func SocialCallback(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
 	return func(c *runtime.RestCtx) error {
-		// TODO: exchange code, fetch userinfo, issue session
-		return c.Status(501).JSON(runtime.Map{"error": "not implemented"})
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented — see examples/400-auth/manual-pg/internal/handler/auth_social.go"})
+	}
+}
+
+func LinkedAccounts(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented — see examples/400-auth/manual-pg/internal/handler/auth_social.go"})
+	}
+}
+
+func LinkAccount(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented — see examples/400-auth/manual-pg/internal/handler/auth_social.go"})
+	}
+}
+
+func UnlinkAccount(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented — see examples/400-auth/manual-pg/internal/handler/auth_social.go"})
 	}
 }
 {{- else if eq .FeatureKey "webauthn"}}
+//   Copy from:
+//     internal/handler/auth_webauthn.go     → 8 handlers (register/login/manual begin+finish, credentials, delete)
+//     internal/models/models.go             → WebAuthnUser, WebAuthnCredential, WebAuthnSession (3 tables)
+//   Note: example uses handle* prefix; keep these names to match service.yaml.
+//   Needs: go get github.com/go-webauthn/webauthn.
+//   Env:   WEBAUTHN_RP_NAME, WEBAUTHN_RP_ID, WEBAUTHN_ORIGINS (adapt to your domain).
 
 func WebAuthnRegisterBegin(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
 	return func(c *runtime.RestCtx) error {
-		// TODO: create credential creation options
-		return c.Status(501).JSON(runtime.Map{"error": "not implemented"})
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented — see examples/400-auth/manual-pg/internal/handler/auth_webauthn.go"})
+	}
+}
+
+func WebAuthnRegisterFinish(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented — see examples/400-auth/manual-pg/internal/handler/auth_webauthn.go"})
 	}
 }
 
 func WebAuthnLoginBegin(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
 	return func(c *runtime.RestCtx) error {
-		// TODO: create assertion options
-		return c.Status(501).JSON(runtime.Map{"error": "not implemented"})
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented — see examples/400-auth/manual-pg/internal/handler/auth_webauthn.go"})
+	}
+}
+
+func WebAuthnLoginFinish(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented — see examples/400-auth/manual-pg/internal/handler/auth_webauthn.go"})
+	}
+}
+
+func WebAuthnManualLoginBegin(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented — see examples/400-auth/manual-pg/internal/handler/auth_webauthn.go"})
+	}
+}
+
+func WebAuthnManualLoginFinish(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented — see examples/400-auth/manual-pg/internal/handler/auth_webauthn.go"})
+	}
+}
+
+func WebAuthnCredentials(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented — see examples/400-auth/manual-pg/internal/handler/auth_webauthn.go"})
+	}
+}
+
+func WebAuthnDeleteCredential(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented — see examples/400-auth/manual-pg/internal/handler/auth_webauthn.go"})
 	}
 }
 {{- else if eq .FeatureKey "oauth-server"}}
+//   Copy from:
+//     internal/handler/auth_oauth.go        → 10 handlers (authorize, token, introspect, revoke, clients, oidc)
+//     internal/svc/oauth_provider.go        → fosite provider (ComposeAllEnabled + JWKS)
+//     internal/svc/oauth_store.go           → storage adapter (30 methods / 10 fosite interfaces)
+//     internal/models/models.go             → OAuthClient, OAuthSession, OAuthJTIS (3 tables)
+//   Note: example uses handle* prefix; keep these names to match service.yaml.
+//   Needs: go get github.com/ory/fosite github.com/go-jose/go-jose/v3.
+//   Env:   OIDC_PRIVATE_KEY_B64 (base64-encoded PEM PKCS8 RSA private key).
 
 func OAuthAuthorize(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
 	return func(c *runtime.RestCtx) error {
-		// TODO: OAuth 2.1 authorize endpoint (fosite)
-		return c.Status(501).JSON(runtime.Map{"error": "not implemented"})
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented — see examples/400-auth/manual-pg/internal/handler/auth_oauth.go"})
 	}
 }
 
 func OAuthToken(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
 	return func(c *runtime.RestCtx) error {
-		// TODO: OAuth 2.1 token endpoint (fosite)
-		return c.Status(501).JSON(runtime.Map{"error": "not implemented"})
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented — see examples/400-auth/manual-pg/internal/handler/auth_oauth.go"})
+	}
+}
+
+func OAuthIntrospect(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented — see examples/400-auth/manual-pg/internal/handler/auth_oauth.go"})
+	}
+}
+
+func OAuthRevoke(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented — see examples/400-auth/manual-pg/internal/handler/auth_oauth.go"})
+	}
+}
+
+func OAuthClientsList(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented — see examples/400-auth/manual-pg/internal/handler/auth_oauth.go"})
+	}
+}
+
+func OAuthClientsCreate(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented — see examples/400-auth/manual-pg/internal/handler/auth_oauth.go"})
+	}
+}
+
+func OAuthClientsDelete(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented — see examples/400-auth/manual-pg/internal/handler/auth_oauth.go"})
+	}
+}
+
+func OIDCDiscovery(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented — see examples/400-auth/manual-pg/internal/handler/auth_oauth.go"})
+	}
+}
+
+func OIDCJWKS(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented — see examples/400-auth/manual-pg/internal/handler/auth_oauth.go"})
+	}
+}
+
+func OIDCUserInfo(svcCtx *svc.ServiceContext) func(*runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		return c.Status(501).JSON(runtime.Map{"error": "not implemented — see examples/400-auth/manual-pg/internal/handler/auth_oauth.go"})
 	}
 }
 {{- end}}

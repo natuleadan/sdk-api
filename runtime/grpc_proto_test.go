@@ -131,16 +131,16 @@ func TestGenerateProto_UsesColumnNames(t *testing.T) {
 }
 
 func TestProtoType_Direct(t *testing.T) {
-	if got := protoType(reflect.TypeOf("")); got != "string" {
+	if got := protoType(reflect.TypeFor[string]()); got != "string" {
 		t.Errorf("string: got %q", got)
 	}
-	if got := protoType(reflect.TypeOf(int64(0))); got != "int64" {
+	if got := protoType(reflect.TypeFor[int64]()); got != "int64" {
 		t.Errorf("int64: got %q", got)
 	}
-	if got := protoType(reflect.TypeOf(float64(0))); got != "double" {
+	if got := protoType(reflect.TypeFor[float64]()); got != "double" {
 		t.Errorf("float64: got %q", got)
 	}
-	if got := protoType(reflect.TypeOf(true)); got != "bool" {
+	if got := protoType(reflect.TypeFor[bool]()); got != "bool" {
 		t.Errorf("bool: got %q", got)
 	}
 }

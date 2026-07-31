@@ -284,6 +284,7 @@ server:
     secret: "${JWT_SECRET}"               # HMAC shared secret
     prev_secret: "${OLD_JWT_SECRET}"      # Previous secret for key rotation (optional)
     algorithm: HS256                       # HS256 | HS384 | HS512 | RS256
+    jwks_url: "https://oauth.tld/.well-known/jwks.json"  # RS256 via remote JWKS (kid rotation, optional)
     expiry: 900                            # JWT TTL in seconds (default 900 = 15min)
     context_key: claims                    # fiber.Ctx.Locals key
     issuer: "sdk-api"                      # Validate iss claim

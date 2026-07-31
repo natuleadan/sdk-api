@@ -12,6 +12,8 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/golang-jwt/jwt/v5"
+
+	"github.com/natuleadan/sdk-api/server/auth/jwks"
 )
 
 var ErrInvalidKey = errors.New("invalid private key")
@@ -25,6 +27,10 @@ type JWTConfig struct {
 	Issuer         string
 	Audience       string
 	TokenBlacklist func(rawToken string) bool
+	// JWKSURL enables RS256/RS384/RS512 validation against a remote JWKS
+	// endpoint with kid-based key rotation (e.g. an OAuth server's
+	// /.well-known/jwks.json). When set, Secret is ignored for verification.
+	JWKSURL string
 }
 
 func DefaultJWTConfig() JWTConfig {
@@ -54,7 +60,6 @@ func JWT(cfg JWTConfig) fiber.Handler {
 		prevCfg.Secret = cfg.PrevSecret
 		prevParser = newParser(prevCfg)
 	}
-
 	return func(c fiber.Ctx) error {
 		token, rawToken := extractToken(c, cfg.TokenLookup)
 		if token == "" {
@@ -123,9 +128,16 @@ type jwtParser struct {
 	rsaPub    *rsa.PublicKey
 	ecdsaPub  *ecdsa.PublicKey
 	algorithm string
+	keyFunc   jwt.Keyfunc
 }
 
 func newParser(cfg JWTConfig) *jwtParser {
+	if cfg.JWKSURL != "" {
+		return &jwtParser{
+			algorithm: cfg.Algorithm,
+			keyFunc:   jwks.New(cfg.JWKSURL).KeyFunc(),
+		}
+	}
 	p := &jwtParser{algorithm: cfg.Algorithm}
 	switch {
 	case strings.HasPrefix(cfg.Algorithm, "HS"):
@@ -223,6 +235,26 @@ func parseECDSAPrivateKey(pemBytes []byte) any {
 }
 
 func (p *jwtParser) parse(tokenStr string) (jwt.MapClaims, error) {
+	if p.keyFunc != nil {
+		return p.parseWithJWKS(tokenStr)
+	}
+	return p.parseWithStaticKey(tokenStr)
+}
+
+// parseWithJWKS validates a token against a remote JWKS endpoint.
+func (p *jwtParser) parseWithJWKS(tokenStr string) (jwt.MapClaims, error) {
+	parser := jwt.NewParser(jwt.WithValidMethods([]string{"RS256", "RS384", "RS512"}))
+	token, err := parser.Parse(tokenStr, p.keyFunc)
+	if err != nil {
+		return nil, err
+	}
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		return claims, nil
+	}
+	return nil, jwt.ErrSignatureInvalid
+}
+
+func (p *jwtParser) parseWithStaticKey(tokenStr string) (jwt.MapClaims, error) {
 	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (any, error) {
 		if token.Method.Alg() != p.algorithm {
 			return nil, jwt.ErrSignatureInvalid

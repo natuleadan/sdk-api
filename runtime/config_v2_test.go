@@ -409,6 +409,44 @@ name: prom-test
 	}
 }
 
+func TestParseConfig_JWKSURL(t *testing.T) {
+	t.Setenv("JWT_SECRET", "test-secret")
+	cfg, err := ParseConfig([]byte(`
+name: jwks-test
+auth:
+  enabled: true
+  driver: manual
+  secret: "${JWT_SECRET}"
+  jwks_url: "https://oauth.internal/.well-known/jwks.json"
+`))
+	if err != nil {
+		t.Fatalf("ParseConfig: %v", err)
+	}
+	if cfg.Auth == nil {
+		t.Fatal("expected auth config")
+	}
+	if cfg.Auth.JWKSURL != "https://oauth.internal/.well-known/jwks.json" {
+		t.Errorf("expected jwks_url, got %q", cfg.Auth.JWKSURL)
+	}
+}
+
+func TestParseConfig_JWKSURLEmpty(t *testing.T) {
+	t.Setenv("JWT_SECRET", "test-secret")
+	cfg, err := ParseConfig([]byte(`
+name: jwks-test
+auth:
+  enabled: true
+  driver: manual
+  secret: "${JWT_SECRET}"
+`))
+	if err != nil {
+		t.Fatalf("ParseConfig: %v", err)
+	}
+	if cfg.Auth.JWKSURL != "" {
+		t.Error("expected empty jwks_url by default")
+	}
+}
+
 func TestDBConfig_Validate(t *testing.T) {
 	tests := []struct {
 		name    string

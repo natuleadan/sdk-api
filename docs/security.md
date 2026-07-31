@@ -91,7 +91,7 @@ The YAML defines **what roles are required** per endpoint. The driver defines **
 | Mode | Identity | Authorization | Role validation | Dependencies | Use case |
 |------|----------|--------------|----------------|--------------|----------|
 | `none` | JWT (shared secret) | None (or JWT claims) | JWT claims (strategy A) | 0 | Service-to-service, internal APIs |
-| `manual` | JWT (shared secret) | Custom validator | JWT claims (A) or custom hook (B) | 0 | Custom auth logic (DB, Redis) |
+| `manual` | JWT (shared secret or JWKS) | Custom validator | JWT claims (A) or custom hook (B) | 0 | Custom auth logic (DB, Redis); `jwks_url` enables RS256 validation of tokens from an external OAuth server with kid-based key rotation |
 | `openfga-zitadel` | Zitadel OIDC (JWKS) | OpenFGA ReBAC | OpenFGA Check (C) | Zitadel + OpenFGA + 2x PG | Multi-tenant SaaS, fine-grained permissions |
 | `ory` | Ory Kratos OIDC | Ory Keto ReBAC | Keto Check (C) | Kratos + Keto + PG | Enterprise IAM with Ory ecosystem |
 

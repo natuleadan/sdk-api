@@ -1,4 +1,4 @@
-package zitadel
+package jwks
 
 import (
 	"crypto/rand"
@@ -20,9 +20,9 @@ func TestParseJWKS_Valid(t *testing.T) {
 
 	body := []byte(`{"keys":[{"kid":"test-key-1","kty":"RSA","n":"` + n + `","e":"` + e + `"}]}`)
 
-	keys, err := parseJWKS(body)
+	keys, err := ParseJWKS(body)
 	if err != nil {
-		t.Fatalf("parseJWKS failed: %v", err)
+		t.Fatalf("ParseJWKS failed: %v", err)
 	}
 
 	if len(keys) != 1 {
@@ -42,9 +42,9 @@ func TestParseJWKS_Valid(t *testing.T) {
 func TestParseJWKS_NonRSA(t *testing.T) {
 	body := []byte(`{"keys":[{"kid":"ec-key","kty":"EC","crv":"P-256","x":"...","y":"..."}]}`)
 
-	keys, err := parseJWKS(body)
+	keys, err := ParseJWKS(body)
 	if err != nil {
-		t.Fatalf("parseJWKS failed: %v", err)
+		t.Fatalf("ParseJWKS failed: %v", err)
 	}
 
 	if len(keys) != 0 {
@@ -55,9 +55,9 @@ func TestParseJWKS_NonRSA(t *testing.T) {
 func TestParseJWKS_InvalidBase64(t *testing.T) {
 	body := []byte(`{"keys":[{"kid":"bad-key","kty":"RSA","n":"!!!invalid!!!","e":"AQAB"}]}`)
 
-	keys, err := parseJWKS(body)
+	keys, err := ParseJWKS(body)
 	if err != nil {
-		t.Fatalf("parseJWKS failed: %v", err)
+		t.Fatalf("ParseJWKS failed: %v", err)
 	}
 
 	if len(keys) != 0 {
@@ -68,7 +68,7 @@ func TestParseJWKS_InvalidBase64(t *testing.T) {
 func TestParseJWKS_InvalidJSON(t *testing.T) {
 	body := []byte(`not json`)
 
-	_, err := parseJWKS(body)
+	_, err := ParseJWKS(body)
 	if err == nil {
 		t.Fatal("expected error for invalid JSON")
 	}
@@ -77,9 +77,9 @@ func TestParseJWKS_InvalidJSON(t *testing.T) {
 func TestParseJWKS_Empty(t *testing.T) {
 	body := []byte(`{"keys":[]}`)
 
-	keys, err := parseJWKS(body)
+	keys, err := ParseJWKS(body)
 	if err != nil {
-		t.Fatalf("parseJWKS failed: %v", err)
+		t.Fatalf("ParseJWKS failed: %v", err)
 	}
 
 	if len(keys) != 0 {

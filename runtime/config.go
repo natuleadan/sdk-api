@@ -73,6 +73,9 @@ type AuthConfig struct {
 	PrevSecret string `json:"prev_secret" config:",optional"`
 	// Algorithm is a constant.
 	Algorithm string `json:"algorithm" config:",default=HS256"`
+	// JWKSURL enables RS256 validation against a remote JWKS endpoint
+	// (e.g. an OAuth server's /.well-known/jwks.json) with kid-based rotation.
+	JWKSURL string `json:"jwks_url" config:",optional"`
 	// ContextKey is a constant.
 	ContextKey string `json:"context_key" config:",default=claims"`
 	// Issuer is a constant.

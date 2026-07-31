@@ -1474,6 +1474,7 @@ func buildJWTCfg(auth *AuthConfig) *middleware.JWTConfig {
 		Algorithm:  auth.Algorithm,
 		Issuer:     auth.Issuer,
 		Audience:   auth.Audience,
+		JWKSURL:    auth.JWKSURL,
 	}
 }
 

@@ -27,6 +27,8 @@ type RedisConf struct {
 	MasterName       string `config:",optional"`
 	SentinelUsername string `config:",optional"`
 	SentinelPassword string `config:",optional"`
+	// PoolSize is the connection pool size per node. 0 uses the go-redis default (10 * GOMAXPROCS).
+	PoolSize int `config:",optional"`
 	// PingTimeout is the timeout for ping redis.
 	PingTimeout time.Duration `config:",default=1s"`
 }

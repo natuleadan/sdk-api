@@ -64,6 +64,7 @@ type (
 		MasterName    string
 		SentinelUser  string
 		SentinelPass  string
+		poolSize      int
 		tls           bool
 		tlsSkipVerify bool
 		brk           breaker.Breaker
@@ -158,6 +159,9 @@ func NewRedis(conf RedisConf, opts ...Option) (*Redis, error) {
 	}
 	if conf.Database != 0 {
 		opts = append([]Option{WithDB(conf.Database)}, opts...)
+	}
+	if conf.PoolSize > 0 {
+		opts = append([]Option{WithPoolSize(conf.PoolSize)}, opts...)
 	}
 
 	rds := newRedis(conf.Host, opts...)
@@ -2838,7 +2842,14 @@ func WithTLSSkipVerify(skip bool) Option {
 	}
 }
 
-// WithUser customizes the given Redis with given username.
+// WithPoolSize sets the connection pool size for the redis client.
+// 0 leaves the go-redis default (10 * GOMAXPROCS).
+func WithPoolSize(size int) Option {
+	return func(r *Redis) {
+		r.poolSize = size
+	}
+}
+
 func WithUser(user string) Option {
 	return func(r *Redis) {
 		r.User = user

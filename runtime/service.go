@@ -765,7 +765,7 @@ func (s *Service) KV(name string) *redis.Redis {
 	}
 	for _, cfg := range s.config.KV {
 		if cfg.Name == name {
-			r := redis.MustNewRedis(redis.RedisConf{Host: cfg.URL, Type: "node"})
+			r := redis.MustNewRedis(redis.RedisConf{Host: cfg.URL, Type: "node", PoolSize: cfg.PoolSize})
 			s.kvConns[name] = r
 			return r
 		}

@@ -330,6 +330,8 @@ type KVConfig struct {
 	Driver string `json:"driver" config:",default=redis"`
 	// URL is a constant.
 	URL string `json:"url"`
+	// PoolSize is the redis connection pool size. 0 uses the go-redis default (10 * GOMAXPROCS).
+	PoolSize int `json:"pool_size" config:",optional"`
 }
 
 type StreamConfig struct {

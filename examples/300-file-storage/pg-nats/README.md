@@ -13,10 +13,12 @@ docker compose run --rm bench --rps         # functional + RPS
 
 | Endpoint | RPS | Notes |
 |----------|:---:|-------|
-| Upload (POST /files/upload) | 2,741 | S3 + L1 RAM cache + L2 disk cache |
-| Download (GET /files/download/:key) | 25,775 | S3 + L1 RAM cache + L2 disk cache |
-| Create (POST /products) | 15,739 | PG insert + NATS event publish |
-| List (GET /products?size=20) | 29,739 | Keyset pagination |
+| Upload (POST /files/upload) | 1,694 | RustFS + L1 RAM cache + L2 disk cache |
+| Download (GET /files/download/:key) | 23,327 | RustFS + L1 RAM cache + L2 disk cache |
+| Create (POST /products) | 17,144 | PG insert + NATS event publish |
+| List (GET /products?size=20) | 30,096 | Keyset pagination |
+
+Measured 2026-08-01 with PgDog pool 200/50/8 + max_connections 500 (fix applied 2026-07-31) and RustFS 1.0.0-beta.12 (F3). Upload is capped at ~1.7-2.7K by the handler's per-upload presign + L2 disk cache + NATS work, independent of the S3 backend (observed with MinIO and RustFS alike) — pending optimization.
 
 
 ## Architecture

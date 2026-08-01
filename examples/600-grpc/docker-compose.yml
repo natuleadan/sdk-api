@@ -24,16 +24,26 @@ services:
   dragonfly:
     image: docker.dragonflydb.io/dragonflydb/dragonfly:v1.39.0
     pull_policy: never
-    command: ["--cluster_mode=emulated"]
+    command: ["--cluster_mode=emulated", "--proactor_threads=2", "--maxclients=20000"]
     networks: [grpc-net]
 
-  minio:
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+  rustfs:
+    image: rustfs/rustfs:1.0.0-beta.12
     pull_policy: never
-    command: server /data
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+    networks: [grpc-net]
+
+  createbucket:
+    image: minio/mc:latest
+    pull_policy: never
+    depends_on:
+      rustfs: {condition: service_started}
+    entrypoint: >
+      sh -c "
+      sleep 3 &&
+      mc alias set s3 http://rustfs:9000 rustfsadmin rustfsadmin &&
+      mc mb s3/files --ignore-existing &&
+      echo 'Bucket ready'
+      "
     networks: [grpc-net]
 
   # ============================================================================
@@ -61,13 +71,13 @@ services:
     ports: ["23603:23603"]
     depends_on:
       postgres: {condition: service_healthy}
-      minio: {condition: service_started}
+      createbucket: {condition: service_completed_successfully}
     environment:
       <<: *svc-env
-      S3_ENDPOINT: http://minio:9000
+      S3_ENDPOINT: http://rustfs:9000
       S3_BUCKET: files
-      S3_ACCESS_KEY: minioadmin
-      S3_SECRET_KEY: minioadmin
+      S3_ACCESS_KEY: rustfsadmin
+      S3_SECRET_KEY: rustfsadmin
     networks: [grpc-net]
 
   ticket-svc:
@@ -124,7 +134,7 @@ services:
       postgres: {condition: service_healthy}
       nats: {condition: service_started}
       dragonfly: {condition: service_started}
-      minio: {condition: service_started}
+      createbucket: {condition: service_completed_successfully}
     environment:
       JWT_SECRET: dev-secret-hs256
       SVC_HOST: docker

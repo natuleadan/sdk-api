@@ -13,12 +13,14 @@ docker compose run --rm bench --rps         # functional + RPS
 
 | Endpoint | RPS | Notes |
 |----------|:---:|-------|
-| Expand (GET /expand/:shortCode) | 23,733 | MongoDB direct |
-| List (GET /links) | 17,966 | Pagination with skip/limit |
-| GetByID (GET /links/:id) | 29,062 | Direct read by PK |
-| Create (POST /links) | 32,687 | Insert via MongoDB |
-| Update (PUT /links/:id) | 139,859 | Update via MongoDB |
-| Delete (DELETE /links/:id) | 18,261 | Delete via MongoDB |
+| Expand (GET /expand/:shortCode) | 32,814 | MongoDB direct |
+| List (GET /links) | 24,707 | Pagination with skip/limit |
+| GetByID (GET /links/:id) | 29,321 | Direct read by PK |
+| Create (POST /links) | 31,285 | Insert via MongoDB |
+| Update (PATCH /links/:id) | 34,977 | Update via MongoDB |
+| Delete (DELETE /links/:id) | 41,937 | Delete via MongoDB |
+
+Measured 2026-08-01. The previous Update row (139,859) was invalid: `update.lua` used `PUT` against a PATCH-only route, returning 405 without touching the database (see docs/benchmarks.md rules 10-11).
 
 ## Architecture
 

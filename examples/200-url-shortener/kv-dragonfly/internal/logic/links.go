@@ -79,14 +79,14 @@ func (l *LinkLogic) List(ctx context.Context, page, size int) ([]LinkData, int64
 			return nil, 0, err
 		}
 		arr := res.([]any)
-		cur, _ = strconv.ParseUint(string(arr[0].([]byte)), 10, 64)
+		cur, _ = strconv.ParseUint(arr[0].(string), 10, 64)
 		elements := arr[1].([]any)
 		for _, elem := range elements {
 			if scanned >= skip+size {
 				break
 			}
 			if scanned >= skip {
-				ids = append(ids, string(elem.([]byte)))
+				ids = append(ids, elem.(string))
 			}
 			scanned++
 		}
@@ -96,12 +96,23 @@ func (l *LinkLogic) List(ctx context.Context, page, size int) ([]LinkData, int64
 	}
 
 	var results []LinkData
-	for _, id := range ids {
-		val, err := r.GetCtx(ctx, "link:id:"+id)
-		if err == nil {
-			var d LinkData
-			if json.Unmarshal([]byte(val), &d) == nil {
-				results = append(results, d)
+	if len(ids) > 0 {
+		cmds := make([]*redis.StringCmd, len(ids))
+		if err := r.PipelinedCtx(ctx, func(pipe redis.Pipeliner) error {
+			for i, id := range ids {
+				cmds[i] = pipe.Get(ctx, "link:id:"+id)
+			}
+			return nil
+		}); err != nil {
+			return nil, 0, err
+		}
+		for _, cmd := range cmds {
+			val, err := cmd.Result()
+			if err == nil {
+				var d LinkData
+				if json.Unmarshal([]byte(val), &d) == nil {
+					results = append(results, d)
+				}
 			}
 		}
 	}

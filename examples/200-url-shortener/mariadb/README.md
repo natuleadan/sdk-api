@@ -13,12 +13,14 @@ docker compose run --rm bench --rps         # functional + RPS
 
 | Endpoint | RPS | Notes |
 |----------|:---:|-------|
-| Expand (GET /expand/:shortCode) | 30,088 | MariaDB via ProxySQL pooler |
-| List (GET /links) | 44,082 | Pagination with COUNT(*) |
-| GetByID (GET /links/:id) | 29,292 | Direct read by PK |
-| Create (POST /links) | 18,036 | Insert via MariaDB |
-| Update (PUT /links/:id) | 138,390 | Update via MariaDB |
-| Delete (DELETE /links/:id) | 26,231 | Delete via MariaDB |
+| Expand (GET /expand/:shortCode) | 34,014 | MariaDB via ProxySQL pooler |
+| List (GET /links) | 23,336 | Pagination with COUNT(*) |
+| GetByID (GET /links/:id) | 37,857 | Direct read by PK |
+| Create (POST /links) | 9,878-17,000 | Insert via MariaDB (host memory-pressure dependent) |
+| Update (PATCH /links/:id) | 34,382 | Update via MariaDB |
+| Delete (DELETE /links/:id) | 35,066 | Delete via MariaDB |
+
+Measured 2026-08-01. The previous Update row (138,390) was invalid: `update.lua` used `PUT` against a PATCH-only route, returning 405 without touching the database (see docs/benchmarks.md rules 10-11). Create swings 9.8K-17K between runs depending on host memory pressure (swap on macOS).
 
 ## Architecture
 

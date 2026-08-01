@@ -13,12 +13,14 @@ docker compose run --rm bench --rps         # functional + RPS
 
 | Endpoint | RPS | Notes |
 |----------|:---:|-------|
-| Expand (GET /expand/:shortCode) | 109,924 | PostgreSQL + Dragonfly L2 cache |
-| List (GET /links) | 23,680 | Pagination with COUNT(*) |
-| GetByID (GET /links/:id) | 35,184 | Direct read by PK |
-| Create (POST /links) | 19,350 | Insert via PostgreSQL |
-| Update (PUT /links/:id) | 206,590 | Update via PostgreSQL |
-| Delete (DELETE /links/:id) | 35,018 | Delete via PostgreSQL |
+| Expand (GET /expand/:shortCode) | 123,869 | PostgreSQL + Dragonfly L2 cache |
+| List (GET /links) | 21,334 | Pagination with COUNT(*) |
+| GetByID (GET /links/:id) | 43,123 | Direct read by PK |
+| Create (POST /links) | 19,553 | Insert via PostgreSQL |
+| Update (PATCH /links/:id) | 17,192 | Update via PostgreSQL |
+| Delete (DELETE /links/:id) | 35,239 | Delete via PostgreSQL |
+
+Measured 2026-08-01 with PgDog pool 200/50/8 + max_connections 500 (fix applied 2026-07-31) and Dragonfly `--proactor_threads=2 --maxclients=20000` (2026-08-01). The Dragonfly tuning lifted every endpoint vs the plain `--cluster_mode=emulated` config: expand 86,279→123,869 (+44%), create 17,003→19,553 (+15%), delete 29,215→35,239 (+21%). The previous Update row (253,469) was invalid: `update.lua` used `PUT` against a PATCH-only route, returning 405 without touching the database (see docs/benchmarks.md rules 10-11).
 
 ## Architecture
 

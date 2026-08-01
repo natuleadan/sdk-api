@@ -13,8 +13,10 @@ docker compose run --rm bench --rps         # functional + RPS
 
 | Endpoint | RPS | Notes |
 |----------|:---:|-------|
-| Upload (POST /files/upload/:key) | 15,796 | S3 proxy (no cache) |
-| Download (GET /files/download/:key) | 18,803 | S3 proxy (no cache) |
+| Upload (POST /files/upload/:key) | 47,315 | RustFS proxy (no cache) |
+| Download (GET /files/download/:key) | 39,835 | RustFS proxy (no cache) |
+
+Measured 2026-08-01 with RustFS 1.0.0-beta.12 (F3). The MinIO RELEASE.2025-09-07 pin (07-28) caused a ~-52% upload regression across all S3 variants; RustFS restores and exceeds the 15,796 baseline by +200%.
 
 
 ## Architecture

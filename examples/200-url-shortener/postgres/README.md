@@ -23,12 +23,14 @@ docker compose run --rm bench --rps         # functional + RPS
 
 | Endpoint | RPS | Notes |
 |----------|:---:|-------|
-| Expand (GET /expand/:shortCode) | 39,935 | PostgreSQL via PgDog |
-| List (GET /links) | 20,944 | Pagination with COUNT(*) |
-| GetByID (GET /links/:id) | 41,830 | Direct PG read by PK |
-| Create (POST /links) | 19,317 | PG INSERT with PgDog |
-| Update (PUT /links/:id) | 187,776 | PG UPDATE via PgDog |
-| Delete (DELETE /links/:id) | 36,309 | PG DELETE via PgDog |
+| Expand (GET /expand/:shortCode) | 48,500 | PostgreSQL via PgDog |
+| List (GET /links) | 25,208 | Pagination with COUNT(*) |
+| GetByID (GET /links/:id) | 37,017 | Direct PG read by PK |
+| Create (POST /links) | 18,013 | PG INSERT with PgDog |
+| Update (PATCH /links/:id) | 15,864 | PG UPDATE via PgDog |
+| Delete (DELETE /links/:id) | 37,968 | PG DELETE via PgDog |
+
+Measured 2026-08-01 with PgDog pool 200/50/8 + max_connections 500. The previous Update row (187,776) was invalid: `update.lua` used `PUT` against a PATCH-only route, returning 405 without touching the database. The same applies to all pre-2026-08-01 Update rows above ~20K across every variant. Update benchmarks now use PATCH with a 1-2000 id range (see docs/benchmarks.md rules 10-11).
 
 ## Architecture
 

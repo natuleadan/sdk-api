@@ -13,8 +13,10 @@ docker compose run --rm bench --rps         # functional + RPS
 
 | Endpoint | RPS | Notes |
 |----------|:---:|-------|
-| Upload (POST /files/upload/:key) | 56,420 | In-memory filesystem |
-| Download (GET /files/download/:key) | 99,785 | In-memory filesystem |
+| Upload (POST /files/upload/:key) | 61,191 | In-memory filesystem |
+| Download (GET /files/download/:key) | 115,033 | In-memory filesystem |
+
+Measured 2026-08-01.
 
 
 ## Architecture

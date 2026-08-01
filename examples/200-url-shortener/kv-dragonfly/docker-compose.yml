@@ -2,7 +2,7 @@ name: kv-only-bench
 services:
   dragonfly:
     image: docker.dragonflydb.io/dragonflydb/dragonfly:v1.39.0
-    command: ["--cluster_mode=emulated"]
+    command: ["--cluster_mode=emulated", "--proactor_threads=2", "--maxclients=20000"]
 
   bench:
     build:

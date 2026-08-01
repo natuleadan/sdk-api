@@ -57,17 +57,15 @@ docker compose up -d nats 2>&1 | tail -1
 sleep 3
 echo "  nats ready"
 
-echo "=== infra: redis ==="
-docker compose up -d redis 2>&1 | tail -1
+echo "=== infra: dragonfly ==="
+docker compose up -d dragonfly 2>&1 | tail -1
 sleep 2
-echo "  redis ready"
+echo "  dragonfly ready"
 
-echo "=== infra: minio ==="
-docker compose up -d minio 2>&1 | tail -1
+echo "=== infra: rustfs ==="
+docker compose up -d rustfs createbucket 2>&1 | tail -1
 sleep 5
-# Create bucket
-docker compose exec minio sh -c 'mc alias set local http://localhost:9000 minioadmin minioadmin && mc mb local/files --ignore-existing' 2>/dev/null || true
-echo "  minio ready"
+echo "  rustfs ready (bucket created)"
 
 # ============================================================================
 # Step 2: Microservices (one by one)

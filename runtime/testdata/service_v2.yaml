@@ -88,7 +88,7 @@ entry:
     storage:
       mode: s3
       bucket: uploads
-      endpoint: "http://minio:9000"
+      endpoint: "http://rustfs:9000"
 
   - type: file
     method: GET

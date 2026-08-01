@@ -215,7 +215,7 @@ func TestLoadConfig_FullYAML(t *testing.T) { //nolint:gocyclo
 	if e7.Storage.Bucket != "uploads" {
 		t.Errorf("Storage.Bucket = %q", e7.Storage.Bucket)
 	}
-	if e7.Storage.Endpoint != "http://minio:9000" {
+	if e7.Storage.Endpoint != "http://rustfs:9000" {
 		t.Errorf("Storage.Endpoint = %q", e7.Storage.Endpoint)
 	}
 	if len(e7.AllowedTypes) != 2 {

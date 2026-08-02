@@ -54,6 +54,8 @@ services:
         condition: service_healthy
       nats:
         condition: service_started
+      rustfs:
+        condition: service_healthy
     environment:
       DOCKER_TEST: "1"
       DATABASE_URL: postgres://dev:devpass@pgdog:6432/postgres?sslmode=disable

@@ -506,6 +506,74 @@ local, _ := server.NewLocalStorage("/data/uploads")
 
 ---
 
+## 9b. Streaming Upload (Spooled)
+
+Large uploads must not be buffered in RAM. Enable `server.stream_request_body: true` and
+configure `storage.spool` — the body streams to memory (up to `memory_limit`, default 4MB)
+then to a temp file before S3. The ingest bound is local disk, not S3 or RAM.
+
+**YAML:**
+
+```yaml
+server:
+  stream_request_body: true
+
+entry:
+  - type: file
+    method: POST
+    path: /files/upload
+    handler: onFileUpload
+    storage:
+      mode: s3
+      spool:
+        mode: auto                  # auto | memory | disk
+        memory_limit: 4MB
+        dir: /tmp/spool
+        multipart_part_size: 16MB
+        multipart_concurrency: 4
+        async: false
+```
+
+**Sync handler** — spool then upload, respond when S3 has the object:
+
+```go
+svc.WithRest("onFileUpload", func(c *runtime.RestCtx) error {
+    store := svc.Storage("/files/upload")
+    if us, ok := store.(server.UploadStreamer); ok {
+        // streams body → memory → disk → S3 (multipart), no full-RAM buffer
+        err = us.UploadStream(c.Context(), "uploads/"+key, c.Stream(), c.Get("Content-Type"))
+    } else {
+        body := c.Body() // fallback for small payloads
+        err = store.Upload(c.Context(), "uploads/"+key, bytes.NewReader(body), int64(len(body)), c.Get("Content-Type"))
+    }
+    // ...presign if needed, return response
+})
+```
+
+**Async handler** — spool, hand the temp file to a worker (e.g. NATS exit worker), return `202`
+immediately; the worker uploads to S3 and removes the temp file:
+
+```go
+svc.WithRest("onFileUploadAsync", func(c *runtime.RestCtx) error {
+    store := svc.Storage("/files/upload-async")
+    var scfg server.SpoolConfig
+    if p, ok := store.(interface{ SpoolConfig() server.SpoolConfig }); ok {
+        scfg = p.SpoolConfig()
+    }
+    spool, err := server.SpoolToFile(c.Stream(), scfg) // temp file in spool.dir
+    // publish {key, spool.Path, spool.Size, contentType} to the broker (NATS/Kafka)
+    return c.Status(202).JSON(map[string]any{"key": key, "status": "pending"})
+})
+```
+
+Exit worker: open `spool.Path`, `store.Upload(ctx, key, file, spool.Size, ct)`, `os.Remove(spool.Path)`.
+
+Measured on `examples/300-file-storage/pg-nats` (2026-08): async 8,345 RPS vs sync 2,276 (3.7x).
+With `mode: auto`, payloads under `memory_limit` never touch disk. Reference implementation:
+`examples/300-file-storage/pg-nats` (both endpoints benchmarked via `--rps:upload` / `--rps:upload-async`).
+
+---
+
 ## 10. Exit Worker (Push Consumer)
 
 Process NATS messages as they arrive. Uses a fixed goroutine pool

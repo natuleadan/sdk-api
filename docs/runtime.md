@@ -624,6 +624,53 @@ storage:
 
 First request hits S3, a goroutine populates the cache. Subsequent requests served from RAM (~50x faster). L2 disk provides persistence across restarts.
 
+### Spooled uploads (streaming to S3)
+
+When `spool:` is configured in YAML, the SDK wraps the backend with `spooledStorage`. The request body is ingested to memory (up to `memory_limit`, default 4MB) and then to a local temp file before touching S3 — the ingest bound is local disk, not S3 or RAM. All parameters are YAML-driven (`mode`, `memory_limit`, `dir`, `multipart_part_size`, `multipart_concurrency`, `async`) — see `docs/configuration.md`.
+
+```yaml
+storage:
+  mode: s3
+  spool:
+    mode: auto          # auto | memory | disk
+    memory_limit: 4MB
+    dir: /tmp/spool
+    multipart_part_size: 16MB
+    multipart_concurrency: 4
+    async: false
+```
+
+**Handlers should use the `UploadStreamer` extension** instead of buffering `c.Body()`, and the server must enable streaming bodies:
+
+```yaml
+server:
+  stream_request_body: true
+```
+
+```go
+// Sync: spool, upload, respond when S3 has the object.
+if us, ok := store.(server.UploadStreamer); ok {
+    err = us.UploadStream(c.Context(), key, c.Stream(), c.Get("Content-Type"))
+} else {
+    body := c.Body() // fallback: small payloads, full buffer
+    err = store.Upload(c.Context(), key, bytes.NewReader(body), int64(len(body)), c.Get("Content-Type"))
+}
+```
+
+**Async mode** (`async: true` in YAML is a config hint; the handler decides): spool the stream, hand the temp file path to a background worker (e.g. a NATS exit worker), and return `202` immediately:
+
+```go
+var scfg server.SpoolConfig
+if p, ok := store.(interface{ SpoolConfig() server.SpoolConfig }); ok {
+    scfg = p.SpoolConfig()
+}
+spool, err := server.SpoolToFile(c.Stream(), scfg)
+// publish {key, spool.Path, spool.Size, contentType} to the broker
+// return 202; the worker opens the path, Uploads to S3 and removes it
+```
+
+The exit worker opens the spool file, uploads with the known size (multipart part size + concurrency apply), and removes the temp file. See `examples/300-file-storage/pg-nats` for a full sync + async implementation with both benchmarks (async 3.7x faster: 8.3K vs 2.3K RPS).
+
 ## Auth validators
 
 ### WithAuthValidator

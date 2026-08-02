@@ -666,7 +666,7 @@ S3 with presigned URLs, HTTP pool, and L1+L2 cache:
 | `storage.spool.mode` | Spool mode: `auto` (memory then disk), `memory` (RAM only), `disk` (always disk). Default `auto` |
 | `storage.spool.memory_limit` | Bytes kept in RAM before spilling to disk (suffixes KB/MB/GB). Default `4MB` |
 | `storage.spool.dir` | Temp spool directory. Default OS temp dir |
-| `storage.spool.multipart_part_size` | S3 multipart part size (suffixes KB/MB/GB). Default `16MB` (0 = minio default 64MB) |
+| `storage.spool.multipart_part_size` | S3 multipart part size (suffixes KB/MB/GB). Default `16MB` (0 = client default 64MB) |
 | `storage.spool.multipart_concurrency` | Parallel multipart threads. Default `4` (0 = sequential) |
 | `storage.spool.async` | Return `202` after spooling and upload in background. Default `false` |
 

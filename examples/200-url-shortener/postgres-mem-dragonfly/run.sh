@@ -2,10 +2,12 @@
 set -e
 
 RPS=false
+RPS_ONLY=""
 PATTERN="TestURL"
 for arg in "$@"; do
 	case "$arg" in
 		--rps) RPS=true ;;
+		--rps:*) RPS=true; RPS_ONLY="${arg#--rps:}" ;;
 		--test:*) PATTERN="${arg#--test:}" ;;
 		-*) ;;
 		*) PATTERN="$arg" ;;
@@ -39,6 +41,7 @@ if [ "$RPS" = "true" ]; then
 
 	bench_one() {
 		local label=$1 lua=$2
+		if [ -n "$RPS_ONLY" ] && [ "$label" != "$RPS_ONLY" ]; then return; fi
 		echo "--- $label warmup ---"
 		wrk -t10 -c1000 -d3s -s "/app/$lua" --latency "http://localhost:23205" 2>&1 > /dev/null
 		echo "--- $label measure ---"

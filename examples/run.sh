@@ -2,12 +2,13 @@
 set -e
 
 usage() {
-	echo "Usage: ./run.sh <example> [test-pattern] [--rps]"
+	echo "Usage: ./run.sh <example> [test-pattern] [--rps[:endpoint]]"
 	echo ""
 	echo "Examples:"
 	echo "  ./run.sh 100                  # functional tests (Docker)"
 	echo "  ./run.sh 100 --rps            # functional + RPS (Docker, wrk inside)"
 	echo "  ./run.sh 100 TestHealthz_OK  # single test"
+	echo "  ./run.sh 200/postgres --rps:create   # RPS only for one endpoint"
 	echo ""
 	echo "Available examples:"
 	echo "  100               - 100-healthz"
@@ -24,6 +25,9 @@ usage() {
 	echo "  300/proxy         - 300-file-storage/proxy"
 	echo "  300/pg-nats       - 300-file-storage/pg-nats"
 	echo "  300/s3            - 300-file-storage/s3"
+	echo "  400               - 400-auth/manual-pg"
+	echo "  500               - 500-tickets"
+	echo "  600               - 600-grpc (uses deploy.sh: infra + services + tests)"
 	exit 1
 }
 
@@ -45,9 +49,16 @@ case "$1" in
 	300/pg-nats) DIR="300-file-storage/pg-nats" ;;
 	300/s3) DIR="300-file-storage/s3" ;;
 	400) DIR="400-auth/manual-pg" ;;
+	500) DIR="500-tickets" ;;
+	600) DIR="600-grpc" ;;
 	*) echo "Unknown: $1"; usage ;;
 esac
 shift
+
+if [ "$DIR" = "600-grpc" ]; then
+	cd "$DIR"
+	exec ./deploy.sh "$@"
+fi
 
 cd "$DIR"
 docker compose down -v 2>/dev/null

@@ -21,7 +21,9 @@ docker compose run --rm bench --rps         # functional + RPS
 
 | Endpoint | RPS | Notes |
 |----------|:---:|-------|
-| Healthz (GET /healthz) | 575,247 | Fiber healthcheck, minimal middleware |
+| Healthz (GET /healthz) | 637,818 | Fiber healthcheck, minimal middleware |
+
+Measured 2026-08-02. +10.9% vs the 575,247 baseline (07-11).
 
 wrk runs inside the same container as the service. No macOS host networking overhead.
 

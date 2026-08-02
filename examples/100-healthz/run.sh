@@ -2,10 +2,12 @@
 set -e
 
 RPS=false
+RPS_ONLY=""
 PATTERN="TestHealthz"
 for arg in "$@"; do
 	case "$arg" in
 		--rps) RPS=true ;;
+		--rps:*) RPS=true; RPS_ONLY="${arg#--rps:}" ;;
 		--test:*) PATTERN="${arg#--test:}" ;;
 		-*) ;;
 		*) PATTERN="$arg" ;;

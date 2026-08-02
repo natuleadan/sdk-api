@@ -452,7 +452,7 @@ entry:
     storage:
       mode: s3
       bucket: uploads
-      endpoint: http://minio:9000
+      endpoint: http://rustfs:9000
       access_key: "${S3_ACCESS_KEY}"
       secret_key: "${S3_SECRET_KEY}"
       presign: true

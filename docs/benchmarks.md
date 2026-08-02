@@ -10,12 +10,14 @@ How to measure and maximize RPS with the sdk-api framework.
    - `--rps`: run functional tests then RPS benchmarks (wrk inside container, 3s warmup + 5s measure)
    - `TestName`: run a specific test (e.g., `./run.sh TestHealthz_OK`)
    - `--test:Name`: same as `TestName` (e.g., `--test:TestHealthz_OK`)
-4. **PostgreSQL max_connections must match pool size.** Use `command: ["postgres", "-c", "max_connections=200"]` with PgDog managing the pool.
+ 4. **PostgreSQL max_connections must match pool size.** Use `command: ["postgres", "-c", "max_connections=500"]` with PgDog managing the pool (default_pool_size 200, min_pool_size 50, workers 8).
 5. **Results are maintained in each example's README.** Re-run the benchmark to verify. Update the README if the result changes.
 6. **Functional tests run by default** (no flags needed). The container entrypoint (`run.sh`) runs the test binary for that variant.
 7. **Each example seeds hot keys** before the RPS benchmark (via curl POST). 200 for URL shortener, 50 for pg-nats, etc. This ensures caches are warm and every request hits the fast path.
 8. **Endpoints are measured sequentially** — 2–8 depending on the variant. Each endpoint gets 30s warmup + 30s measurement.
 9. **wrk runs INSIDE the container, not on macOS host.** Running wrk from macOS against a Docker container adds virtualisation overhead and produces invalid RPS numbers. Use `--rps` (not `--local --rps`) for official benchmarks.
+10. **CRUD update benchmarks must use `PATCH` (the method the CRUD entry registers), never `PUT`.** A `PUT` request to a PATCH-only route returns `405 Method Not Allowed` without touching the database, inflating RPS by 10-20x and producing invalid numbers (all pre-2026-08-01 `Update` rows above ~20K are 405 artifacts).
+11. **Update benchmarks must spread writes across more rows than concurrent clients.** With `wrk -t10 -c1000`, a `math.random(1, 200)` range against 200 hot rows causes row-lock contention that throttles real updates to ~9K RPS. Use `math.random(1, 2000)` (ids 1-2000 exist after the create-phase seed) so the number reflects update throughput, not lock collisions.
 
 ## Maximizing RPS
 
@@ -40,8 +42,13 @@ This disables the 8 standard middlewares (logger, shedding, breaker, maxconns, m
 ### 3. Connection Pool
 
 - **PgDog** prevents connection storms from 1000-concurrent-wrk × 10 prefork processes.
-- PgDog pool size: `20`. PostgreSQL `max_connections`: `200`.
-- Without a pooler, set reasonable `max_conns` on the application pool.
+- PgDog pool size: `200`. PostgreSQL `max_connections`: `500`.
+- Without a pooler, set reasonable `max_conns` on the application pool (e.g. mariadb app pool `100`).
+
+### 3b. KV Store Tuning (Dragonfly)
+
+- Run Dragonfly with `--cluster_mode=emulated --proactor_threads=2 --maxclients=20000`. The 07-11 default (all threads) throttled create to ~29K; with proactor 2 it reaches ~34K and lifts L2-cache endpoints (expand) by ~44%.
+- `kv.pool_size` is YAML-driven (`kv:` entries). `0` (default) uses the go-redis default (10 × GOMAXPROCS per process).
 
 ### 4. Caching Strategy
 
@@ -70,7 +77,7 @@ The warmup stabilizes connections, caches, and Go runtime before measurement.
 ## Methodology
 
 1. Multi-stage Dockerfile builds the Go binary
-2. Data services (PG, Redis, MariaDB, MongoDB, Dragonfly) start in the same Docker network
+2. Data services (PG, MariaDB, MongoDB, Dragonfly, RustFS) start in the same Docker network
 3. Service starts, health check passes
 4. Functional tests verify correctness (`go test -c` → `tester -test.run=TestURL|TestFile|TestNATS|...`)
 5. Hot keys seeded via POST endpoints (curl) — 200 for URL shortener, 50–200 for file storage

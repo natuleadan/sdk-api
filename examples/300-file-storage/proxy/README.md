@@ -27,4 +27,4 @@ Measured 2026-08-01 with RustFS 1.0.0-beta.12 (F3). The MinIO RELEASE.2025-09-07
 | `service.yaml` | Service config (api_prefix: /api, S3 storage) |
 | `run.sh` | Entrypoint: --rps for benchmarks, --test:Name for specific tests |
 | `bench_test.go` | Functional tests + upload/download benchmarks |
-| `docker-compose.yml` | MinIO S3 + bucket init + bench |
+| `docker-compose.yml` | RustFS S3 + bench |

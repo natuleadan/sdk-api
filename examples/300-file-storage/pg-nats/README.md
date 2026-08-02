@@ -33,4 +33,4 @@ Measured 2026-08-01 with PgDog pool 200/50/8 + max_connections 500 (fix applied 
 | `bench_test.go` | Functional tests |
 | `upload.lua` / `download.lua` | S3 file transfer benchmarks |
 | `create.lua` / `list.lua` | CRUD product benchmarks |
-| `docker-compose.yml` | PostgreSQL 18 + PgDog + NATS JetStream + MinIO S3 |
+| `docker-compose.yml` | PostgreSQL 18 + PgDog + NATS JetStream + RustFS S3 |

@@ -590,7 +590,7 @@ max(1, (PG_SERVER_MAX_CONNS - pool.reserved_conns) / REPLICA_COUNT)
 // Local filesystem
 store, _ := server.NewLocalStorage("/data/uploads")
 
-// S3-compatible (AWS S3, MinIO, R2)
+// S3-compatible (AWS S3, RustFS, R2)
 store, _ := server.NewS3Storage(server.S3Config{
     Endpoint:  os.Getenv("S3_ENDPOINT"),
     Bucket:    os.Getenv("S3_BUCKET"),

@@ -133,7 +133,7 @@ entry:
     storage:
       mode: s3
       bucket: uploads
-      endpoint: "http://minio:9000"
+      endpoint: "http://rustfs:9000"
       access_key: "${MINIO_ACCESS_KEY}"
       secret_key: "${MINIO_SECRET_KEY}"
 
@@ -439,7 +439,8 @@ databases:
 kv:
   - name: cache-main
     driver: redis
-    url: "${REDIS_URL}"
+    url: "${DRAGONFLY_URL}"
+    pool_size: 0
 ```
 
 | Field | Description |
@@ -447,6 +448,7 @@ kv:
 | `name` | Reference name. Used by `server.rate_limit.kv`, `entry[].cache` |
 | `driver` | `redis` (default) |
 | `url` | Redis/Dragonfly connection URL |
+| `pool_size` | Redis connection pool size per node. `0` (default) uses go-redis default (10 × GOMAXPROCS) |
 
 KV connections are created lazily and shared by all references to the same name. Multiple names pointing to the same URL reuse a single connection. Compatible with Dragonfly, Redis, and any Redis-protocol server.
 
@@ -619,7 +621,7 @@ S3 with presigned URLs, HTTP pool, and L1+L2 cache:
   storage:
     mode: s3
     bucket: uploads
-    endpoint: http://minio:9000
+    endpoint: http://rustfs:9000
     access_key: "${ACCESS_KEY}"
     secret_key: "${SECRET_KEY}"
     presign: true
@@ -644,8 +646,8 @@ S3 with presigned URLs, HTTP pool, and L1+L2 cache:
 | `max_files` | Max files per multipart request |
 | `magic_bytes` | Verify file content matches declared type (body > 512 bytes) |
 | `storage.mode` | Storage driver: `s3` or `local` |
-| `storage.bucket` | S3 bucket name |
-| `storage.endpoint` | S3 endpoint URL (e.g. `http://minio:9000` or `https://s3.amazonaws.com`) |
+| `storage.bucket` | S3 bucket name. Auto-created on startup when missing |
+| `storage.endpoint` | S3 endpoint URL (e.g. `http://rustfs:9000` or `https://s3.amazonaws.com`) |
 | `storage.region` | S3 region. Default `us-east-1` |
 | `storage.access_key` | S3 access key |
 | `storage.secret_key` | S3 secret key |

@@ -304,7 +304,7 @@ When the bottleneck is PostgreSQL (direct SELECT/INSERT per request), prefork do
 For benchmarks or high-concurrency workloads with PostgreSQL, add PgDog between the app and PG. PgDog manages a small pool of connections to PG while accepting many connections from the app:
 
 ```
-wrk -c1000 → app (pool=500) → PgDog (pool=20) → PG (max_connections=200)
+wrk -c1000 → app (pool=500) → PgDog (pool=200) → PG (max_connections=500)
 ```
 
 This prevents PG from being overwhelmed by connection storms (e.g., 1000 wrk connections × 10 prefork processes = 10k simultaneous connection attempts).
@@ -331,7 +331,7 @@ environment:
 
 Run benchmarks inside Docker with wrk. Running benchmarks on host + Docker data adds 2-4x latency. All built-in benchmarks are dockerized.
 
-**Cache vs no-cache throughput difference:** Endpoints backed by a cache layer (Redis, NATS KV) can reach 150k+ RPS because 99% of requests never hit PostgreSQL. Endpoints that query PG on every request are limited to ~30k RPS in Docker Desktop (Mac) due to PG throughput. See `docs/benchmarks.md` for measured results.
+**Cache vs no-cache throughput difference:** Endpoints backed by a cache layer (Dragonfly, NATS KV) can reach 150k+ RPS because 99% of requests never hit PostgreSQL. Endpoints that query PG on every request are limited to ~30k RPS in Docker Desktop (Mac) due to PG throughput. See `docs/benchmarks.md` for measured results.
 
 ## Gotchas
 
@@ -445,7 +445,7 @@ storage:
 
 **Presigned URLs vs proxy:** Use `presign: true` for downloads where the client can follow a redirect. Server bandwidth drops to zero. Use proxy (default) when you need access control, logging, or transformation on every request.
 
-**Provider compatibility:** All S3-compatible providers work (AWS, MinIO, R2, Backblaze B2, DigitalOcean Spaces). Set `endpoint` to your provider's S3 URL.
+**Provider compatibility:** All S3-compatible providers work (AWS, RustFS, R2, Backblaze B2, DigitalOcean Spaces). Set `endpoint` to your provider's S3 URL.
 
 ### Platform-specific validation
 

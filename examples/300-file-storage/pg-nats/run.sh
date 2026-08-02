@@ -53,8 +53,9 @@ if [ "$RPS" = "true" ]; then
 		wrk -t10 -c1000 -d5s -s "/app/$lua" --latency "http://localhost:23304" 2>&1 | awk '/Requests\/sec/ {print "  measure:", $2}'
 	}
 
-	bench_one upload   upload.lua
-	bench_one download download.lua
+	bench_one upload       upload.lua
+	bench_one upload-async upload-async.lua
+	bench_one download     download.lua
 	bench_one create   create.lua
 	bench_one list     list.lua
 fi

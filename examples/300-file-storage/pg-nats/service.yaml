@@ -50,6 +50,43 @@ entry:
       pool:
         max_idle_conns: 200
         max_idle_conns_per_host: 100
+      spool:
+        mode: auto
+        memory_limit: 4MB
+        dir: /tmp/spool
+        multipart_part_size: 16MB
+        multipart_concurrency: 4
+        async: false
+      cache:
+        l1: ram
+        l1_ttl: 5m
+        l1_size: 10000
+        l2: disk
+        l2_path: /data/cache
+
+  - type: file
+    method: POST
+    path: /files/upload-async
+    handler: onFileUploadAsync
+    storage:
+      mode: s3
+      endpoint: "${S3_ENDPOINT}"
+      bucket: "${S3_BUCKET}"
+      region: us-east-1
+      access_key: "${S3_ACCESS_KEY}"
+      secret_key: "${S3_SECRET_KEY}"
+      presign: true
+      presign_ttl: 5m
+      pool:
+        max_idle_conns: 200
+        max_idle_conns_per_host: 100
+      spool:
+        mode: auto
+        memory_limit: 4MB
+        dir: /tmp/spool
+        multipart_part_size: 16MB
+        multipart_concurrency: 4
+        async: true
       cache:
         l1: ram
         l1_ttl: 5m
@@ -85,6 +122,7 @@ exit:
 server:
   host: "0.0.0.0"
   api_prefix: /api
+  stream_request_body: true
   openapi:
     enabled: true
     version: "1.0.0"

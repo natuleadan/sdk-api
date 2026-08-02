@@ -67,7 +67,7 @@ goleak.IgnoreAnyFunction("github.com/natuleadan/sdk-api/infra/somepackage.SomeFu
 
 ## Parallel tests
 
-Every test function should call `t.Parallel()` at the start. This is safe because:
+Most test functions can call `t.Parallel()` at the start. This is safe because:
 
 - `logx.Disable()` uses atomic operations (thread-safe)
 - Each test creates its own `fiber.New()` app (isolated state)
@@ -79,6 +79,14 @@ func TestSomething(t *testing.T) {
     // ...
 }
 ```
+
+**Exception — never parallelize tests that share package-level state.** Tests that
+mutate shared globals (e.g. the sharded Prometheus `metrics` counters) must run
+sequentially, otherwise they race: one test's `ResetMetrics()` can wipe another
+test's counters mid-assertion and fail intermittently in CI. This happened to
+`TestPrometheusMultipleRequests` ("expected 200 code in metrics") until
+`t.Parallel()` was removed from the tests sharing `server/middleware` metrics.
+Rule of thumb: if a test calls a package-level reset/collect, drop `t.Parallel()`.
 
 ## Fuzzing
 

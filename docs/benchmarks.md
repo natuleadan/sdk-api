@@ -17,7 +17,17 @@ How to measure and maximize RPS with the sdk-api framework.
 8. **Endpoints are measured sequentially** — 2–8 depending on the variant. Each endpoint gets 30s warmup + 30s measurement.
 9. **wrk runs INSIDE the container, not on macOS host.** Running wrk from macOS against a Docker container adds virtualisation overhead and produces invalid RPS numbers. Use `--rps` (not `--local --rps`) for official benchmarks.
 10. **CRUD update benchmarks must use `PATCH` (the method the CRUD entry registers), never `PUT`.** A `PUT` request to a PATCH-only route returns `405 Method Not Allowed` without touching the database, inflating RPS by 10-20x and producing invalid numbers (all pre-2026-08-01 `Update` rows above ~20K are 405 artifacts).
-11. **Update benchmarks must spread writes across more rows than concurrent clients.** With `wrk -t10 -c1000`, a `math.random(1, 200)` range against 200 hot rows causes row-lock contention that throttles real updates to ~9K RPS. Use `math.random(1, 2000)` (ids 1-2000 exist after the create-phase seed) so the number reflects update throughput, not lock collisions.
+ 11. **Update benchmarks must spread writes across more rows than concurrent clients.** With `wrk -t10 -c1000`, a `math.random(1, 200)` range against 200 hot rows causes row-lock contention that throttles real updates to ~9K RPS. Use `math.random(1, 2000)` (ids 1-2000 exist after the create-phase seed) so the number reflects update throughput, not lock collisions.
+ 12. **Benchmark endpoints must return 200 and be covered by functional tests.** RPS of error responses is not throughput. The kv-dragonfly `List` endpoint panicked into 500s for 3 weeks (SSCAN cursor cast to `[]byte` while go-redis returns `string`) and every run measured ~9K error responses as if they were real lists — no functional test covered `List`, so nothing caught it. Every endpoint used in a benchmark must have a passing functional test.
+
+## Pitfalls (invalid measurements)
+
+These invalidated entire measurement sessions. Verify each before trusting any number.
+
+1. **Stale bench images.** `docker compose run` does NOT rebuild the image — it reuses whatever exists, silently running old code (old SDK, old lua files, old YAML). Use `docker compose run --rm --build bench` or verify the image contains the current code. In one session, every "pool_size" and lua measurement was invalid because images were 24h old.
+2. **Host memory pressure.** Numbers measured while macOS is swapping (Chrome, editors, parallel runs) are not comparable. Restart Docker between runs and keep the host idle. The same variant measured 9.8K under swap and 17K fresh.
+3. **Wrong HTTP verb in lua files.** A `PUT` against the PATCH-only CRUD update route returns 405 without touching the database, inflating "Update" RPS by 10-20x (rule 10). Run `_tests/scripts/bench.sh --verify-luas` before any session — it validates every lua method+path against its service.yaml.
+4. **Pre-built help can mislead.** Verify status codes in the benchmark log (`grep ' 200'`) and the slow-query distribution before accepting a number.
 
 ## Maximizing RPS
 
@@ -49,6 +59,12 @@ This disables the 8 standard middlewares (logger, shedding, breaker, maxconns, m
 
 - Run Dragonfly with `--cluster_mode=emulated --proactor_threads=2 --maxclients=20000`. The 07-11 default (all threads) throttled create to ~29K; with proactor 2 it reaches ~34K and lifts L2-cache endpoints (expand) by ~44%.
 - `kv.pool_size` is YAML-driven (`kv:` entries). `0` (default) uses the go-redis default (10 × GOMAXPROCS per process).
+
+### 3c. Spooled Uploads (S3)
+
+- Streaming uploads spool to memory (up to `storage.spool.memory_limit`, default 4MB) then to a temp file before touching S3 — the ingest bound is local disk, not S3 or RAM.
+- **Benchmark both modes**: sync (`UploadStream`, response waits for S3) vs async (`storage.spool.async: true`, returns 202 and uploads in background). Measured on pg-nats: async 8,345 RPS vs sync 2,276 (3.7x). Payloads under `memory_limit` never touch disk in the benchmark.
+- All spool parameters are YAML-driven (`mode`, `memory_limit`, `dir`, `multipart_part_size`, `multipart_concurrency`, `async`) — see `docs/configuration.md`.
 
 ### 4. Caching Strategy
 

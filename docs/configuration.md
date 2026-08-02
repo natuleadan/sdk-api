@@ -663,6 +663,20 @@ S3 with presigned URLs, HTTP pool, and L1+L2 cache:
 | `storage.cache.l1_size` | L1 cache max entries. Default `10000` |
 | `storage.cache.l2` | L2 cache type: `disk` or `none` |
 | `storage.cache.l2_path` | L2 disk cache directory (required when `l2: disk`) |
+| `storage.spool.mode` | Spool mode: `auto` (memory then disk), `memory` (RAM only), `disk` (always disk). Default `auto` |
+| `storage.spool.memory_limit` | Bytes kept in RAM before spilling to disk (suffixes KB/MB/GB). Default `4MB` |
+| `storage.spool.dir` | Temp spool directory. Default OS temp dir |
+| `storage.spool.multipart_part_size` | S3 multipart part size (suffixes KB/MB/GB). Default `16MB` (0 = minio default 64MB) |
+| `storage.spool.multipart_concurrency` | Parallel multipart threads. Default `4` (0 = sequential) |
+| `storage.spool.async` | Return `202` after spooling and upload in background. Default `false` |
+
+Spooled uploads stream the request body to memory (up to `memory_limit`) and then to a
+local temp file before touching S3 — the ingest bound is local disk, not S3 or RAM.
+With `async: true` the handler returns `202 Accepted` right after spooling and the
+upload runs in background (see the 300-file-storage pg-nats example, which benchmarks
+both modes). Handlers use the `UploadStreamer` extension
+(`store.UploadStream(ctx, key, c.Stream(), contentType)`) instead of buffering `c.Body()`;
+enable `server.stream_request_body: true` so the body is file-backed while streaming.
 
 ### `type: async`
 Async job with 202 Accepted + status polling.

@@ -347,6 +347,8 @@ Run benchmarks inside Docker with wrk. Running benchmarks on host + Docker data 
 | CRUD path conflict with REST path | CRUD registers `GET /:id` which catches any sub-path like `/posts-fast`. Place custom REST endpoints on a different base path (e.g., `/debug/items` instead of `/posts/list`). |
 | Error messages with IPs/conn strings | Error sanitizer redacts IPs (`10.0.0.5` → `[redacted]`), connection URLs, and file paths from all error responses. 5xx returns `"internal server error"`. |
 | Multi-tenant CRUD | Use `tenant_scope` + `tenant_field` on CRUD entries. The SDK automatically injects `WHERE tenant_field = <org_id>` on all queries. Client-supplied `tenant_id` values are ignored on create — the JWT claim takes precedence. |
+| Large uploads | Never buffer with `c.Body()` — it materializes the whole payload in RAM. Use the spooled path: `server.stream_request_body: true` + `store.UploadStream(ctx, key, c.Stream(), contentType)` (see `storage.spool` in `docs/configuration.md`). Ingest streams to memory (up to `memory_limit`) then to local disk; with `async: true` the request returns 202 and S3 uploads in background. |
+| `pull_policy: never` images | Compose services with `pull_policy: never` require the image locally. If the Docker image store is lost (engine failure, disk cleanup), the service fails with "No such image" — restore with an explicit `docker pull` of the pinned tags. The 600-grpc compose uses this policy for all infra images. |
 
 ## Error Handling
 

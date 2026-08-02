@@ -949,6 +949,24 @@ type PoolConfig struct {
 	IdleTimeout string `json:"idle_timeout" config:",default=90s"`
 }
 
+// SpoolDef configures streaming uploads: the request body is ingested to
+// memory (up to MemoryLimit) and then to local disk before uploading to S3
+// with multipart. Async returns 202 and uploads in background.
+type SpoolDef struct {
+	// Mode is a constant.
+	Mode string `json:"mode" config:",default=auto,options=auto|memory|disk"`
+	// MemoryLimit is a constant.
+	MemoryLimit string `json:"memory_limit" config:",default=4MB"`
+	// Dir is a constant.
+	Dir string `json:"dir" config:",optional"`
+	// PartSize is a constant.
+	PartSize string `json:"multipart_part_size" config:",default=16MB"`
+	// Concurrency is a constant.
+	Concurrency int `json:"multipart_concurrency" config:",default=4"`
+	// Async is a constant.
+	Async bool `json:"async" config:",optional"`
+}
+
 type CacheConfig struct {
 	// L1 is a constant.
 	L1 string `json:"l1" config:",default=ram"` // ram | none
@@ -993,6 +1011,8 @@ type StorageDef struct {
 	PresignTTL string `json:"presign_ttl" config:",default=5m"`
 	// Pool is a constant.
 	Pool *PoolConfig `json:"pool" config:",optional"`
+	// Spool is a constant.
+	Spool *SpoolDef `json:"spool" config:",optional"`
 	// Cache is a constant.
 	Cache *CacheConfig `json:"cache" config:",optional"`
 }

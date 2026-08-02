@@ -1770,6 +1770,46 @@ func parseDurationDef(s string) time.Duration {
 	return d
 }
 
+func parseSizeBytes(s string, fallback int64) int64 {
+	s = strings.ToLower(strings.TrimSpace(s))
+	if s == "" {
+		return fallback
+	}
+	multiplier := int64(1)
+	switch {
+	case strings.HasSuffix(s, "gb"):
+		multiplier = 1024 * 1024 * 1024
+		s = strings.TrimSuffix(s, "gb")
+	case strings.HasSuffix(s, "mb"):
+		multiplier = 1024 * 1024
+		s = strings.TrimSuffix(s, "mb")
+	case strings.HasSuffix(s, "kb"):
+		multiplier = 1024
+		s = strings.TrimSuffix(s, "kb")
+	case strings.HasSuffix(s, "b"):
+		s = strings.TrimSuffix(s, "b")
+	}
+	var n int64
+	if _, err := fmt.Sscanf(s, "%d", &n); err != nil || n < 0 {
+		return fallback
+	}
+	return n * multiplier
+}
+
+func spoolPartSize(s *StorageDef) string {
+	if s != nil && s.Spool != nil {
+		return s.Spool.PartSize
+	}
+	return ""
+}
+
+func spoolConcurrency(s *StorageDef) int {
+	if s != nil && s.Spool != nil {
+		return s.Spool.Concurrency
+	}
+	return 0
+}
+
 func convertCorrelation(cfg *CorrelationConf) *server.CorrelationConfig {
 	if cfg == nil || !cfg.Enabled {
 		return nil
@@ -1980,18 +2020,31 @@ func initStorageFromDef(s *StorageDef) (server.StorageBackend, error) {
 			UseSSL:          useSSL,
 			Pool:            pool,
 			PresignTTL:      parseDurationDef(s.PresignTTL),
+			PartSize:        parseSizeBytes(spoolPartSize(s), 0),
+			Concurrency:     spoolConcurrency(s),
 		})
 		if s3err != nil {
 			return nil, s3err
+		}
+		var backend server.StorageBackend = s3store
+		if s.Spool != nil {
+			backend = server.NewSpooledStorage(backend, server.SpoolConfig{
+				Mode:        s.Spool.Mode,
+				MemoryLimit: parseSizeBytes(s.Spool.MemoryLimit, 4<<20),
+				Dir:         s.Spool.Dir,
+				PartSize:    parseSizeBytes(s.Spool.PartSize, 0),
+				Concurrency: s.Spool.Concurrency,
+				Async:       s.Spool.Async,
+			})
 		}
 		if s.Cache != nil && (s.Cache.L1 == "ram" || s.Cache.L2 == "disk") {
 			ttl, _ := time.ParseDuration(s.Cache.L1TTL)
 			if ttl <= 0 {
 				ttl = 5 * time.Minute
 			}
-			return newCachedStorage(s3store, s.Cache, ttl)
+			return newCachedStorage(backend, s.Cache, ttl)
 		}
-		return s3store, nil
+		return backend, nil
 	default:
 		return nil, fmt.Errorf("unsupported storage mode %q", s.Mode)
 	}

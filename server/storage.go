@@ -45,12 +45,16 @@ type S3Config struct {
 	UseSSL          bool
 	Pool            *PoolConfig
 	PresignTTL      time.Duration
+	PartSize        int64
+	Concurrency     int
 }
 
 type S3Storage struct {
 	client     *minio.Client
 	bucket     string
 	presignTTL time.Duration
+	partSize   int64
+	concurrent int
 }
 
 func NewS3Storage(cfg S3Config) (*S3Storage, error) {
@@ -110,12 +114,19 @@ func NewS3Storage(cfg S3Config) (*S3Storage, error) {
 	if ttl <= 0 {
 		ttl = 5 * time.Minute
 	}
-	return &S3Storage{client: client, bucket: cfg.Bucket, presignTTL: ttl}, nil
+	return &S3Storage{client: client, bucket: cfg.Bucket, presignTTL: ttl, partSize: cfg.PartSize, concurrent: cfg.Concurrency}, nil
 }
 
 func (s *S3Storage) Upload(ctx context.Context, key string, reader io.Reader, size int64, contentType string) error {
+	partSize := uint64(0)
+	if s.partSize > 0 {
+		partSize = uint64(s.partSize)
+	}
 	_, err := s.client.PutObject(ctx, s.bucket, key, reader, size, minio.PutObjectOptions{
-		ContentType: contentType,
+		ContentType:           contentType,
+		PartSize:              partSize,
+		ConcurrentStreamParts: s.concurrent > 0,
+		NumThreads:            uint(s.concurrent),
 	})
 	if err != nil {
 		return fmt.Errorf("s3 upload %s: %w", key, err)

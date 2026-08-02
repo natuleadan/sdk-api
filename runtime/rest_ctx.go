@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"database/sql"
+	"io"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -46,6 +47,12 @@ func newRestCtx(c fiber.Ctx, pools map[string]any) *RestCtx {
 
 func (c *RestCtx) Body() []byte {
 	return c.fc.Body()
+}
+
+// Stream returns the request body as a reader, honoring stream_request_body
+// (file-backed stream) when enabled — for spooled uploads.
+func (c *RestCtx) Stream() io.Reader {
+	return c.fc.Request().BodyStream()
 }
 
 func (c *RestCtx) Params(key string) string {

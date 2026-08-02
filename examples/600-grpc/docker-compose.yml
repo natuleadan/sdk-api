@@ -32,19 +32,6 @@ services:
     pull_policy: never
     networks: [grpc-net]
 
-  createbucket:
-    image: minio/mc:latest
-    pull_policy: never
-    depends_on:
-      rustfs: {condition: service_started}
-    entrypoint: >
-      sh -c "
-      sleep 3 &&
-      mc alias set s3 http://rustfs:9000 rustfsadmin rustfsadmin &&
-      mc mb s3/files --ignore-existing &&
-      echo 'Bucket ready'
-      "
-    networks: [grpc-net]
 
   # ============================================================================
   # Microservices — each built from its own Dockerfile
@@ -71,7 +58,7 @@ services:
     ports: ["23603:23603"]
     depends_on:
       postgres: {condition: service_healthy}
-      createbucket: {condition: service_completed_successfully}
+      rustfs: {condition: service_started}
     environment:
       <<: *svc-env
       S3_ENDPOINT: http://rustfs:9000
@@ -134,7 +121,7 @@ services:
       postgres: {condition: service_healthy}
       nats: {condition: service_started}
       dragonfly: {condition: service_started}
-      createbucket: {condition: service_completed_successfully}
+      rustfs: {condition: service_started}
     environment:
       JWT_SECRET: dev-secret-hs256
       SVC_HOST: docker

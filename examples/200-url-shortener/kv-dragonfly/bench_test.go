@@ -168,6 +168,91 @@ func TestURL_CreateAndExpand(t *testing.T) {
 	}
 }
 
+func TestURL_List(t *testing.T) {
+	setup(t)
+
+	body := `{"targetUrl":"https://example.com/list-item","shortCode":"list00001"}`
+	resp, err := http.Post(apiLinks, "application/json", strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
+	resp.Body.Close()
+
+	listResp, err := http.Get(apiLinks)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	defer listResp.Body.Close()
+	if listResp.StatusCode != 200 {
+		t.Fatalf("list: expected 200, got %d", listResp.StatusCode)
+	}
+	var out struct {
+		Data  []map[string]any `json:"data"`
+		Total int64            `json:"total"`
+		Page  int              `json:"page"`
+		Size  int              `json:"size"`
+	}
+	if err := json.NewDecoder(listResp.Body).Decode(&out); err != nil {
+		t.Fatalf("list decode: %v", err)
+	}
+	if out.Total < 1 {
+		t.Errorf("list: expected total >= 1, got %d", out.Total)
+	}
+	if out.Page != 1 {
+		t.Errorf("list: expected default page 1, got %d", out.Page)
+	}
+	if out.Size != 10 {
+		t.Errorf("list: expected default size 10, got %d", out.Size)
+	}
+	if len(out.Data) == 0 {
+		t.Error("list: expected at least one item")
+	}
+}
+
+func TestURL_ListPagination(t *testing.T) {
+	setup(t)
+
+	for i := 0; i < 12; i++ {
+		b := fmt.Sprintf(`{"targetUrl":"https://example.com/pg-%d","shortCode":"pg%05d"}`, i, i)
+		resp, err := http.Post(apiLinks, "application/json", strings.NewReader(b))
+		if err != nil {
+			t.Fatalf("seed %d: %v", i, err)
+		}
+		resp.Body.Close()
+	}
+
+	listResp, err := http.Get(apiLinks + "?page=1&size=5")
+	if err != nil {
+		t.Fatalf("list page: %v", err)
+	}
+	defer listResp.Body.Close()
+	if listResp.StatusCode != 200 {
+		t.Fatalf("list page: expected 200, got %d", listResp.StatusCode)
+	}
+	var out struct {
+		Data []map[string]any `json:"data"`
+		Size int              `json:"size"`
+	}
+	if err := json.NewDecoder(listResp.Body).Decode(&out); err != nil {
+		t.Fatalf("list decode: %v", err)
+	}
+	if len(out.Data) > 5 {
+		t.Errorf("list: expected at most 5 items with size=5, got %d", len(out.Data))
+	}
+	if out.Size != 5 {
+		t.Errorf("list: expected size 5, got %d", out.Size)
+	}
+
+	page2Resp, err := http.Get(apiLinks + "?page=2&size=5")
+	if err != nil {
+		t.Fatalf("list page 2: %v", err)
+	}
+	defer page2Resp.Body.Close()
+	if page2Resp.StatusCode != 200 {
+		t.Errorf("list page 2: expected 200, got %d", page2Resp.StatusCode)
+	}
+}
+
 func TestURL_CRUDLifecycle(t *testing.T) {
 	setup(t)
 

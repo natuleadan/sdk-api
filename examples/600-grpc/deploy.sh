@@ -63,7 +63,7 @@ sleep 2
 echo "  dragonfly ready"
 
 echo "=== infra: rustfs ==="
-docker compose up -d rustfs createbucket 2>&1 | tail -1
+docker compose up -d rustfs 2>&1 | tail -1
 sleep 5
 echo "  rustfs ready (bucket created)"
 

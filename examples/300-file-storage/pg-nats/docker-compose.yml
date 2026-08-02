@@ -40,17 +40,6 @@ services:
       timeout: 3s
       retries: 10
 
-  createbucket:
-    image: minio/mc:latest
-    depends_on:
-      rustfs:
-        condition: service_healthy
-    entrypoint: >
-      sh -c "
-      mc alias set s3 http://rustfs:9000 rustfsadmin rustfsadmin &&
-      mc mb s3/dummy-bucket --ignore-existing &&
-      echo 'Bucket ready'
-      "
 
   bench:
     build:
@@ -65,8 +54,6 @@ services:
         condition: service_healthy
       nats:
         condition: service_started
-      createbucket:
-        condition: service_completed_successfully
     environment:
       DOCKER_TEST: "1"
       DATABASE_URL: postgres://dev:devpass@pgdog:6432/postgres?sslmode=disable

@@ -93,13 +93,17 @@ func NewS3Storage(cfg S3Config) (*S3Storage, error) {
 		return nil, fmt.Errorf("minio: %w", err)
 	}
 
-	// Verify bucket exists
+	// Ensure the bucket exists, creating it when missing.
 	exists, err := client.BucketExists(context.Background(), cfg.Bucket)
 	if err != nil {
-		return nil, fmt.Errorf("minio bucket check: %w", err)
+		return nil, fmt.Errorf("s3 bucket check: %w", err)
 	}
 	if !exists {
-		return nil, fmt.Errorf("bucket %q does not exist", cfg.Bucket)
+		if err := client.MakeBucket(context.Background(), cfg.Bucket, minio.MakeBucketOptions{
+			Region: cfg.Region,
+		}); err != nil {
+			return nil, fmt.Errorf("s3 create bucket %q: %w", cfg.Bucket, err)
+		}
 	}
 
 	ttl := cfg.PresignTTL

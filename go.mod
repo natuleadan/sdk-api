@@ -78,7 +78,7 @@ require (
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/gofiber/schema v1.8.3 // indirect
-	github.com/gofiber/utils/v2 v2.2.0 // indirect
+	github.com/gofiber/utils/v2 v2.4.1 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/grafana/pyroscope-go/godeltaprof v0.1.12 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 // indirect

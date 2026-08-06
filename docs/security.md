@@ -711,7 +711,7 @@ safeName := runtime.SanitizeFilename(originalName)
 
 All errors pass through a sanitizer that redacts sensitive infrastructure details:
 
-- **IP addresses** — `dial tcp 10.0.0.5:5432: timeout` → `dial tcp [redacted]:5432: timeout`
+- **IP addresses** — `dial tcp 198.51.100.5:5432: timeout` → `dial tcp [redacted]:5432: timeout`
 - **Connection strings** — `postgres://admin:pass@host/db` → `postgres://[redacted]@host/db`
 - **File paths** — `/etc/sdk-api/service.yaml` → `[redacted]`
 

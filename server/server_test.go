@@ -262,7 +262,7 @@ func TestErrorHandler_SanitizesInternalError(t *testing.T) {
 	logx.Disable()
 	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, nil)
 	app.app.Get("/db-error", func(_ fiber.Ctx) error {
-		return fiber.NewError(fiber.StatusInternalServerError, "dial tcp 10.0.0.5:5432: connection refused")
+		return fiber.NewError(fiber.StatusInternalServerError, "dial tcp 198.51.100.5:5432: connection refused")
 	})
 
 	req := testRequest("/db-error")

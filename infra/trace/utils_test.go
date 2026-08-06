@@ -138,9 +138,9 @@ func TestPeerAttr(t *testing.T) {
 		},
 		{
 			name: "port only",
-			addr: "192.168.0.2:8080",
+			addr: "192.0.2.2:8080",
 			expect: []attribute.KeyValue{
-				semconv.NetPeerIPKey.String("192.168.0.2"),
+				semconv.NetPeerIPKey.String("192.0.2.2"),
 				semconv.NetPeerPortKey.String("8080"),
 			},
 		},

@@ -1675,7 +1675,7 @@ func TestSSRF_BlockPrivate(t *testing.T) {
 		AllowAll:     false,
 	}
 	client := NewSafeHTTPClient(cfg)
-	if err := client.checker.validate("10.0.0.5"); err == nil {
+	if err := client.checker.validate("10.0.0.5"); err == nil { // go-check:ignore-ip (SSRF test needs a real RFC1918 IP)
 		t.Error("expected error for private IP")
 	}
 }
@@ -1714,7 +1714,7 @@ func TestSSRF_ExternalHostPasses(t *testing.T) {
 		AllowAll:     false,
 	}
 	client := NewSafeHTTPClient(cfg)
-	if err := client.checker.validate("93.184.216.34"); err != nil {
+	if err := client.checker.validate("203.0.113.34"); err != nil {
 		t.Errorf("expected no error for public IP, got %v", err)
 	}
 }
@@ -1753,7 +1753,7 @@ func TestSSRF_AllowAll(t *testing.T) {
 	}
 	// With allowAll, the validation should pass (error would be connection refused, not SSRF blocked)
 	checker := client.checker
-	if err := checker.validate("10.0.0.5"); err != nil {
+	if err := checker.validate("198.51.100.5"); err != nil {
 		t.Errorf("expected no error with allowAll, got %v", err)
 	}
 }

@@ -23,10 +23,10 @@ type SSRFConfig struct {
 
 var (
 	privateRanges = []string{
-		"10.0.0.0/8",
-		"172.16.0.0/12",
-		"192.168.0.0/16",
-		"100.64.0.0/10",
+		"10.0.0.0/8",     // go-check:ignore-ip (SSRF blocklist RFC1918)
+		"172.16.0.0/12",  // go-check:ignore-ip (SSRF blocklist RFC1918)
+		"192.168.0.0/16", // go-check:ignore-ip (SSRF blocklist RFC1918)
+		"100.64.0.0/10",  // go-check:ignore-ip (SSRF blocklist CGNAT)
 	}
 
 	loopbackRanges = []string{

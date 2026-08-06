@@ -258,7 +258,7 @@ server:
       timeout: 5000
     - name: user-service
       target: direct:///user-svc:8082
-      endpoints: ["user-svc:8082", "10.0.1.5:8082"]
+      endpoints: ["user-svc:8082", "198.51.100.15:8082"]
 
   # Telemetry / OpenTelemetry tracing
   telemetry:

@@ -1385,6 +1385,11 @@ func initStreams(ctx context.Context, configs []StreamConfig) (map[string]events
 				ReconnectWait: parseServerDuration(cfg.ReconnectWait, 2*time.Second),
 				Timeout:       parseServerDuration(cfg.Timeout, 5*time.Second),
 				RetryOnFail:   cfg.RetryOnFail,
+				User:          cfg.User,
+				Password:      cfg.Password,
+				CAFile:        cfg.CAFile,
+				CertFile:      cfg.CertFile,
+				KeyFile:       cfg.KeyFile,
 			})
 			if connErr != nil {
 				return nil, fmt.Errorf("stream[%d] (%s): %w", i, cfg.Name, connErr)

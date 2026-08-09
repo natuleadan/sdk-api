@@ -13,6 +13,11 @@ stream:
   - name: primary
     driver: nats
     url: "${NATS_URL}"
+    user: "${NATS_USER}"
+    password: "${NATS_PASSWORD}"
+    ca_file: "${NATS_CA}"
+    cert_file: "${NATS_CERT}"
+    key_file: "${NATS_KEY}"
     streams:
       - name: links
       - name: nats-pull

@@ -29,7 +29,7 @@ require (
 	github.com/gofiber/contrib/v3/websocket v1.2.2 // indirect
 	github.com/gofiber/fiber/v3 v3.4.0 // indirect
 	github.com/gofiber/schema v1.8.3 // indirect
-	github.com/gofiber/utils/v2 v2.2.0 // indirect
+	github.com/gofiber/utils/v2 v2.4.1 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/uuid v1.6.0 // indirect

@@ -49,3 +49,41 @@ Measured 2026-08-01 with PgDog pool 200/50/8 + max_connections 500 (fix applied 
 | `bench_test.go` | 16 functional tests including cache invalidation + worker bulk (358k/s) |
 | `run.sh` | Entrypoint: `--rps` for benchmarks, `--test:Name` for specific tests |
 | `docker-compose.yml` | PostgreSQL 18 + PgDog + NATS JetStream |
+
+## Connecting to a secure (mTLS) cluster
+
+The stream config supports `user`/`password`/`ca_file`/`cert_file`/`key_file`:
+
+```yaml
+stream:
+  - name: primary
+    driver: nats
+    url: "${NATS_URL}"              # tls://user:pass@host:4222 also works for auth
+    user: "${NATS_USER}"
+    password: "${NATS_PASSWORD}"
+    ca_file: "${NATS_CA}"
+    cert_file: "${NATS_CERT}"
+    key_file: "${NATS_KEY}"
+```
+
+Two validated deployment forms:
+
+- **Remote (operator → cluster):** run the app/tests from the Mac against the public
+  URLs with the operator's certs. Validated with `examples/run.sh 200/nats` (docker compose
+  + the bench tests) and a focused `events.Connect` Go program.
+- **Intra-VPS (microservice on the same VPS as NATS):** run the app inside the VPS,
+  `NATS_URL=tls://127.0.0.1:4222` (loopback), reusing the VPS's own NATS certs at
+  `/opt/sdk-ops/services/nats/certs/`. Run the tester with `DOCKER_TEST=1` (skips the
+  in-test `go build`; uses the already-running app).
+
+### KV buckets on a cluster
+
+The default KV config is Memory + 256MB + TTL 5min (single replica), which exceeds a
+small node's memory store. On a cluster, pre-create the app's buckets first:
+
+```
+nats kv add demo-kv --replicas 3 --storage file
+nats kv add url-expand-cache --replicas 3 --storage file
+```
+
+`EnsureKeyValue` loads an existing bucket as-is, so the pre-created config is kept.

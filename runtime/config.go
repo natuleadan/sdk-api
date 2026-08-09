@@ -353,6 +353,16 @@ type StreamConfig struct {
 	Timeout string `json:"timeout" config:",optional"`
 	// RetryOnFail is a constant.
 	RetryOnFail bool `json:"retry_on_fail" config:",optional"`
+	// User authenticates to the NATS server. Password may be set directly or
+	// referenced from the environment with ${VAR} (the config expands it).
+	User string `json:"user" config:",optional"`
+	// Password authenticates to the NATS server.
+	Password string `json:"password" config:",optional"`
+	// CAFile verifies the server certificate (leave empty for system roots).
+	CAFile string `json:"ca_file" config:",optional"`
+	// CertFile/KeyFile are the client certificate pair for mTLS servers.
+	CertFile string `json:"cert_file" config:",optional"`
+	KeyFile  string `json:"key_file" config:",optional"`
 	// Streams is a constant.
 	Streams []StreamDef `json:"streams" config:",optional"`
 }

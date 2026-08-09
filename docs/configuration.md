@@ -458,25 +458,48 @@ KV connections are created lazily and shared by all references to the same name.
 stream:
   - name: default
     driver: nats
-    url: "${NATS_URL}"
+    url: "${NATS_URL}"            # may embed auth: tls://user:pass@host:4222
+    user: "${NATS_USER}"          # mTLS/auth (optional)
+    password: "${NATS_PASSWORD}"
+    ca_file: "${NATS_CA}"         # PEM CA to verify the server cert (empty = system roots)
+    cert_file: "${NATS_CERT}"     # client cert pair for mTLS servers (verify: true)
+    key_file: "${NATS_KEY}"
     streams:
       - name: orders
 
   - name: analytics
     driver: kafka
     brokers: ["localhost:9092"]
-    consumer_group: sdk-api
+    consumer_group: my-group
 ```
 
 | Field | Description |
 |-------|-------------|
 | `name` | Reference name. Used by `entry[].event_stream` |
 | `driver` | `nats` or `kafka` |
-| `url` | NATS URL (required for `driver: nats`) |
+| `url` | NATS URL (required for `driver: nats`). May embed `user:pass` for auth |
+| `user` / `password` | NATS credentials (also accepted via the URL userinfo) |
+| `ca_file` | PEM CA to verify the server certificate; empty uses the system roots (public LE certs) |
+| `cert_file` / `key_file` | Client certificate pair required when the server enforces mTLS (`verify: true`). Passing either enables `TLSHandshakeFirst` (the server uses `handshake_first`) |
 | `brokers` | Kafka broker list (required for `driver: kafka`) |
 | `consumer_group` | Kafka consumer group (defaults to `{name}-group`) |
 
+> Secrets should come from the environment: the config expands `${VAR}` in any string
+> (e.g. `password: "${NATS_PASSWORD}"`). Never hardcode credentials in `service.yaml`.
+
 Default subjects for a NATS stream named `orders`: `[orders, orders.>]`.
+
+## Key-Value (NATS KV)
+
+The `events` connection exposes JetStream KV (`KVGet`/`KVPut`/`KVDelete`/`KVKeys`). Buckets are
+created on first use with `DefaultKVConfig` (Memory + 256MB + TTL 5min, single replica). On a
+cluster, pre-create buckets with the desired replica count and file storage:
+
+```
+nats kv add <bucket> --replicas 3 --storage file
+```
+
+`EnsureKeyValue` loads an existing bucket as-is, so pre-created buckets keep their config.
 
 ## Log
 

@@ -18,6 +18,17 @@ type ConnOptions struct {
 	ReconnectWait time.Duration
 	Timeout       time.Duration
 	RetryOnFail   bool
+	// User/Password authenticate to the server (may also be embedded in URL
+	// as tls://user:pass@host:4222).
+	User     string
+	Password string
+	// CAFile is the PEM CA used to verify the server certificate. Leave empty
+	// to use the system roots (e.g. public Let's Encrypt certs).
+	CAFile string
+	// CertFile/KeyFile are the client certificate pair required when the
+	// server enforces mTLS (verify: true).
+	CertFile string
+	KeyFile  string
 }
 
 type Conn struct {
@@ -45,12 +56,27 @@ func Connect(ctx context.Context, opts ConnOptions) (*Conn, error) {
 	if timeout <= 0 {
 		timeout = 5 * time.Second
 	}
-	nc, err := nats.Connect(url,
+	nOpts := []nats.Option{
 		nats.RetryOnFailedConnect(opts.RetryOnFail),
 		nats.MaxReconnects(maxReconnects),
 		nats.ReconnectWait(reconnectWait),
 		nats.Timeout(timeout),
-	)
+	}
+	if opts.User != "" {
+		nOpts = append(nOpts, nats.UserInfo(opts.User, opts.Password))
+	}
+	if opts.CAFile != "" {
+		nOpts = append(nOpts, nats.RootCAs(opts.CAFile))
+	}
+	if opts.CertFile != "" && opts.KeyFile != "" {
+		nOpts = append(nOpts, nats.ClientCert(opts.CertFile, opts.KeyFile))
+	}
+	if opts.CAFile != "" || opts.CertFile != "" {
+		// The server uses handshake_first: it initiates TLS before the NATS
+		// protocol. Without this the handshake stalls on a mTLS server.
+		nOpts = append(nOpts, nats.TLSHandshakeFirst())
+	}
+	nc, err := nats.Connect(url, nOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("events: connect: %w", err)
 	}

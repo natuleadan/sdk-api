@@ -487,6 +487,12 @@ stream:
 > Secrets should come from the environment: the config expands `${VAR}` in any string
 > (e.g. `password: "${NATS_PASSWORD}"`). Never hardcode credentials in `service.yaml`.
 
+> `url` accepts a **comma-separated server list** (`tls://198.51.100.2:4222,tls://198.51.100.3:4222`).
+> The nats.go client **randomizes the pool by default** (use `DontRandomize` to connect in
+> order), so a fleet of clients spreads across the nodes instead of piling onto the first;
+> a dead server makes them fail over to the next. One URL + round-robin DNS is the
+> declarative alternative for an internal VLAN.
+
 Default subjects for a NATS stream named `orders`: `[orders, orders.>]`.
 
 ## Key-Value (NATS KV)

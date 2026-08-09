@@ -182,6 +182,9 @@ type KVConfig struct {
 	TTL         time.Duration
 	MaxBytes    int64
 	Storage     StorageType
+	// Replicas is the stream replica count (0 = server default, e.g. 1).
+	// On a cluster use >= 2 so the KV survives a node loss.
+	Replicas int
 }
 
 func DefaultKVConfig(bucket string) KVConfig {
@@ -204,6 +207,7 @@ func (c *Conn) EnsureKeyValue(cfg KVConfig) (nats.KeyValue, error) {
 		TTL:         cfg.TTL,
 		MaxBytes:    cfg.MaxBytes,
 		Storage:     convertStorage(cfg.Storage),
+		Replicas:    cfg.Replicas,
 	})
 	if err != nil && err != nats.ErrStreamNameAlreadyInUse {
 		return nil, fmt.Errorf("events: kv %s: %w", cfg.Bucket, err)

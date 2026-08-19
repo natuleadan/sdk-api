@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -31,6 +32,7 @@ type exitWorker struct {
 type workerState struct {
 	shutdownCh chan struct{}
 	inFlight   atomic.Int64
+	once       sync.Once
 }
 
 func startExitWorker(ctx context.Context, broker events.EventBroker, cfg ExitWorker, handler ExitHandler, hooks ExitHooks) (*exitWorker, error) {
@@ -48,7 +50,7 @@ func startExitWorker(ctx context.Context, broker events.EventBroker, cfg ExitWor
 
 	taskCh := make(chan msgTask, maxConcurrent*2)
 	state := &workerState{
-		shutdownCh: make(chan struct{}, 1),
+		shutdownCh: make(chan struct{}),
 	}
 
 	w := &exitWorker{
@@ -201,9 +203,10 @@ func termWithLog(m events.Message, name, context string) {
 
 func (w *exitWorker) shutdown(timeout time.Duration) {
 	logx.Infof("exit worker %s shutting down...", w.name)
-	w.state.shutdownCh <- struct{}{}
-
-	close(w.tasks)
+	w.state.once.Do(func() {
+		close(w.state.shutdownCh)
+		close(w.tasks)
+	})
 
 	deadline := time.NewTimer(timeout)
 	defer deadline.Stop()

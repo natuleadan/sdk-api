@@ -103,6 +103,9 @@ func ConsumePull[T any](ctx context.Context, js nats.JetStreamContext, cfg Consu
 	if pullMaxWait <= 0 {
 		pullMaxWait = 5 * time.Second
 	}
+	if pullMaxWait > 2*time.Second {
+		pullMaxWait = 2 * time.Second
+	}
 
 	go func() {
 		defer func() {
@@ -111,6 +114,11 @@ func ConsumePull[T any](ctx context.Context, js nats.JetStreamContext, cfg Consu
 			}
 		}()
 		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
 			msgs, err := sub.Fetch(pullBatch, nats.MaxWait(pullMaxWait))
 			if err != nil {
 				if err == nats.ErrTimeout {

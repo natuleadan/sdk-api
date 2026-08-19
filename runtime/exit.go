@@ -150,16 +150,24 @@ func enqueueMsg(state *workerState, taskCh chan<- msgTask, task msgTask) {
 }
 
 func workerLoop(ctx context.Context, state *workerState, taskCh <-chan msgTask, handler ExitHandler, hooks ExitHooks) {
-	for task := range taskCh {
+	for {
 		select {
 		case <-state.shutdownCh:
-			nakWithLog(task.msg, task.cfg.Name, "shutdown-drain")
-			continue
-		default:
+			return
+		case task, ok := <-taskCh:
+			if !ok {
+				return
+			}
+			select {
+			case <-state.shutdownCh:
+				nakWithLog(task.msg, task.cfg.Name, "shutdown-drain")
+				continue
+			default:
+			}
+			state.inFlight.Add(1)
+			processTask(ctx, task, handler, hooks)
+			state.inFlight.Add(-1)
 		}
-		state.inFlight.Add(1)
-		processTask(ctx, task, handler, hooks)
-		state.inFlight.Add(-1)
 	}
 }
 

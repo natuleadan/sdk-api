@@ -53,9 +53,15 @@ func (s *pgJobStore) Get(id string) (*JobState, bool) {
 	row := s.pool.QueryRow(context.Background(), q, id)
 	var js JobState
 	var resultBytes []byte
-	if err := row.Scan(&js.ID, (*string)(&js.Status), &resultBytes, &js.Error, &js.CreatedAt, &js.UpdatedAt, &js.RetryCount, &js.MaxRetries, &js.ProcessingDeadline); err != nil {
+	var errStr *string
+	var deadline *time.Time
+	if err := row.Scan(&js.ID, (*string)(&js.Status), &resultBytes, &errStr, &js.CreatedAt, &js.UpdatedAt, &js.RetryCount, &js.MaxRetries, &deadline); err != nil {
 		return nil, false
 	}
+	if errStr != nil {
+		js.Error = *errStr
+	}
+	js.ProcessingDeadline = deadline
 	if len(resultBytes) > 0 {
 		if err := json.Unmarshal(resultBytes, &js.Result); err != nil {
 			logx.Errorf("pgJobStore.Get: unmarshal result: %v", err)
@@ -91,9 +97,15 @@ func (s *pgJobStore) List() ([]*JobState, error) {
 	for rows.Next() {
 		var js JobState
 		var resultBytes []byte
-		if err := rows.Scan(&js.ID, (*string)(&js.Status), &resultBytes, &js.Error, &js.CreatedAt, &js.UpdatedAt, &js.RetryCount, &js.MaxRetries, &js.ProcessingDeadline); err != nil {
+		var errStr *string
+		var deadline *time.Time
+		if err := rows.Scan(&js.ID, (*string)(&js.Status), &resultBytes, &errStr, &js.CreatedAt, &js.UpdatedAt, &js.RetryCount, &js.MaxRetries, &deadline); err != nil {
 			return nil, err
 		}
+		if errStr != nil {
+			js.Error = *errStr
+		}
+		js.ProcessingDeadline = deadline
 		if len(resultBytes) > 0 {
 			if uErr := json.Unmarshal(resultBytes, &js.Result); uErr != nil {
 				logx.Errorf("pgJobStore.List: unmarshal result: %v", uErr)

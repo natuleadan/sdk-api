@@ -22,7 +22,7 @@ func getTestPGPool(t *testing.T) *pgxpool.Pool {
 	if err != nil {
 		t.Fatalf("pgxpool.New: %v", err)
 	}
-	t.Cleanup(pool.Close())
+	t.Cleanup(func() { pool.Close() })
 	return pool
 }
 
@@ -32,7 +32,7 @@ func getTestRedis(t *testing.T) *redis.Redis {
 	if addr == "" {
 		addr = "localhost:6379"
 	}
-	r, err := redis.NewRedis(redis.RedisConf{Addr: addr}, redis.WithPass(""))
+	r, err := redis.NewRedis(redis.RedisConf{Host: addr}, redis.WithPass(""))
 	if err != nil {
 		t.Fatalf("redis.NewRedis: %v", err)
 	}
@@ -45,7 +45,8 @@ func getTestNATSConn(t *testing.T) *events.Conn {
 	if url == "" {
 		url = "nats://localhost:4222"
 	}
-	conn, err := events.NewConn(url, events.WithName("test"))
+	ctx := context.Background()
+	conn, err := events.Connect(ctx, events.ConnOptions{URL: url, Name: "test"})
 	if err != nil {
 		t.Fatalf("events.NewConn: %v", err)
 	}
@@ -96,6 +97,9 @@ func TestPGJobStore_CRUD(t *testing.T) {
 }
 
 func TestRedisJobStore_CRUD(t *testing.T) {
+	if os.Getenv("REDIS_ADDR") == "" && os.Getenv("REDIS_URL") == "" {
+		t.Skip("REDIS_ADDR not set, skipping Redis integration test")
+	}
 	client := getTestRedis(t)
 	store := newRedisJobStore(client, "test:")
 	t.Cleanup(func() {

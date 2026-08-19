@@ -28,11 +28,19 @@ test-integration:
 	docker compose -f docker-compose.test.yml up -d --wait 2>/dev/null || true
 	@echo "Waiting for services..."
 	@sleep 5
+	@echo "Waiting for Zitadel readiness (host healthz)..."
+	@for i in $$(seq 1 30); do \
+		if curl -sf http://localhost:18082/debug/healthz >/dev/null 2>&1; then \
+			echo "Zitadel ready (attempt $$i)"; break; \
+		fi; \
+		if [ $$i -eq 30 ]; then echo "Zitadel not ready after 30 attempts"; fi; \
+		sleep 2; \
+	done
 	@echo "Running integration tests..."
 	DATABASE_URL="postgres://dev:devpass@localhost:15432/postgres?sslmode=disable" \
 	NATS_URL="nats://localhost:14222" \
 	KAFKA_URL="localhost:9092" \
-	MYSQL_URL="root:pass@tcp(localhost:3306)/test" \
+	MYSQL_URL="test:pass@tcp(localhost:13306)/test?parseTime=true" \
 	go test -race -v -count=1 -tags=integration ./...
 	@echo "Stopping test services..."
 	docker compose -f docker-compose.test.yml down

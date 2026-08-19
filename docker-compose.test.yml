@@ -83,6 +83,21 @@ services:
       timeout: 30s
       retries: 3
 
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: pass
+      MYSQL_DATABASE: test
+      MYSQL_USER: test
+      MYSQL_PASSWORD: pass
+    ports:
+      - "13306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-ptest"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
   # Zitadel for authentication (OIDC)
   postgres_zitadel:
     image: postgres:18-alpine
@@ -121,7 +136,4 @@ services:
       - "18082:8080"  # HTTP
       - "18083:8081"  # gRPC
     healthcheck:
-      test: ["CMD", "/app/zitadel", "ready"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      disable: true

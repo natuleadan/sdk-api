@@ -298,3 +298,188 @@ func TestTursoTableNoPrimaryKey(t *testing.T) {
 		t.Fatal("expected error for struct without primary key")
 	}
 }
+
+func TestTursoTableCount(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "count.db")
+	table, err := NewTursoTable[TursoProduct](dbPath, "test_count")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer table.Close()
+	ctx := context.Background()
+	if err := table.AutoInit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	n, err := table.Count(ctx)
+	if err != nil {
+		t.Fatalf("Count: %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("expected 0, got %d", n)
+	}
+	if err := table.Create(ctx, &TursoProduct{Name: "count-a", Price: 1}); err != nil {
+		t.Fatal(err)
+	}
+	n, _ = table.Count(ctx)
+	if n != 1 {
+		t.Errorf("expected 1 after insert, got %d", n)
+	}
+}
+
+func TestTursoTableListPaginated(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "paginated.db")
+	table, err := NewTursoTable[TursoProduct](dbPath, "test_paginated")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer table.Close()
+	ctx := context.Background()
+	if err := table.AutoInit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	for i := range 5 {
+		if err := table.Create(ctx, &TursoProduct{Name: "p", Price: float64(i)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	page, err := table.ListPaginated(ctx, 2, 1)
+	if err != nil {
+		t.Fatalf("ListPaginated: %v", err)
+	}
+	if len(page) != 2 {
+		t.Errorf("expected 2 items, got %d", len(page))
+	}
+}
+
+func TestTursoTableCountScoped(t *testing.T) {
+	type ScopedProduct struct {
+		ID       int64  `db:"id,primary,auto"`
+		TenantID string `db:"tenant_id,required"`
+		Name     string `db:"name,required"`
+	}
+	dbPath := filepath.Join(t.TempDir(), "count_scoped.db")
+	table, err := NewTursoTable[ScopedProduct](dbPath, "test_count_scoped")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer table.Close()
+	ctx := context.Background()
+	if err := table.AutoInit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	_ = table.Create(ctx, &ScopedProduct{TenantID: "t1", Name: "a"})
+	_ = table.Create(ctx, &ScopedProduct{TenantID: "t1", Name: "b"})
+	_ = table.Create(ctx, &ScopedProduct{TenantID: "t2", Name: "c"})
+	n, err := table.CountScoped(ctx, "tenant_id", "t1")
+	if err != nil {
+		t.Fatalf("CountScoped: %v", err)
+	}
+	if n != 2 {
+		t.Errorf("expected 2 for t1, got %d", n)
+	}
+}
+
+func TestTursoTableListScoped(t *testing.T) {
+	type ScopedProduct struct {
+		ID       int64  `db:"id,primary,auto"`
+		TenantID string `db:"tenant_id,required"`
+		Name     string `db:"name,required"`
+	}
+	dbPath := filepath.Join(t.TempDir(), "list_scoped.db")
+	table, err := NewTursoTable[ScopedProduct](dbPath, "test_list_scoped")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer table.Close()
+	ctx := context.Background()
+	if err := table.AutoInit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	_ = table.Create(ctx, &ScopedProduct{TenantID: "t1", Name: "a"})
+	_ = table.Create(ctx, &ScopedProduct{TenantID: "t2", Name: "b"})
+	list, err := table.ListScoped(ctx, "tenant_id", "t1")
+	if err != nil {
+		t.Fatalf("ListScoped: %v", err)
+	}
+	if len(list) != 1 || list[0].Name != "a" {
+		t.Errorf("expected [a], got %v", list)
+	}
+}
+
+func TestTursoTableQueryKeyset(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "keyset.db")
+	table, err := NewTursoTable[TursoProduct](dbPath, "test_keyset")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer table.Close()
+	ctx := context.Background()
+	if err := table.AutoInit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	for i := range 5 {
+		if err := table.Create(ctx, &TursoProduct{Name: "k", Price: float64(i)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	items, next, err := table.QueryKeyset(ctx, "", 2, "id", nil)
+	if err != nil {
+		t.Fatalf("QueryKeyset: %v", err)
+	}
+	if len(items) != 2 || next == "" {
+		t.Errorf("expected 2 items with cursor, got %d next=%q", len(items), next)
+	}
+	items2, next2, err := table.QueryKeyset(ctx, next, 2, "id", nil)
+	if err != nil {
+		t.Fatalf("QueryKeyset page2: %v", err)
+	}
+	if len(items2) != 2 {
+		t.Errorf("expected 2 on page2, got %d", len(items2))
+	}
+	_ = next2
+}
+
+func TestTursoTableCreateScoped(t *testing.T) {
+	type ScopedProduct struct {
+		ID       int64  `db:"id,primary,auto"`
+		TenantID string `db:"tenant_id,required"`
+		Name     string `db:"name,required"`
+	}
+	dbPath := filepath.Join(t.TempDir(), "create_scoped.db")
+	table, err := NewTursoTable[ScopedProduct](dbPath, "test_create_scoped")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer table.Close()
+	ctx := context.Background()
+	if err := table.AutoInit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	p := ScopedProduct{Name: "scoped"}
+	if err := table.CreateScoped(ctx, &p, "tenant_id", "t1"); err != nil {
+		t.Fatalf("CreateScoped: %v", err)
+	}
+	got, err := table.Get(ctx, p.ID)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got.TenantID != "t1" {
+		t.Errorf("expected t1, got %q", got.TenantID)
+	}
+}
+
+func TestTursoTableValidColumn(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "validcol.db")
+	table, err := NewTursoTable[TursoProduct](dbPath, "test_validcol")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer table.Close()
+	if _, err := table.GetScoped(context.Background(), int64(1), "nonexistent", "x"); err == nil {
+		t.Error("expected error for invalid column")
+	}
+	_, err = table.CountScoped(context.Background(), "'; DROP TABLE test_validcol; --", "x")
+	if err == nil {
+		t.Error("expected error for injection column")
+	}
+}

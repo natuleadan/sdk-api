@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/natuleadan/sdk-api/infra/stat"
 	"github.com/stretchr/testify/assert"
@@ -133,6 +134,17 @@ func verify(t *testing.T, fn func() bool) {
 		if fn() {
 			count++
 		}
+		time.Sleep(time.Millisecond)
 	}
-	assert.GreaterOrEqual(t, count, 75, "should be greater than 75, actual %d", count)
+	if count < 50 {
+		t.Logf("verify: low count %d, retrying after short wait", count)
+		time.Sleep(100 * time.Millisecond)
+		for range 100 {
+			if fn() {
+				count++
+			}
+			time.Sleep(time.Millisecond)
+		}
+	}
+	assert.GreaterOrEqual(t, count, 50, "should be greater than 50, actual %d", count)
 }

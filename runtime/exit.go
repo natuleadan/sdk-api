@@ -116,15 +116,32 @@ func fetchAndEnqueue(state *workerState, taskCh chan<- msgTask, consumer events.
 
 	msgs, err := consumer.Fetch(batch, maxWait)
 	if err != nil {
-		return nil
+		select {
+		case <-state.shutdownCh:
+			return fmt.Errorf("shutting down")
+		default:
+			return nil
+		}
 	}
 	for _, m := range msgs {
+		select {
+		case <-state.shutdownCh:
+			nakWithLog(m, cfg.Name, "shutdown")
+			continue
+		default:
+		}
 		enqueueMsg(state, taskCh, msgTask{msg: m, cfg: cfg})
 	}
 	return nil
 }
 
 func enqueueMsg(state *workerState, taskCh chan<- msgTask, task msgTask) {
+	select {
+	case <-state.shutdownCh:
+		nakWithLog(task.msg, task.cfg.Name, "shutdown")
+		return
+	default:
+	}
 	select {
 	case taskCh <- task:
 	case <-state.shutdownCh:
@@ -134,6 +151,12 @@ func enqueueMsg(state *workerState, taskCh chan<- msgTask, task msgTask) {
 
 func workerLoop(ctx context.Context, state *workerState, taskCh <-chan msgTask, handler ExitHandler, hooks ExitHooks) {
 	for task := range taskCh {
+		select {
+		case <-state.shutdownCh:
+			nakWithLog(task.msg, task.cfg.Name, "shutdown-drain")
+			continue
+		default:
+		}
 		state.inFlight.Add(1)
 		processTask(ctx, task, handler, hooks)
 		state.inFlight.Add(-1)
@@ -203,10 +226,27 @@ func termWithLog(m events.Message, name, context string) {
 
 func (w *exitWorker) shutdown(timeout time.Duration) {
 	logx.Infof("exit worker %s shutting down...", w.name)
+	var didClose bool
 	w.state.once.Do(func() {
 		close(w.state.shutdownCh)
-		close(w.tasks)
+		didClose = true
 	})
+	if !didClose {
+		return
+	}
+
+	if w.sub != nil {
+		if err := w.sub.Unsubscribe(); err != nil {
+			logx.Errorf("exit: unsubscribe %s error: %v", w.name, err)
+		}
+	}
+	if w.consumer != nil {
+		if err := w.consumer.Unsubscribe(); err != nil {
+			logx.Errorf("exit: consumer unsubscribe %s error: %v", w.name, err)
+		}
+	}
+
+	close(w.tasks)
 
 	deadline := time.NewTimer(timeout)
 	defer deadline.Stop()
@@ -225,12 +265,6 @@ func (w *exitWorker) shutdown(timeout time.Duration) {
 			logx.Errorf("exit worker %s shutdown timeout after %v (%d tasks remaining)",
 				w.name, timeout, w.state.inFlight.Load())
 			return
-		}
-	}
-
-	if w.sub != nil {
-		if err := w.sub.Unsubscribe(); err != nil {
-			logx.Errorf("exit: unsubscribe %s error: %v", w.name, err)
 		}
 	}
 }

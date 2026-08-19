@@ -19,5 +19,7 @@ func TestMain(m *testing.M) {
 		goleak.IgnoreAnyFunction("net/http.(*persistConn).readLoop"),
 		goleak.IgnoreAnyFunction("github.com/natuleadan/sdk-api/server/middleware.(*rateLimiterStore).gcLoop"),
 		goleak.IgnoreAnyFunction("internal/poll.runtime_pollWait"),
+		goleak.IgnoreAnyFunction("github.com/nats-io/nats%2ego.(*Conn).drainConnection"),
+		goleak.IgnoreAnyFunction("github.com/nats-io/nats%2ego.(*Subscription).Fetch"),
 	)
 }

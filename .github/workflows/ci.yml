@@ -141,6 +141,21 @@ jobs:
           --health-timeout 3s
           --health-retries 10
 
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: pass
+          MYSQL_DATABASE: test
+          MYSQL_USER: test
+          MYSQL_PASSWORD: pass
+        ports:
+          - 13306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -ptest"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 30
+
       kafka:
         image: apache/kafka:latest
         ports:
@@ -182,12 +197,13 @@ jobs:
             sleep 1
           done
 
-      - name: Test runtime + events + db (with PG + NATS + Kafka)
+      - name: Test runtime + events + db (with PG + MySQL + NATS + Kafka)
         env:
           DATABASE_URL: "postgres://dev:devpass@localhost:15432/postgres?sslmode=disable"
           NATS_URL: "nats://localhost:14222"
           KAFKA_URL: "localhost:9092"
-        run: go test -race -v -count=1 ./runtime/... ./events/... ./db/...
+          MYSQL_URL: "test:pass@tcp(localhost:13306)/test?parseTime=true"
+        run: go test -race -v -count=1 -tags=integration ./runtime/... ./events/... ./db/...
 
   release:
     name: Release

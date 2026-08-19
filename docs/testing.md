@@ -159,8 +159,13 @@ The `docker-compose.test.yml` file defines:
 | Service | Default port | Env var |
 |---------|-------------|---------|
 | PostgreSQL | 15432 | `DATABASE_URL` |
+| MySQL | 13306 | `MYSQL_URL` |
 | NATS | 14222 | `NATS_URL` |
 | Kafka | 9092 | `KAFKA_URL` |
+| OpenFGA | 18080/18081 | `OPENFGA_URL` |
+| Zitadel | 18082 | `ZITADEL_URL` |
+
+Turso/libSQL tests use a local TempDir (no Docker). For a remote libSQL, set `TURSO_URL` (e.g. `libsql://…`).
 
 Run integration tests:
 ```bash

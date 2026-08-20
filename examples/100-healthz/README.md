@@ -19,13 +19,14 @@ docker compose run --rm bench --rps         # functional + RPS
 
 ## Benchmark (wrk -t10 -c1000 inside Docker)
 
-| Endpoint | RPS | Notes |
-|----------|:---:|-------|
-| Healthz (GET /healthz) | 637,818 | Fiber healthcheck, minimal middleware |
+| Endpoint | Dedicated (12-core) | Local (10-core) | Baseline |
+|----------|:---:|:---:|:---:|
+| Healthz (GET /healthz) | 545,449 | 661,742 | 637,818 |
 
-Measured 2026-08-02. +10.9% vs the 575,247 baseline (07-11).
-
-wrk runs inside the same container as the service. No macOS host networking overhead.
+Measured 2026-08-19 on v0.18.2. wrk runs inside the same container as the
+service (no host networking overhead). Dedicated = 12-core AMD Linux box;
+Local = 10-core ARM macOS. The baseline (637,818) was measured 2026-08-02 on
+the local machine.
 
 ## Architecture
 

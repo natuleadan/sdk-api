@@ -603,6 +603,14 @@ type OpenAPIConf struct {
 	DarkMode bool `json:"dark_mode" config:",default=true"`
 	// SpecCacheTTL sets Cache-Control max-age for /openapi.json
 	SpecCacheTTL string `json:"spec_cache_ttl" config:",default=1h"`
+	// FaviconURL sets a custom favicon for the docs page. It accepts:
+	//   "" (empty)      → inline SVG magnifying glass
+	//   "path/to/x.svg" → file on disk (relative to working dir, read once)
+	//   "https://..."   → remote URL, downloaded server-side with TTL cache
+	FaviconURL string `json:"favicon_url" config:",optional"`
+	// FaviconRefresh is the cache TTL for remote favicons (e.g. "24h").
+	// Defaults to 24h. Only used when favicon_url is an http(s) URL.
+	FaviconRefresh string `json:"favicon_refresh" config:",default=24h"`
 }
 
 // ---- Database ----

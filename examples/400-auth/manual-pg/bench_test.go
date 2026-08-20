@@ -33,6 +33,7 @@ const (
 )
 
 var docker bool
+
 const seedPass = "pass123"
 
 type TenantProduct struct {
@@ -851,7 +852,7 @@ func TestConcurrency_MultiRole(t *testing.T) {
 		return nil
 	})
 
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		if err := <-errc; err != nil {
 			t.Errorf("concurrent error: %v", err)
 		}
@@ -1279,7 +1280,7 @@ func TestRateLimit_Trigger(t *testing.T) {
 
 	// Subsequent requests should be rate limited
 	var had429 bool
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		resp := authenticated("POST", baseURL+"/rate-limited", token, bytes.NewReader(body))
 		if resp.StatusCode == 429 {
 			resp.Body.Close()
@@ -1327,7 +1328,7 @@ func TestRateLimit_PerUser_Independent(t *testing.T) {
 
 	// Fill admin's burst fully (5 requests)
 	adminOK := 0
-	for i := 0; i < 6; i++ {
+	for range 6 {
 		resp := authenticated("POST", baseURL+"/rate-limited", adminToken, bytes.NewReader(body))
 		resp.Body.Close()
 		if resp.StatusCode == 200 {
@@ -1337,7 +1338,7 @@ func TestRateLimit_PerUser_Independent(t *testing.T) {
 
 	// Editor should still be able to make requests (independent bucket)
 	editorOK := 0
-	for i := 0; i < 6; i++ {
+	for range 6 {
 		resp := authenticated("POST", baseURL+"/rate-limited", editorToken, bytes.NewReader(body))
 		resp.Body.Close()
 		if resp.StatusCode == 200 {
@@ -1373,7 +1374,7 @@ func TestRateLimit_PerUser_BlockAfterBurst(t *testing.T) {
 	body, _ := json.Marshal(map[string]string{})
 
 	var got429 bool
-	for i := 0; i < 30; i++ {
+	for range 30 {
 		resp := authenticated("POST", baseURL+"/per-user-limited", token, bytes.NewReader(body))
 		if resp.StatusCode == 429 {
 			resp.Body.Close()
@@ -1403,7 +1404,7 @@ func TestRateLimit_PerUser_IndependentBuckets(t *testing.T) {
 	body, _ := json.Marshal(map[string]string{})
 
 	// Fill admin's bucket across all prefork processes
-	for i := 0; i < 40; i++ {
+	for range 40 {
 		resp := authenticated("POST", baseURL+"/per-user-limited", adminToken, bytes.NewReader(body))
 		resp.Body.Close()
 		if resp.StatusCode == 429 {
@@ -1413,7 +1414,7 @@ func TestRateLimit_PerUser_IndependentBuckets(t *testing.T) {
 
 	// Editor should still be able to make at least 1 request (independent bucket)
 	var editorOK bool
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		resp := authenticated("POST", baseURL+"/per-user-limited", editorToken, bytes.NewReader(body))
 		if resp.StatusCode == 200 {
 			resp.Body.Close()
@@ -1441,7 +1442,7 @@ func TestRateLimit_PerKey_IndependentBuckets(t *testing.T) {
 	body, _ := json.Marshal(map[string]string{})
 
 	// Fill key A's bucket (sk-admin)
-	for i := 0; i < 30; i++ {
+	for range 30 {
 		resp := apiKeyRequest("POST", baseURL+"/per-key-limited", "sk-admin_abc123", bytes.NewReader(body))
 		resp.Body.Close()
 		if resp.StatusCode == 429 {
@@ -1451,7 +1452,7 @@ func TestRateLimit_PerKey_IndependentBuckets(t *testing.T) {
 
 	// Key B (sk-editor) should still have independent bucket
 	var keyBOk bool
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		resp := apiKeyRequest("POST", baseURL+"/per-key-limited", "sk-editor_abc123", bytes.NewReader(body))
 		if resp.StatusCode == 200 {
 			resp.Body.Close()
@@ -1477,7 +1478,7 @@ func TestRateLimit_PerKey_BlockAfterBurst(t *testing.T) {
 	body, _ := json.Marshal(map[string]string{})
 
 	var got429 bool
-	for i := 0; i < 30; i++ {
+	for range 30 {
 		resp := apiKeyRequest("POST", baseURL+"/per-key-limited", "sk-admin_abc123", bytes.NewReader(body))
 		if resp.StatusCode == 429 {
 			resp.Body.Close()
@@ -1505,7 +1506,7 @@ func TestRateLimit_PerRole_AdminLimit(t *testing.T) {
 	body, _ := json.Marshal(map[string]string{})
 
 	var got429 bool
-	for i := 0; i < 30; i++ {
+	for range 30 {
 		resp := authenticated("POST", baseURL+"/per-role-limited", adminToken, bytes.NewReader(body))
 		if resp.StatusCode == 429 {
 			resp.Body.Close()
@@ -1535,14 +1536,14 @@ func TestRateLimit_PerRole_ViewerSlowerThanAdmin(t *testing.T) {
 
 	viewerOK := 0
 	adminOK := 0
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		resp := authenticated("POST", baseURL+"/per-role-limited", viewerToken, bytes.NewReader(body))
 		resp.Body.Close()
 		if resp.StatusCode == 200 {
 			viewerOK++
 		}
 	}
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		resp := authenticated("POST", baseURL+"/per-role-limited", adminToken, bytes.NewReader(body))
 		resp.Body.Close()
 		if resp.StatusCode == 200 {
@@ -1898,7 +1899,7 @@ func TestRateLimit_MaxFunc_Normal(t *testing.T) {
 	body, _ := json.Marshal(map[string]string{})
 
 	var got429 bool
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		resp := authenticated("POST", baseURL+"/max-func-limited", token, bytes.NewReader(body))
 		if resp.StatusCode == 429 {
 			resp.Body.Close()
@@ -1925,7 +1926,7 @@ func TestRateLimit_MaxFunc_Doubled(t *testing.T) {
 
 	// With X-Debug: true, MaxFunc returns 5, overriding burst to 5
 	var gotOK int
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		req, _ := http.NewRequest("POST", baseURL+"/max-func-limited", bytes.NewReader(body))
 		req.Header.Set("Authorization", "Bearer "+token)
 		req.Header.Set("Content-Type", "application/json")
@@ -2209,7 +2210,7 @@ func TestTenant_ListIsScoped(t *testing.T) {
 	waitHTTP(t, 30*time.Second)
 	resetTenantData()
 
-	adminToken := login(t, "admin", seedPass) // org-alfa
+	adminToken := login(t, "admin", seedPass)   // org-alfa
 	viewerToken := login(t, "viewer", seedPass) // org-beta
 
 	// Admin (org-alfa) sees 2 products
@@ -2577,7 +2578,7 @@ func TestAccountLockout_AfterNFailures(t *testing.T) {
 	waitHTTP(t, 30*time.Second)
 
 	body, _ := json.Marshal(map[string]string{"username": "admin", "password": "wrong"})
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		resp, err := http.Post(baseURL+"/login", "application/json", bytes.NewReader(body))
 		if err != nil {
 			t.Fatalf("request failed: %v", err)
@@ -2603,7 +2604,7 @@ func TestAccountLockout_ResetsAfterSuccess(t *testing.T) {
 	waitHTTP(t, 30*time.Second)
 
 	body, _ := json.Marshal(map[string]string{"username": "editor", "password": "wrong"})
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		resp, err := http.Post(baseURL+"/login", "application/json", bytes.NewReader(body))
 		if err != nil {
 			t.Fatalf("request failed: %v", err)
@@ -5028,11 +5029,12 @@ func TestOIDC_WrongAlgorithm(t *testing.T) {
 	resp := authenticated("GET", baseURL+"/userinfo", token, nil)
 	defer resp.Body.Close()
 	if resp.StatusCode == 200 {
-		var info struct{ Sub string `json:"sub"` }
+		var info struct {
+			Sub string `json:"sub"`
+		}
 		json.NewDecoder(resp.Body).Decode(&info)
 		t.Logf("wrong alg token: sub=%s", info.Sub)
 	} else {
 		t.Logf("wrong alg token rejected (status=%d)", resp.StatusCode)
 	}
 }
-

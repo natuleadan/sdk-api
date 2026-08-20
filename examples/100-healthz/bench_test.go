@@ -141,10 +141,8 @@ func benchmarkHealthz(b *testing.B, raw bool) {
 		iterPerWorker := b.N / workers
 
 		for range workers {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				for i := 0; i < iterPerWorker; i++ {
+			wg.Go(func() {
+				for range iterPerWorker {
 					resp, err := client.Get(baseURL + "/healthz")
 					if err != nil {
 						b.Errorf("request failed: %v", err)
@@ -153,7 +151,7 @@ func benchmarkHealthz(b *testing.B, raw bool) {
 					io.Copy(io.Discard, resp.Body)
 					resp.Body.Close()
 				}
-			}()
+			})
 		}
 		wg.Wait()
 	})

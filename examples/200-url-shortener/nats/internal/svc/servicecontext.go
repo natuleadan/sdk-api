@@ -62,7 +62,7 @@ func (c *ServiceContext) CacheConn() *events.Conn {
 }
 
 func (c *ServiceContext) StartRPCCoreSub() {
-	for i := 0; i < 30; i++ {
+	for range 30 {
 		c.ensureEventSvc()
 		if c.eventSvc != nil {
 			break
@@ -127,9 +127,9 @@ func (c *ServiceContext) CacheDelete(idKey, scKey string) {
 	}
 }
 
-func (c *ServiceContext) RLock()    { c.pullMu.RLock() }
-func (c *ServiceContext) RUnlock()  { c.pullMu.RUnlock() }
+func (c *ServiceContext) RLock()        { c.pullMu.RLock() }
+func (c *ServiceContext) RUnlock()      { c.pullMu.RUnlock() }
 func (c *ServiceContext) EventRLock()   { c.eventMu.RLock() }
-func (c *ServiceContext) EventRUnlock()  { c.eventMu.RUnlock() }
-func (c *ServiceContext) EventLock()     { c.eventMu.Lock() }
-func (c *ServiceContext) EventUnlock()   { c.eventMu.Unlock() }
+func (c *ServiceContext) EventRUnlock() { c.eventMu.RUnlock() }
+func (c *ServiceContext) EventLock()    { c.eventMu.Lock() }
+func (c *ServiceContext) EventUnlock()  { c.eventMu.Unlock() }

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"slices"
 
 	"github.com/natuleadan/sdk-api/runtime"
 	"github.com/natuleadan/sdk-api/runtime/auth"
@@ -35,11 +36,8 @@ func ValidateJWT(a *middleware.AuthContext, requiredRoles, requiredPermissions [
 	if len(requiredPermissions) > 0 {
 		allowed := false
 		for _, p := range a.Permissions {
-			for _, req := range requiredPermissions {
-				if p == req {
-					allowed = true
-					break
-				}
+			if slices.Contains(requiredPermissions, p) {
+				allowed = true
 			}
 			if allowed {
 				break

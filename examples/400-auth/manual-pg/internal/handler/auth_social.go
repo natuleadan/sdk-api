@@ -109,10 +109,7 @@ func handleSocialCallback(svcCtx *svc.ServiceContext) func(c *runtime.RestCtx) e
 		if !p.hasCredentials() && providerID == "" {
 			providerID = code
 			email = code + "@" + provider + ".mock"
-			n := len(code)
-			if n > 8 {
-				n = 8
-			}
+			n := min(len(code), 8)
 			name = provider + "-user-" + code[:n]
 		}
 
@@ -194,10 +191,7 @@ func findOrCreateLinkedUser(c *runtime.RestCtx, provider, providerID, email, nam
 
 	username := email
 	if username == "" {
-		n := len(providerID)
-		if n > 8 {
-			n = 8
-		}
+		n := min(len(providerID), 8)
 		username = provider + "-" + providerID[:n]
 	}
 	userID = "user-" + username

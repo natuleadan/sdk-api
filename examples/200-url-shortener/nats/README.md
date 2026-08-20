@@ -22,18 +22,23 @@ docker compose run --rm bench --rps         # functional + RPS
 
 ## Benchmark (wrk -t10 -c1000 inside Docker)
 
-| Endpoint | RPS | Notes |
-|----------|:---:|-------|
-| List (GET /links) | 18,714 | PG scan + pagination |
-| Expand (GET /expand/:shortCode) | 109,972 | Cache-aside (NATS KV) |
-| Create (POST /links) | 16,672 | PG insert + cache invalidation + event publish |
-| Update (PATCH /links/:id) | 13,377 | PG update + cache invalidation + event publish |
-| Delete (DELETE /links/:id) | 32,874 | PG delete + cache invalidation + event publish |
-| RPC (POST /nats/rpc) | 129,005 | Core NATS request-reply |
-| KV Get (GET /nats/kv/:key) | 86,891 | NATS KV standalone read |
-| KV Set (PUT /nats/kv/:key) | 62,327 | NATS KV standalone write |
+| Endpoint | Dedicated (12-core) | Local (10-core) | Baseline |
+|----------|:---:|:---:|:---:|
+| List (GET /links) | 23,649 | 24,584 | 18,714 |
+| Expand (GET /expand/:shortCode) | 133,015 | 115,512 | 109,972 |
+| Create (POST /links) | 35,182 | 25,056 | 16,672 |
+| Update (PATCH /links/:id) | 28,962 | 26,768 | 13,377 |
+| Delete (DELETE /links/:id) | 54,321 | 36,828 | 32,874 |
+| RPC (POST /nats/rpc) | 154,614 | 132,957 | 129,005 |
+| KV Get (GET /nats/kv/:key) | 134,279 | 118,634 | 86,891 |
+| KV Set (PUT /nats/kv/:key) | 134,967 | 117,011 | 62,327 |
 
-Measured 2026-08-01 with PgDog pool 200/50/8 + max_connections 500 (fix applied 2026-07-31). Create recovered from 2,149 (untuned PgDog pool 20) to ~16-18K (+13% vs 14,908 baseline). Update with `math.random(1,200)` was throttled to ~9K by row-lock contention on 200 hot rows; widening the range to 1-2000 (docs/benchmarks.md rule 11) restored it to 13,377, on par with the 14,192 baseline.
+Measured 2026-08-19 on v0.18.2 (Dedicated = 12-core AMD Linux box; Local =
+10-core ARM macOS; wrk inside Docker, clean host before measuring). Baseline
+2026-08-01 with PgDog pool 200/50/8 + max_connections 500. Update with
+`math.random(1,200)` was throttled to ~9K by row-lock contention on 200 hot
+rows; widening the range to 1-2000 (docs/benchmarks.md rule 11) restored it to
+13,377.
 
 ## Architecture
 

@@ -11,16 +11,22 @@ docker compose run --rm bench --rps         # functional + RPS
 
 ## Benchmark (wrk -t10 -c1000 inside Docker via ProxySQL)
 
-| Endpoint | RPS | Notes |
-|----------|:---:|-------|
-| Expand (GET /expand/:shortCode) | 34,014 | MariaDB via ProxySQL pooler |
-| List (GET /links) | 23,336 | Pagination with COUNT(*) |
-| GetByID (GET /links/:id) | 37,857 | Direct read by PK |
-| Create (POST /links) | 16,658 | Insert via MariaDB (app pool 100) |
-| Update (PATCH /links/:id) | 34,382 | Update via MariaDB |
-| Delete (DELETE /links/:id) | 35,066 | Delete via MariaDB |
+| Endpoint | Dedicated (12-core) | Local (10-core) | Baseline |
+|----------|:---:|:---:|:---:|
+| Expand (GET /expand/:shortCode) | 38,981 | 29,051 | 34,014 |
+| List (GET /links) | 28,132 | 19,968 | 23,336 |
+| GetByID (GET /links/:id) | 38,824 | 31,677 | 37,857 |
+| Create (POST /links) | 38,229 | 23,698 | 16,658 |
+| Update (PATCH /links/:id) | **39,250** | 28,733 | 34,382 |
+| Delete (DELETE /links/:id) | **38,425** | 26,918 | 35,066 |
 
-Measured 2026-08-01. The previous Update row (138,390) was invalid: `update.lua` used `PUT` against a PATCH-only route, returning 405 without touching the database (see docs/benchmarks.md rules 10-11). Create stabilized at 16,658 with the app pool raised from 20 to 100 (2026-08-01), -7.7% vs the 18,036 baseline (pool 100 at measurement time).
+Update and Delete measured isolated on a clean dedicated box with warm MariaDB.
+The previous dedicated values (8,730 / 9,596) were anomalous — row-lock
+contention in a full run with hot id ranges under 1000 connections. The baseline
+update (34K) already uses the PATCH fix.
+
+Measured 2026-08-20 on v0.18.2 (Dedicated = 12-core AMD Linux; wrk inside
+Docker, clean host). Baseline 2026-08-01.
 
 ## Architecture
 

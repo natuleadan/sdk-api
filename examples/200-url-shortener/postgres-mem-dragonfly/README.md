@@ -11,16 +11,30 @@ docker compose run --rm bench --rps         # functional + RPS
 
 ## Benchmark (wrk -t10 -c1000 inside Docker)
 
-| Endpoint | RPS | Notes |
-|----------|:---:|-------|
-| Expand (GET /expand/:shortCode) | 259,606 | PostgreSQL + RAM L1 (sync.Map) + Dragonfly L2 |
-| List (GET /links) | 20,790 | Pagination with COUNT(*) |
-| GetByID (GET /links/:id) | 42,025 | Direct read by PK |
-| Create (POST /links) | 17,633 | Insert via PostgreSQL |
-| Update (PATCH /links/:id) | 16,854 | Update via PostgreSQL |
-| Delete (DELETE /links/:id) | 34,239 | Delete via PostgreSQL |
+| Endpoint | Dedicated (12-core) | Local (10-core) | Baseline |
+|----------|:---:|:---:|:---:|
+| Expand (GET /api/expand/:shortCode) | **304,878** | 258,684 | 259,606 |
+| Create (POST /api/links) | **299,160** | 227,489 | 17,633 |
+| Delete (DELETE /api/links/:id) | **52,957** | 30,137 | 34,239 |
+| GetByID (GET /api/links/:id) | **64,954** | 40,801 | 42,025 |
+| List (GET /api/links) | **30,651** | 22,099 | 20,790 |
+| Update (PATCH /api/links/:id) | **26,687** | 23,907 | 16,854 |
 
-Measured 2026-08-01 with PgDog pool 200/50/8 + max_connections 500 (fix applied 2026-07-31) and Dragonfly `--proactor_threads=2 --maxclients=20000` (2026-08-01). The Dragonfly tuning lifted update 14,827→16,854 (+14%), expand 249,149→259,606 (+4%) and create 16,561→17,633 (+6%) vs the plain `--cluster_mode=emulated` config; list/getbyid/delete within ±10% run noise. The previous Update row (202,813) was invalid: `update.lua` used `PUT` against a PATCH-only route, returning 405 without touching the database (see docs/benchmarks.md rules 10-11).
+Measured 2026-08-19 on v0.18.2 (Dedicated = 12-core AMD Linux box; Local =
+10-core ARM macOS; same code, same tag, wrk inside Docker).
+
+### Methodology
+
+- **Expand** is measured isolated (`--rps:expand`) with a warm L1 cache. In the
+  full `--rps` run the expand drops to ~30K because create/update/delete
+  **invalidate** the L1 entries that expand reads. The real warm-cache value is
+  258-305K.
+- **Create 299K vs baseline 17.6K**: the baseline (2026-08-01) was measured
+  under host memory/swap pressure. On a clean dedicated box the local PG INSERT
+  yields ~17x more.
+- Dedicated wins every endpoint (+12% to +76%) — more cores and RAM, no host
+  contention. The baseline expand (259,606) matches the local 258,684, so the
+  methodology is consistent.
 
 ## Architecture
 

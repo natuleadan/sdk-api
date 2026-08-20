@@ -35,14 +35,23 @@ docker compose run --rm bench --rps         # functional + RPS
 
 ## Benchmark (wrk -t10 -c1000 inside Docker)
 
-| Endpoint | RPS | Notes |
-|----------|:---:|-------|
-| Expand (GET /expand/:shortCode) | 57,882 | Direct SQLite read |
-| List (GET /links) | 23,672 | Offset pagination with COUNT(*) |
-| GetByID (GET /links/:id) | 54,924 | Direct read by PK |
-| Create (POST /links) | 19.06 | Single-writer SQLite |
-| Update (PUT /links/:id) | 7,254 | Write + busy_timeout |
-| Delete (DELETE /links/:id) | 7.06 | Single-writer SQLite |
+| Endpoint | Dedicated (12-core) | Local (10-core) | Baseline |
+|----------|:---:|:---:|:---:|
+| Expand (GET /expand/:shortCode) | 64,561 | 56,829 | 57,882 |
+| List (GET /links) | 31,876 | 25,845 | 23,672 |
+| GetByID (GET /links/:id) | 63,449 | 53,769 | 54,924 |
+| Create (POST /links) | 40.88 | 14.08 | 19.06 |
+| Update (PUT /links/:id) | 78.34 | 36.89 | 7,254* |
+| Delete (DELETE /links/:id) | 30.03 | 6.30 | 7.06 |
+
+\* The baseline Update (7,254) was invalid: `update.lua` used `PUT` against a
+PATCH-only route, returning 405 without touching the database (see
+docs/benchmarks.md rules 10-11). Real SQLite single-writer writes are tens of
+RPS.
+
+Measured 2026-08-19 on v0.18.2 (Dedicated = 12-core AMD Linux box; Local =
+10-core ARM macOS; wrk inside Docker, clean host before measuring). Baseline
+2026-08-01.
 
 ## Limitations
 

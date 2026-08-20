@@ -11,16 +11,25 @@ docker compose run --rm bench --rps         # functional + RPS
 
 ## Benchmark (wrk -t10 -c1000 inside Docker)
 
-| Endpoint | RPS | Notes |
-|----------|:---:|-------|
-| Expand (GET /expand/:shortCode) | 32,814 | MongoDB direct |
-| List (GET /links) | 24,707 | Pagination with skip/limit |
-| GetByID (GET /links/:id) | 29,321 | Direct read by PK |
-| Create (POST /links) | 31,285 | Insert via MongoDB |
-| Update (PATCH /links/:id) | 34,977 | Update via MongoDB |
-| Delete (DELETE /links/:id) | 41,937 | Delete via MongoDB |
+| Endpoint | Dedicated (12-core) | Local (10-core) | Baseline |
+|----------|:---:|:---:|:---:|
+| Expand (GET /expand/:shortCode) | 57,771 | 33,250 | 32,814 |
+| List (GET /links) | 145,331 | 25,064 | 24,707 |
+| GetByID (GET /links/:id) | 157,453 | 29,269 | 29,321 |
+| Create (POST /links) | 149,272 | 34,117 | 31,285 |
+| Update (PATCH /links/:id) | 127,218 | 34,491 | 34,977 |
+| Delete (DELETE /links/:id) | 144,655 | 39,905 | 41,937 |
 
-Measured 2026-08-01. The previous Update row (139,859) was invalid: `update.lua` used `PUT` against a PATCH-only route, returning 405 without touching the database (see docs/benchmarks.md rules 10-11).
+> [!tip] Fix 2026-08-19: index on lookup field
+> The dedicated expand measured 199 RPS (COLLSCAN) — `MongoMustRegister` did not
+> create an index on the custom lookup field (`shortCode`). Fixed by
+> `mon.Model.EnsureIndex` + a call in register: expand 199 → **57,771** on the
+> dedicated box. The other endpoints (127-157K) were already indexed or inserts.
+
+Measured 2026-08-19 on v0.18.2 (Dedicated = 12-core AMD Linux box; Local =
+10-core ARM macOS; wrk inside Docker, clean host before measuring). Baseline
+2026-08-01. The previous Update row (139,859) was invalid: `update.lua` used
+`PUT` against a PATCH-only route (see docs/benchmarks.md rules 10-11).
 
 ## Architecture
 

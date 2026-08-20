@@ -123,6 +123,7 @@ func registerEntries(app *fiber.App, cfg *ServiceConfig, handlers *EntryHandlers
 		if err := registerOneEntry(app, &entry, handlers, prefix, brokers, models, jwtCfg, authValidator, apiKeyValidator, fgaClient, oryClient, zitadelClient, driver, serverPerUser, serverPerKey, rlAlgorithm, rlTTL, pools, kvConns, rlRedis); err != nil {
 			return fmt.Errorf("entry[%d] %s %s: %w", i, entry.Type, entry.Path, err)
 		}
+		registerEntryCORS(app, &entry, prefix, cfg.Server.CORSGroups)
 	}
 	return nil
 }
@@ -584,6 +585,50 @@ func registerValidationMiddleware(app *fiber.App, entry *EntryDef, prefix string
 		return
 	}
 	app.Use(prefix+entry.Path, middleware.ValidateInput(entry.ValidationModel))
+}
+
+// registerEntryCORS applies a named CORS group to a single entry route via
+// entry[].cors. The group must exist in server.cors_groups (validated at load).
+func registerEntryCORS(app *fiber.App, entry *EntryDef, prefix string, groups []CORSGroupConf) {
+	if entry.CORS == "" {
+		return
+	}
+	for _, g := range groups {
+		if g.Name != entry.CORS {
+			continue
+		}
+		app.Use(prefix+entry.Path, middleware.CORS(middleware.CORSConfig{
+			AllowedOrigins:       joinCORSStrings(g.Origins),
+			AllowedMethods:       joinCORSStringsDefault(g.Methods, "GET,POST,PUT,PATCH,DELETE,OPTIONS"),
+			AllowedHeaders:       joinCORSStringsDefault(g.Headers, "Origin,Content-Type,Accept,Authorization"),
+			AllowCredentials:     g.Credentials,
+			MaxAge:               g.MaxAge,
+			ExposeHeaders:        joinCORSStrings(g.ExposeHeaders),
+			AllowPrivateNetwork:  g.AllowPrivateNetwork,
+		}))
+		return
+	}
+}
+
+func joinCORSStrings(items []string) string {
+	if len(items) == 0 {
+		return ""
+	}
+	var sb strings.Builder
+	for i, s := range items {
+		if i > 0 {
+			sb.WriteString(",")
+		}
+		sb.WriteString(strings.TrimSpace(s))
+	}
+	return sb.String()
+}
+
+func joinCORSStringsDefault(items []string, def string) string {
+	if len(items) == 0 {
+		return def
+	}
+	return joinCORSStrings(items)
 }
 
 func registerEntryRateLimit(app *fiber.App, entry *EntryDef, prefix, algorithm string, ttl time.Duration, kvRdb ...*redis.Redis) {

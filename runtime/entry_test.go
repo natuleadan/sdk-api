@@ -1399,3 +1399,50 @@ func TestConvertRateLimit_AllFields(t *testing.T) {
 		t.Error("Algorithm not propagated")
 	}
 }
+
+func TestRegisterEntryCORS_AppliesGroup(t *testing.T) {
+	app := fiber.New()
+	entry := &EntryDef{
+		Type: "rest", Path: "/ping", Method: "GET", Handler: "ping", CORS: "app",
+	}
+	groups := []CORSGroupConf{
+		{Name: "app", Origins: []string{"https://app.example.com"}, Methods: []string{"GET"}},
+	}
+	registerEntryCORS(app, entry, "/api", groups)
+
+	// Preflight from allowed origin
+	req := httptest.NewRequestWithContext(context.Background(), "OPTIONS", "/api/ping", nil)
+	req.Header.Set("Origin", "https://app.example.com")
+	req.Header.Set("Access-Control-Request-Method", "GET")
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	if resp.StatusCode != 204 {
+		t.Errorf("expected 204, got %d", resp.StatusCode)
+	}
+	if resp.Header.Get("Access-Control-Allow-Origin") != "https://app.example.com" {
+		t.Errorf("expected origin echo, got %q", resp.Header.Get("Access-Control-Allow-Origin"))
+	}
+}
+
+func TestRegisterEntryCORS_NoGroup_Skip(t *testing.T) {
+	app := fiber.New()
+	entry := &EntryDef{Type: "rest", Path: "/ping", Method: "GET", Handler: "ping"} // no CORS ref
+	registerEntryCORS(app, entry, "/api", nil)
+
+	req := httptest.NewRequestWithContext(context.Background(), "OPTIONS", "/api/ping", nil)
+	req.Header.Set("Origin", "https://evil.com")
+	req.Header.Set("Access-Control-Request-Method", "GET")
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	// No CORS middleware registered -> 404 (no OPTIONS route registered)
+	if resp.StatusCode != 404 {
+		t.Errorf("expected 404 without CORS middleware, got %d", resp.StatusCode)
+	}
+	if resp.Header.Get("Access-Control-Allow-Origin") != "" {
+		t.Errorf("expected no CORS header, got %q", resp.Header.Get("Access-Control-Allow-Origin"))
+	}
+}

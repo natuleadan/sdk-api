@@ -11,12 +11,15 @@ docker compose run --rm bench --rps         # functional + RPS
 
 ## Benchmark (wrk -t10 -c1000 inside Docker)
 
-| Endpoint | RPS | Notes |
-|----------|:---:|-------|
-| Upload (POST /files/upload/:key) | 47,315 | RustFS proxy (no cache) |
-| Download (GET /files/download/:key) | 39,835 | RustFS proxy (no cache) |
+| Endpoint | Dedicated (12-core) | Local (10-core) | Baseline |
+|----------|:---:|:---:|:---:|
+| Upload (POST /files/upload/:key) | **58,350** | 59,671 | 47,315 |
+| Download (GET /files/download/:key) | 42,080 | 29,785 | 39,835 |
 
-Measured 2026-08-01 with RustFS 1.0.0-beta.12 (F3). The MinIO RELEASE.2025-09-07 pin (07-28) caused a ~-52% upload regression across all S3 variants; RustFS restores and exceeds the 15,796 baseline by +200%.
+Upload measured isolated (`--rps:upload`) with warm RustFS on both platforms.
+
+Measured 2026-08-20 on v0.18.2 (Dedicated = 12-core AMD Linux; Local = 10-core
+ARM macOS with VMM acceleration; RustFS 1.0.0-beta.12). Baseline 2026-08-01.
 
 
 ## Architecture

@@ -860,6 +860,7 @@ func (s *Service) RunWithContext(ctx context.Context) error {
 		return fmt.Errorf("deploy validation: %w", err)
 	}
 	CheckVercelWarnings(s.config)
+	CheckScalarWarnings(s.config)
 
 	if err := s.validateAuthConfig(); err != nil {
 		return fmt.Errorf("auth validation: %w", err)

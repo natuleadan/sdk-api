@@ -113,3 +113,28 @@ func CheckVercelWarnings(cfg *ServiceConfig) {
 		}
 	}
 }
+
+// CheckScalarWarnings logs non-blocking warnings when Scalar UI is enabled but
+// CORS or CSP are not configured for /docs. Scalar loads its assets from
+// cdn.jsdelivr.net and Google Fonts; without the right CORS/CSP the docs page
+// will render broken. The SDK never injects these for you — it is a user
+// decision — so it warns and points to the reference example instead.
+func CheckScalarWarnings(cfg *ServiceConfig) {
+	oai := cfg.Server.OpenAPI
+	if oai == nil || !oai.Enabled {
+		return
+	}
+	sc := cfg.Server
+	hasCORS := sc.CORS != nil && len(sc.CORS.Origins) > 0
+	hasGroup := len(sc.CORSGroups) > 0
+	docsPath := oai.DocsPath
+	if docsPath == "" {
+		docsPath = "/docs"
+	}
+	if !hasCORS && !hasGroup {
+		logx.Infof("openapi: Scalar UI enabled at %q but no CORS configured — the docs page won't load from another origin. See examples/102-scalar-ui for the CORS/CSP model.", docsPath)
+	}
+	if sc.SecurityHeaders == nil || sc.SecurityHeaders.CSPConfig == nil {
+		logx.Infof("openapi: Scalar UI enabled but no CSP configured — scripts from cdn.jsdelivr.net and Google Fonts will be blocked. See examples/102-scalar-ui for the required csp_config.")
+	}
+}

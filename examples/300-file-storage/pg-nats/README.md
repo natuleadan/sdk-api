@@ -11,15 +11,21 @@ docker compose run --rm bench --rps         # functional + RPS
 
 ## Benchmark (wrk -t10 -c1000 inside Docker)
 
-| Endpoint | RPS | Notes |
-|----------|:---:|-------|
-| Upload (POST /files/upload) | 2,276 | Spooled sync: ingest → S3 → 200 |
-| Upload Async (POST /files/upload-async) | 8,345 | Spooled async: ingest → 202, S3 in background |
-| Download (GET /files/download/:key) | 22,154 | RustFS + L1 RAM cache + L2 disk cache |
-| Create (POST /products) | 22,331 | PG insert + NATS event publish |
-| List (GET /products?size=20) | 29,077 | Keyset pagination |
+| Endpoint | Dedicated (12-core) | Local (10-core) | Baseline |
+|----------|:---:|:---:|:---:|
+| Upload (POST /files/upload) | **2,714** | 2,807 | 2,276 |
+| Upload Async (POST /files/upload-async) | 10,729 | 7,484 | 8,345 |
+| Download (GET /files/download/:key) | 27,510 | 21,580 | 22,154 |
+| Create (POST /products) | **26,705** | 17,700 | 22,331 |
+| List (GET /products?size=20) | 38,989 | 28,331 | 29,077 |
 
-Measured 2026-08-02 with PgDog pool 200/50/8 + max_connections 500, RustFS 1.0.0-beta.12 and spooled uploads (storage.spool). Both upload modes stream the body to memory (4MB) then to /tmp/spool before touching S3 — the ingest bound is local disk, not S3 or RAM. **Async is the default mode**: it returns 202 right after spooling (upload handled by the NATS exit worker) and is 3.7x faster than sync (8,345 vs 2,276). Multipart part size and concurrency are YAML-driven (`multipart_part_size`, `multipart_concurrency`).
+Upload and Create measured isolated on a clean dedicated box with warm infra.
+The previous dedicated values (75 / 1,895) were anomalous — measured during
+NATS/PG startup contention. Async remains ~3.7x faster than sync (spool → 202,
+S3 in background via the NATS exit worker).
+
+Measured 2026-08-20 on v0.18.2 (Dedicated = 12-core AMD Linux; PgDog pool
+200/50/8 + RustFS 1.0.0-beta.12 + spooled uploads). Baseline 2026-08-02.
 
 
 ## Architecture

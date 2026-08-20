@@ -13,13 +13,12 @@ docker compose run --rm bench --rps         # functional + RPS
 
 | Endpoint | Dedicated (12-core) | Local (10-core) | Baseline |
 |----------|:---:|:---:|:---:|
-| Upload (POST /files/upload/:key) | 42,266 | 65,550 | 61,191 |
+| Upload (POST /files/upload/:key) | **52,423** | 65,550 | 61,191 |
 | Download (GET /files/download/:key) | 132,552 | 104,287 | 115,033 |
 
 Measured 2026-08-20 on v0.18.2 (Dedicated = 12-core AMD Linux; Local = 10-core
 ARM macOS with VMM acceleration; wrk inside Docker). Baseline 2026-08-01.
-Dedicated upload was measured in a full run — re-measure isolated for clean
-reference.
+Dedicated upload measured isolated with warm infra.
 
 
 ## Architecture

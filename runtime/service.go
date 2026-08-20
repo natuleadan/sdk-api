@@ -531,6 +531,13 @@ func MongoMustRegister(svc *Service, name, poolName, database, collection, looku
 			log.Fatalf("runtime: mongo pool %q not found", poolName)
 		}
 		model := mon.MustNewModel(uri, database, collection)
+		// Custom lookup fields (not _id) need a unique index or every
+		// Get/Update/Delete is a collection scan (COLLSCAN), tanking RPS.
+		if lookupField != "" && lookupField != "_id" {
+			if err := model.EnsureIndex(context.Background(), lookupField); err != nil {
+				log.Fatalf("runtime: mongo index %q: %v", lookupField, err)
+			}
+		}
 		return NewMongoCRUDProvider(model, lookupField)
 	})
 }

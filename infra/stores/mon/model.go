@@ -3,6 +3,7 @@ package mon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/natuleadan/sdk-api/infra/breaker"
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/natuleadan/sdk-api/infra/timex"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
@@ -155,6 +157,27 @@ func (m *Model) Find(ctx context.Context, v, filter any,
 // tracing span, and duration logging. Use for high-throughput CRUD that manages its own cursor.
 func (m *Model) RawCollection() *mongo.Collection {
 	return m.rawColl
+}
+
+// EnsureIndex creates a unique index on field (idempotent). Used for custom
+// lookup fields (e.g. short_code) so CRUD Get/Update/Delete are indexed lookups
+// instead of collection scans. _id is already indexed by Mongo.
+func (m *Model) EnsureIndex(ctx context.Context, field string) error {
+	if field == "" || field == "_id" {
+		return nil
+	}
+	_, err := m.rawColl.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: field, Value: 1}},
+		Options: options.Index().SetUnique(true),
+	})
+	if err != nil {
+		var ce mongo.CommandError
+		if errors.As(err, &ce) && ce.Code == 85 { // IndexOptionsConflict: already exists
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 // FindNoBreaker runs Find directly on the raw mongo.Collection, bypassing the circuit breaker,

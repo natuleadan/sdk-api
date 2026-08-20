@@ -992,6 +992,8 @@ kv:
 
 ### CORS
 
+#### Global CORS
+
 ```yaml
 server:
   cors:
@@ -1000,12 +1002,128 @@ server:
     methods:
       - GET
       - POST
+    headers:
+      - Content-Type
+      - Authorization
     credentials: true
     max_age: 86400
+    expose_headers:
+      - X-Request-ID
+    allow_private_network: false
 ```
 
 When `cors` section is omitted, CORS defaults to same-origin only (secure default).
 Never use `"*"` in production when `credentials: true`.
+
+#### Named CORS groups (per-route)
+
+Like `databases`, CORS policies can be defined once by name and referenced from
+routes, so you don't repeat origins per endpoint:
+
+```yaml
+server:
+  cors_groups:
+    - name: docs            # Scalar UI — public docs, open CORS
+      origins: ["*"]
+      methods: [GET]
+      credentials: false
+      max_age: 3600
+    - name: app             # API for the client app
+      origins: ["https://app.example.com"]
+      methods: [GET, POST, PATCH, DELETE]
+      headers: [Content-Type, Authorization]
+      credentials: true
+      expose_headers: [X-Request-ID]
+    - name: webhooks        # Server-to-server, narrow
+      origins: ["https://hooks.example.com"]
+      methods: [POST]
+      headers: [Content-Type]
+      max_age: 600
+```
+
+Apply a group two ways:
+
+1. **Path-scoped middleware** — applies to every route under the path:
+```yaml
+  middleware:
+    - path: "/docs"
+      apply: ["cors:docs"]
+```
+
+2. **Per-entry reference** — the entry uses the group directly:
+```yaml
+entry:
+  - type: rest
+    method: GET
+    path: /ping
+    handler: ping
+    cors: app
+```
+
+If a path matches a group's middleware, the global `cors` block is skipped for
+that path (the group wins). Routes with no group and no global CORS have no CORS
+headers at all — same-origin only.
+
+### Scalar UI (OpenAPI docs)
+
+`sdk-api` serves Scalar UI when `openapi.enabled: true`. Scalar loads its assets
+from `cdn.jsdelivr.net` and fonts from Google Fonts + `fonts.scalar.com`, so the
+CSP and CORS must be configured or the docs page renders broken. The SDK warns at
+startup when Scalar is enabled without CORS/CSP; see `examples/102-scalar-ui`
+for the full reference config.
+
+```yaml
+server:
+  openapi:
+    enabled: true
+    theme: moon
+    dark_mode: true
+    docs_path: /docs
+    spec_path: /openapi.json
+    favicon_url: "static/logo.svg"            # optional: local file
+    favicon_refresh: 24h                      # optional: TTL for remote favicon
+```
+
+Required CSP for Scalar:
+
+```yaml
+  security_headers:
+    csp_config:
+      script_src: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"]
+      style_src: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"]
+      font_src:
+        - "'self'"
+        - "https://fonts.googleapis.com"
+        - "https://fonts.gstatic.com"
+        - "https://cdn.jsdelivr.net"
+        - "https://fonts.scalar.com"
+```
+
+#### Favicon
+
+`/favicon.ico` is served automatically when `openapi.enabled: true`. The
+`favicon_url` value selects one of three modes:
+
+| `favicon_url` | Mode | Behavior |
+|---|---|---|
+| *(empty)* | inline | Default SVG magnifying glass, no I/O |
+| `static/logo.svg` | local | File on disk, read once at startup (relative to working dir); falls back to inline if missing |
+| `https://cdn.example.com/logo.svg` | remote | Downloaded server-side with a TTL cache (`favicon_refresh`, default `24h`) |
+
+Supported extensions for both local and remote: `.svg`, `.png`, `.ico`, `.webp`
+(content-type derived from the extension).
+
+**Remote mode details:**
+
+- The favicon is fetched once at startup and cached in memory.
+- When `favicon_refresh` expires, it is re-downloaded **in the background**
+  (stale-while-revalidate) — requests never block on the network.
+- If a refresh fails (network or non-200), the previous bytes are served with a
+  log line — the endpoint never breaks.
+
+**Caching:** in all modes the bytes are served from memory with an `ETag`;
+repeat requests get a `304 Not Modified` and
+`Cache-Control: public, max-age=86400`, so the endpoint is cheap even under load.
 
 ### Security Headers
 

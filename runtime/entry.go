@@ -76,10 +76,10 @@ type EntryHandlers struct {
 }
 
 func RegisterEntries(app *fiber.App, cfg *ServiceConfig, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, models map[string]*db.TableInfo, jwtCfg *middleware.JWTConfig, authValidator func(context.Context, *middleware.AuthContext, []string, []string) error, apiKeyValidator func(ctx context.Context, key string) (*middleware.AuthContext, error), fgaClient openfga.Checker, oryClient *ory.Client, zitadelClient *zitadel.Client, rlRdb ...*redis.Redis) error {
-	return registerEntries(app, cfg, handlers, prefix, brokers, models, jwtCfg, authValidator, apiKeyValidator, fgaClient, oryClient, zitadelClient, nil, nil, rlRdb...)
+	return registerEntries(app, cfg, handlers, prefix, brokers, models, jwtCfg, authValidator, apiKeyValidator, fgaClient, oryClient, zitadelClient, nil, nil, nil, rlRdb...)
 }
 
-func registerEntries(app *fiber.App, cfg *ServiceConfig, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, models map[string]*db.TableInfo, jwtCfg *middleware.JWTConfig, authValidator func(context.Context, *middleware.AuthContext, []string, []string) error, apiKeyValidator func(ctx context.Context, key string) (*middleware.AuthContext, error), fgaClient openfga.Checker, oryClient *ory.Client, zitadelClient *zitadel.Client, pools map[string]any, kvConns map[string]*redis.Redis, rlRdb ...*redis.Redis) error {
+func registerEntries(app *fiber.App, cfg *ServiceConfig, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, models map[string]*db.TableInfo, jwtCfg *middleware.JWTConfig, authValidator func(context.Context, *middleware.AuthContext, []string, []string) error, apiKeyValidator func(ctx context.Context, key string) (*middleware.AuthContext, error), fgaClient openfga.Checker, oryClient *ory.Client, zitadelClient *zitadel.Client, pools map[string]any, kvConns map[string]*redis.Redis, corsFuncs map[string]func(origin string) bool, rlRdb ...*redis.Redis) error {
 	driver := ""
 	if cfg.Auth != nil {
 		driver = cfg.Auth.Driver
@@ -123,7 +123,7 @@ func registerEntries(app *fiber.App, cfg *ServiceConfig, handlers *EntryHandlers
 		if err := registerOneEntry(app, &entry, handlers, prefix, brokers, models, jwtCfg, authValidator, apiKeyValidator, fgaClient, oryClient, zitadelClient, driver, serverPerUser, serverPerKey, rlAlgorithm, rlTTL, pools, kvConns, rlRedis); err != nil {
 			return fmt.Errorf("entry[%d] %s %s: %w", i, entry.Type, entry.Path, err)
 		}
-		registerEntryCORS(app, &entry, prefix, cfg.Server.CORSGroups)
+		registerEntryCORS(app, &entry, prefix, cfg.Server.CORSGroups, corsFuncs)
 	}
 	return nil
 }
@@ -589,13 +589,18 @@ func registerValidationMiddleware(app *fiber.App, entry *EntryDef, prefix string
 
 // registerEntryCORS applies a named CORS group to a single entry route via
 // entry[].cors. The group must exist in server.cors_groups (validated at load).
-func registerEntryCORS(app *fiber.App, entry *EntryDef, prefix string, groups []CORSGroupConf) {
+// corsFuncs carries dynamic origin validators registered via SetCORSOriginsFunc.
+func registerEntryCORS(app *fiber.App, entry *EntryDef, prefix string, groups []CORSGroupConf, corsFuncs map[string]func(origin string) bool) {
 	if entry.CORS == "" {
 		return
 	}
 	for _, g := range groups {
 		if g.Name != entry.CORS {
 			continue
+		}
+		var originFn func(origin string) bool
+		if corsFuncs != nil {
+			originFn = corsFuncs[g.Name]
 		}
 		app.Use(prefix+entry.Path, middleware.CORS(middleware.CORSConfig{
 			AllowedOrigins:       joinCORSStrings(g.Origins),
@@ -605,6 +610,7 @@ func registerEntryCORS(app *fiber.App, entry *EntryDef, prefix string, groups []
 			MaxAge:               g.MaxAge,
 			ExposeHeaders:        joinCORSStrings(g.ExposeHeaders),
 			AllowPrivateNetwork:  g.AllowPrivateNetwork,
+			AllowOriginsFunc:     originFn,
 		}))
 		return
 	}

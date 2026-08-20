@@ -82,6 +82,7 @@ type Service struct {
 	grpcServer      *GrpcServer
 	grpcClients     map[string]*GrpcClient
 	grpcRegistrars  map[string]func(srv *grpc.Server)
+	corsFuncs       map[string]func(origin string) bool
 
 	stop context.CancelFunc
 }
@@ -628,6 +629,18 @@ func (s *Service) WithAuthValidator(fn func(context.Context, *middleware.AuthCon
 	return s
 }
 
+// SetCORSOriginsFunc registers a dynamic origin validator for a named CORS
+// group (or the global CORS policy when name is ""). The function is called
+// per preflight request when the origin does not match the YAML allowlist.
+// It must be called before Run.
+func (s *Service) SetCORSOriginsFunc(name string, fn func(origin string) bool) *Service {
+	if s.corsFuncs == nil {
+		s.corsFuncs = make(map[string]func(origin string) bool)
+	}
+	s.corsFuncs[name] = fn
+	return s
+}
+
 // WithAPIKeyValidator registers an API key resolver for "manual" auth mode.
 // The resolver receives the raw API key and returns an AuthContext with the key's identity and roles.
 // Return nil to reject the key. Required when api_key: true + driver: manual.
@@ -1155,7 +1168,7 @@ func (s *Service) registerEntryRoutes() error {
 	if s.config.Server.RateLimit != nil && s.config.Server.RateLimit.KV != "" && s.kvConns != nil {
 		rlRedis = s.kvConns[s.config.Server.RateLimit.KV]
 	}
-	if err := registerEntries(s.srv.App(), s.config, s.handlers, s.config.Server.APIPrefix, s.natsConns, s.models, s.jwtCfg, s.authValidator, s.apiKeyValidator, s.fgaClient, s.oryClient, s.zitadelClient, s.pools, s.kvConns, rlRedis); err != nil {
+	if err := registerEntries(s.srv.App(), s.config, s.handlers, s.config.Server.APIPrefix, s.natsConns, s.models, s.jwtCfg, s.authValidator, s.apiKeyValidator, s.fgaClient, s.oryClient, s.zitadelClient, s.pools, s.kvConns, s.corsFuncs, rlRedis); err != nil {
 		return err
 	}
 
@@ -1302,6 +1315,27 @@ func (s *Service) initServer() {
 			ExposeHeaders:       g.ExposeHeaders,
 			AllowPrivateNetwork: g.AllowPrivateNetwork,
 		})
+	}
+	// Apply dynamic origin validators registered via SetCORSOriginsFunc.
+	for name, fn := range s.corsFuncs {
+		if corsCfg == nil {
+			corsCfg = &server.CORSConfig{}
+		}
+		if name == "" {
+			corsCfg.AllowOriginsFunc = fn
+			continue
+		}
+		applied := false
+		for i := range corsCfg.Groups {
+			if corsCfg.Groups[i].Name == name {
+				corsCfg.Groups[i].AllowOriginsFunc = fn
+				applied = true
+				break
+			}
+		}
+		if !applied {
+			logx.Infof("cors: SetCORSOriginsFunc(%q) no matching cors_groups entry", name)
+		}
 	}
 
 	var routes []server.RouteConfig

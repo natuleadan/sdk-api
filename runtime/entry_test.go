@@ -1408,7 +1408,7 @@ func TestRegisterEntryCORS_AppliesGroup(t *testing.T) {
 	groups := []CORSGroupConf{
 		{Name: "app", Origins: []string{"https://app.example.com"}, Methods: []string{"GET"}},
 	}
-	registerEntryCORS(app, entry, "/api", groups)
+	registerEntryCORS(app, entry, "/api", groups, nil)
 
 	// Preflight from allowed origin
 	req := httptest.NewRequestWithContext(context.Background(), "OPTIONS", "/api/ping", nil)
@@ -1429,7 +1429,7 @@ func TestRegisterEntryCORS_AppliesGroup(t *testing.T) {
 func TestRegisterEntryCORS_NoGroup_Skip(t *testing.T) {
 	app := fiber.New()
 	entry := &EntryDef{Type: "rest", Path: "/ping", Method: "GET", Handler: "ping"} // no CORS ref
-	registerEntryCORS(app, entry, "/api", nil)
+	registerEntryCORS(app, entry, "/api", nil, nil)
 
 	req := httptest.NewRequestWithContext(context.Background(), "OPTIONS", "/api/ping", nil)
 	req.Header.Set("Origin", "https://evil.com")

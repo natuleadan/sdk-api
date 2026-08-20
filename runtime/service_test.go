@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gofiber/contrib/v3/websocket"
@@ -332,4 +333,155 @@ func TestInitLogger_WithConfig(t *testing.T) {
 	if cfg.Log.ServiceName != "my-app" {
 		t.Errorf("expected ServiceName to be filled from Name, got %q", cfg.Log.ServiceName)
 	}
+}
+
+func TestSetCORSOriginsFunc_Global(t *testing.T) {
+	dir := t.TempDir()
+	yamlPath := filepath.Join(dir, "service.yaml")
+	content := `name: cors-test
+port: 19012
+server:
+  cors:
+    origins: ["https://app.example.com"]
+entry:
+  - type: rest
+    method: GET
+    path: /ping
+    handler: ping
+`
+	os.WriteFile(yamlPath, []byte(content), 0o644)
+
+	svc, err := New(yamlPath)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	svc.WithRest("ping", func(c *RestCtx) error { return c.SendString("ok") })
+	svc.SetCORSOriginsFunc("", func(origin string) bool {
+		return origin == "https://dynamic.example.com"
+	})
+	svc.config.Server.Host = "0.0.0.0"
+	svc.config.Server.APIPrefix = "/api"
+	svc.config.Server.MaxConns = 1000
+	svc.initServer()
+
+	app := svc.srv.App()
+	// Preflight from the dynamic origin (allowed by func)
+	req := httptest.NewRequestWithContext(context.Background(), "OPTIONS", "/api/ping", nil)
+	req.Header.Set("Origin", "https://dynamic.example.com")
+	req.Header.Set("Access-Control-Request-Method", "GET")
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	if got := resp.Header.Get("Access-Control-Allow-Origin"); got != "https://dynamic.example.com" {
+		t.Errorf("global func: want dynamic origin echo, got %q", got)
+	}
+
+	// Preflight from a random origin (rejected by func)
+	req2 := httptest.NewRequestWithContext(context.Background(), "OPTIONS", "/api/ping", nil)
+	req2.Header.Set("Origin", "https://evil.com")
+	req2.Header.Set("Access-Control-Request-Method", "GET")
+	resp2, err := app.Test(req2)
+	if err != nil {
+		t.Fatalf("request2: %v", err)
+	}
+	if got := resp2.Header.Get("Access-Control-Allow-Origin"); got != "" {
+		t.Errorf("global func: evil origin must be rejected, got %q", got)
+	}
+}
+
+func TestSetCORSOriginsFunc_Group(t *testing.T) {
+	dir := t.TempDir()
+	yamlPath := filepath.Join(dir, "service.yaml")
+	content := `name: cors-test
+port: 19013
+server:
+  cors_groups:
+    - name: app
+      origins: ["https://app.example.com"]
+      methods: [GET]
+entry:
+  - type: rest
+    method: GET
+    path: /ping
+    handler: ping
+    cors: app
+`
+	os.WriteFile(yamlPath, []byte(content), 0o644)
+
+	svc, err := New(yamlPath)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	svc.WithRest("ping", func(c *RestCtx) error { return c.SendString("ok") })
+	svc.SetCORSOriginsFunc("app", func(origin string) bool {
+		return strings.HasSuffix(origin, ".trusted.example.com")
+	})
+	// Preserve YAML-loaded CORSGroups; only fix the fields initServer needs.
+	svc.config.Server.Host = "0.0.0.0"
+	svc.config.Server.APIPrefix = "/api"
+	svc.config.Server.MaxConns = 1000
+	svc.initServer()
+	if err := RegisterEntries(svc.srv.App(), svc.config, svc.handlers, "/api", nil, nil, nil, nil, nil, nil, nil, nil); err != nil {
+		t.Fatalf("RegisterEntries: %v", err)
+	}
+
+	app := svc.srv.App()
+	// Allowed by YAML origin
+	req := httptest.NewRequestWithContext(context.Background(), "OPTIONS", "/api/ping", nil)
+	req.Header.Set("Origin", "https://app.example.com")
+	req.Header.Set("Access-Control-Request-Method", "GET")
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	if got := resp.Header.Get("Access-Control-Allow-Origin"); got != "https://app.example.com" {
+		t.Errorf("group yaml origin: want app echo, got %q", got)
+	}
+
+	// Allowed by func (trusted subdomain)
+	req2 := httptest.NewRequestWithContext(context.Background(), "OPTIONS", "/api/ping", nil)
+	req2.Header.Set("Origin", "https://x.trusted.example.com")
+	req2.Header.Set("Access-Control-Request-Method", "GET")
+	resp2, err := app.Test(req2)
+	if err != nil {
+		t.Fatalf("request2: %v", err)
+	}
+	if got := resp2.Header.Get("Access-Control-Allow-Origin"); got != "https://x.trusted.example.com" {
+		t.Errorf("group func: want trusted echo, got %q", got)
+	}
+
+	// Rejected (neither YAML nor func)
+	req3 := httptest.NewRequestWithContext(context.Background(), "OPTIONS", "/api/ping", nil)
+	req3.Header.Set("Origin", "https://evil.com")
+	req3.Header.Set("Access-Control-Request-Method", "GET")
+	resp3, err := app.Test(req3)
+	if err != nil {
+		t.Fatalf("request3: %v", err)
+	}
+	if got := resp3.Header.Get("Access-Control-Allow-Origin"); got != "" {
+		t.Errorf("group: evil origin must be rejected, got %q", got)
+	}
+}
+
+func TestSetCORSOriginsFunc_UnknownGroup_NoPanic(t *testing.T) {
+	dir := t.TempDir()
+	yamlPath := filepath.Join(dir, "service.yaml")
+	content := `name: cors-test
+port: 19014
+server:
+  cors_groups:
+    - name: app
+      origins: ["https://app.example.com"]
+`
+	os.WriteFile(yamlPath, []byte(content), 0o644)
+
+	svc, err := New(yamlPath)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	// Group "missing" does not exist -> must not panic, just log
+	svc.SetCORSOriginsFunc("missing", func(origin string) bool { return false })
+	svc.config.Server = ServerConf{Host: "0.0.0.0", MaxConns: 1000}
+	svc.initServer() // should not panic
 }

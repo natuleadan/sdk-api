@@ -704,6 +704,7 @@ func TestCORS_Preflight_ReturnsHeaders(t *testing.T) {
 	req, _ := http.NewRequestWithContext(context.Background(), "OPTIONS", "/test", nil)
 	req.Host = "test.com"
 	req.Header.Set("Origin", "https://example.com")
+	req.Header.Set("Access-Control-Request-Method", "GET")
 	resp, err := app.app.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, 204, resp.StatusCode)
@@ -727,10 +728,11 @@ func TestCORS_Preflight_WildcardOrigin(t *testing.T) {
 	req, _ := http.NewRequestWithContext(context.Background(), "OPTIONS", "/test", nil)
 	req.Host = "test.com"
 	req.Header.Set("Origin", "https://any-origin.com")
+	req.Header.Set("Access-Control-Request-Method", "GET")
 	resp, err := app.app.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, 204, resp.StatusCode)
-	assert.Equal(t, "https://any-origin.com", resp.Header.Get("Access-Control-Allow-Origin"))
+	assert.Equal(t, "*", resp.Header.Get("Access-Control-Allow-Origin"))
 }
 
 func TestCORS_Preflight_DisallowedOrigin(t *testing.T) {
@@ -745,6 +747,7 @@ func TestCORS_Preflight_DisallowedOrigin(t *testing.T) {
 	req, _ := http.NewRequestWithContext(context.Background(), "OPTIONS", "/test", nil)
 	req.Host = "test.com"
 	req.Header.Set("Origin", "https://evil.com")
+	req.Header.Set("Access-Control-Request-Method", "GET")
 	resp, err := app.app.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, 204, resp.StatusCode)
@@ -762,9 +765,8 @@ func TestCORS_Preflight_NoOrigin(t *testing.T) {
 	req.Host = "test.com"
 	resp, err := app.app.Test(req)
 	require.NoError(t, err)
-	assert.Equal(t, 204, resp.StatusCode)
-	assert.Empty(t, resp.Header.Get("Access-Control-Allow-Origin"))
-	assert.Empty(t, resp.Header.Get("Access-Control-Allow-Methods"))
+	// No Origin header → Fiber CORS passes through, no OPTIONS handler → 405
+	assert.Equal(t, 405, resp.StatusCode)
 }
 
 func TestCORS_Preflight_SubdomainOrigin(t *testing.T) {
@@ -779,6 +781,7 @@ func TestCORS_Preflight_SubdomainOrigin(t *testing.T) {
 	req, _ := http.NewRequestWithContext(context.Background(), "OPTIONS", "/test", nil)
 	req.Host = "test.com"
 	req.Header.Set("Origin", "https://sub.example.com")
+	req.Header.Set("Access-Control-Request-Method", "GET")
 	resp, err := app.app.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, 204, resp.StatusCode)
@@ -797,6 +800,7 @@ func TestCORS_Preflight_SubdomainRootNotAllowed(t *testing.T) {
 	req, _ := http.NewRequestWithContext(context.Background(), "OPTIONS", "/test", nil)
 	req.Host = "test.com"
 	req.Header.Set("Origin", "https://example.com")
+	req.Header.Set("Access-Control-Request-Method", "GET")
 	resp, err := app.app.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, 204, resp.StatusCode)
@@ -827,10 +831,307 @@ func TestCORS_Preflight_StillWorksAfterGET(t *testing.T) {
 	optReq, _ := http.NewRequestWithContext(context.Background(), "OPTIONS", "/test", nil)
 	optReq.Host = "test.com"
 	optReq.Header.Set("Origin", "https://example.com")
+	optReq.Header.Set("Access-Control-Request-Method", "GET")
 	optResp, err := app.app.Test(optReq)
 	require.NoError(t, err)
 	assert.Equal(t, 204, optResp.StatusCode)
 	assert.Equal(t, "https://example.com", optResp.Header.Get("Access-Control-Allow-Origin"))
+}
+
+// --- CORS ExposeHeaders ---
+
+func TestCORS_ExposeHeaders(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+	corsCfg := &CORSConfig{
+		Origins:       []string{"*"},
+		ExposeHeaders: []string{"X-Custom-Header", "X-Request-ID"},
+	}
+	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, corsCfg)
+	app.app.Get("/test", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+	req, _ := http.NewRequestWithContext(context.Background(), "OPTIONS", "/test", nil)
+	req.Host = "test.com"
+	req.Header.Set("Origin", "https://example.com")
+	req.Header.Set("Access-Control-Request-Method", "GET")
+	resp, err := app.app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 204, resp.StatusCode)
+	assert.Equal(t, "X-Custom-Header, X-Request-ID", resp.Header.Get("Access-Control-Expose-Headers"))
+}
+
+// --- CORS AllowPrivateNetwork ---
+
+func TestCORS_AllowPrivateNetwork(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+	corsCfg := &CORSConfig{
+		Origins:             []string{"*"},
+		AllowPrivateNetwork: true,
+	}
+	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, corsCfg)
+	app.app.Get("/test", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+	req, _ := http.NewRequestWithContext(context.Background(), "OPTIONS", "/test", nil)
+	req.Host = "test.com"
+	req.Header.Set("Origin", "https://example.com")
+	req.Header.Set("Access-Control-Request-Method", "GET")
+	req.Header.Set("Access-Control-Request-Private-Network", "true")
+	resp, err := app.app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 204, resp.StatusCode)
+	assert.Equal(t, "true", resp.Header.Get("Access-Control-Allow-Private-Network"))
+}
+
+// --- DocsCORS (per-route CORS) ---
+
+func TestDocsCORS_OnlyAppliesToDocs(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+	corsCfg := &CORSConfig{
+		Origins: []string{"https://app.example.com"},
+		Groups: []CORSGroup{
+			{
+				Name:       "docs",
+				PathPrefix: "/docs",
+				Origins:    []string{"*"},
+				MaxAge:     3600,
+			},
+		},
+	}
+	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, corsCfg)
+	app.app.Get("/api/test", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	// Request to /api/test should NOT have CORS (no global CORS)
+	apiReq := testRequest("/api/test")
+	apiReq.Header.Set("Origin", "https://evil.com")
+	apiResp, err := app.app.Test(apiReq)
+	require.NoError(t, err)
+	assert.Equal(t, 200, apiResp.StatusCode)
+	assert.Empty(t, apiResp.Header.Get("Access-Control-Allow-Origin"))
+}
+
+func TestDocsCORS_AppliesToDocs(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+	corsCfg := &CORSConfig{
+		Origins: []string{"https://app.example.com"},
+		Groups: []CORSGroup{
+			{
+				Name:       "docs",
+				PathPrefix: "/docs",
+				Origins:    []string{"*"},
+				MaxAge:     3600,
+			},
+		},
+	}
+	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, corsCfg)
+	app.app.Get("/docs", func(c fiber.Ctx) error {
+		return c.SendString("docs")
+	})
+
+	// Request to /docs should have CORS
+	docsReq, _ := http.NewRequestWithContext(context.Background(), "OPTIONS", "/docs", nil)
+	docsReq.Host = "test.com"
+	docsReq.Header.Set("Origin", "https://any-origin.com")
+	docsReq.Header.Set("Access-Control-Request-Method", "GET")
+	docsResp, err := app.app.Test(docsReq)
+	require.NoError(t, err)
+	assert.Equal(t, 204, docsResp.StatusCode)
+	assert.Equal(t, "*", docsResp.Header.Get("Access-Control-Allow-Origin"))
+}
+
+// --- CORS Groups ---
+
+func TestCORS_Groups_GroupScoped(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+	corsCfg := &CORSConfig{
+		Origins: []string{"https://global.example.com"},
+		Groups: []CORSGroup{
+			{
+				Name:       "docs",
+				PathPrefix: "/docs",
+				Origins:    []string{"*"},
+				MaxAge:     3600,
+			},
+		},
+	}
+	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, corsCfg)
+	app.app.Get("/docs", func(c fiber.Ctx) error {
+		return c.SendString("docs")
+	})
+	app.app.Get("/api/ping", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	// /docs uses the group (wildcard)
+	docsReq, _ := http.NewRequestWithContext(context.Background(), "OPTIONS", "/docs", nil)
+	docsReq.Host = "test.com"
+	docsReq.Header.Set("Origin", "https://any.com")
+	docsReq.Header.Set("Access-Control-Request-Method", "GET")
+	docsResp, err := app.app.Test(docsReq)
+	require.NoError(t, err)
+	assert.Equal(t, 204, docsResp.StatusCode)
+	assert.Equal(t, "*", docsResp.Header.Get("Access-Control-Allow-Origin"))
+
+	// /api uses global
+	apiReq, _ := http.NewRequestWithContext(context.Background(), "OPTIONS", "/api/ping", nil)
+	apiReq.Host = "test.com"
+	apiReq.Header.Set("Origin", "https://global.example.com")
+	apiReq.Header.Set("Access-Control-Request-Method", "GET")
+	apiResp, err := app.app.Test(apiReq)
+	require.NoError(t, err)
+	assert.Equal(t, 204, apiResp.StatusCode)
+	assert.Equal(t, "https://global.example.com", apiResp.Header.Get("Access-Control-Allow-Origin"))
+}
+
+func TestCORS_Groups_ExposeHeaders(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+	corsCfg := &CORSConfig{
+		Groups: []CORSGroup{
+			{
+				Name:          "app",
+				PathPrefix:    "/api",
+				Origins:       []string{"https://app.example.com"},
+				ExposeHeaders: []string{"X-Custom"},
+			},
+		},
+	}
+	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, corsCfg)
+	app.app.Get("/api/ping", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+	req, _ := http.NewRequestWithContext(context.Background(), "OPTIONS", "/api/ping", nil)
+	req.Host = "test.com"
+	req.Header.Set("Origin", "https://app.example.com")
+	req.Header.Set("Access-Control-Request-Method", "GET")
+	resp, err := app.app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 204, resp.StatusCode)
+	assert.Equal(t, "X-Custom", resp.Header.Get("Access-Control-Expose-Headers"))
+}
+
+func TestCORS_Groups_PrivateNetwork(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+	corsCfg := &CORSConfig{
+		Groups: []CORSGroup{
+			{
+				Name:                "app",
+				PathPrefix:          "/api",
+				Origins:             []string{"*"},
+				AllowPrivateNetwork: true,
+			},
+		},
+	}
+	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, corsCfg)
+	app.app.Get("/api/ping", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+	req, _ := http.NewRequestWithContext(context.Background(), "OPTIONS", "/api/ping", nil)
+	req.Host = "test.com"
+	req.Header.Set("Origin", "https://app.example.com")
+	req.Header.Set("Access-Control-Request-Method", "GET")
+	req.Header.Set("Access-Control-Request-Private-Network", "true")
+	resp, err := app.app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 204, resp.StatusCode)
+	assert.Equal(t, "true", resp.Header.Get("Access-Control-Allow-Private-Network"))
+}
+
+func TestCORS_Groups_NoGlobal(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+	// Only groups, no global CORS config
+	corsCfg := &CORSConfig{
+		Groups: []CORSGroup{
+			{
+				Name:       "docs",
+				PathPrefix: "/docs",
+				Origins:    []string{"*"},
+			},
+		},
+	}
+	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, corsCfg)
+	app.app.Get("/docs", func(c fiber.Ctx) error {
+		return c.SendString("docs")
+	})
+	app.app.Get("/api/ping", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	// /docs has CORS via group
+	docsReq, _ := http.NewRequestWithContext(context.Background(), "OPTIONS", "/docs", nil)
+	docsReq.Host = "test.com"
+	docsReq.Header.Set("Origin", "https://any.com")
+	docsReq.Header.Set("Access-Control-Request-Method", "GET")
+	docsResp, err := app.app.Test(docsReq)
+	require.NoError(t, err)
+	assert.Equal(t, 204, docsResp.StatusCode)
+
+	// /api has NO CORS (no global config)
+	apiReq, _ := http.NewRequestWithContext(context.Background(), "OPTIONS", "/api/ping", nil)
+	apiReq.Host = "test.com"
+	apiReq.Header.Set("Origin", "https://any.com")
+	apiReq.Header.Set("Access-Control-Request-Method", "GET")
+	apiResp, err := app.app.Test(apiReq)
+	require.NoError(t, err)
+	assert.Equal(t, 405, apiResp.StatusCode)
+	assert.Empty(t, apiResp.Header.Get("Access-Control-Allow-Origin"))
+}
+
+// --- CORS AllowOriginsFunc ---
+
+func TestCORS_OriginsFunc_Allowed(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+	corsCfg := &CORSConfig{
+		Origins: []string{"https://allowed.example.com"},
+		AllowOriginsFunc: func(origin string) bool {
+			return origin == "https://dynamic.example.com"
+		},
+	}
+	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, corsCfg)
+	app.app.Get("/test", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+	req, _ := http.NewRequestWithContext(context.Background(), "OPTIONS", "/test", nil)
+	req.Host = "test.com"
+	req.Header.Set("Origin", "https://dynamic.example.com")
+	req.Header.Set("Access-Control-Request-Method", "GET")
+	resp, err := app.app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 204, resp.StatusCode)
+	assert.Equal(t, "https://dynamic.example.com", resp.Header.Get("Access-Control-Allow-Origin"))
+}
+
+func TestCORS_OriginsFunc_Denied(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+	corsCfg := &CORSConfig{
+		Origins: []string{"https://allowed.example.com"},
+		AllowOriginsFunc: func(origin string) bool {
+			return false
+		},
+	}
+	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, corsCfg)
+	app.app.Get("/test", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+	req, _ := http.NewRequestWithContext(context.Background(), "OPTIONS", "/test", nil)
+	req.Host = "test.com"
+	req.Header.Set("Origin", "https://evil.com")
+	req.Header.Set("Access-Control-Request-Method", "GET")
+	resp, err := app.app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 204, resp.StatusCode)
+	assert.Empty(t, resp.Header.Get("Access-Control-Allow-Origin"))
 }
 
 func mustReadBody(resp *http.Response) []byte {

@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -93,6 +92,31 @@ type SecurityConfig struct {
 }
 
 type CORSConfig struct {
+	Origins             []string
+	Methods             []string
+	Headers             []string
+	Credentials         bool
+	MaxAge              int
+	ExposeHeaders       []string
+	AllowPrivateNetwork bool
+	AllowOriginsFunc    func(origin string) bool
+	Groups              []CORSGroup
+}
+
+type CORSGroup struct {
+	Name                string
+	PathPrefix          string
+	Origins             []string
+	Methods             []string
+	Headers             []string
+	Credentials         bool
+	MaxAge              int
+	ExposeHeaders       []string
+	AllowPrivateNetwork bool
+	AllowOriginsFunc    func(origin string) bool
+}
+
+type DocsCORSConfig struct {
 	Origins     []string
 	Methods     []string
 	Headers     []string
@@ -246,9 +270,6 @@ func setupRouteOrGlobalMiddlewares(app *fiber.App, cfg Config, corsCfg *CORSConf
 	} else {
 		setupGlobalStandardMiddlewares(app, cfg, corsCfg)
 	}
-	if corsCfg != nil {
-		app.Options("/*", preflightHandler(corsCfg))
-	}
 }
 
 func setupPerRouteMiddlewares(app *fiber.App, cfg Config, corsCfg *CORSConfig) {
@@ -281,14 +302,62 @@ func setupGlobalStandardMiddlewares(app *fiber.App, cfg Config, corsCfg *CORSCon
 	app.Use(middleware.Gunzip())
 	app.Use(middleware.Prometheus())
 	if corsCfg != nil {
-		app.Use(middleware.CORS(middleware.CORSConfig{
-			AllowedOrigins:   joinOrStar(corsCfg.Origins),
-			AllowedMethods:   joinOrDefault(corsCfg.Methods, "GET,POST,PUT,PATCH,DELETE,OPTIONS"),
-			AllowedHeaders:   joinOrDefault(corsCfg.Headers, "Origin,Content-Type,Accept,Authorization"),
-			AllowCredentials: corsCfg.Credentials,
-			MaxAge:           corsCfg.MaxAge,
-		}))
+		// Global CORS only when origins are explicitly configured.
+		// If only named groups exist, routes outside groups have no CORS.
+		if len(corsCfg.Origins) > 0 || corsCfg.AllowOriginsFunc != nil {
+			corsHandler := middleware.CORS(middleware.CORSConfig{
+				AllowedOrigins:       joinOrStar(corsCfg.Origins),
+				AllowedMethods:       joinOrDefault(corsCfg.Methods, "GET,POST,PUT,PATCH,DELETE,OPTIONS"),
+				AllowedHeaders:       joinOrDefault(corsCfg.Headers, "Origin,Content-Type,Accept,Authorization"),
+				AllowCredentials:     corsCfg.Credentials,
+				MaxAge:               corsCfg.MaxAge,
+				ExposeHeaders:        joinOrEmpty(corsCfg.ExposeHeaders),
+				AllowPrivateNetwork:  corsCfg.AllowPrivateNetwork,
+				AllowOriginsFunc:     corsCfg.AllowOriginsFunc,
+				Next: func(c fiber.Ctx) bool {
+					return corsPathSkipped(c, corsCfg)
+				},
+			})
+			app.Use(corsHandler)
+		}
+		// Named CORS groups registered on their own path prefixes
+		for _, g := range corsCfg.Groups {
+			if g.Name == "" {
+				continue
+			}
+			registerCORSGroup(app, g)
+		}
 	}
+}
+
+// corsPathSkipped returns true when the request path belongs to a named
+// CORS group (which has its own middleware) so the global CORS skips it.
+func corsPathSkipped(c fiber.Ctx, corsCfg *CORSConfig) bool {
+	for _, g := range corsCfg.Groups {
+		if g.Name != "" && g.PathPrefix != "" && strings.HasPrefix(c.Path(), g.PathPrefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// registerCORSGroup registers a named CORS group middleware scoped to its
+// path prefix. The group is looked up by name in applyMiddlewareByType.
+func registerCORSGroup(app *fiber.App, g CORSGroup) {
+	prefix := g.PathPrefix
+	if prefix == "" {
+		return
+	}
+	app.Use(prefix, middleware.CORS(middleware.CORSConfig{
+		AllowedOrigins:       joinOrStar(g.Origins),
+		AllowedMethods:       joinOrDefault(g.Methods, "GET,POST,PUT,PATCH,DELETE,OPTIONS"),
+		AllowedHeaders:       joinOrDefault(g.Headers, "Origin,Content-Type,Accept,Authorization"),
+		AllowCredentials:     g.Credentials,
+		MaxAge:               g.MaxAge,
+		ExposeHeaders:        joinOrEmpty(g.ExposeHeaders),
+		AllowPrivateNetwork:  g.AllowPrivateNetwork,
+		AllowOriginsFunc:     g.AllowOriginsFunc,
+	}))
 }
 
 func applyMiddlewareByType(grp fiber.Router, name string, cfg Config, corsCfg *CORSConfig) {
@@ -313,14 +382,42 @@ func applyMiddlewareByType(grp fiber.Router, name string, cfg Config, corsCfg *C
 	case "cors":
 		if corsCfg != nil {
 			grp.Use(middleware.CORS(middleware.CORSConfig{
-				AllowedOrigins:   joinOrStar(corsCfg.Origins),
-				AllowedMethods:   joinOrDefault(corsCfg.Methods, "GET,POST,PUT,PATCH,DELETE,OPTIONS"),
-				AllowedHeaders:   joinOrDefault(corsCfg.Headers, "Origin,Content-Type,Accept,Authorization"),
-				AllowCredentials: corsCfg.Credentials,
-				MaxAge:           corsCfg.MaxAge,
+				AllowedOrigins:       joinOrStar(corsCfg.Origins),
+				AllowedMethods:       joinOrDefault(corsCfg.Methods, "GET,POST,PUT,PATCH,DELETE,OPTIONS"),
+				AllowedHeaders:       joinOrDefault(corsCfg.Headers, "Origin,Content-Type,Accept,Authorization"),
+				AllowCredentials:     corsCfg.Credentials,
+				MaxAge:               corsCfg.MaxAge,
+				ExposeHeaders:        joinOrEmpty(corsCfg.ExposeHeaders),
+				AllowPrivateNetwork:  corsCfg.AllowPrivateNetwork,
+				AllowOriginsFunc:     corsCfg.AllowOriginsFunc,
 			}))
 		}
+	default:
+		// cors:<group> applies a named CORS group scoped to this route group
+		if groupName, ok := strings.CutPrefix(name, "cors:"); ok && corsCfg != nil {
+			if g, found := findCORSGroup(corsCfg.Groups, groupName); found {
+				grp.Use(middleware.CORS(middleware.CORSConfig{
+					AllowedOrigins:       joinOrStar(g.Origins),
+					AllowedMethods:       joinOrDefault(g.Methods, "GET,POST,PUT,PATCH,DELETE,OPTIONS"),
+					AllowedHeaders:       joinOrDefault(g.Headers, "Origin,Content-Type,Accept,Authorization"),
+					AllowCredentials:     g.Credentials,
+					MaxAge:               g.MaxAge,
+					ExposeHeaders:        joinOrEmpty(g.ExposeHeaders),
+					AllowPrivateNetwork:  g.AllowPrivateNetwork,
+					AllowOriginsFunc:     g.AllowOriginsFunc,
+				}))
+			}
+		}
 	}
+}
+
+func findCORSGroup(groups []CORSGroup, name string) (CORSGroup, bool) {
+	for _, g := range groups {
+		if g.Name == name {
+			return g, true
+		}
+	}
+	return CORSGroup{}, false
 }
 
 func joinOrStar(items []string) string {
@@ -346,49 +443,23 @@ func joinOrDefault(items []string, def string) string {
 		if i > 0 {
 			joined.WriteString(", ")
 		}
-		joined.WriteString(s)
+		joined.WriteString(strings.TrimSpace(s))
 	}
 	return joined.String()
 }
 
-func preflightHandler(cfg *CORSConfig) fiber.Handler {
-	return func(c fiber.Ctx) error {
-		origin := string(c.Request().Header.Peek("Origin"))
-		if origin == "" {
-			return c.SendStatus(204)
-		}
-		if !isOriginAllowed(origin, cfg.Origins) {
-			return c.SendStatus(204)
-		}
-		c.Set("Access-Control-Allow-Origin", origin)
-		c.Set("Access-Control-Allow-Methods", joinOrDefault(cfg.Methods, "GET,POST,PUT,PATCH,DELETE,OPTIONS"))
-		c.Set("Access-Control-Allow-Headers", joinOrDefault(cfg.Headers, "Origin,Content-Type,Accept,Authorization"))
-		if cfg.Credentials {
-			c.Set("Access-Control-Allow-Credentials", "true")
-		}
-		if cfg.MaxAge > 0 {
-			c.Set("Access-Control-Max-Age", strconv.Itoa(cfg.MaxAge))
-		}
-		return c.SendStatus(204)
+func joinOrEmpty(items []string) string {
+	if len(items) == 0 {
+		return ""
 	}
-}
-
-func isOriginAllowed(origin string, allowedOrigins []string) bool {
-	for _, allowed := range allowedOrigins {
-		if allowed == "*" || allowed == origin {
-			return true
+	var joined strings.Builder
+	for i, s := range items {
+		if i > 0 {
+			joined.WriteString(",")
 		}
-		if starIdx := strings.Index(allowed, "*."); starIdx > 0 {
-			prefix := allowed[:starIdx]
-			suffix := allowed[starIdx+1:]
-			if strings.HasPrefix(origin, prefix) && strings.HasSuffix(origin, suffix) {
-				if len(origin) > len(prefix)+len(suffix) {
-					return true
-				}
-			}
-		}
+		joined.WriteString(s)
 	}
-	return false
+	return joined.String()
 }
 
 func (s *Server) App() *fiber.App {

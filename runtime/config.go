@@ -177,6 +177,8 @@ type ServerConf struct {
 	APIPrefix string `json:"api_prefix" config:",default=/api"`
 	// CORS is a constant.
 	CORS *CORSConf `json:"cors" config:",optional"`
+	// CORSGroups is a list of named CORS policies that routes can reference.
+	CORSGroups []CORSGroupConf `json:"cors_groups" config:",optional"`
 	// Middleware is a constant.
 	Middleware []RouteMW `json:"middleware" config:",optional"`
 	// Static is a constant.
@@ -553,6 +555,30 @@ type CORSConf struct {
 	Credentials bool `json:"credentials" config:",optional"`
 	// MaxAge is a constant.
 	MaxAge int `json:"max_age" config:",default=300"`
+	// ExposeHeaders is a constant.
+	ExposeHeaders []string `json:"expose_headers" config:",optional"`
+	// AllowPrivateNetwork is a constant.
+	AllowPrivateNetwork bool `json:"allow_private_network" config:",optional"`
+}
+
+// CORSGroupConf is a named CORS policy that routes can reference by name.
+type CORSGroupConf struct {
+	// Name is the unique group name referenced by entry[].cors or middleware cors:<name>.
+	Name string `json:"name"`
+	// Origins is a constant.
+	Origins []string `json:"origins" config:",optional"`
+	// Methods is a constant.
+	Methods []string `json:"methods" config:",optional"`
+	// Headers is a constant.
+	Headers []string `json:"headers" config:",optional"`
+	// Credentials is a constant.
+	Credentials bool `json:"credentials" config:",optional"`
+	// MaxAge is a constant.
+	MaxAge int `json:"max_age" config:",default=300"`
+	// ExposeHeaders is a constant.
+	ExposeHeaders []string `json:"expose_headers" config:",optional"`
+	// AllowPrivateNetwork is a constant.
+	AllowPrivateNetwork bool `json:"allow_private_network" config:",optional"`
 }
 
 type StaticDef struct {
@@ -776,6 +802,9 @@ type EntryDef struct {
 	Permissions []string `json:"permissions" config:",optional"`
 	// DB is a constant.
 	DB string `json:"db" config:",optional"` // references database name
+	// CORS references a named cors_groups[].name policy for this entry.
+	// Empty means the server-level CORS (or none) applies.
+	CORS string `json:"cors" config:",optional"`
 	// TenantScope is a constant.
 	TenantScope string `json:"tenant_scope" config:",optional"` // JWT claim for tenant ID (e.g. "org_id")
 	// TenantField is a constant.
@@ -1401,6 +1430,9 @@ func ParseConfig(content []byte) (*ServiceConfig, error) {
 	if err := validateConfigDatabases(&cfg); err != nil {
 		return nil, err
 	}
+	if err := validateConfigCORSGroups(&cfg); err != nil {
+		return nil, err
+	}
 	if err := validateConfigStream(&cfg); err != nil {
 		return nil, err
 	}
@@ -1441,6 +1473,33 @@ func validateConfigDatabases(cfg *ServiceConfig) error {
 			return fmt.Errorf("databases[%d]: duplicate name %q", i, cfg.Databases[i].Name)
 		}
 		seen[cfg.Databases[i].Name] = true
+	}
+	return nil
+}
+
+// validateConfigCORSGroups validates named CORS groups and their references
+// from entry[].cors. Mirrors validateConfigDatabases (name uniqueness + refs).
+func validateConfigCORSGroups(cfg *ServiceConfig) error {
+	seen := make(map[string]bool)
+	for i := range cfg.Server.CORSGroups {
+		g := &cfg.Server.CORSGroups[i]
+		if g.Name == "" {
+			return fmt.Errorf("cors_groups[%d]: name is required", i)
+		}
+		if seen[g.Name] {
+			return fmt.Errorf("cors_groups[%d]: duplicate name %q", i, g.Name)
+		}
+		seen[g.Name] = true
+	}
+	// entry[].cors must reference an existing group (or be empty)
+	for i := range cfg.Entry {
+		ref := cfg.Entry[i].CORS
+		if ref == "" {
+			continue
+		}
+		if !seen[ref] {
+			return fmt.Errorf("entry[%d] (%s): cors %q not found in cors_groups", i, cfg.Entry[i].Path, ref)
+		}
 	}
 	return nil
 }

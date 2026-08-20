@@ -15,6 +15,7 @@ import (
 	"reflect"
 	"runtime"
 	"runtime/debug"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -1247,18 +1248,59 @@ func (s *Service) initGrpc() {
 	}
 }
 
+// corsGroupPathPrefix derives the path prefix for a named CORS group.
+// It looks first at middleware[].path entries applying "cors:<name>", then at
+// entry[].path entries referencing the group via entry[].cors (APIPrefix applied).
+func corsGroupPathPrefix(name string, cfg *ServiceConfig) string {
+	for _, mw := range cfg.Server.Middleware {
+		if slices.Contains(mw.Apply, "cors:"+name) {
+			return mw.Path
+		}
+	}
+	prefix := cfg.Server.APIPrefix
+	for _, e := range cfg.Entry {
+		if e.CORS == name && e.Path != "" {
+			p := e.Path
+			if prefix != "" && !strings.HasPrefix(p, prefix) {
+				p = prefix + p
+			}
+			return p
+		}
+	}
+	return ""
+}
+
 func (s *Service) initServer() {
 	sc := s.config.Server
 
 	var corsCfg *server.CORSConfig
 	if sc.CORS != nil {
 		corsCfg = &server.CORSConfig{
-			Origins:     sc.CORS.Origins,
-			Methods:     sc.CORS.Methods,
-			Headers:     sc.CORS.Headers,
-			Credentials: sc.CORS.Credentials,
-			MaxAge:      sc.CORS.MaxAge,
+			Origins:             sc.CORS.Origins,
+			Methods:             sc.CORS.Methods,
+			Headers:             sc.CORS.Headers,
+			Credentials:         sc.CORS.Credentials,
+			MaxAge:              sc.CORS.MaxAge,
+			ExposeHeaders:       sc.CORS.ExposeHeaders,
+			AllowPrivateNetwork: sc.CORS.AllowPrivateNetwork,
 		}
+	}
+	// Map named CORS groups from YAML to server groups.
+	for _, g := range sc.CORSGroups {
+		if corsCfg == nil {
+			corsCfg = &server.CORSConfig{}
+		}
+		corsCfg.Groups = append(corsCfg.Groups, server.CORSGroup{
+			Name:                g.Name,
+			PathPrefix:          corsGroupPathPrefix(g.Name, s.config),
+			Origins:             g.Origins,
+			Methods:             g.Methods,
+			Headers:             g.Headers,
+			Credentials:         g.Credentials,
+			MaxAge:              g.MaxAge,
+			ExposeHeaders:       g.ExposeHeaders,
+			AllowPrivateNetwork: g.AllowPrivateNetwork,
+		})
 	}
 
 	var routes []server.RouteConfig

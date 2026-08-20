@@ -622,6 +622,73 @@ func TestLoadConfig_DBReferenceValidation(t *testing.T) {
 	_ = cfg
 }
 
+func TestValidateCORSGroups_DuplicateName(t *testing.T) {
+	cfg := ServiceConfig{
+		Name: "test",
+		Server: ServerConf{
+			CORSGroups: []CORSGroupConf{
+				{Name: "docs", Origins: []string{"*"}},
+				{Name: "docs", Origins: []string{"*"}},
+			},
+		},
+	}
+	err := validateConfigCORSGroups(&cfg)
+	if err == nil {
+		t.Fatal("expected duplicate name error, got nil")
+	}
+}
+
+func TestValidateCORSGroups_EmptyName(t *testing.T) {
+	cfg := ServiceConfig{
+		Name: "test",
+		Server: ServerConf{
+			CORSGroups: []CORSGroupConf{
+				{Name: "", Origins: []string{"*"}},
+			},
+		},
+	}
+	err := validateConfigCORSGroups(&cfg)
+	if err == nil {
+		t.Fatal("expected empty name error, got nil")
+	}
+}
+
+func TestValidateCORSGroups_UnknownEntryRef(t *testing.T) {
+	cfg := ServiceConfig{
+		Name: "test",
+		Server: ServerConf{
+			CORSGroups: []CORSGroupConf{
+				{Name: "docs", Origins: []string{"*"}},
+			},
+		},
+		Entry: []EntryDef{
+			{Type: "rest", Path: "/ping", Handler: "ping", CORS: "missing"},
+		},
+	}
+	err := validateConfigCORSGroups(&cfg)
+	if err == nil {
+		t.Fatal("expected unknown ref error, got nil")
+	}
+}
+
+func TestValidateCORSGroups_Valid(t *testing.T) {
+	cfg := ServiceConfig{
+		Name: "test",
+		Server: ServerConf{
+			CORSGroups: []CORSGroupConf{
+				{Name: "docs", Origins: []string{"*"}},
+				{Name: "app", Origins: []string{"https://app.example.com"}},
+			},
+		},
+		Entry: []EntryDef{
+			{Type: "rest", Path: "/ping", Handler: "ping", CORS: "app"},
+		},
+	}
+	if err := validateConfigCORSGroups(&cfg); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+}
+
 func TestToSnake(t *testing.T) {
 	tests := []struct {
 		input    string

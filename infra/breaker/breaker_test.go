@@ -187,9 +187,8 @@ func TestCircuitBreaker_DoWithFallback(t *testing.T) {
 	t.Run("doWithFallback with ctx timeout", func(t *testing.T) {
 		b := NewBreaker()
 		assert.NotEmpty(t, b.Name())
-		ctx, cancel := context.WithTimeout(context.Background(), time.Microsecond)
-		defer cancel()
-		time.Sleep(time.Millisecond)
+		ctx, cancel := context.WithTimeout(context.Background(), 0)
+		cancel()
 		err := b.DoWithFallbackCtx(ctx, func() error {
 			return nil
 		}, func(err error) error {

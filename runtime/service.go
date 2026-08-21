@@ -1377,6 +1377,7 @@ func (s *Service) initServer() {
 		APIPrefix:         sc.APIPrefix,
 		Routes:            routes,
 		SecurityHeaders:   convertSecurityHeaders(sc.SecurityHeaders),
+		CSPGroups:         convertCSPGroups(&sc, s.config),
 		CSRF:              convertCSRF(sc.CSRF, sc.Cookies),
 		RateLimit:         convertRateLimit(sc.RateLimit),
 		TLS:               convertTLS(sc.TLS),
@@ -1793,6 +1794,62 @@ func convertSecurityHeaders(cfg *SecurityHeadersConf) *middleware.SecurityHeader
 		CacheControl:      cfg.CacheControl,
 		CSPReportPath:     cfg.CSPReportPath,
 	}
+}
+
+// convertCSPGroups maps YAML csp_groups to server CSPGroup, resolving the
+// path prefix from middleware[].apply "csp:<name>" or entry[].csp.
+func convertCSPGroups(sc *ServerConf, cfg *ServiceConfig) []server.CSPGroup {
+	if len(sc.CSPGroups) == 0 {
+		return nil
+	}
+	out := make([]server.CSPGroup, 0, len(sc.CSPGroups))
+	for _, g := range sc.CSPGroups {
+		var csp *middleware.CSPConfig
+		if g.CSPConfig != nil {
+			csp = &middleware.CSPConfig{
+				Level:              middleware.CSPLevel(g.CSPConfig.Level),
+				DefaultSrc:         g.CSPConfig.DefaultSrc,
+				ScriptSrc:          g.CSPConfig.ScriptSrc,
+				StyleSrc:           g.CSPConfig.StyleSrc,
+				ImgSrc:             g.CSPConfig.ImgSrc,
+				ConnectSrc:         g.CSPConfig.ConnectSrc,
+				FontSrc:            g.CSPConfig.FontSrc,
+				FrameSrc:           g.CSPConfig.FrameSrc,
+				FrameAncestors:     g.CSPConfig.FrameAncestors,
+				ObjectSrc:          g.CSPConfig.ObjectSrc,
+				BaseURI:            g.CSPConfig.BaseURI,
+				FormAction:         g.CSPConfig.FormAction,
+				UpgradeInsecureReq: g.CSPConfig.UpgradeInsecureReq,
+			}
+		}
+		out = append(out, server.CSPGroup{
+			Name:       g.Name,
+			PathPrefix: cspGroupPathPrefix(g.Name, cfg),
+			CSP:        csp,
+		})
+	}
+	return out
+}
+
+// cspGroupPathPrefix derives the path prefix for a named CSP group from
+// middleware[].apply "csp:<name>" or entry[].csp (APIPrefix applied).
+func cspGroupPathPrefix(name string, cfg *ServiceConfig) string {
+	for _, mw := range cfg.Server.Middleware {
+		if slices.Contains(mw.Apply, "csp:"+name) {
+			return mw.Path
+		}
+	}
+	prefix := cfg.Server.APIPrefix
+	for _, e := range cfg.Entry {
+		if e.CSP == name && e.Path != "" {
+			p := e.Path
+			if prefix != "" && !strings.HasPrefix(p, prefix) {
+				p = prefix + p
+			}
+			return p
+		}
+	}
+	return ""
 }
 
 func convertCSRF(cfg *CSRFConf, cookieCfg *CookieConf) *middleware.CSRFConfig {

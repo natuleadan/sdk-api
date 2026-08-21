@@ -56,6 +56,9 @@ type Config struct {
 	RateLimit       *middleware.RateLimitConfig
 	TLS             *TLSConfig
 	SSRF            *middleware.SSRFConfig
+	// CSPGroups are named per-route CSP policies applied via middleware[].apply
+	// "csp:<name>" or entry[].csp. Each group overrides the global CSP for its path.
+	CSPGroups []CSPGroup
 	// Correlation enables the X-Correlation-ID tracking middleware.
 	Correlation *CorrelationConfig
 
@@ -128,6 +131,15 @@ type ContentSecurityConf struct {
 	Enabled   bool
 	Strict    bool
 	PublicKey string
+}
+
+// CSPGroup is a named per-route Content-Security-Policy. It overrides the
+// global CSP for routes that reference it via middleware[].apply "csp:<name>"
+// or entry[].csp. PathPrefix is resolved from those references.
+type CSPGroup struct {
+	Name       string
+	PathPrefix string
+	CSP        *middleware.CSPConfig
 }
 
 type CryptionConf struct {
@@ -240,7 +252,35 @@ func setupGlobalMiddlewares(app *fiber.App, cfg Config, telemetry TelemetryConfi
 
 func setupSecurityMiddlewares(app *fiber.App, cfg Config, security SecurityConfig) {
 	if cfg.SecurityHeaders != nil {
-		app.Use(middleware.SecurityHeaders(*cfg.SecurityHeaders))
+		// Global security headers: skip paths owned by a csp_group so the
+		// per-route CSP can override without being clobbered by the global.
+		if len(cfg.CSPGroups) > 0 && cfg.SecurityHeaders.Next == nil {
+			headers := *cfg.SecurityHeaders
+			headers.Next = func(c fiber.Ctx) bool {
+				path := c.Path()
+				for _, g := range cfg.CSPGroups {
+					if g.PathPrefix != "" && strings.HasPrefix(path, g.PathPrefix) {
+						return true
+					}
+				}
+				return false
+			}
+			app.Use(middleware.SecurityHeaders(headers))
+		} else {
+			app.Use(middleware.SecurityHeaders(*cfg.SecurityHeaders))
+		}
+	}
+	// Register per-route CSP groups. Each group overrides the global CSP on its
+	// path prefix, with the rest of the security headers inherited.
+	if cfg.SecurityHeaders != nil {
+		for _, g := range cfg.CSPGroups {
+			if g.PathPrefix == "" || g.CSP == nil {
+				continue
+			}
+			groupCfg := *cfg.SecurityHeaders
+			groupCfg.CSP = middleware.BuildCSP(*g.CSP)
+			app.Use(g.PathPrefix, middleware.SecurityHeaders(groupCfg))
+		}
 	}
 	if cfg.CSRF != nil {
 		app.Use(middleware.CSRF(*cfg.CSRF))

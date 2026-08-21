@@ -187,6 +187,8 @@ type ServerConf struct {
 	OpenAPI *OpenAPIConf `json:"openapi" config:",optional"`
 	// SecurityHeaders is a constant.
 	SecurityHeaders *SecurityHeadersConf `json:"security_headers" config:",optional"`
+	// CSPGroups is a list of named per-route CSP policies, like CORSGroups.
+	CSPGroups []CSPGroupConf `json:"csp_groups" config:",optional"`
 	// CSRF is a constant.
 	CSRF *CSRFConf `json:"csrf" config:",optional"`
 	// RateLimit is a constant.
@@ -581,6 +583,15 @@ type CORSGroupConf struct {
 	AllowPrivateNetwork bool `json:"allow_private_network" config:",optional"`
 }
 
+// CSPGroupConf is a named per-route Content-Security-Policy, referenced by
+// entry[].csp or middleware[].apply "csp:<name>". It overrides the global CSP.
+type CSPGroupConf struct {
+	// Name is the unique group name referenced by entry[].csp or middleware csp:<name>.
+	Name string `json:"name"`
+	// CSPConfig is the per-route CSP policy (same shape as security_headers.csp_config).
+	CSPConfig *CSPConf `json:"csp_config" config:",optional"`
+}
+
 type StaticDef struct {
 	// Prefix is a constant.
 	Prefix string `json:"prefix"`
@@ -813,6 +824,9 @@ type EntryDef struct {
 	// CORS references a named cors_groups[].name policy for this entry.
 	// Empty means the server-level CORS (or none) applies.
 	CORS string `json:"cors" config:",optional"`
+	// CSP references a named csp_groups[].name policy for this entry.
+	// Empty means the global security_headers CSP applies.
+	CSP string `json:"csp" config:",optional"`
 	// TenantScope is a constant.
 	TenantScope string `json:"tenant_scope" config:",optional"` // JWT claim for tenant ID (e.g. "org_id")
 	// TenantField is a constant.
@@ -1441,6 +1455,9 @@ func ParseConfig(content []byte) (*ServiceConfig, error) {
 	if err := validateConfigCORSGroups(&cfg); err != nil {
 		return nil, err
 	}
+	if err := validateConfigCSPGroups(&cfg); err != nil {
+		return nil, err
+	}
 	if err := validateConfigStream(&cfg); err != nil {
 		return nil, err
 	}
@@ -1507,6 +1524,33 @@ func validateConfigCORSGroups(cfg *ServiceConfig) error {
 		}
 		if !seen[ref] {
 			return fmt.Errorf("entry[%d] (%s): cors %q not found in cors_groups", i, cfg.Entry[i].Path, ref)
+		}
+	}
+	return nil
+}
+
+// validateConfigCSPGroups validates named CSP groups and their references from
+// entry[].csp. Mirrors validateConfigCORSGroups.
+func validateConfigCSPGroups(cfg *ServiceConfig) error {
+	seen := make(map[string]bool)
+	for i := range cfg.Server.CSPGroups {
+		g := &cfg.Server.CSPGroups[i]
+		if g.Name == "" {
+			return fmt.Errorf("csp_groups[%d]: name is required", i)
+		}
+		if seen[g.Name] {
+			return fmt.Errorf("csp_groups[%d]: duplicate name %q", i, g.Name)
+		}
+		seen[g.Name] = true
+	}
+	// entry[].csp must reference an existing group (or be empty)
+	for i := range cfg.Entry {
+		ref := cfg.Entry[i].CSP
+		if ref == "" {
+			continue
+		}
+		if !seen[ref] {
+			return fmt.Errorf("entry[%d] (%s): csp %q not found in csp_groups", i, cfg.Entry[i].Path, ref)
 		}
 	}
 	return nil

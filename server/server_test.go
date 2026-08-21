@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/natuleadan/sdk-api/infra/logx"
 	"github.com/natuleadan/sdk-api/runtime/errcode"
+	"github.com/natuleadan/sdk-api/server/middleware"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/acme/autocert"
@@ -1138,4 +1140,64 @@ func mustReadBody(resp *http.Response) []byte {
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
 	return body
+}
+
+// --- per-route CSP groups ---
+
+func TestCSP_Groups_GlobalStrictAndDocsAmplified(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+	cfg := DefaultConfig()
+	cfg.SecurityHeaders = &middleware.SecurityHeadersConfig{
+		CSP: "default-src 'self'; font-src 'self'",
+	}
+	cfg.CSPGroups = []CSPGroup{
+		{
+			Name:       "docs",
+			PathPrefix: "/docs",
+			CSP: &middleware.CSPConfig{
+				ScriptSrc:  []string{"'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"},
+				ConnectSrc: []string{"'self'", "https://cdn.jsdelivr.net"},
+				FontSrc:    []string{"'self'", "https://fonts.scalar.com"},
+			},
+		},
+	}
+	app := New(cfg, TelemetryConfig{}, SecurityConfig{}, nil)
+	app.app.Get("/api/ping", func(c fiber.Ctx) error { return c.SendString("ok") })
+	app.app.Get("/docs", func(c fiber.Ctx) error { return c.SendString("docs") })
+
+	// /api/ping gets the strict global CSP (no fonts.scalar.com)
+	resp, _ := app.app.Test(testRequest("/api/ping"))
+	csp := resp.Header.Get("Content-Security-Policy")
+	if !strings.Contains(csp, "font-src 'self'") {
+		t.Errorf("ping: want strict CSP with font-src self, got %q", csp)
+	}
+	if strings.Contains(csp, "fonts.scalar.com") {
+		t.Errorf("ping: strict CSP must NOT include fonts.scalar.com, got %q", csp)
+	}
+
+	// /docs gets the amplified group CSP (fonts.scalar.com present)
+	docsReq := testRequest("/docs")
+	docsResp, _ := app.app.Test(docsReq)
+	docsCSP := docsResp.Header.Get("Content-Security-Policy")
+	if !strings.Contains(docsCSP, "fonts.scalar.com") {
+		t.Errorf("docs: want amplified CSP with fonts.scalar.com, got %q", docsCSP)
+	}
+}
+
+func TestCSP_Groups_NoGroups_AppliesGlobal(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+	cfg := DefaultConfig()
+	cfg.SecurityHeaders = &middleware.SecurityHeadersConfig{
+		CSP: "default-src 'self'",
+	}
+	app := New(cfg, TelemetryConfig{}, SecurityConfig{}, nil)
+	app.app.Get("/api/ping", func(c fiber.Ctx) error { return c.SendString("ok") })
+	app.app.Get("/docs", func(c fiber.Ctx) error { return c.SendString("docs") })
+
+	resp, _ := app.app.Test(testRequest("/docs"))
+	if got := resp.Header.Get("Content-Security-Policy"); got != "default-src 'self'" {
+		t.Errorf("no groups: /docs must get global CSP, got %q", got)
+	}
 }

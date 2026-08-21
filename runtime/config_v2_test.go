@@ -733,3 +733,60 @@ func TestPlural(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateCSPGroups_DuplicateName(t *testing.T) {
+	cfg := ServiceConfig{
+		Name: "test",
+		Server: ServerConf{
+			CSPGroups: []CSPGroupConf{
+				{Name: "docs", CSPConfig: &CSPConf{}},
+				{Name: "docs", CSPConfig: &CSPConf{}},
+			},
+		},
+	}
+	if err := validateConfigCSPGroups(&cfg); err == nil {
+		t.Fatal("expected duplicate name error")
+	}
+}
+
+func TestValidateCSPGroups_EmptyName(t *testing.T) {
+	cfg := ServiceConfig{
+		Name: "test",
+		Server: ServerConf{
+			CSPGroups: []CSPGroupConf{{Name: "", CSPConfig: &CSPConf{}}},
+		},
+	}
+	if err := validateConfigCSPGroups(&cfg); err == nil {
+		t.Fatal("expected empty name error")
+	}
+}
+
+func TestValidateCSPGroups_UnknownEntryRef(t *testing.T) {
+	cfg := ServiceConfig{
+		Name: "test",
+		Server: ServerConf{
+			CSPGroups: []CSPGroupConf{{Name: "docs", CSPConfig: &CSPConf{}}},
+		},
+		Entry: []EntryDef{
+			{Type: "rest", Path: "/ping", Handler: "ping", CSP: "missing"},
+		},
+	}
+	if err := validateConfigCSPGroups(&cfg); err == nil {
+		t.Fatal("expected unknown ref error")
+	}
+}
+
+func TestValidateCSPGroups_Valid(t *testing.T) {
+	cfg := ServiceConfig{
+		Name: "test",
+		Server: ServerConf{
+			CSPGroups: []CSPGroupConf{{Name: "docs", CSPConfig: &CSPConf{}}},
+		},
+		Entry: []EntryDef{
+			{Type: "rest", Path: "/ping", Handler: "ping", CSP: "docs"},
+		},
+	}
+	if err := validateConfigCSPGroups(&cfg); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+}

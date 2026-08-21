@@ -17,10 +17,16 @@ type SecurityHeadersConfig struct {
 	CORP              string `json:"corp" config:",optional"`
 	CacheControl      string `json:"cache_control" config:",optional"`
 	CSPReportPath     string `json:"csp_report_path" config:",optional"`
+	// Next skips this middleware (returns control to next handler) when it
+	// returns true. Used to let a per-route csp_group override the global CSP.
+	Next func(fiber.Ctx) bool
 }
 
 func SecurityHeaders(cfg SecurityHeadersConfig) fiber.Handler {
 	return func(c fiber.Ctx) error {
+		if cfg.Next != nil && cfg.Next(c) {
+			return c.Next()
+		}
 		c.Set("X-Content-Type-Options", "nosniff")
 
 		if cfg.FrameOptions != "" {

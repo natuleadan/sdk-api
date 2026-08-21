@@ -270,8 +270,8 @@ func setupSecurityMiddlewares(app *fiber.App, cfg Config, security SecurityConfi
 			app.Use(middleware.SecurityHeaders(*cfg.SecurityHeaders))
 		}
 	}
-	// Register per-route CSP groups. Each group overrides the global CSP on its
-	// path prefix, with the rest of the security headers inherited.
+	// Register per-route CSP groups as global middleware with Next skip.
+	// This ensures entry routes (registered directly on app) inherit the CSP.
 	if cfg.SecurityHeaders != nil {
 		for _, g := range cfg.CSPGroups {
 			if g.PathPrefix == "" || g.CSP == nil {
@@ -279,7 +279,10 @@ func setupSecurityMiddlewares(app *fiber.App, cfg Config, security SecurityConfi
 			}
 			groupCfg := *cfg.SecurityHeaders
 			groupCfg.CSP = middleware.BuildCSP(*g.CSP)
-			app.Use(g.PathPrefix, middleware.SecurityHeaders(groupCfg))
+			groupCfg.Next = func(c fiber.Ctx) bool {
+				return !strings.HasPrefix(c.Path(), g.PathPrefix)
+			}
+			app.Use(middleware.SecurityHeaders(groupCfg))
 		}
 	}
 	if cfg.CSRF != nil {
@@ -305,10 +308,56 @@ func setupSecurityMiddlewares(app *fiber.App, cfg Config, security SecurityConfi
 }
 
 func setupRouteOrGlobalMiddlewares(app *fiber.App, cfg Config, corsCfg *CORSConfig) {
+	// Register utility middlewares only when enabled in YAML.
+	if cfg.Logger {
+		app.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
+			SkipPaths:  cfg.LogSkipPaths,
+			SampleRate: cfg.LogSampleRate,
+		}))
+	}
+	if cfg.LoadShedding {
+		app.Use(middleware.Shedding())
+	}
+	if cfg.Breaker {
+		app.Use(middleware.Breaker())
+	}
+	if cfg.Compression {
+		app.Use(compress.New())
+	}
+	app.Use(middleware.MaxConns(cfg.MaxConns))
+	app.Use(middleware.MaxBytes(cfg.MaxBytes))
+	app.Use(middleware.Gunzip())
+	app.Use(middleware.Prometheus())
+
+	// Register CORS only when configured in YAML (cors or cors_groups).
+	if corsCfg != nil {
+		if len(corsCfg.Origins) > 0 || corsCfg.AllowOriginsFunc != nil {
+			corsHandler := middleware.CORS(middleware.CORSConfig{
+				AllowedOrigins:       joinOrStar(corsCfg.Origins),
+				AllowedMethods:       joinOrDefault(corsCfg.Methods, "GET,POST,PUT,PATCH,DELETE,OPTIONS"),
+				AllowedHeaders:       joinOrDefault(corsCfg.Headers, "Origin,Content-Type,Accept,Authorization"),
+				AllowCredentials:     corsCfg.Credentials,
+				MaxAge:               corsCfg.MaxAge,
+				ExposeHeaders:        joinOrEmpty(corsCfg.ExposeHeaders),
+				AllowPrivateNetwork:  corsCfg.AllowPrivateNetwork,
+				AllowOriginsFunc:     corsCfg.AllowOriginsFunc,
+				Next: func(c fiber.Ctx) bool {
+					return corsPathSkipped(c, corsCfg)
+				},
+			})
+			app.Use(corsHandler)
+		}
+		for _, g := range corsCfg.Groups {
+			if g.Name == "" {
+				continue
+			}
+			registerCORSGroup(app, g)
+		}
+	}
+
+	// Register per-route middlewares only when middleware[] has entries in YAML.
 	if len(cfg.Routes) > 0 {
 		setupPerRouteMiddlewares(app, cfg, corsCfg)
-	} else {
-		setupGlobalStandardMiddlewares(app, cfg, corsCfg)
 	}
 }
 
@@ -381,14 +430,15 @@ func corsPathSkipped(c fiber.Ctx, corsCfg *CORSConfig) bool {
 	return false
 }
 
-// registerCORSGroup registers a named CORS group middleware scoped to its
-// path prefix. The group is looked up by name in applyMiddlewareByType.
+// registerCORSGroup registers a named CORS group as global middleware with
+// a Next function that only applies to paths matching the group's prefix.
+// This ensures entry routes (registered directly on app) inherit the CORS.
 func registerCORSGroup(app *fiber.App, g CORSGroup) {
 	prefix := g.PathPrefix
 	if prefix == "" {
 		return
 	}
-	app.Use(prefix, middleware.CORS(middleware.CORSConfig{
+	app.Use(middleware.CORS(middleware.CORSConfig{
 		AllowedOrigins:       joinOrStar(g.Origins),
 		AllowedMethods:       joinOrDefault(g.Methods, "GET,POST,PUT,PATCH,DELETE,OPTIONS"),
 		AllowedHeaders:       joinOrDefault(g.Headers, "Origin,Content-Type,Accept,Authorization"),
@@ -397,6 +447,9 @@ func registerCORSGroup(app *fiber.App, g CORSGroup) {
 		ExposeHeaders:        joinOrEmpty(g.ExposeHeaders),
 		AllowPrivateNetwork:  g.AllowPrivateNetwork,
 		AllowOriginsFunc:     g.AllowOriginsFunc,
+		Next: func(c fiber.Ctx) bool {
+			return !strings.HasPrefix(c.Path(), prefix)
+		},
 	}))
 }
 

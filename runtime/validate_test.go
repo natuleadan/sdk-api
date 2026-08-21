@@ -31,8 +31,8 @@ func TestCheckScalarWarnings_NoCORS_NoCSP(t *testing.T) {
 	if !strings.Contains(out, "no CSP configured") {
 		t.Errorf("expected CSP warning, got: %s", out)
 	}
-	if !strings.Contains(out, "102-scalar-ui") {
-		t.Errorf("expected reference to examples/102-scalar-ui, got: %s", out)
+	if !strings.Contains(out, "101-scalar-ui") {
+		t.Errorf("expected reference to examples/101-scalar-ui, got: %s", out)
 	}
 }
 

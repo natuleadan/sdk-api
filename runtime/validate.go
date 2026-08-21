@@ -132,9 +132,9 @@ func CheckScalarWarnings(cfg *ServiceConfig) {
 		docsPath = "/docs"
 	}
 	if !hasCORS && !hasGroup {
-		logx.Infof("openapi: Scalar UI enabled at %q but no CORS configured — the docs page won't load from another origin. See examples/102-scalar-ui for the CORS/CSP model.", docsPath)
+		logx.Infof("openapi: Scalar UI enabled at %q but no CORS configured — the docs page won't load from another origin. See examples/101-scalar-ui for the CORS/CSP model.", docsPath)
 	}
 	if sc.SecurityHeaders == nil || sc.SecurityHeaders.CSPConfig == nil {
-		logx.Infof("openapi: Scalar UI enabled but no CSP configured — scripts from cdn.jsdelivr.net and Google Fonts will be blocked. See examples/102-scalar-ui for the required csp_config.")
+		logx.Infof("openapi: Scalar UI enabled but no CSP configured — scripts from cdn.jsdelivr.net and Google Fonts will be blocked. See examples/101-scalar-ui for the required csp_config.")
 	}
 }

@@ -1,0 +1,161 @@
+# 101-scalar-ui: CORS matrix across all entry types (no external infra)
+#
+# Demonstrates named CORS groups applied to every entry type the SDK supports
+# without external containers: rest, webhook, websocket, sse, file, async,
+# crud (libsql local file), and graphql. Each endpoint has its own CORS policy
+# and none poison each other.
+#
+# Why this example exists: the SDK warns at startup when Scalar is enabled
+# without CORS or CSP configured (runtime/validate.go CheckScalarWarnings).
+# This is the model to copy - the SDK never injects CORS/CSP for you.
+name: scalar-ui
+port: 23101
+
+databases:
+  # PostgreSQL provided by docker-compose (dev:devpass@postgres:5432).
+  # Satisfies crud's db requirement; the CRUD provider is in-memory Go
+  # (see cmd/main.go) - the pool exists for config validation + OpenAPI.
+  - name: local
+    driver: postgres
+    url: "${DATABASE_URL}"
+
+server:
+  host: "0.0.0.0"
+  timeout: 30s
+  health_path: /healthz
+  api_prefix: /api
+  shutdown_timeout: 10s
+  openapi:
+    enabled: true
+    theme: moon
+    dark_mode: true
+    # favicon_url accepts three modes (default = inline magnifying glass):
+    #   "static/logo.svg"  -> local file, read once at startup
+    #   "https://cdn.example.com/logo.svg" -> remote, server-side download with TTL
+    # favicon_refresh: "24h"   # optional TTL for remote mode (default 24h)
+  security_headers:
+    frame_options: DENY
+    referrer_policy: no-referrer
+    permissions_policy: "camera=(), microphone=(), geolocation=()"
+    hsts: false
+    csp_config:                 # CSP ESTRICTO global (todas las rutas excepto grupos)
+      level: basic
+      default_src: ["'self'"]
+      script_src: ["'self'"]
+      style_src: ["'self'", "'unsafe-inline'"]
+      img_src: ["'self'", "data:"]
+      connect_src: ["'self'"]
+      font_src: ["'self'"]
+  csp_groups:                    # CSP ampliado SOLO para rutas específicas
+    # Variant 6 - docs: Scalar UI necesita jsdelivr + Google Fonts + fonts.scalar.com
+    - name: docs
+      csp_config:
+        level: basic
+        default_src: ["'self'"]
+        script_src: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"]
+        style_src: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"]
+        img_src: ["'self'", "data:", "https:"]
+        connect_src: ["'self'", "https://cdn.jsdelivr.net"]
+        font_src: ["'self'", "https://fonts.googleapis.com", "https://fonts.gstatic.com", "https://cdn.jsdelivr.net", "https://fonts.scalar.com"]
+  cors_groups:
+    # Variant 1 - docs: public Scalar UI, open CORS, no credentials
+    - name: docs
+      origins: ["*"]
+      methods: [GET]
+      credentials: false
+      max_age: 3600
+    # Variant 2 - app: client app API, locked origin, credentials
+    - name: app
+      origins: ["https://app.example.com"]
+      methods: [GET, POST, PATCH, DELETE]
+      headers: [Content-Type, Authorization]
+      credentials: true
+      expose_headers: [X-Request-ID]
+      max_age: 300
+    # Variant 3 - ws: websocket/sse, no credentials, private network allowed
+    - name: ws
+      origins: ["https://app.example.com"]
+      methods: [GET]
+      headers: [Content-Type]
+      credentials: false
+      max_age: 600
+      allow_private_network: true
+    # Variant 4 - webhooks: server-to-server, narrow POST, no credentials
+    - name: webhooks
+      origins: ["https://hooks.example.com"]
+      methods: [POST]
+      headers: [Content-Type]
+      max_age: 600
+    # Variant 5 - sub: subdomain matching, any subdomain of example.com
+    - name: sub
+      origins: ["https://*.example.com"]
+      methods: [GET]
+      credentials: false
+      max_age: 3600
+  middleware:
+    - path: "/docs"
+      apply: ["cors:docs", "csp:docs"]
+  prometheus:
+    host: "0.0.0.0"
+    port: 9201
+    path: /metrics
+
+entry:
+  # rest - client API (variant 2)
+  - type: rest
+    method: GET
+    path: /ping
+    handler: ping
+    cors: app
+  # webhook - server-to-server (variant 4)
+  - type: webhook
+    method: POST
+    path: /echo
+    handler: echo
+    cors: webhooks
+  # websocket - realtime (variant 3)
+  - type: websocket
+    path: /ws/chat
+    handler: chat
+    cors: ws
+  # sse - server-sent events (variant 3)
+  - type: sse
+    path: /sse/events
+    handler: events
+    cors: ws
+  # file - upload, local storage (variant 2)
+  - type: file
+    method: POST
+    path: /upload
+    handler: upload
+    storage:
+      mode: local
+      path: /tmp/uploads
+    cors: app
+  # async - background jobs, memory store (variant 2)
+  - type: async
+    path: /jobs
+    handler: job
+    cors: app
+  # crud - products, libsql local db (variant 2)
+  - type: crud
+    model: Product
+    db: local
+    table: products
+    path: /products
+    cors: app
+  # graphql - query endpoint (variant 2)
+  - type: graphql
+    path: /graphql
+    cors: app
+  # subdomain demo (variant 5)
+  - type: rest
+    method: GET
+    path: /sub
+    handler: sub
+    cors: sub
+  # internal - no CORS (same-origin only, secure default)
+  - type: rest
+    method: GET
+    path: /internal/status
+    handler: status

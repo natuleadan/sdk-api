@@ -12,6 +12,7 @@ usage() {
 	echo ""
 	echo "Available examples:"
 	echo "  100               - 100-healthz"
+	echo "  101               - 101-scalar-ui (CORS matrix across entry types)"
 	echo "  200/postgres      - 200-url-shortener/postgres"
 	echo "  200/nats          - 200-url-shortener/nats"
 	echo "  200/kv            - 200-url-shortener/kv-dragonfly"
@@ -35,6 +36,7 @@ usage() {
 
 case "$1" in
 	100) DIR="100-healthz" ;;
+	101) DIR="101-scalar-ui" ;;
 	200/postgres|200/pg) DIR="200-url-shortener/postgres" ;;
 	200/nats) DIR="200-url-shortener/nats" ;;
 	200/kv|200/kv-dragonfly) DIR="200-url-shortener/kv-dragonfly" ;;

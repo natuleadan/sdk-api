@@ -640,6 +640,9 @@ type DBConfig struct {
 	Driver string `json:"driver" config:",default=postgres"`
 	// URL is a constant.
 	URL string `json:"url"`
+	// AuthToken is the auth token for remote Turso/libSQL drivers
+	// (turso-serverless, libsql, go-libsql sync). Supports ${VAR} from env.
+	AuthToken string `json:"auth_token" config:",optional"`
 	// ReadURL is the read replica connection URL for read/write splitting.
 	ReadURL string `json:"read_url" config:",optional"`
 	// Database is a constant.
@@ -669,6 +672,42 @@ func (t *TursoConf) Validate() error {
 	return nil
 }
 
+// resolveAuthToken expands ${VAR} in AuthToken from the environment.
+func (d *DBConfig) resolveAuthToken() {
+	if d.AuthToken == "" || !strings.HasPrefix(d.AuthToken, "${") {
+		return
+	}
+	name := strings.TrimSuffix(strings.TrimPrefix(d.AuthToken, "${"), "}")
+	if v := os.Getenv(name); v != "" {
+		d.AuthToken = v
+	}
+}
+
+// normalizeDriver validates and normalizes the driver name, setting defaults.
+func (d *DBConfig) normalizeDriver() error {
+	switch d.Driver {
+	case "postgres", "pg":
+		d.Driver = "postgres"
+		return nil
+	case "turso":
+		if d.Turso == nil {
+			d.Turso = &TursoConf{Mode: "local", BusyTimeout: 30000}
+		}
+		return d.Turso.Validate()
+	case "turso-serverless", "libsql", "go-libsql":
+		// Remote Turso/libSQL variants. go-libsql additionally requires CGO
+		// (embedded replicas) — enforced by the db package.
+		if d.Turso == nil {
+			d.Turso = &TursoConf{Mode: "remote", BusyTimeout: 0}
+		}
+		return nil
+	case "mysql", "mongo":
+		return nil
+	default:
+		return fmt.Errorf("unknown driver %q (use postgres, turso, turso-serverless, libsql, go-libsql, mysql, or mongo)", d.Driver)
+	}
+}
+
 type PoolConf struct {
 	// MaxConns is a constant.
 	MaxConns int32 `json:"max_conns" config:",default=10"`
@@ -694,21 +733,11 @@ func (d *DBConfig) Validate() error {
 		return fmt.Errorf("url is required")
 	}
 	if d.Driver == "" {
-		return fmt.Errorf("driver is required (postgres, mysql, turso, or mongo)")
+		return fmt.Errorf("driver is required (postgres, mysql, turso, turso-serverless, libsql, go-libsql, or mongo)")
 	}
-	switch d.Driver {
-	case "postgres", "pg":
-		d.Driver = "postgres"
-	case "turso":
-		if d.Turso == nil {
-			d.Turso = &TursoConf{Mode: "local", BusyTimeout: 30000}
-		}
-		if err := d.Turso.Validate(); err != nil {
-			return err
-		}
-	case "mysql", "mongo":
-	default:
-		return fmt.Errorf("unknown driver %q (use postgres, turso, mysql, or mongo)", d.Driver)
+	d.resolveAuthToken()
+	if err := d.normalizeDriver(); err != nil {
+		return err
 	}
 	if d.Driver == "mongo" {
 		return nil

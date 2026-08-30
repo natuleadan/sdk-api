@@ -1,6 +1,33 @@
 # Database
 
-sdk-api supports **PostgreSQL** (primary driver, via pgx), **MySQL** (via go-sql-driver), **Turso** (SQLite-compatible, via tursogo), and **MongoDB** (via mongo-driver).
+sdk-api supports **PostgreSQL** (primary driver, via pgx), **MySQL** (via go-sql-driver), **Turso/libSQL** (4 variants, see below), and **MongoDB** (via mongo-driver).
+
+## Turso / libSQL driver variants
+
+| Driver name | Package | Use case | CGO | Notes |
+|-------------|---------|----------|-----|-------|
+| `turso` | `turso.tech/database/tursogo` | Local/embedded database + sync | no | Turso engine, MVCC concurrent writes, `NewTursoSyncDb` push/pull (Turso Cloud only) |
+| `turso-serverless` | `turso.tech/database/tursogo-serverless` | Remote Turso/libSQL over HTTP | **no** | Pure Go, no native libs; ideal for serverless/edge/Docker |
+| `libsql` | `github.com/tursodatabase/libsql-client-go` | Remote libSQL (hrana wire protocol) | no | Pure Go, works with Turso Cloud and Bunny |
+| `go-libsql` | `github.com/tursodatabase/go-libsql` | Embedded replicas (reads local, writes to cloud) | **yes** | Build with `-tags golibsql`; replaces libsql-client-go (same driver name) |
+
+> **Mutual exclusion**: `go-libsql` and `libsql-client-go` both register the
+> driver name `libsql`. Build with `-tags golibsql` to use go-libsql; the
+> default build provides libsql-client-go.
+
+### Remote variant config
+
+```yaml
+databases:
+  - name: remote-main
+    driver: turso-serverless     # or libsql, or go-libsql
+    url: "${TURSO_DATABASE_URL}" # libsql://... (Turso Cloud or Bunny)
+    auth_token: "${TURSO_AUTH_TOKEN}"
+    turso:
+      mode: remote
+```
+
+### Local variant config
 
 ## Configuration
 
@@ -44,6 +71,9 @@ Multiple databases = multiple entries in the `databases:` array. Each is referen
 | `postgres` / `pg` (default) | `*pgxpool.Pool` | `db.Table[T]` | `NewCRUDProvider[T]` |
 | `mysql` | `*sql.DB` | `db.MySQLTable[T]` | `NewMySQLCRUDProvider[T]` |
 | `turso` | `*sql.DB` | `db.TursoTable[T]` | `NewTursoCRUDProvider[T]` |
+| `turso-serverless` | `*sql.DB` | `db.TursoTable[T]` | `NewTursoCRUDProvider[T]` |
+| `libsql` | `*sql.DB` | `db.TursoTable[T]` | `NewTursoCRUDProvider[T]` |
+| `go-libsql` (build `-tags golibsql`) | `*sql.DB` | `db.TursoTable[T]` | `NewTursoCRUDProvider[T]` |
 | `mongo` | `string` (URI) | — | `NewMongoCRUDProvider` |
 
 ## Model Definition

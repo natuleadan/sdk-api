@@ -34,6 +34,12 @@ func initDatabases(ctx context.Context, databases []DBConfig) (map[string]any, e
 			pool, err = initPostgres(ctx, &dbCfg)
 		case "turso":
 			pool, err = initTurso(&dbCfg)
+		case "turso-serverless":
+			pool, err = initTursoServerless(&dbCfg)
+		case "libsql":
+			pool, err = initLibsql(&dbCfg)
+		case "go-libsql":
+			pool, err = initGoLibsql(ctx, &dbCfg)
 		case "mysql":
 			pool, err = initMySQL(&dbCfg)
 		case "mongo":
@@ -132,6 +138,45 @@ func initTurso(cfg *DBConfig) (*sql.DB, error) {
 				logx.Errorf("close turso conn: %v", err)
 			}
 		}
+	}
+	return db, nil
+}
+
+// initTursoServerless opens a remote Turso/libSQL database over HTTP using the
+// tursogo-serverless driver (pure Go, no CGO, no native libs).
+func initTursoServerless(cfg *DBConfig) (*sql.DB, error) {
+	db, err := db.TursoServerlessOpen(cfg.URL, cfg.AuthToken)
+	if err != nil {
+		return nil, err
+	}
+	if cfg.Pool != nil && cfg.Pool.MaxConns > 0 {
+		db.SetMaxOpenConns(int(cfg.Pool.MaxConns))
+	}
+	return db, nil
+}
+
+// initLibsql opens a remote libSQL database using the libsql-client-go driver
+// (hrana wire protocol, pure Go).
+func initLibsql(cfg *DBConfig) (*sql.DB, error) {
+	db, err := db.LibsqlOpen(cfg.URL, cfg.AuthToken)
+	if err != nil {
+		return nil, err
+	}
+	if cfg.Pool != nil && cfg.Pool.MaxConns > 0 {
+		db.SetMaxOpenConns(int(cfg.Pool.MaxConns))
+	}
+	return db, nil
+}
+
+// initGoLibsql opens an embedded replica synced to a remote primary using the
+// go-libsql driver (requires CGO; local reads, writes to cloud primary).
+func initGoLibsql(ctx context.Context, cfg *DBConfig) (*sql.DB, error) {
+	db, err := db.GoLibsqlOpen(ctx, cfg.URL, cfg.AuthToken)
+	if err != nil {
+		return nil, err
+	}
+	if cfg.Pool != nil && cfg.Pool.MaxConns > 0 {
+		db.SetMaxOpenConns(int(cfg.Pool.MaxConns))
 	}
 	return db, nil
 }

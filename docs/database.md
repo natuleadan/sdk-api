@@ -76,6 +76,38 @@ Multiple databases = multiple entries in the `databases:` array. Each is referen
 | `go-libsql` (build `-tags golibsql`) | `*sql.DB` | `db.TursoTable[T]` | `NewTursoCRUDProvider[T]` |
 | `mongo` | `string` (URI) | — | `NewMongoCRUDProvider` |
 
+### Resolving a driver via YAML (YAML-driven)
+
+Drivers are **declared in `service.yaml`** under `databases:`. The runtime
+resolves the pool from the `driver:` field; application code never opens a
+connection directly:
+
+```yaml
+databases:
+  - name: main
+    driver: turso-serverless     # turso | turso-serverless | libsql | go-libsql
+    url: "${TURSO_DATABASE_URL}" # libsql://... (Turso Cloud or Bunny)
+    auth_token: "${TURSO_AUTH_TOKEN}"
+    turso:
+      mode: remote
+```
+
+Then register CRUD against the pool **by name** — the runtime owns the
+connection:
+
+```go
+runtime.TursoMustRegister[Product](svc, "Product", "main", "products", nil)
+```
+
+The pool is available to handlers via `svc.Pool("main")` (a `*sql.DB` for all
+Turso/libSQL variants). `initTursoServerless`/`initLibsql`/`initGoLibsql` in
+the runtime open the connection from the YAML config; app code stays
+configuration-driven and never calls `sql.Open` or the driver packages
+directly.
+
+> **YAML-driven rule**: always declare the database in `service.yaml` and let
+> the runtime resolve it. Do not open connections in application code.
+
 ## Model Definition
 
 Models are Go structs with `db:""` and `json:""` tags:

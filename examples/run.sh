@@ -20,7 +20,10 @@ usage() {
 	echo "  200/pgmem-dfly    - 200-url-shortener/postgres-mem-dragonfly"
 	echo "  200/mongo         - 200-url-shortener/mongo"
 	echo "  200/mariadb       - 200-url-shortener/mariadb"
-	echo "  200/sqlite        - 200-url-shortener/sqlite"
+	echo "  200/turso         - 200-url-shortener/tursogo (local embedded)"
+	echo "  200/tsl           - 200-url-shortener/turso-serverless (remote, pure Go)"
+	echo "  200/libsql        - 200-url-shortener/libsql (remote hrana)"
+	echo "  200/go-libsql     - 200-url-shortener/go-libsql (embedded replica, CGO)"
 	echo "  300/ephemeral     - 300-file-storage/ephemeral"
 	echo "  300/cached        - 300-file-storage/cached"
 	echo "  300/proxy         - 300-file-storage/proxy"
@@ -44,7 +47,10 @@ case "$1" in
 	200/pgmem-dfly) DIR="200-url-shortener/postgres-mem-dragonfly" ;;
 	200/mongo) DIR="200-url-shortener/mongo" ;;
 	200/mariadb) DIR="200-url-shortener/mariadb" ;;
-	200/sqlite) DIR="200-url-shortener/sqlite" ;;
+	200/turso) DIR="200-url-shortener/tursogo" ;;
+	200/tsl) DIR="200-url-shortener/turso-serverless" ;;
+	200/libsql) DIR="200-url-shortener/libsql" ;;
+	200/go-libsql) DIR="200-url-shortener/go-libsql" ;;
 	300/ephemeral) DIR="300-file-storage/ephemeral" ;;
 	300/cached) DIR="300-file-storage/cached" ;;
 	300/proxy) DIR="300-file-storage/proxy" ;;

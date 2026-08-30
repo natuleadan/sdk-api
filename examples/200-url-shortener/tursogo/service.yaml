@@ -4,7 +4,10 @@ port: 23208
 databases:
   - name: turso-main
     driver: turso
-    url: "${DATABASE_URL}"
+    url: "${DATABASE_URL}"   # local path, e.g. /tmp/shortener.db
+    turso:
+      mode: local
+      busy_timeout: 30000
 
 entry:
   - type: crud

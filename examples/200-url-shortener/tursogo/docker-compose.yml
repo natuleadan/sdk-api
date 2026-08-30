@@ -3,7 +3,7 @@ services:
   bench:
     build:
       context: ../../../..
-      dockerfile: sdk-api/examples/200-url-shortener/sqlite/Dockerfile
+      dockerfile: sdk-api/examples/200-url-shortener/tursogo/Dockerfile
     ports:
       - "23208:23208"
     environment:

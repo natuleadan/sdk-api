@@ -4,7 +4,7 @@ import (
 	"log"
 	"os"
 
-	"201-url-shortener-turso/models"
+	"200-url-shortener-tursogo/models"
 
 	"github.com/natuleadan/sdk-api/runtime"
 )

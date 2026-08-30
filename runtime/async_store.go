@@ -36,6 +36,9 @@ type JobState struct {
 type JobStore interface {
 	Create(id string) *JobState
 	Get(id string) (*JobState, bool)
+	// Snapshot returns a defensive copy of a job state, safe to serialize
+	// outside the store lock (HTTP handlers). Mutating it does not persist.
+	Snapshot(id string) (*JobState, bool)
 	Update(id string, status JobStatus, result any, errMsg string)
 	Delete(id string)
 	// List returns all jobs (best-effort, limited).
@@ -132,6 +135,20 @@ func (s *memoryJobStore) Get(id string) (*JobState, bool) {
 	defer s.mu.RUnlock()
 	js, ok := s.jobs[id]
 	return js, ok
+}
+
+// Snapshot returns a copy of the job state under the store lock, safe to
+// serialize/read outside the lock (HTTP handlers). The returned copy is not
+// linked to the store: mutating it does not persist.
+func (s *memoryJobStore) Snapshot(id string) (*JobState, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	js, ok := s.jobs[id]
+	if !ok {
+		return nil, false
+	}
+	cp := *js
+	return &cp, true
 }
 
 func (s *memoryJobStore) Update(id string, status JobStatus, result any, errMsg string) {

@@ -70,6 +70,11 @@ func (s *pgJobStore) Get(id string) (*JobState, bool) {
 	return &js, true
 }
 
+// Snapshot returns the job state (already a fresh copy from the DB scan).
+func (s *pgJobStore) Snapshot(id string) (*JobState, bool) {
+	return s.Get(id)
+}
+
 func (s *pgJobStore) Update(id string, status JobStatus, result any, errMsg string) {
 	dl := any(nil)
 	if status == JobProcessing {

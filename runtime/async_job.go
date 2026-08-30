@@ -113,7 +113,7 @@ func (m *AsyncJobManager) HandleSubmit() fiber.Handler {
 func (m *AsyncJobManager) HandleStatus() fiber.Handler {
 	return func(c fiber.Ctx) error {
 		id := c.Params("job_id")
-		js, ok := m.store.Get(id)
+		js, ok := m.store.Snapshot(id)
 		if !ok {
 			return errcode.ErrNotFound("job", id)
 		}
@@ -153,7 +153,8 @@ func (m *AsyncJobManager) HandleStatusSSE() fiber.Handler {
 	return func(c fiber.Ctx) error {
 		id := c.Params("job_id")
 
-		js, ok := m.store.Get(id)
+		// Snapshot returns a defensive copy safe to serialize.
+		js, ok := m.store.Snapshot(id)
 		if !ok {
 			return errcode.ErrNotFound("job", id)
 		}
@@ -162,9 +163,7 @@ func (m *AsyncJobManager) HandleStatusSSE() fiber.Handler {
 		c.Set("Cache-Control", "no-cache")
 		c.Set("Connection", "keep-alive")
 
-		// Serialize a copy: the shared *JobState may be mutated by the worker.
-		statusCopy := *js
-		data, _ := json.Marshal(&statusCopy)
+		data, _ := json.Marshal(js)
 		if _, err := c.Write([]byte("data: " + string(data) + "\n\n")); err != nil {
 			return nil
 		}

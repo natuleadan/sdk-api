@@ -42,6 +42,11 @@ func (s *natsKVJobStore) Get(id string) (*JobState, bool) {
 	return &js, true
 }
 
+// Snapshot returns the job state (already a fresh copy from unmarshal).
+func (s *natsKVJobStore) Snapshot(id string) (*JobState, bool) {
+	return s.Get(id)
+}
+
 func (s *natsKVJobStore) Update(id string, status JobStatus, result any, errMsg string) {
 	js, ok := s.Get(id)
 	if !ok {

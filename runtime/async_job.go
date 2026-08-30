@@ -87,12 +87,15 @@ func (m *AsyncJobManager) HandleSubmit() fiber.Handler {
 				}
 				m.store.Update(id, JobProcessing, nil, "")
 				m.broadcast(id)
-				dl := time.Now().Add(m.processingTimeout)
-				js.ProcessingDeadline = &dl
-				if err := m.processor(body, js); err != nil {
+				// Use a local copy of the job state for the processor so the
+				// shared *JobState (read by HandleStatus/HandleStatusSSE) is
+				// never mutated without the store lock. The result is written
+				// back to the store via Update (which copies under lock).
+				workJS := *js
+				if err := m.processor(body, &workJS); err != nil {
 					m.store.Update(id, JobFailed, nil, err.Error())
 				} else {
-					m.store.Update(id, JobCompleted, js.Result, "")
+					m.store.Update(id, JobCompleted, workJS.Result, "")
 				}
 				m.broadcast(id)
 				m.notifyCallback(reqCtx, id)
@@ -159,7 +162,9 @@ func (m *AsyncJobManager) HandleStatusSSE() fiber.Handler {
 		c.Set("Cache-Control", "no-cache")
 		c.Set("Connection", "keep-alive")
 
-		data, _ := json.Marshal(js)
+		// Serialize a copy: the shared *JobState may be mutated by the worker.
+		statusCopy := *js
+		data, _ := json.Marshal(&statusCopy)
 		if _, err := c.Write([]byte("data: " + string(data) + "\n\n")); err != nil {
 			return nil
 		}

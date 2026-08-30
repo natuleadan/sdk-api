@@ -1,0 +1,12 @@
+name: url-shortener-libsql-bench
+services:
+  bench:
+    build:
+      context: ../../../..
+      dockerfile: sdk-api/examples/200-url-shortener/libsql/Dockerfile
+    ports:
+      - "23210:23210"
+    environment:
+      DOCKER_TEST: "1"
+      TURSO_DATABASE_URL: "${TURSO_DATABASE_URL}"
+      TURSO_AUTH_TOKEN: "${TURSO_AUTH_TOKEN}"

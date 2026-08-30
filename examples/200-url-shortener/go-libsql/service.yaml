@@ -1,0 +1,41 @@
+# url-shortener - variante 4: go-libsql (embedded replica, CGO).
+# Local reads, writes to cloud primary. Build with: go build -tags golibsql.
+# Requires TURSO_DATABASE_URL + TURSO_AUTH_TOKEN.
+name: url-shortener
+port: 23211
+
+databases:
+  - name: turso-main
+    driver: go-libsql
+    url: "${TURSO_DATABASE_URL}"
+    auth_token: "${TURSO_AUTH_TOKEN}"
+    turso:
+      mode: remote
+
+entry:
+  - type: crud
+    model: Link
+    db: turso-main
+    table: link
+    path: /links
+  - type: crud
+    model: LinkExpand
+    db: turso-main
+    table: link
+    path: /expand
+    overrides:
+      list: "-"
+      create: "-"
+      update: "-"
+      delete: "-"
+
+server:
+  host: "0.0.0.0"
+  prefork: false
+  api_prefix: /api
+  max_conns: 10000
+  timeout: 30s
+  middleware:
+    - path: "/api/*"
+      apply:
+        - logger

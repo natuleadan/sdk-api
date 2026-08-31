@@ -11,8 +11,10 @@ usage() {
 	echo "  ./run.sh 200/postgres --rps:create   # RPS only for one endpoint"
 	echo ""
 	echo "Available examples:"
-	echo "  100               - 100-healthz"
-	echo "  101               - 101-scalar-ui (CORS matrix across entry types)"
+	echo "  100               - 100-base/healthz (4 health endpoints)"
+	echo "  100/redirects     - 100-base/redirects (YAML-driven redirects)"
+	echo "  100/static        - 100-base/static (YAML-driven static)"
+	echo "  101               - 100-base/scalar-ui (CORS matrix across entry types)"
 	echo "  200/postgres      - 200-url-shortener/postgres"
 	echo "  200/nats          - 200-url-shortener/nats"
 	echo "  200/kv            - 200-url-shortener/kv-dragonfly"
@@ -38,8 +40,10 @@ usage() {
 [ -z "$1" ] && usage
 
 case "$1" in
-	100) DIR="100-healthz" ;;
-	101) DIR="101-scalar-ui" ;;
+	100) DIR="100-base/healthz" ;;
+	100/redirects) DIR="100-base/redirects" ;;
+	100/static) DIR="100-base/static" ;;
+	101) DIR="100-base/scalar-ui" ;;
 	200/postgres|200/pg) DIR="200-url-shortener/postgres" ;;
 	200/nats) DIR="200-url-shortener/nats" ;;
 	200/kv|200/kv-dragonfly) DIR="200-url-shortener/kv-dragonfly" ;;
@@ -70,4 +74,4 @@ fi
 
 cd "$DIR"
 docker compose down -v 2>/dev/null
-docker compose run --rm bench "$@"
+docker compose run --build --rm bench "$@"

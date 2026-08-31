@@ -29,7 +29,6 @@ examples/*/auth-openfga-zitadel-monolith
 examples/*/auth-ory-monolith
 examples/*/exit-workers
 examples/*/file-upload
-examples/*/healthz
 examples/*/mongo-bench
 examples/*/mysql-bench
 examples/*/nla-*-amd64

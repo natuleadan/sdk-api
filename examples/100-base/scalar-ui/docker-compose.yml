@@ -17,8 +17,8 @@ services:
 
   bench:
     build:
-      context: ../../..
-      dockerfile: sdk-api/examples/101-scalar-ui/Dockerfile
+      context: ../../../..
+      dockerfile: sdk-api/examples/100-base/scalar-ui/Dockerfile
     ports:
       - "23101:23101"
     depends_on:

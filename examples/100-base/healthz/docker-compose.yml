@@ -2,8 +2,8 @@ name: healthz-bench
 services:
   bench:
     build:
-      context: ../../..
-      dockerfile: sdk-api/examples/100-healthz/Dockerfile
+      context: ../../../..
+      dockerfile: sdk-api/examples/100-base/healthz/Dockerfile
     ports:
       - "23100:23100"
     environment:

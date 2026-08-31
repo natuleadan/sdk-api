@@ -918,6 +918,7 @@ func (s *Service) RunWithContext(ctx context.Context) error {
 		return err
 	}
 	s.serveStaticFiles()
+	s.registerRedirects()
 	registerDocs(s.srv.App(), s.config, s.models)
 
 	if err := s.startExitWorkers(ctx); err != nil {
@@ -1297,6 +1298,33 @@ func displayRoot(sd StaticDef) string {
 		return "fs:" + sd.FSName
 	}
 	return sd.Dir
+}
+
+// registerRedirects registers declarative HTTP redirects from server.redirects
+// in the YAML config. Each rule registers a GET handler on the "from" path that
+// returns a redirect to the "to" URL with the configured status code.
+func (s *Service) registerRedirects() {
+	redirects := s.config.Server.Redirects
+	if len(redirects) == 0 {
+		return
+	}
+	for _, rd := range redirects {
+		if rd.From == "" || rd.To == "" {
+			logx.Errorf("redirects: from and to are required, skipping %+v", rd)
+			continue
+		}
+		status := rd.Status
+		if status == 0 {
+			status = fiber.StatusFound
+		}
+		from := rd.From
+		to := rd.To
+		code := status
+		s.srv.App().Get(from, func(c fiber.Ctx) error {
+			return c.Redirect().Status(code).To(to)
+		})
+		logx.Infof("redirect: %s → %s (%d)", from, to, code)
+	}
 }
 
 func (s *Service) startExitWorkers(ctx context.Context) error {

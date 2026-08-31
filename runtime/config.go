@@ -200,6 +200,8 @@ type ServerConf struct {
 	Middleware []RouteMW `json:"middleware" config:",optional"`
 	// Static is a constant.
 	Static []StaticDef `json:"static" config:",optional"`
+	// Redirects defines declarative HTTP redirects (no Go code needed).
+	Redirects []RedirectDef `json:"redirects" config:",optional"`
 	// OpenAPI is a constant.
 	OpenAPI *OpenAPIConf `json:"openapi" config:",optional"`
 	// SecurityHeaders is a constant.
@@ -636,6 +638,16 @@ type StaticDef struct {
 	// SPA enables Single-Page Application mode: when a file is not found,
 	// the handler serves the first index file instead of returning 404.
 	SPA bool `json:"spa" config:",optional"`
+}
+
+// RedirectDef defines a declarative HTTP redirect: from → to with status code.
+type RedirectDef struct {
+	// From is the source path to match (e.g. "/").
+	From string `json:"from"`
+	// To is the target URL or path (e.g. "/docs").
+	To string `json:"to"`
+	// Status is the HTTP status code (default 302).
+	Status int `json:"status" config:",default=302"`
 }
 
 type OpenAPIConf struct {

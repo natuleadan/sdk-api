@@ -1,0 +1,10 @@
+name: redirects-bench
+services:
+  bench:
+    build:
+      context: ../../../..
+      dockerfile: sdk-api/examples/100-base/redirects/Dockerfile
+    ports:
+      - "23103:23103"
+    environment:
+      DOCKER_TEST: "1"

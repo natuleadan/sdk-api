@@ -1,0 +1,59 @@
+name: redirects
+port: 23103
+
+server:
+  host: "0.0.0.0"
+  api_prefix: /api
+  shutdown_timeout: 10s
+  health_path: /healthz
+  redirects:
+    - from: /old
+      to: /new
+      status: 302
+    - from: /blog
+      to: /api/posts
+      status: 301
+    - from: /old/*
+      to: /new/*
+    - from: /user/:id
+      to: /profile/:id
+      status: 301
+    - from: /search
+      to: /api/search
+      status: 307
+    - from: /api/v1/data
+      to: /api/v2/data
+      status: 308
+    - from: /limited
+      to: /api/limited
+      status: 302
+      methods: [GET, POST]
+entry:
+  - type: rest
+    method: GET
+    path: /new
+    handler: echoNew
+  - type: rest
+    method: GET
+    path: /api/posts
+    handler: echoPosts
+  - type: rest
+    method: GET
+    path: /new/*
+    handler: echoWildcard
+  - type: rest
+    method: GET
+    path: /profile/:id
+    handler: echoProfile
+  - type: rest
+    method: GET
+    path: /api/search
+    handler: echoSearch
+  - type: rest
+    method: GET
+    path: /api/v2/data
+    handler: echoV2
+  - type: rest
+    method: GET
+    path: /api/limited
+    handler: echoLimited

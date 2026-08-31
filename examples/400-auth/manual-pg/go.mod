@@ -5,7 +5,7 @@ go 1.26.6
 require (
 	github.com/go-jose/go-jose/v3 v3.0.5
 	github.com/go-webauthn/webauthn v0.17.4
-	github.com/natuleadan/sdk-api v0.18.2
+	github.com/natuleadan/sdk-api v0.24.0
 	github.com/ory/fosite v0.49.0
 	github.com/twilio/twilio-go v1.30.9
 	golang.org/x/oauth2 v0.36.0

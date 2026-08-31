@@ -1,6 +1,6 @@
 FROM golang:1.26-alpine AS builder
 WORKDIR /build
-ARG SDK_VERSION=v0.18.2
+ARG SDK_VERSION=v0.24.0
 COPY sdk-api/examples/200-url-shortener/postgres-dragonfly ./
 RUN go mod edit -require=github.com/natuleadan/sdk-api@${SDK_VERSION} && go mod tidy && go mod download
 RUN CGO_ENABLED=0 go build -o /svc ./cmd/

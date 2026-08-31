@@ -1,6 +1,20 @@
 name: url-shortener-go-libsql-bench
 services:
+  # Local sqld (libsql-server) acts as the replication primary so the example
+  # runs standalone. Override both vars to point at a real Turso database.
+  sqld:
+    image: ghcr.io/tursodatabase/libsql-server:latest
+    command: sqld --no-welcome --http-listen-addr 0.0.0.0:8080
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/8080' 2>/dev/null || exit 1"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
   bench:
+    depends_on:
+      sqld:
+        condition: service_healthy
     build:
       context: ../../../..
       dockerfile: sdk-api/examples/200-url-shortener/go-libsql/Dockerfile
@@ -8,5 +22,5 @@ services:
       - "23211:23211"
     environment:
       DOCKER_TEST: "1"
-      TURSO_DATABASE_URL: "${TURSO_DATABASE_URL}"
-      TURSO_AUTH_TOKEN: "${TURSO_AUTH_TOKEN}"
+      TURSO_DATABASE_URL: "${TURSO_DATABASE_URL:-http://sqld:8080}"
+      TURSO_AUTH_TOKEN: "${TURSO_AUTH_TOKEN:-bench-dummy}"

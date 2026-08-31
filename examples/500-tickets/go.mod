@@ -2,7 +2,7 @@ module tickets
 
 go 1.26.6
 
-require github.com/natuleadan/sdk-api v0.18.2
+require github.com/natuleadan/sdk-api v0.24.0
 
 require (
 	filippo.io/edwards25519 v1.2.0 // indirect

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	scalargo "github.com/bdpiprava/scalar-go"
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/gofiber/fiber/v3"
 	"github.com/natuleadan/sdk-api/db"
 	"github.com/natuleadan/sdk-api/infra/hash"
@@ -229,7 +230,44 @@ func remoteContentType(rawURL string) string {
 
 // registerDocs registers /openapi.json and /docs (Scalar UI) endpoints
 // if the server.openapi.enabled config is true.
-func registerDocs(app *fiber.App, cfg *ServiceConfig, models map[string]*db.TableInfo) {
+// SpecMutator mutates the generated OpenAPI spec before it is marshaled and
+// rendered. Use it for spec content that YAML cannot express.
+type SpecMutator func(spec *openapi3.T) error
+
+// WithOpenAPIMutator registers a hook applied to the generated OpenAPI spec
+// before it is served and rendered. Use it for the parts of the docs that the
+// openapi YAML block cannot express (dynamic operations, computed schemas...).
+func (s *Service) WithOpenAPIMutator(fn SpecMutator) *Service {
+	s.openAPIMutators = append(s.openAPIMutators, fn)
+	return s
+}
+
+// WithScalarOptions appends raw scalar-go render options on top of everything
+// configured via the openapi YAML block. Escape hatch for exotic needs.
+func (s *Service) WithScalarOptions(opts ...scalargo.Option) *Service {
+	s.scalarOptions = append(s.scalarOptions, opts...)
+	return s
+}
+
+// openAPIHooks snapshots the Service hooks for registerDocs.
+func (s *Service) openAPIHooks() *DocsHooks {
+	if len(s.openAPIMutators) == 0 && len(s.scalarOptions) == 0 {
+		return nil
+	}
+	return &DocsHooks{Mutators: s.openAPIMutators, ScalarOptions: s.scalarOptions}
+}
+
+// DocsHooks carries the Service-level OpenAPI hooks into registerDocs.
+type DocsHooks struct {
+	// Mutators run in registration order on the generated spec.
+	Mutators []SpecMutator
+	// ScalarOptions are appended to the options built from the YAML config.
+	ScalarOptions []scalargo.Option
+}
+
+// registerDocs mounts /openapi.json, /docs (Scalar UI) and /favicon.ico when
+// server.openapi is enabled. Optional hooks customize the spec and renderer.
+func registerDocs(app *fiber.App, cfg *ServiceConfig, models map[string]*db.TableInfo, hooks ...*DocsHooks) {
 	oai := cfg.Server.OpenAPI
 	if oai == nil || !oai.Enabled {
 		return
@@ -246,6 +284,24 @@ func registerDocs(app *fiber.App, cfg *ServiceConfig, models map[string]*db.Tabl
 	if err != nil {
 		logx.Errorf("openapi build: %v", err)
 		return
+	}
+
+	var dh *DocsHooks
+	if len(hooks) > 0 {
+		dh = hooks[0]
+	}
+	if dh != nil {
+		for _, mutate := range dh.Mutators {
+			if err := mutate(spec); err != nil {
+				logx.Errorf("openapi mutator: %v", err)
+			}
+		}
+	}
+	if oai.Title != "" && spec.Info != nil {
+		spec.Info.Title = oai.Title
+	}
+	if oai.Description != "" && spec.Info != nil {
+		spec.Info.Description = oai.Description
 	}
 
 	jsonData, err := spec.MarshalJSON()
@@ -293,6 +349,21 @@ func registerDocs(app *fiber.App, cfg *ServiceConfig, models map[string]*db.Tabl
 	})
 
 	opts := buildScalarOptions(oai, jsonData)
+	if dh != nil && len(dh.ScalarOptions) > 0 {
+		opts = append(opts, dh.ScalarOptions...)
+	}
+	if len(oai.Sources) > 0 {
+		sources := make([]scalargo.DocumentSource, 0, len(oai.Sources))
+		for _, src := range oai.Sources {
+			sources = append(sources, scalargo.DocumentSource{
+				Title:   src.Title,
+				Slug:    src.Slug,
+				URL:     src.URL,
+				Default: src.Default,
+			})
+		}
+		opts = append(opts, scalargo.WithMultipleSources(sources...))
+	}
 
 	scalarHTML, err := scalargo.NewV2(opts...)
 	if err != nil {
@@ -305,11 +376,27 @@ func registerDocs(app *fiber.App, cfg *ServiceConfig, models map[string]*db.Tabl
 		docsPath = "/docs"
 	}
 	app.Get(docsPath, func(c fiber.Ctx) error {
+		if len(oai.CSPConnect) > 0 {
+			c.Set("Content-Security-Policy", buildDocsCSP(oai.CSPConnect))
+		}
 		c.Set("Content-Type", "text/html; charset=utf-8")
 		return c.SendString(scalarHTML)
 	})
 
 	logx.Infof("docs: %s and %s", specPath, docsPath)
+}
+
+// buildDocsCSP builds a Content-Security-Policy for the docs page that lets
+// Scalar "Try It" reach the configured API hosts.
+func buildDocsCSP(extra []string) string {
+	connect := append([]string{"'self'", "https://cdn.jsdelivr.net", "https://api.scalar.com"}, extra...)
+	return "default-src 'self'; " +
+		"script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; " +
+		"style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; " +
+		"img-src 'self' data: https:; " +
+		"connect-src " + strings.Join(connect, " ") + "; " +
+		"font-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://cdn.jsdelivr.net https://fonts.scalar.com; " +
+		"frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
 }
 
 // buildScalarOptions maps the OpenAPIConf onto scalar-go render options.
@@ -325,6 +412,88 @@ func buildScalarOptions(oai *OpenAPIConf, spec []byte) []scalargo.Option {
 	}
 	if oai.DarkMode {
 		opts = append(opts, scalargo.WithDarkMode())
+	}
+	if oai.ForceDarkMode {
+		opts = append(opts, scalargo.WithForceDarkMode())
+	}
+	if oai.HideDarkModeToggle {
+		opts = append(opts, scalargo.WithHideDarkModeToggle())
+	}
+	if oai.Layout != "" {
+		opts = append(opts, scalargo.WithLayout(scalargo.Layout(oai.Layout)))
+	}
+	if oai.CustomCSS != "" {
+		opts = append(opts, scalargo.WithOverrideCSS(oai.CustomCSS))
+	}
+	if oai.CustomHeadJS != "" {
+		opts = append(opts, scalargo.WithCustomHeadJS(oai.CustomHeadJS))
+	}
+	if oai.CustomBodyJS != "" {
+		opts = append(opts, scalargo.WithCustomBodyJS(oai.CustomBodyJS))
+	}
+	if oai.Title != "" {
+		opts = append(opts, scalargo.WithMetaDataOpts(scalargo.WithTitle(oai.Title)))
+	}
+	if oai.Description != "" {
+		opts = append(opts, scalargo.WithMetaDataOpts(scalargo.WithKeyValue("description", oai.Description)))
+	}
+	if oai.HideDownload {
+		opts = append(opts, scalargo.WithHideDownloadButton())
+	}
+	if oai.HideModels {
+		opts = append(opts, scalargo.WithHideModels())
+	}
+	if oai.HideSearch {
+		opts = append(opts, scalargo.WithHideSearch(true))
+	}
+	if oai.Sidebar != nil {
+		opts = append(opts, scalargo.WithSidebarVisibility(*oai.Sidebar))
+	}
+	if oai.ShowToolbar != "" {
+		opts = append(opts, scalargo.WithShowToolbar(scalargo.ShowToolbarOption(oai.ShowToolbar)))
+	}
+	if oai.SearchHotKey != "" {
+		opts = append(opts, scalargo.WithSearchHotKey(oai.SearchHotKey))
+	}
+	if oai.Editable {
+		opts = append(opts, scalargo.WithEditable())
+	}
+	if oai.TagsSorter != "" {
+		opts = append(opts, scalargo.WithTagsSorter(scalargo.SorterOption(oai.TagsSorter)))
+	}
+	if oai.OperationsSorter != "" {
+		opts = append(opts, scalargo.WithOperationsSorter(scalargo.SorterOption(oai.OperationsSorter)))
+	}
+	if oai.OperationTitleSource != "" {
+		opts = append(opts, scalargo.WithOperationTitleSource(scalargo.OperationTitleSource(oai.OperationTitleSource)))
+	}
+	if oai.OrderSchemaPropertiesBy != "" {
+		opts = append(opts, scalargo.WithOrderSchemaPropertiesBy(scalargo.SchemaPropertiesOrder(oai.OrderSchemaPropertiesBy)))
+	}
+	if oai.PersistAuth {
+		opts = append(opts, scalargo.WithPersistAuth(true))
+	}
+	if oai.DefaultHTTPClient != nil {
+		opts = append(opts, scalargo.WithDefaultHTTPClient(oai.DefaultHTTPClient.Target, oai.DefaultHTTPClient.Client))
+	}
+	if len(oai.HiddenClients) > 0 {
+		opts = append(opts, scalargo.WithHiddenClients(oai.HiddenClients...))
+	}
+	if oai.CDN != "" {
+		opts = append(opts, scalargo.WithCDN(oai.CDN))
+	}
+	if oai.Proxy != "" {
+		opts = append(opts, scalargo.WithProxy(oai.Proxy))
+	}
+	if oai.BaseServerURL != "" {
+		opts = append(opts, scalargo.WithBaseServerURL(oai.BaseServerURL))
+	}
+	if len(oai.ServersOverride) > 0 {
+		overrides := make([]scalargo.ServerOverride, 0, len(oai.ServersOverride))
+		for _, so := range oai.ServersOverride {
+			overrides = append(overrides, scalargo.ServerOverride{URL: so.URL, Description: so.Description})
+		}
+		opts = append(opts, scalargo.WithServers(overrides...))
 	}
 	return opts
 }

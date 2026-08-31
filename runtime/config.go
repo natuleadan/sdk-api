@@ -687,6 +687,112 @@ type OpenAPIConf struct {
 	// FaviconRefresh is the cache TTL for remote favicons (e.g. "24h").
 	// Defaults to 24h. Only used when favicon_url is an http(s) URL.
 	FaviconRefresh string `json:"favicon_refresh" config:",default=24h"`
+	// Title overrides the docs page title (defaults to the service name).
+	Title string `json:"title" config:",optional"`
+	// Description sets info.description in the generated spec and the docs page.
+	Description string `json:"description" config:",optional"`
+	// Layout selects the Scalar layout: "modern" or "classic" (default modern).
+	Layout string `json:"layout" config:",optional"`
+	// ForceDarkMode locks the docs UI to dark mode regardless of system theme.
+	ForceDarkMode bool `json:"force_dark_mode" config:",optional"`
+	// HideDarkModeToggle removes the light/dark switch from the docs UI.
+	HideDarkModeToggle bool `json:"hide_dark_mode_toggle" config:",optional"`
+	// CustomCSS injects brand CSS (e.g. --scalar-* variables) into the docs page.
+	CustomCSS string `json:"custom_css" config:",optional"`
+	// CustomHeadJS injects a script into the docs page <head>.
+	CustomHeadJS string `json:"custom_head_js" config:",optional"`
+	// CustomBodyJS injects a script right before the docs page </body>.
+	CustomBodyJS string `json:"custom_body_js" config:",optional"`
+	// HideDownload removes the "Download OpenAPI spec" button.
+	HideDownload bool `json:"hide_download" config:",optional"`
+	// HideModels hides the schema/model section from the docs UI.
+	HideModels bool `json:"hide_models" config:",optional"`
+	// HideSearch disables the docs search bar.
+	HideSearch bool `json:"hide_search" config:",optional"`
+	// Sidebar toggles the navigation sidebar (default true).
+	Sidebar *bool `json:"sidebar" config:",optional"`
+	// ShowToolbar controls the developer toolbar: always | localhost | never.
+	ShowToolbar string `json:"show_toolbar" config:",optional"`
+	// SearchHotKey sets the search keyboard shortcut key (default "k").
+	SearchHotKey string `json:"search_hot_key" config:",optional"`
+	// Editable lets users edit the spec live in the docs UI.
+	Editable bool `json:"editable" config:",optional"`
+	// TagsSorter sorts tag groups: alpha (empty preserves spec order).
+	TagsSorter string `json:"tags_sorter" config:",optional"`
+	// OperationsSorter sorts operations: alpha | method.
+	OperationsSorter string `json:"operations_sorter" config:",optional"`
+	// OperationTitleSource picks operation titles: summary | path.
+	OperationTitleSource string `json:"operation_title_source" config:",optional"`
+	// OrderSchemaPropertiesBy orders schema properties: alpha | preserve.
+	OrderSchemaPropertiesBy string `json:"order_schema_properties_by" config:",optional"`
+	// PersistAuth keeps Try-It credentials across page reloads.
+	PersistAuth bool `json:"persist_auth" config:",optional"`
+	// DefaultHTTPClient pins the Try-It client: {target, client}.
+	DefaultHTTPClient *HTTPClientDef `json:"default_http_client" config:",optional"`
+	// HiddenClients hides Try-It client entries (e.g. [postman]).
+	HiddenClients []string `json:"hidden_clients" config:",optional"`
+	// CDN overrides the Scalar asset CDN (default jsdelivr).
+	CDN string `json:"cdn" config:",optional"`
+	// Proxy routes Try-It requests through a CORS proxy.
+	Proxy string `json:"proxy" config:",optional"`
+	// BaseServerURL pins the server URL used by Try-It requests.
+	BaseServerURL string `json:"base_server_url" config:",optional"`
+	// ServersOverride replaces the spec servers list in the docs UI.
+	ServersOverride []ServerOverrideDef `json:"servers_override" config:",optional"`
+	// Sources renders multiple OpenAPI documents as docs tabs.
+	Sources []SourceDef `json:"sources" config:",optional"`
+	// Auth prefills the Try-It authentication panel.
+	Auth *AuthPrefillDef `json:"auth" config:",optional"`
+	// CSPConnect adds extra connect-src hosts so Try It can reach the APIs.
+	CSPConnect []string `json:"csp_connect" config:",optional"`
+}
+
+// HTTPClientDef pins the default Try-It HTTP client for the docs UI.
+type HTTPClientDef struct {
+	// Target is the language/platform key (e.g. "node", "php", "python").
+	Target string `json:"target" config:",optional"`
+	// Client is the client library key (e.g. "undici", "guzzle", "requests").
+	Client string `json:"client" config:",optional"`
+}
+
+// ServerOverrideDef overrides a server entry in the docs UI.
+type ServerOverrideDef struct {
+	// URL is the server base URL.
+	URL string `json:"url"`
+	// Description documents when this server applies (e.g. "production").
+	Description string `json:"description" config:",optional"`
+}
+
+// SourceDef declares an additional OpenAPI document rendered as a docs tab.
+type SourceDef struct {
+	// Title shown on the docs tab.
+	Title string `json:"title"`
+	// Slug is the URL fragment used to route to this document.
+	Slug string `json:"slug" config:",optional"`
+	// URL points at an OpenAPI spec (e.g. http://ms-email:3107/openapi.json).
+	URL string `json:"url" config:",optional"`
+	// Default marks the tab displayed first.
+	Default bool `json:"default" config:",optional"`
+}
+
+// AuthPrefillDef prefills the Try-It authentication panel.
+type AuthPrefillDef struct {
+	// PreferredScheme names the security scheme selected by default.
+	PreferredScheme string `json:"preferred_scheme" config:",optional"`
+	// BearerToken prefills the HTTP bearer token.
+	BearerToken string `json:"bearer_token" config:",optional"`
+	// APIKey prefills an API key credential.
+	APIKey *APIKeyPrefillDef `json:"api_key" config:",optional"`
+}
+
+// APIKeyPrefillDef describes an API key credential for the Try-It panel.
+type APIKeyPrefillDef struct {
+	// Name is the header/query/cookie name.
+	Name string `json:"name"`
+	// In selects where the key travels: header | query | cookie.
+	In string `json:"in" config:",default=header"`
+	// Token is the pre-filled key value (use ${VAR} for secrets).
+	Token string `json:"token" config:",optional"`
 }
 
 // ---- Database ----

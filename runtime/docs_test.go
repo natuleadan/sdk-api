@@ -6,10 +6,13 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	scalargo "github.com/bdpiprava/scalar-go"
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/gofiber/fiber/v3"
 	"github.com/natuleadan/sdk-api/infra/logx"
 )
@@ -465,5 +468,152 @@ func TestRegisterDocs_ThemeRendered(t *testing.T) {
 	}
 	if !containsTestString(body, `"darkMode":true`) {
 		t.Error("rendered /docs HTML does not embed darkMode true")
+	}
+}
+
+// ---- YAML-driven theming, display options and hooks ----
+
+func TestRegisterDocs_DisplayOptionsRendered(t *testing.T) {
+	logx.Disable()
+	cfg := docsTestConfig()
+	cfg.Server.OpenAPI.Layout = "modern"
+	cfg.Server.OpenAPI.HideDownload = true
+	cfg.Server.OpenAPI.PersistAuth = true
+	app := fiber.New()
+	registerDocs(app, cfg, nil)
+
+	resp, err := app.Test(httptestNewRequest(t, "GET", "/docs", ""))
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	defer resp.Body.Close()
+	body := mustReadTestBody(t, resp)
+
+	for _, want := range []string{`"layout":"modern"`, `"hideDownloadButton":true`, `"persistAuth":true`} {
+		if !containsTestString(body, want) {
+			t.Errorf("docs HTML missing %s", want)
+		}
+	}
+}
+
+func TestRegisterDocs_CustomCSSAndJS(t *testing.T) {
+	logx.Disable()
+	cfg := docsTestConfig()
+	cfg.Server.OpenAPI.CustomCSS = ":root { --scalar-color-accent: #b32323; }"
+	cfg.Server.OpenAPI.CustomHeadJS = "console.log('head-ok');"
+	cfg.Server.OpenAPI.CustomBodyJS = "console.log('body-ok');"
+	app := fiber.New()
+	registerDocs(app, cfg, nil)
+
+	resp, err := app.Test(httptestNewRequest(t, "GET", "/docs", ""))
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	defer resp.Body.Close()
+	body := mustReadTestBody(t, resp)
+
+	if !containsTestString(body, "--scalar-color-accent: #b32323") {
+		t.Error("custom_css not injected in docs HTML")
+	}
+	if !containsTestString(body, "head-ok") {
+		t.Error("custom_head_js not injected in docs HTML")
+	}
+	if !containsTestString(body, "body-ok") {
+		t.Error("custom_body_js not injected in docs HTML")
+	}
+}
+
+func TestRegisterDocs_TitleAndDescriptionInSpec(t *testing.T) {
+	logx.Disable()
+	cfg := docsTestConfig()
+	cfg.Server.OpenAPI.Title = "Custom Docs Title"
+	cfg.Server.OpenAPI.Description = "End-to-end description"
+	app := fiber.New()
+	registerDocs(app, cfg, nil)
+
+	resp, err := app.Test(httptestNewRequest(t, "GET", "/openapi.json", ""))
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	defer resp.Body.Close()
+	body := mustReadTestBody(t, resp)
+
+	if !containsTestString(body, "Custom Docs Title") {
+		t.Error("spec info.title not overridden by openapi.title")
+	}
+	if !containsTestString(body, "End-to-end") {
+		t.Error("spec info.description missing")
+	}
+}
+
+func TestRegisterDocs_MutatorHook(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	hooks := &DocsHooks{
+		Mutators: []SpecMutator{func(spec *openapi3.T) error {
+			spec.Info.Extensions["x-hook-marker"] = "mutator-applied"
+			return nil
+		}},
+	}
+	registerDocs(app, docsTestConfig(), nil, hooks)
+
+	resp, err := app.Test(httptestNewRequest(t, "GET", "/openapi.json", ""))
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	defer resp.Body.Close()
+	if !containsTestString(mustReadTestBody(t, resp), "mutator-applied") {
+		t.Error("SpecMutator hook did not apply to the served spec")
+	}
+}
+
+func TestRegisterDocs_ScalarOptionsEscapeHatch(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	hooks := &DocsHooks{
+		ScalarOptions: []scalargo.Option{scalargo.WithSearchHotKey("k")},
+	}
+	registerDocs(app, docsTestConfig(), nil, hooks)
+
+	resp, err := app.Test(httptestNewRequest(t, "GET", "/docs", ""))
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	defer resp.Body.Close()
+	if !containsTestString(mustReadTestBody(t, resp), `"searchHotKey":"k"`) {
+		t.Error("WithScalarOptions escape hatch option not rendered")
+	}
+}
+
+func TestRegisterDocs_CSPConnectHeader(t *testing.T) {
+	logx.Disable()
+	cfg := docsTestConfig()
+	cfg.Server.OpenAPI.CSPConnect = []string{"https://api-child.example.com"}
+	app := fiber.New()
+	registerDocs(app, cfg, nil)
+
+	resp, err := app.Test(httptestNewRequest(t, "GET", "/docs", ""))
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	defer resp.Body.Close()
+	csp := resp.Header.Get("Content-Security-Policy")
+	if !strings.Contains(csp, "https://api-child.example.com") {
+		t.Errorf("csp_connect host missing from docs CSP: %q", csp)
+	}
+	if !strings.Contains(csp, "connect-src") {
+		t.Errorf("connect-src missing from docs CSP: %q", csp)
+	}
+}
+
+func TestService_WithOpenAPIMutatorAccumulates(t *testing.T) {
+	svc := &Service{}
+	svc.WithOpenAPIMutator(func(spec *openapi3.T) error { return nil })
+	svc.WithScalarOptions(scalargo.WithTheme("moon"))
+	if len(svc.openAPIMutators) != 1 {
+		t.Errorf("openAPIMutators = %d, want 1", len(svc.openAPIMutators))
+	}
+	if len(svc.scalarOptions) != 1 {
+		t.Errorf("scalarOptions = %d, want 1", len(svc.scalarOptions))
 	}
 }

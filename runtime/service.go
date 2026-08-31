@@ -27,6 +27,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 
+	scalargo "github.com/bdpiprava/scalar-go"
 	"github.com/natuleadan/sdk-api/db"
 	"github.com/natuleadan/sdk-api/events"
 	"github.com/natuleadan/sdk-api/infra/collection"
@@ -86,6 +87,8 @@ type Service struct {
 	grpcRegistrars  map[string]func(srv *grpc.Server)
 	corsFuncs       map[string]func(origin string) bool
 	fsRegistry      map[string]fs.FS // name → fs.FS for static embed
+	openAPIMutators []SpecMutator    // hooks applied to the OpenAPI spec before render
+	scalarOptions   []scalargo.Option
 
 	stop context.CancelFunc
 }
@@ -967,7 +970,7 @@ func (s *Service) RunWithContext(ctx context.Context) error {
 	}
 	s.serveStaticFiles()
 	s.registerRedirects()
-	registerDocs(s.srv.App(), s.config, s.models)
+	registerDocs(s.srv.App(), s.config, s.models, s.openAPIHooks())
 
 	if err := s.startExitWorkers(ctx); err != nil {
 		return err

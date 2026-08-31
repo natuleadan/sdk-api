@@ -18,6 +18,9 @@ func BuildOpenAPI(cfg *ServiceConfig, models map[string]*db.TableInfo) (*openapi
 		Info: &openapi3.Info{
 			Title:   cfg.Name,
 			Version: version,
+			// Extensions is pre-initialized so SpecMutator hooks can attach
+			// x-* markers without nil-map panics.
+			Extensions: map[string]any{},
 		},
 		Paths: openapi3.NewPaths(),
 		Components: &openapi3.Components{

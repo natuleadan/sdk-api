@@ -80,7 +80,7 @@ func main() {
 		if err != nil {
 			return c.Status(500).JSON(map[string]any{"error": err.Error()})
 		}
-		return c.Redirect(url, 302)
+		return c.Redirect().Status(302).To(url)
 	})
 
 	svc.WithRest("onSignOnly", func(c *runtime.RestCtx) error {

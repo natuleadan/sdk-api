@@ -69,7 +69,7 @@ func handleSocialLogin(svcCtx *svc.ServiceContext) func(c *runtime.RestCtx) erro
 		}
 
 		redirectURL := p.OAuth2Config.AuthCodeURL(stateToken, oauth2.AccessTypeOnline)
-		return c.Redirect(redirectURL)
+		return c.Redirect().To(redirectURL)
 	}
 }
 

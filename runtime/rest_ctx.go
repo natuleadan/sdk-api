@@ -132,12 +132,17 @@ func (c *RestCtx) SetCookie(cookie *Cookie) {
 	})
 }
 
-func (c *RestCtx) Redirect(url string, statusCode ...int) error {
-	code := fiber.StatusFound
-	if len(statusCode) > 0 {
-		code = statusCode[0]
-	}
-	return c.fc.Redirect().Status(code).To(url)
+// Redirect returns a Redirect object for fluent redirect operations.
+// Supports To(), Status(), Route(), Back(), and flash messages (With/WithInput).
+//
+// Examples:
+//
+//	return c.Redirect().To("/login")
+//	return c.Redirect().Status(301).To("/new-path")
+//	return c.Redirect().Back("/")
+//	return c.Redirect().With("msg", "saved").To("/list")
+func (c *RestCtx) Redirect() *Redirect {
+	return newRedirect(c.fc)
 }
 
 func (c *RestCtx) PoolPG(name string) *pgxpool.Pool {

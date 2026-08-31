@@ -1082,6 +1082,88 @@ server:
     spec_path: /openapi.json
     favicon_url: "static/logo.svg"            # optional: local file
     favicon_refresh: 24h                      # optional: TTL for remote favicon
+
+    # ---- page metadata ----
+    title: My API                             # overrides the docs/spec title
+    description: What this API does           # sets info.description in the spec
+
+    # ---- look and feel ----
+    layout: modern                            # modern | classic
+    spec_cache_ttl: 1h                        # Cache-Control max-age for /openapi.json
+    force_dark_mode: false                    # lock dark mode on
+    hide_dark_mode_toggle: false              # remove the light/dark switch
+    custom_css: |                             # brand CSS (--scalar-* variables)
+      :root {
+        --scalar-color-accent: #b32323;
+      }
+    custom_head_js: |                         # injected into <head>
+      console.log("docs head");
+    custom_body_js: |                         # injected before </body>
+      console.log("docs body");
+
+    # ---- visibility ----
+    hide_download: true                       # remove "Download spec" button
+    hide_models: false                        # hide the schema section
+    hide_search: false                        # disable the search bar
+    sidebar: true                             # navigation sidebar (default true)
+    show_toolbar: localhost                   # always | localhost | never
+    editable: false                           # live spec editing in the UI
+
+    # ---- ordering and behavior ----
+    tags_sorter: alpha                        # alpha (empty = spec order)
+    operations_sorter: method                 # alpha | method
+    operation_title_source: summary           # summary | path
+    order_schema_properties_by: preserve      # alpha | preserve
+    search_hot_key: k                         # search shortcut key
+    persist_auth: true                        # keep Try-It credentials
+
+    # ---- Try-It client defaults ----
+    default_http_client:
+      target: node                            # language/platform
+      client: undici                          # client library
+    hidden_clients: [postman]                 # hide listed clients
+    # base_server_url: https://api.example.com
+    # cdn: https://cdn.example.com/scalar     # custom asset CDN
+    # proxy: https://cors-proxy.example.com   # Try-It CORS proxy
+
+    # ---- servers ----
+    servers_override:                         # replaces spec servers in the UI
+      - url: https://api.natuleadan.com
+        description: production
+
+    # ---- multi-service docs (tabs) ----
+    sources:                                  # extra OpenAPI documents
+      - title: Email service
+        slug: email
+        url: http://ms-email:3107/openapi.json
+    csp_connect:                              # extra connect-src for Try It
+      - https://api-child.example.com
+```
+
+**Hooks (Go) for what YAML cannot express:**
+
+```go
+svc.WithOpenAPIMutator(func(spec *openapi3.T) error {
+    spec.Info.Extensions["x-internal"] = "value"
+    return nil
+})
+svc.WithScalarOptions(scalargo.WithSearchHotKey("k")) // raw escape hatch
+```
+
+The generated spec also documents every entry automatically: `async` entries
+expand to submit/list/status/cancel/SSE paths, `graphql` entries render as POST
+operations, entry `auth_modes` produce `securitySchemes` (jwt → bearer,
+apikey → Authorization header), `entry.summary` / `entry.description` fill the
+operation docs, and a `servers` block is derived from `server.host`/`port`.
+
+**Redirect the root to the docs** (common for service landing pages):
+
+```yaml
+server:
+  redirects:
+    - from: /
+      to: /docs
+      status: 302
 ```
 
 Required CSP for Scalar:

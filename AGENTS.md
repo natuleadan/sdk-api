@@ -124,6 +124,11 @@ go test ./...                 # All tests (requires Docker: PG + NATS)
 - **Prefork + cache** — each process has its own memory. Use NATS KV (shared) or disable prefork.
 - **Cron** — 5-field expressions only (`min hour dom month dow`). No seconds support.
 - **OpenAPI** — requires `RegisterModel()` for schema generation. Without it, paths exist but schemas are empty.
+- **YAML comments must be ASCII** — a `→` (U+2192) or emoji in a service.yaml comment fails startup with `yaml: control characters are not allowed`. Latin-1 accents pass.
+- **CORS `credentials: true` + `origins: ["*"]` panics at startup** (invalid per spec) — use explicit origins with credentials, or the wildcard without credentials.
+- **`health_path` default is `/healthz`** (was `/health` before v0.24) — health probes in tests/scripts must match.
+- **OpenAPI hooks** — `svc.WithOpenAPIMutator(func(*openapi3.T) error)` mutates the spec before render; `svc.WithScalarOptions(...)` is the raw escape hatch. Spec info extensions are pre-initialized (no nil-map panics in hooks).
+- **Redirect `/` → `/docs`** — `server.redirects: [{from: /, to: /docs, status: 302}]` lands the service root on the interactive docs, no Go code needed.
 - **Auth: Middleware is wired per-entry** — Use `entry.auth_modes: [jwt]` or `[jwt, apikey]` to enable. Configure via `auth:` block. See `examples/400-auth/manual-pg` for driver manual.
 - **Pool access before Run** — `svc.Pool()` returns nil before `svc.Run()`. Use `WithCRUDFactory()` (preferred, no manual sync.Once) or `sync.Once` + lazy init for CRUD tables.
 - **WARNING: `go build` skips `*_test.go` files, `go test` includes them.** When `bench_test.go` uses `exec.Command("go", "build", ...)`, the test binary and the service binary are different. The test binary compiles both `main.go` and `bench_test.go`. The service binary (`go build`) compiles only `main.go`.

@@ -72,6 +72,33 @@ server:
 
 The `csp_config` section uses the `BuildCSP()` function to generate the policy. When both `csp` (raw string) and `csp_config` are set, `csp_config` takes precedence.
 
+#### CSP for the docs page (openapi.csp_connect)
+
+The Scalar docs page (`/docs`) loads scripts/styles from `cdn.jsdelivr.net` and
+fonts from Google Fonts + `fonts.scalar.com`, so a strict global CSP breaks it.
+Two supported ways, in order of preference:
+
+1. **`csp_groups`** — per-route amplified CSP for the docs path (see
+   `examples/100-base/scalar-ui` for the reference group).
+2. **`openapi.csp_connect:`** — when set, the SDK emits a complete
+   Scalar-friendly CSP on the docs route (script/style/font from the Scalar
+   CDNs) plus the listed `connect-src` hosts so "Try It" can reach other APIs:
+
+```yaml
+server:
+  openapi:
+    csp_connect:
+      - https://api-child.example.com
+```
+
+The SDK never injects CSP on its own — it warns at startup when Scalar is
+enabled without CORS/CSP configured.
+
+> [!warning] CORS credentials + wildcard panic
+> Since v0.24, a CORS block with `credentials: true` and `origins: ["*"]`
+> **panics at startup** (invalid per the CORS spec). Use explicit origins with
+> credentials, or the wildcard without credentials.
+
 ## Authentication & Authorization
 
 sdk-api provides four authentication modes and three strategies for role/permission validation. The JWT middleware validates tokens per-entry, supports algorithm pinning and claim validation, and extracts an `AuthContext` available in handlers and hooks.

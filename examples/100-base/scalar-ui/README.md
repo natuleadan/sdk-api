@@ -106,6 +106,38 @@ gRPC (HTTP/2 binary) does not use CORS — browsers cannot call it directly.
 gRPC-web (via a gateway) does need CORS but requires proto + gateway config;
 that is documented here rather than included to keep this example focused on CORS.
 
+## OpenAPI + Scalar theming (v0.25.0)
+
+The `openapi` block is fully YAML-driven. This example enables:
+
+```yaml
+openapi:
+  enabled: true
+  title: Scalar UI Showcase              # overrides spec/docs title
+  description: CORS/CSP matrix ...       # sets info.description
+  theme: moon                            # scalar theme (moon, default, mars, ...)
+  layout: modern                         # modern | classic
+  hide_download: true                    # remove "Download spec" button
+  spec_cache_ttl: 30m                    # Cache-Control max-age for /openapi.json
+  custom_css: |                          # brand CSS (--scalar-* variables)
+    :root {
+      --scalar-color-accent: #b32323;
+    }
+```
+
+The root URL redirects to the docs (no Go code):
+
+```yaml
+redirects:
+  - from: /
+    to: /docs
+    status: 302
+```
+
+For options outside YAML there are two hooks: `svc.WithOpenAPIMutator(...)`
+(mutate the generated spec) and `svc.WithScalarOptions(...)` (raw scalar-go
+options). Full block reference: `docs/configuration.md` — Scalar UI.
+
 ## Favicon
 
 The SDK serves a default inline SVG (magnifying glass) at `/favicon.ico` when
@@ -144,6 +176,12 @@ The test matrix (`bench_test.go`) verifies per-endpoint CORS headers:
 - `TestCORS_NoPoisoning` — origins from one group fail on another
 - `TestCORS_CRUD_App` / `TestCORS_GraphQL_App` — crud/graphql share app group
 - `TestOpenAPI_HasEndpoints` / `TestFavicon_Inline` / `TestHealthz`
+
+Since v0.25.0 the matrix also covers the OpenAPI/Scalar options:
+- `TestRootRedirectsToDocs` — `/` lands on `/docs` (302)
+- `TestOpenAPI_TitleAndSummary` — `openapi.title` + entry summary in the spec
+- `TestDocs_ThemingAndLayout` — theme/layout/hide_download/custom_css in HTML
+- `TestOpenAPI_SpecCacheHeader` — `spec_cache_ttl` drives Cache-Control
 
 ## Quick start
 

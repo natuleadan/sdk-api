@@ -515,6 +515,29 @@ svc.WithCRUDFactory("Product", func() runtime.CRUDProvider {
 })
 ```
 
+### WithOpenAPIMutator
+
+`WithOpenAPIMutator(fn SpecMutator) *Service` — registers a hook applied to the generated OpenAPI spec before it is served and rendered. Use it for spec content the `openapi:` YAML block cannot express (dynamic operations, computed schemas, extensions):
+
+```go
+svc.WithOpenAPIMutator(func(spec *openapi3.T) error {
+    spec.Info.Extensions["x-internal"] = "value"
+    return nil
+})
+```
+
+Mutators run in registration order; an error is logged and that mutator is skipped. Spec info extensions are pre-initialized, so hooks never hit a nil map.
+
+### WithScalarOptions
+
+`WithScalarOptions(opts ...scalargo.Option) *Service` — appends raw scalar-go render options on top of everything configured via the `openapi:` YAML block. Escape hatch for options outside the YAML surface:
+
+```go
+svc.WithScalarOptions(scalargo.WithSearchHotKey("k"))
+```
+
+The full YAML-driven surface (theme, layout, custom_css, sources tabs, servers_override, csp_connect, …) is documented in `docs/configuration.md` under **Scalar UI**.
+
 ### MustRegister
 
 Shortcut to create a table + provider + factory in one call:

@@ -234,6 +234,26 @@ if cfgPath == "" { cfgPath = "service.yaml" }
 
 Create `service.docker.yaml` with Docker hostnames (`postgres:5432`, `nats:4222`) instead of `localhost`.
 
+### YAML comments must be ASCII
+
+The conf pipeline rejects service YAML whose comments contain typographic
+unicode — an arrow (`→`, U+2192), emoji or similar makes startup fail with
+`yaml: control characters are not allowed`. Latin-1 accents are fine; keep
+comments plain ASCII.
+
+### Redirect the root to the docs
+
+Any service with `openapi.enabled: true` can land its root URL on the
+interactive docs without Go code:
+
+```yaml
+server:
+  redirects:
+    - from: /
+      to: /docs
+      status: 302
+```
+
 ## Database
 
 ### Pool sizing

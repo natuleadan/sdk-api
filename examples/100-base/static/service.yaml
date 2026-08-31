@@ -1,0 +1,33 @@
+name: static
+port: 23104
+
+server:
+  host: "0.0.0.0"
+  api_prefix: /api
+  shutdown_timeout: 10s
+  health_path: /healthz
+  static:
+    - prefix: /assets
+      dir: ./public
+      compress: true
+      max_age: 3600
+    - prefix: /app
+      dir: ./dist
+      spa: true
+      compress: true
+      max_age: 86400
+      byte_range: true
+    - prefix: /files
+      dir: ./files
+      browse: true
+    - prefix: /downloads
+      dir: ./downloads
+      download: true
+    - prefix: /docs
+      dir: ./docs
+      index_names: [main.html, index.html]
+entry:
+  - type: rest
+    method: GET
+    path: /healthz
+    handler: healthz

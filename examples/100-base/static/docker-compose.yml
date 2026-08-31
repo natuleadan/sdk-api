@@ -1,0 +1,10 @@
+name: static-bench
+services:
+  bench:
+    build:
+      context: ../../../..
+      dockerfile: sdk-api/examples/100-base/static/Dockerfile
+    ports:
+      - "23104:23104"
+    environment:
+      DOCKER_TEST: "1"

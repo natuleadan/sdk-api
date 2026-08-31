@@ -55,7 +55,7 @@ func TestMain(m *testing.M) {
 
 func setup(tb testing.TB) {
 	if docker {
-		setupOnce.Do(func() { waitHTTP(tb, baseURL+"/health", 30*time.Second) })
+		setupOnce.Do(func() { waitHTTP(tb, baseURL+"/healthz", 30*time.Second) })
 		return
 	}
 
@@ -67,7 +67,7 @@ func setup(tb testing.TB) {
 		if err := svcCmd.Start(); err != nil {
 			tb.Fatalf("start svc: %v", err)
 		}
-		waitHTTP(tb, baseURL+"/health", 30*time.Second)
+		waitHTTP(tb, baseURL+"/healthz", 30*time.Second)
 	})
 }
 

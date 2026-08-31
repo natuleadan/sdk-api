@@ -169,6 +169,21 @@ type ServerConf struct {
 	MetricsPath string `json:"metrics_path" config:",default=/metrics"`
 	// HealthPath is a constant.
 	HealthPath string `json:"health_path" config:",default=/health"`
+	// StartupPath is the startup probe endpoint. It verifies the app has
+	// successfully started.
+	StartupPath string `json:"startup_path" config:",default=/startupz"`
+	// StartupEnabled enables the startup probe endpoint.
+	StartupEnabled bool `json:"startup_enabled" config:",default=true"`
+	// ReadinessPath is the readiness probe endpoint. It reports whether the
+	// server finished starting and its dependencies are reachable.
+	ReadinessPath string `json:"readiness_path" config:",default=/readyz"`
+	// ReadinessEnabled enables the readiness probe endpoint.
+	ReadinessEnabled bool `json:"readiness_enabled" config:",default=true"`
+	// LivenessPath is the liveness probe endpoint. It reports whether the
+	// process is running.
+	LivenessPath string `json:"liveness_path" config:",default=/livez"`
+	// LivenessEnabled enables the liveness probe endpoint.
+	LivenessEnabled bool `json:"liveness_enabled" config:",default=true"`
 	// ShutdownTimeout is a constant.
 	ShutdownTimeout string `json:"shutdown_timeout" config:",default=10s"`
 	// RecoverStack is a constant.

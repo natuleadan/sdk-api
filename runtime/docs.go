@@ -3,6 +3,7 @@ package runtime
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -47,10 +48,11 @@ type faviconSource struct {
 	contentType string
 	etag        string
 
-	mu        sync.Mutex
-	remoteURL string
+	mu         sync.Mutex
+	remoteURL  string
 	refreshTTL time.Duration
-	expiresAt time.Time
+	expiresAt  time.Time
+	cancel     context.CancelFunc
 }
 
 // isRemote reports whether the configured favicon URL is an http(s) URL.
@@ -71,16 +73,21 @@ func parseDurationSafe(s string, fallback time.Duration) time.Duration {
 	return d
 }
 
-// refresh downloads the remote favicon and updates the cache. On failure the
-// previous bytes are kept (stale serve).
-func (fs *faviconSource) refresh() {
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(fs.remoteURL)
+// doRefresh downloads the remote favicon and updates the cache. On failure the
+// previous bytes are kept (stale serve). The caller provides the context for
+// timeout control.
+func (fs *faviconSource) doRefresh(ctx context.Context) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fs.remoteURL, nil)
+	if err != nil {
+		logx.Infof("openapi: favicon refresh request failed (%v), serving stale", err)
+		return
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		logx.Infof("openapi: favicon refresh failed (%v), serving stale", err)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		logx.Infof("openapi: favicon refresh got HTTP %d, serving stale", resp.StatusCode)
 		return
@@ -119,15 +126,55 @@ func loadFavicon(oai *OpenAPIConf) *faviconSource {
 	case isRemoteFavicon(oai.FaviconURL):
 		fs.remoteURL = oai.FaviconURL
 		fs.refreshTTL = parseDurationSafe(oai.FaviconRefresh, 24*time.Hour)
-		fs.refresh() // first fetch at startup
+		fs.refreshAtStartup()
 		if len(fs.data) == len(defaultFaviconSVG) && string(fs.data) == defaultFaviconSVG {
 			// Initial fetch failed — still serve inline until a refresh succeeds.
 			logx.Infof("openapi: remote favicon %q not reachable at startup, using default until refresh", oai.FaviconURL)
 		}
+		fs.startRefreshTicker()
 	default:
 		fs = localFaviconSource(oai.FaviconURL, fs)
 	}
 	return fs
+}
+
+// refreshAtStartup performs the initial synchronous fetch during server init.
+func (fs *faviconSource) refreshAtStartup() {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	fs.doRefresh(ctx)
+}
+
+// startRefreshTicker launches a single background goroutine that refreshes
+// the favicon periodically. The goroutine uses context.Background because
+// it is a server-lifetime task, not tied to any HTTP request.
+func (fs *faviconSource) startRefreshTicker() {
+	ttl := fs.refreshTTL
+	if ttl <= 0 {
+		return
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	fs.cancel = cancel
+	go func() {
+		ticker := time.NewTicker(ttl)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				fs.doRefresh(ctx)
+			}
+		}
+	}()
+}
+
+// stopRefreshTicker cancels the background refresh goroutine if running.
+func (fs *faviconSource) stopRefreshTicker() {
+	if fs.cancel != nil {
+		fs.cancel()
+		fs.cancel = nil
+	}
 }
 
 // localFaviconSource reads a favicon file from the working directory (scoped
@@ -135,7 +182,7 @@ func loadFavicon(oai *OpenAPIConf) *faviconSource {
 func localFaviconSource(path string, fallback *faviconSource) *faviconSource {
 	root, err := os.OpenRoot(".")
 	if err == nil {
-		defer root.Close()
+		defer func() { _ = root.Close() }()
 		b, readErr := root.ReadFile(path)
 		if readErr != nil {
 			logx.Infof("openapi: favicon %q not found, using default", path)
@@ -154,16 +201,12 @@ func localFaviconSource(path string, fallback *faviconSource) *faviconSource {
 }
 
 // handleFavicon serves the favicon with browser caching (ETag + 304).
+// Refresh is handled by the background ticker started in loadFavicon,
+// so this handler is purely synchronous.
 func (fs *faviconSource) handleFavicon(c fiber.Ctx) error {
 	fs.mu.Lock()
 	data, ct, etag := fs.data, fs.contentType, fs.etag
-	expired := fs.isRemote() && time.Now().After(fs.expiresAt)
 	fs.mu.Unlock()
-
-	// Stale-while-revalidate: if TTL expired, refresh in background (non-blocking).
-	if expired {
-		go fs.refresh()
-	}
 
 	c.Set("Content-Type", ct)
 	c.Set("ETag", etag)
@@ -173,10 +216,6 @@ func (fs *faviconSource) handleFavicon(c fiber.Ctx) error {
 		return nil
 	}
 	return c.Send(data)
-}
-
-func (fs *faviconSource) isRemote() bool {
-	return fs.remoteURL != ""
 }
 
 // remoteContentType extracts content type from a URL path's extension.

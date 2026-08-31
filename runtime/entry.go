@@ -603,14 +603,14 @@ func registerEntryCORS(app *fiber.App, entry *EntryDef, prefix string, groups []
 			originFn = corsFuncs[g.Name]
 		}
 		app.Use(prefix+entry.Path, middleware.CORS(middleware.CORSConfig{
-			AllowedOrigins:       joinCORSStrings(g.Origins),
-			AllowedMethods:       joinCORSStringsDefault(g.Methods, "GET,POST,PUT,PATCH,DELETE,OPTIONS"),
-			AllowedHeaders:       joinCORSStringsDefault(g.Headers, "Origin,Content-Type,Accept,Authorization"),
-			AllowCredentials:     g.Credentials,
-			MaxAge:               g.MaxAge,
-			ExposeHeaders:        joinCORSStrings(g.ExposeHeaders),
-			AllowPrivateNetwork:  g.AllowPrivateNetwork,
-			AllowOriginsFunc:     originFn,
+			AllowedOrigins:      joinCORSStrings(g.Origins),
+			AllowedMethods:      joinCORSStringsDefault(g.Methods, "GET,POST,PUT,PATCH,DELETE,OPTIONS"),
+			AllowedHeaders:      joinCORSStringsDefault(g.Headers, "Origin,Content-Type,Accept,Authorization"),
+			AllowCredentials:    g.Credentials,
+			MaxAge:              g.MaxAge,
+			ExposeHeaders:       joinCORSStrings(g.ExposeHeaders),
+			AllowPrivateNetwork: g.AllowPrivateNetwork,
+			AllowOriginsFunc:    originFn,
 		}))
 		return
 	}

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
@@ -26,22 +27,29 @@ type RouteConfig struct {
 }
 
 type Config struct {
-	Port            int
-	Host            string
-	Prefork         bool
-	BodyLimit       int
-	Timeout         time.Duration
-	ReadTimeout     time.Duration
-	WriteTimeout    time.Duration
-	IdleTimeout     time.Duration
-	MaxConns        int
-	MaxBytes        int
-	MetricsPath     string
-	HealthPath      string
-	ShutdownTimeout time.Duration
-	RecoverStack    bool
-	APIPrefix       string
-	Routes          []RouteConfig
+	Port         int
+	Host         string
+	Prefork      bool
+	BodyLimit    int
+	Timeout      time.Duration
+	ReadTimeout  time.Duration
+	WriteTimeout time.Duration
+	IdleTimeout  time.Duration
+	MaxConns     int
+	MaxBytes     int
+
+	MetricsPath      string
+	HealthPath       string
+	StartupPath      string
+	ReadinessPath    string
+	LivenessPath     string
+	StartupEnabled   bool
+	ReadinessEnabled bool
+	LivenessEnabled  bool
+	ShutdownTimeout  time.Duration
+	RecoverStack     bool
+	APIPrefix        string
+	Routes           []RouteConfig
 
 	Logger            bool
 	LoadShedding      bool
@@ -167,6 +175,12 @@ func DefaultConfig() Config {
 		MaxBytes:          4 << 20,
 		MetricsPath:       "/metrics",
 		HealthPath:        "/health",
+		StartupPath:       healthcheck.StartupEndpoint,
+		ReadinessPath:     healthcheck.ReadinessEndpoint,
+		LivenessPath:      healthcheck.LivenessEndpoint,
+		StartupEnabled:    true,
+		ReadinessEnabled:  true,
+		LivenessEnabled:   true,
 		ShutdownTimeout:   10 * time.Second,
 		RecoverStack:      true,
 		APIPrefix:         "/api",
@@ -192,6 +206,12 @@ func Duration(s string, fallback time.Duration) time.Duration {
 type Server struct {
 	app    *fiber.App
 	config Config
+
+	// readinessProbe allows overriding the default readiness check. Nil keeps
+	// the default (readyFlag). Set via SetReady.
+	readinessProbe func() bool
+	// readyFlag flips to true once startup tasks complete (MarkReady).
+	readyFlag atomic.Bool
 }
 
 func New(cfg Config, telemetry TelemetryConfig, security SecurityConfig, corsCfg *CORSConfig) *Server {
@@ -212,15 +232,15 @@ func New(cfg Config, telemetry TelemetryConfig, security SecurityConfig, corsCfg
 		ReduceMemoryUsage: cfg.ReduceMemoryUsage,
 	})
 
-	setupGlobalMiddlewares(app, cfg, telemetry)
+	s := &Server{app: app, config: cfg}
+	setupGlobalMiddlewares(app, cfg, telemetry, s)
 	setupSecurityMiddlewares(app, cfg, security)
 	setupRouteOrGlobalMiddlewares(app, cfg, corsCfg)
 
-	s := &Server{app: app, config: cfg}
 	return s
 }
 
-func setupGlobalMiddlewares(app *fiber.App, cfg Config, telemetry TelemetryConfig) {
+func setupGlobalMiddlewares(app *fiber.App, cfg Config, telemetry TelemetryConfig, s *Server) {
 	app.Use(recover.New(recover.Config{EnableStackTrace: cfg.RecoverStack}))
 	app.Use(middleware.BodyReader())
 	app.Use(middleware.HeaderSanitize())
@@ -234,6 +254,22 @@ func setupGlobalMiddlewares(app *fiber.App, cfg Config, telemetry TelemetryConfi
 	app.Get(cfg.HealthPath, healthcheck.New(healthcheck.Config{
 		Probe: func(_ fiber.Ctx) bool { return true },
 	}))
+	// 3-form health checks using Fiber's built-in healthcheck middleware.
+	if cfg.StartupEnabled && cfg.StartupPath != "" {
+		app.Get(cfg.StartupPath, healthcheck.New(healthcheck.Config{
+			Probe: func(_ fiber.Ctx) bool { return s.startup() },
+		}))
+	}
+	if cfg.ReadinessEnabled && cfg.ReadinessPath != "" {
+		app.Get(cfg.ReadinessPath, healthcheck.New(healthcheck.Config{
+			Probe: func(_ fiber.Ctx) bool { return s.ready() },
+		}))
+	}
+	if cfg.LivenessEnabled && cfg.LivenessPath != "" {
+		app.Get(cfg.LivenessPath, healthcheck.New(healthcheck.Config{
+			Probe: func(_ fiber.Ctx) bool { return s.liveness() },
+		}))
+	}
 	if telemetry.Enabled {
 		app.Use(middleware.Trace(middleware.TraceConfig{
 			Name:                telemetry.Name,
@@ -251,54 +287,77 @@ func setupGlobalMiddlewares(app *fiber.App, cfg Config, telemetry TelemetryConfi
 }
 
 func setupSecurityMiddlewares(app *fiber.App, cfg Config, security SecurityConfig) {
-	if cfg.SecurityHeaders != nil {
-		// Global security headers: skip paths owned by a csp_group so the
-		// per-route CSP can override without being clobbered by the global.
-		if len(cfg.CSPGroups) > 0 && cfg.SecurityHeaders.Next == nil {
-			headers := *cfg.SecurityHeaders
-			headers.Next = func(c fiber.Ctx) bool {
-				path := c.Path()
-				for _, g := range cfg.CSPGroups {
-					if g.PathPrefix != "" && strings.HasPrefix(path, g.PathPrefix) {
-						return true
-					}
+	applySecurityHeaders(app, cfg)
+	applyCSRF(app, cfg)
+	applyRateLimit(app, cfg)
+	applyContentSecurity(app, security)
+	applyCryption(app, security)
+	applyEncryptCookie(app, security)
+}
+
+func applySecurityHeaders(app *fiber.App, cfg Config) {
+	if cfg.SecurityHeaders == nil {
+		return
+	}
+	// Global security headers: skip paths owned by a csp_group so the
+	// per-route CSP can override without being clobbered by the global.
+	if len(cfg.CSPGroups) > 0 && cfg.SecurityHeaders.Next == nil {
+		headers := *cfg.SecurityHeaders
+		headers.Next = func(c fiber.Ctx) bool {
+			path := c.Path()
+			for _, g := range cfg.CSPGroups {
+				if g.PathPrefix != "" && strings.HasPrefix(path, g.PathPrefix) {
+					return true
 				}
-				return false
 			}
-			app.Use(middleware.SecurityHeaders(headers))
-		} else {
-			app.Use(middleware.SecurityHeaders(*cfg.SecurityHeaders))
+			return false
 		}
+		app.Use(middleware.SecurityHeaders(headers))
+	} else {
+		app.Use(middleware.SecurityHeaders(*cfg.SecurityHeaders))
 	}
 	// Register per-route CSP groups as global middleware with Next skip.
 	// This ensures entry routes (registered directly on app) inherit the CSP.
-	if cfg.SecurityHeaders != nil {
-		for _, g := range cfg.CSPGroups {
-			if g.PathPrefix == "" || g.CSP == nil {
-				continue
-			}
-			groupCfg := *cfg.SecurityHeaders
-			groupCfg.CSP = middleware.BuildCSP(*g.CSP)
-			groupCfg.Next = func(c fiber.Ctx) bool {
-				return !strings.HasPrefix(c.Path(), g.PathPrefix)
-			}
-			app.Use(middleware.SecurityHeaders(groupCfg))
+	for _, g := range cfg.CSPGroups {
+		if g.PathPrefix == "" || g.CSP == nil {
+			continue
 		}
+		groupCfg := *cfg.SecurityHeaders
+		groupCfg.CSP = middleware.BuildCSP(*g.CSP)
+		groupCfg.Next = func(c fiber.Ctx) bool {
+			return !strings.HasPrefix(c.Path(), g.PathPrefix)
+		}
+		app.Use(middleware.SecurityHeaders(groupCfg))
 	}
+}
+
+func applyCSRF(app *fiber.App, cfg Config) {
 	if cfg.CSRF != nil {
 		app.Use(middleware.CSRF(*cfg.CSRF))
 	}
+}
+
+func applyRateLimit(app *fiber.App, cfg Config) {
 	if cfg.RateLimit != nil {
 		app.Use(middleware.RateLimit(*cfg.RateLimit))
 	}
+}
+
+func applyContentSecurity(app *fiber.App, security SecurityConfig) {
 	if security.ContentSecurity != nil && security.ContentSecurity.Enabled {
 		if key, err := middleware.ParsePublicKey(security.ContentSecurity.PublicKey); err == nil {
 			app.Use(middleware.ContentSecurity(key, security.ContentSecurity.Strict))
 		}
 	}
+}
+
+func applyCryption(app *fiber.App, security SecurityConfig) {
 	if security.Cryption != nil && security.Cryption.Enabled {
 		app.Use(middleware.Cryption([]byte(security.Cryption.Key)))
 	}
+}
+
+func applyEncryptCookie(app *fiber.App, security SecurityConfig) {
 	if security.EncryptCookie != nil && security.EncryptCookie.Enabled {
 		app.Use(encryptcookie.New(encryptcookie.Config{
 			Key:    security.EncryptCookie.Key,
@@ -333,14 +392,14 @@ func setupRouteOrGlobalMiddlewares(app *fiber.App, cfg Config, corsCfg *CORSConf
 	if corsCfg != nil {
 		if len(corsCfg.Origins) > 0 || corsCfg.AllowOriginsFunc != nil {
 			corsHandler := middleware.CORS(middleware.CORSConfig{
-				AllowedOrigins:       joinOrStar(corsCfg.Origins),
-				AllowedMethods:       joinOrDefault(corsCfg.Methods, "GET,POST,PUT,PATCH,DELETE,OPTIONS"),
-				AllowedHeaders:       joinOrDefault(corsCfg.Headers, "Origin,Content-Type,Accept,Authorization"),
-				AllowCredentials:     corsCfg.Credentials,
-				MaxAge:               corsCfg.MaxAge,
-				ExposeHeaders:        joinOrEmpty(corsCfg.ExposeHeaders),
-				AllowPrivateNetwork:  corsCfg.AllowPrivateNetwork,
-				AllowOriginsFunc:     corsCfg.AllowOriginsFunc,
+				AllowedOrigins:      joinOrStar(corsCfg.Origins),
+				AllowedMethods:      joinOrDefault(corsCfg.Methods, "GET,POST,PUT,PATCH,DELETE,OPTIONS"),
+				AllowedHeaders:      joinOrDefault(corsCfg.Headers, "Origin,Content-Type,Accept,Authorization"),
+				AllowCredentials:    corsCfg.Credentials,
+				MaxAge:              corsCfg.MaxAge,
+				ExposeHeaders:       joinOrEmpty(corsCfg.ExposeHeaders),
+				AllowPrivateNetwork: corsCfg.AllowPrivateNetwork,
+				AllowOriginsFunc:    corsCfg.AllowOriginsFunc,
 				Next: func(c fiber.Ctx) bool {
 					return corsPathSkipped(c, corsCfg)
 				},
@@ -370,55 +429,6 @@ func setupPerRouteMiddlewares(app *fiber.App, cfg Config, corsCfg *CORSConfig) {
 	}
 }
 
-func setupGlobalStandardMiddlewares(app *fiber.App, cfg Config, corsCfg *CORSConfig) {
-	if cfg.Logger {
-		app.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
-			SkipPaths:  cfg.LogSkipPaths,
-			SampleRate: cfg.LogSampleRate,
-		}))
-	}
-	if cfg.LoadShedding {
-		app.Use(middleware.Shedding())
-	}
-	if cfg.Breaker {
-		app.Use(middleware.Breaker())
-	}
-	if cfg.Compression {
-		app.Use(compress.New())
-	}
-	app.Use(middleware.MaxConns(cfg.MaxConns))
-	app.Use(middleware.MaxBytes(cfg.MaxBytes))
-	app.Use(middleware.Gunzip())
-	app.Use(middleware.Prometheus())
-	if corsCfg != nil {
-		// Global CORS only when origins are explicitly configured.
-		// If only named groups exist, routes outside groups have no CORS.
-		if len(corsCfg.Origins) > 0 || corsCfg.AllowOriginsFunc != nil {
-			corsHandler := middleware.CORS(middleware.CORSConfig{
-				AllowedOrigins:       joinOrStar(corsCfg.Origins),
-				AllowedMethods:       joinOrDefault(corsCfg.Methods, "GET,POST,PUT,PATCH,DELETE,OPTIONS"),
-				AllowedHeaders:       joinOrDefault(corsCfg.Headers, "Origin,Content-Type,Accept,Authorization"),
-				AllowCredentials:     corsCfg.Credentials,
-				MaxAge:               corsCfg.MaxAge,
-				ExposeHeaders:        joinOrEmpty(corsCfg.ExposeHeaders),
-				AllowPrivateNetwork:  corsCfg.AllowPrivateNetwork,
-				AllowOriginsFunc:     corsCfg.AllowOriginsFunc,
-				Next: func(c fiber.Ctx) bool {
-					return corsPathSkipped(c, corsCfg)
-				},
-			})
-			app.Use(corsHandler)
-		}
-		// Named CORS groups registered on their own path prefixes
-		for _, g := range corsCfg.Groups {
-			if g.Name == "" {
-				continue
-			}
-			registerCORSGroup(app, g)
-		}
-	}
-}
-
 // corsPathSkipped returns true when the request path belongs to a named
 // CORS group (which has its own middleware) so the global CORS skips it.
 func corsPathSkipped(c fiber.Ctx, corsCfg *CORSConfig) bool {
@@ -439,14 +449,14 @@ func registerCORSGroup(app *fiber.App, g CORSGroup) {
 		return
 	}
 	app.Use(middleware.CORS(middleware.CORSConfig{
-		AllowedOrigins:       joinOrStar(g.Origins),
-		AllowedMethods:       joinOrDefault(g.Methods, "GET,POST,PUT,PATCH,DELETE,OPTIONS"),
-		AllowedHeaders:       joinOrDefault(g.Headers, "Origin,Content-Type,Accept,Authorization"),
-		AllowCredentials:     g.Credentials,
-		MaxAge:               g.MaxAge,
-		ExposeHeaders:        joinOrEmpty(g.ExposeHeaders),
-		AllowPrivateNetwork:  g.AllowPrivateNetwork,
-		AllowOriginsFunc:     g.AllowOriginsFunc,
+		AllowedOrigins:      joinOrStar(g.Origins),
+		AllowedMethods:      joinOrDefault(g.Methods, "GET,POST,PUT,PATCH,DELETE,OPTIONS"),
+		AllowedHeaders:      joinOrDefault(g.Headers, "Origin,Content-Type,Accept,Authorization"),
+		AllowCredentials:    g.Credentials,
+		MaxAge:              g.MaxAge,
+		ExposeHeaders:       joinOrEmpty(g.ExposeHeaders),
+		AllowPrivateNetwork: g.AllowPrivateNetwork,
+		AllowOriginsFunc:    g.AllowOriginsFunc,
 		Next: func(c fiber.Ctx) bool {
 			return !strings.HasPrefix(c.Path(), prefix)
 		},
@@ -475,14 +485,14 @@ func applyMiddlewareByType(grp fiber.Router, name string, cfg Config, corsCfg *C
 	case "cors":
 		if corsCfg != nil {
 			grp.Use(middleware.CORS(middleware.CORSConfig{
-				AllowedOrigins:       joinOrStar(corsCfg.Origins),
-				AllowedMethods:       joinOrDefault(corsCfg.Methods, "GET,POST,PUT,PATCH,DELETE,OPTIONS"),
-				AllowedHeaders:       joinOrDefault(corsCfg.Headers, "Origin,Content-Type,Accept,Authorization"),
-				AllowCredentials:     corsCfg.Credentials,
-				MaxAge:               corsCfg.MaxAge,
-				ExposeHeaders:        joinOrEmpty(corsCfg.ExposeHeaders),
-				AllowPrivateNetwork:  corsCfg.AllowPrivateNetwork,
-				AllowOriginsFunc:     corsCfg.AllowOriginsFunc,
+				AllowedOrigins:      joinOrStar(corsCfg.Origins),
+				AllowedMethods:      joinOrDefault(corsCfg.Methods, "GET,POST,PUT,PATCH,DELETE,OPTIONS"),
+				AllowedHeaders:      joinOrDefault(corsCfg.Headers, "Origin,Content-Type,Accept,Authorization"),
+				AllowCredentials:    corsCfg.Credentials,
+				MaxAge:              corsCfg.MaxAge,
+				ExposeHeaders:       joinOrEmpty(corsCfg.ExposeHeaders),
+				AllowPrivateNetwork: corsCfg.AllowPrivateNetwork,
+				AllowOriginsFunc:    corsCfg.AllowOriginsFunc,
 			}))
 		}
 	default:
@@ -490,14 +500,14 @@ func applyMiddlewareByType(grp fiber.Router, name string, cfg Config, corsCfg *C
 		if groupName, ok := strings.CutPrefix(name, "cors:"); ok && corsCfg != nil {
 			if g, found := findCORSGroup(corsCfg.Groups, groupName); found {
 				grp.Use(middleware.CORS(middleware.CORSConfig{
-					AllowedOrigins:       joinOrStar(g.Origins),
-					AllowedMethods:       joinOrDefault(g.Methods, "GET,POST,PUT,PATCH,DELETE,OPTIONS"),
-					AllowedHeaders:       joinOrDefault(g.Headers, "Origin,Content-Type,Accept,Authorization"),
-					AllowCredentials:     g.Credentials,
-					MaxAge:               g.MaxAge,
-					ExposeHeaders:        joinOrEmpty(g.ExposeHeaders),
-					AllowPrivateNetwork:  g.AllowPrivateNetwork,
-					AllowOriginsFunc:     g.AllowOriginsFunc,
+					AllowedOrigins:      joinOrStar(g.Origins),
+					AllowedMethods:      joinOrDefault(g.Methods, "GET,POST,PUT,PATCH,DELETE,OPTIONS"),
+					AllowedHeaders:      joinOrDefault(g.Headers, "Origin,Content-Type,Accept,Authorization"),
+					AllowCredentials:    g.Credentials,
+					MaxAge:              g.MaxAge,
+					ExposeHeaders:       joinOrEmpty(g.ExposeHeaders),
+					AllowPrivateNetwork: g.AllowPrivateNetwork,
+					AllowOriginsFunc:    g.AllowOriginsFunc,
 				}))
 			}
 		}
@@ -642,3 +652,41 @@ func errorHandler(c fiber.Ctx, err error) error {
 		Message: message,
 	})
 }
+
+// Health probes ----------------------------------------------------------------
+
+func (s *Server) startup() bool {
+	// The process is alive; startup is always true once the server is wired.
+	return true
+}
+
+func (s *Server) ready() bool {
+	// Custom probe takes precedence.
+	if s.readinessProbe != nil {
+		return s.readinessProbe()
+	}
+	// Returns true once MarkReady / SetReady has been called (startup tasks done).
+	return s.readyFlag.Load()
+}
+
+func (s *Server) liveness() bool {
+	// Liveness: the process is running.
+	return true
+}
+
+// MarkReady signals that startup tasks are complete and the server is ready to
+// accept traffic. Readiness probes will now report true.
+func (s *Server) MarkReady() {
+	s.readyFlag.Store(true)
+}
+
+// SetReady allows callers to override the readiness probe function. The
+// provided function is called on every readiness request.
+func (s *Server) SetReady(fn func() bool) {
+	s.readinessProbe = fn
+	if fn != nil && fn() {
+		s.readyFlag.Store(true)
+	}
+}
+
+// registerHealthProbe registers a Fiber handler on the given path if enabled.

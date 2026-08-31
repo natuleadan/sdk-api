@@ -176,6 +176,7 @@ func TestFavicon_Remote_FirstFetch(t *testing.T) {
 	defer srv.Close()
 
 	fs := loadFavicon(&OpenAPIConf{Enabled: true, FaviconURL: srv.URL + "/logo.svg"})
+	defer fs.stopRefreshTicker()
 	if hits.Load() == 0 {
 		t.Fatal("expected startup fetch to hit the remote server")
 	}
@@ -199,6 +200,7 @@ func TestFavicon_Remote_Cached(t *testing.T) {
 		FaviconURL:     srv.URL + "/logo.svg",
 		FaviconRefresh: "1h",
 	})
+	defer fs.stopRefreshTicker()
 	before := hits.Load()
 
 	// Serving within TTL must not re-download.
@@ -230,6 +232,7 @@ func TestFavicon_Remote_TTLExpired_Refreshes(t *testing.T) {
 		FaviconURL:     srv.URL + "/logo.svg",
 		FaviconRefresh: "50ms",
 	})
+	defer fs.stopRefreshTicker()
 	initial := hits.Load()
 
 	// Force expiry (TTL 50ms already passed by the time we serve).
@@ -265,6 +268,7 @@ func TestFavicon_Remote_Error_ServesStale(t *testing.T) {
 		FaviconURL:     srv.URL + "/logo.svg",
 		FaviconRefresh: "30ms",
 	})
+	defer fs.stopRefreshTicker()
 	good := string(fs.data)
 
 	time.Sleep(60 * time.Millisecond)
@@ -354,6 +358,7 @@ func TestFavicon_Remote_Serves304(t *testing.T) {
 		FaviconURL:     srv.URL + "/logo.svg",
 		FaviconRefresh: "1h",
 	})
+	defer fs.stopRefreshTicker()
 	app := fiber.New()
 	app.Get("/favicon.ico", fs.handleFavicon)
 

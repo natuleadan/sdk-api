@@ -1201,3 +1201,64 @@ func TestCSP_Groups_NoGroups_AppliesGlobal(t *testing.T) {
 		t.Errorf("no groups: /docs must get global CSP, got %q", got)
 	}
 }
+
+func TestThreeHealthProbes(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+
+	cfg := DefaultConfig()
+	app := New(cfg, TelemetryConfig{}, SecurityConfig{}, nil)
+
+	t.Run("startup_returns_200", func(t *testing.T) {
+		t.Parallel()
+		resp, err := app.app.Test(testRequest("/startupz"))
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+
+	t.Run("liveness_returns_200", func(t *testing.T) {
+		t.Parallel()
+		resp, err := app.app.Test(testRequest("/livez"))
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+
+	t.Run("readiness_before_markready_returns_503", func(t *testing.T) {
+		t.Parallel()
+		appBefore := New(cfg, TelemetryConfig{}, SecurityConfig{}, nil)
+		resp, err := appBefore.app.Test(testRequest("/readyz"))
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+	})
+
+	t.Run("readiness_after_markready_returns_200", func(t *testing.T) {
+		t.Parallel()
+		app.MarkReady()
+		resp, err := app.app.Test(testRequest("/readyz"))
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+
+	t.Run("disabled_probe_returns_404", func(t *testing.T) {
+		t.Parallel()
+		cfg2 := DefaultConfig()
+		cfg2.StartupEnabled = false
+		app2 := New(cfg2, TelemetryConfig{}, SecurityConfig{}, nil)
+		resp, err := app2.app.Test(testRequest("/startupz"))
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	})
+}
+
+func TestCustomPathOverride(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+
+	cfg := DefaultConfig()
+	cfg.StartupPath = "/my-startup"
+	app := New(cfg, TelemetryConfig{}, SecurityConfig{}, nil)
+
+	resp, err := app.app.Test(testRequest("/my-startup"))
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+}

@@ -915,6 +915,7 @@ func (s *Service) RunWithContext(ctx context.Context) error {
 	}
 
 	logx.Infof("%s starting on :%d", s.config.Name, s.config.Port)
+	s.srv.MarkReady()
 	return s.srv.Start()
 }
 
@@ -1287,6 +1288,29 @@ func corsGroupPathPrefix(name string, cfg *ServiceConfig) string {
 func (s *Service) initServer() {
 	sc := s.config.Server
 
+	corsCfg := s.buildCORSConfig(sc)
+	routes := buildRouteConfigs(sc.Middleware)
+	collectCSRFExclusions(s.config.Entry, sc)
+
+	srvCfg := buildServerConfig(s.config, sc, routes)
+
+	s.srv = server.New(srvCfg, convertTelemetry(sc.Telemetry), securityConfig(sc), corsCfg)
+
+	s.jwtCfg = buildJWTCfg(s.config.Auth)
+	if s.jwtBlacklistFn != nil {
+		s.jwtCfg.TokenBlacklist = s.jwtBlacklistFn
+	}
+
+	auth := s.config.Auth
+	if auth != nil && auth.Enabled && auth.Driver != "none" {
+		initAuthClients(s, auth)
+	}
+
+	registerCSPReportEndpoint(s.srv.App(), sc.SecurityHeaders)
+}
+
+// buildCORSConfig maps YAML CORS settings to the server CORSConfig.
+func (s *Service) buildCORSConfig(sc ServerConf) *server.CORSConfig {
 	var corsCfg *server.CORSConfig
 	if sc.CORS != nil {
 		corsCfg = &server.CORSConfig{
@@ -1299,7 +1323,6 @@ func (s *Service) initServer() {
 			AllowPrivateNetwork: sc.CORS.AllowPrivateNetwork,
 		}
 	}
-	// Map named CORS groups from YAML to server groups.
 	for _, g := range sc.CORSGroups {
 		if corsCfg == nil {
 			corsCfg = &server.CORSConfig{}
@@ -1316,7 +1339,6 @@ func (s *Service) initServer() {
 			AllowPrivateNetwork: g.AllowPrivateNetwork,
 		})
 	}
-	// Apply dynamic origin validators registered via SetCORSOriginsFunc.
 	for name, fn := range s.corsFuncs {
 		if corsCfg == nil {
 			corsCfg = &server.CORSConfig{}
@@ -1337,17 +1359,22 @@ func (s *Service) initServer() {
 			logx.Infof("cors: SetCORSOriginsFunc(%q) no matching cors_groups entry", name)
 		}
 	}
+	return corsCfg
+}
 
+func buildRouteConfigs(middlewares []RouteMW) []server.RouteConfig {
 	var routes []server.RouteConfig
-	for _, mw := range sc.Middleware {
+	for _, mw := range middlewares {
 		routes = append(routes, server.RouteConfig{
 			Path:       mw.Path,
 			Middleware: mw.Apply,
 		})
 	}
+	return routes
+}
 
-	// Collect per-entry CSRF exclusions from entry[].csrf: false
-	for _, e := range s.config.Entry {
+func collectCSRFExclusions(entries []EntryDef, sc ServerConf) {
+	for _, e := range entries {
 		if e.CSRF != nil && !*e.CSRF {
 			if sc.CSRF == nil {
 				sc.CSRF = &CSRFConf{}
@@ -1355,9 +1382,11 @@ func (s *Service) initServer() {
 			sc.CSRF.ExcludePaths = append(sc.CSRF.ExcludePaths, e.Path)
 		}
 	}
+}
 
-	srvCfg := server.Config{
-		Port:              s.config.Port,
+func buildServerConfig(cfg *ServiceConfig, sc ServerConf, routes []server.RouteConfig) server.Config {
+	return server.Config{
+		Port:              cfg.Port,
 		Host:              sc.Host,
 		Prefork:           sc.Prefork,
 		BodyLimit:         sc.BodyLimit,
@@ -1372,12 +1401,18 @@ func (s *Service) initServer() {
 		MaxBytes:          sc.MaxBytes,
 		MetricsPath:       sc.MetricsPath,
 		HealthPath:        sc.HealthPath,
+		StartupPath:       sc.StartupPath,
+		StartupEnabled:    sc.StartupEnabled,
+		ReadinessPath:     sc.ReadinessPath,
+		ReadinessEnabled:  sc.ReadinessEnabled,
+		LivenessPath:      sc.LivenessPath,
+		LivenessEnabled:   sc.LivenessEnabled,
 		ShutdownTimeout:   parseServerDuration(sc.ShutdownTimeout, 10*time.Second),
 		RecoverStack:      sc.RecoverStack,
 		APIPrefix:         sc.APIPrefix,
 		Routes:            routes,
 		SecurityHeaders:   convertSecurityHeaders(sc.SecurityHeaders),
-		CSPGroups:         convertCSPGroups(&sc, s.config),
+		CSPGroups:         convertCSPGroups(&sc, cfg),
 		CSRF:              convertCSRF(sc.CSRF, sc.Cookies),
 		RateLimit:         convertRateLimit(sc.RateLimit),
 		TLS:               convertTLS(sc.TLS),
@@ -1389,29 +1424,19 @@ func (s *Service) initServer() {
 		LoadShedding:      sc.LoadShedding,
 		Breaker:           sc.Breaker,
 	}
+}
 
-	s.srv = server.New(srvCfg, convertTelemetry(sc.Telemetry), securityConfig(sc), corsCfg)
-
-	s.jwtCfg = buildJWTCfg(s.config.Auth)
-	if s.jwtBlacklistFn != nil {
-		s.jwtCfg.TokenBlacklist = s.jwtBlacklistFn
+func registerCSPReportEndpoint(app *fiber.App, sh *SecurityHeadersConf) {
+	if sh == nil || sh.CSPReportPath == "" {
+		return
 	}
-
-	auth := s.config.Auth
-	if auth != nil && auth.Enabled && auth.Driver != "none" {
-		initAuthClients(s, auth)
-	}
-
-	// Auto-register CSP report endpoint if configured
-	if sc.SecurityHeaders != nil && sc.SecurityHeaders.CSPReportPath != "" {
-		path := sc.SecurityHeaders.CSPReportPath
-		s.srv.App().Post(path, func(c fiber.Ctx) error {
-			body := string(c.Body())
-			logx.Errorf("CSP violation reported: %s", body)
-			return c.SendStatus(204)
-		})
-		logx.Infof("CSP report endpoint registered at %s", path)
-	}
+	path := sh.CSPReportPath
+	app.Post(path, func(c fiber.Ctx) error {
+		body := string(c.Body())
+		logx.Errorf("CSP violation reported: %s", body)
+		return c.SendStatus(204)
+	})
+	logx.Infof("CSP report endpoint registered at %s", path)
 }
 
 func (s *Service) shutdown() {

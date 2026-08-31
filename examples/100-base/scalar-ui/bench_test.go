@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -431,5 +432,77 @@ func TestCSP_APIs_Strict(t *testing.T) {
 		if strings.Contains(csp, "cdn.jsdelivr.net") {
 			t.Errorf("%s: strict CSP must NOT include cdn.jsdelivr.net, got %q", p, csp)
 		}
+	}
+}
+
+// ---- OpenAPI + Scalar YAML-driven options (v0.24.1 features) ----
+
+func TestRootRedirectsToDocs(t *testing.T) {
+	setup(t)
+	client := &http.Client{CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}}
+	resp, err := client.Get(baseURL + "/")
+	if err != nil {
+		t.Fatalf("root: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 302 {
+		t.Errorf("root: want 302, got %d", resp.StatusCode)
+	}
+	if loc := resp.Header.Get("Location"); loc != "/docs" {
+		t.Errorf("root: want Location /docs, got %q", loc)
+	}
+}
+
+func TestOpenAPI_TitleAndSummary(t *testing.T) {
+	setup(t)
+	resp, err := http.Get(baseURL + "/openapi.json")
+	if err != nil {
+		t.Fatalf("openapi: %v", err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	s := string(body)
+	if !strings.Contains(s, `"title":"Scalar UI Showcase"`) {
+		t.Error("openapi: info.title not overridden by openapi.title")
+	}
+	if !strings.Contains(s, `"summary":"Ping the service"`) {
+		t.Error("openapi: ping entry summary missing in spec")
+	}
+}
+
+func TestDocs_ThemingAndLayout(t *testing.T) {
+	setup(t)
+	resp, err := http.Get(baseURL + "/docs")
+	if err != nil {
+		t.Fatalf("docs: %v", err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	s := string(body)
+	if !strings.Contains(s, `"theme":"moon"`) {
+		t.Error("docs: theme moon not embedded")
+	}
+	if !strings.Contains(s, `"layout":"modern"`) {
+		t.Error("docs: layout modern not embedded")
+	}
+	if !strings.Contains(s, `"hideDownloadButton":true`) {
+		t.Error("docs: hide_download not embedded")
+	}
+	if !strings.Contains(s, "--scalar-color-accent: #b32323") {
+		t.Error("docs: custom_css not injected")
+	}
+}
+
+func TestOpenAPI_SpecCacheHeader(t *testing.T) {
+	setup(t)
+	resp, err := http.Get(baseURL + "/openapi.json")
+	if err != nil {
+		t.Fatalf("openapi: %v", err)
+	}
+	defer resp.Body.Close()
+	if got := resp.Header.Get("Cache-Control"); got != "public, max-age=1800" {
+		t.Errorf("openapi: cache-control %q, want 1800 (spec_cache_ttl 30m)", got)
 	}
 }

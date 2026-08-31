@@ -25,10 +25,25 @@ server:
   health_path: /healthz
   api_prefix: /api
   shutdown_timeout: 10s
+  redirects:
+    # "/": the API root lands on the interactive docs
+    - from: /
+      to: /docs
+      status: 302
   openapi:
     enabled: true
+    title: Scalar UI Showcase
+    description: CORS/CSP matrix over every SDK entry type
     theme: moon
     dark_mode: true
+    layout: modern
+    hide_download: true
+    spec_cache_ttl: 30m
+    # Brand CSS injected into the docs page (--scalar-* variables)
+    custom_css: |
+      :root {
+        --scalar-color-accent: #b32323;
+      }
     # favicon_url accepts three modes (default = inline magnifying glass):
     #   "static/logo.svg"  -> local file, read once at startup
     #   "https://cdn.example.com/logo.svg" -> remote, server-side download with TTL
@@ -107,6 +122,8 @@ entry:
     path: /ping
     handler: ping
     cors: app
+    summary: Ping the service
+    description: Returns pong; used by the CORS matrix tests
   # webhook - server-to-server (variant 4)
   - type: webhook
     method: POST

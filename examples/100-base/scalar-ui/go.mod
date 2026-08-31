@@ -5,7 +5,7 @@ go 1.26.6
 require (
 	github.com/gofiber/contrib/v3/websocket v1.2.2
 	github.com/gofiber/fiber/v3 v3.5.0
-	github.com/natuleadan/sdk-api v0.24.0
+	github.com/natuleadan/sdk-api v0.25.0
 )
 
 require (

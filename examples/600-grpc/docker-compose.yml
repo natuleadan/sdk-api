@@ -3,7 +3,7 @@ services:
   # Infrastructure
   # ============================================================================
   postgres:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     pull_policy: never
     environment: &pg-env
       POSTGRES_USER: postgres

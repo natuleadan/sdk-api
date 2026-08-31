@@ -35,7 +35,7 @@ func TestHealthEndpoint(t *testing.T) {
 	logx.Disable()
 	app := New(DefaultConfig(), TelemetryConfig{}, SecurityConfig{}, nil)
 
-	req := testRequest("/health")
+	req := testRequest("/healthz")
 	resp, err := app.app.Test(req)
 	if err != nil {
 		t.Fatalf("health request failed: %v", err)
@@ -460,7 +460,8 @@ func TestNew_DefaultConfigValues(t *testing.T) {
 	assert.Equal(t, 30*time.Second, cfg.Timeout)
 	assert.Equal(t, 4*1024*1024, cfg.BodyLimit)
 	assert.Equal(t, "/metrics", cfg.MetricsPath)
-	assert.Equal(t, "/health", cfg.HealthPath)
+	assert.Equal(t, "/healthz", cfg.HealthPath)
+	assert.True(t, cfg.HealthEnabled)
 	assert.True(t, cfg.Logger)
 	assert.True(t, cfg.LoadShedding)
 	assert.True(t, cfg.Breaker)
@@ -569,12 +570,12 @@ func TestCorrelationID_SkipPaths(t *testing.T) {
 	cfg.Correlation = &CorrelationConfig{
 		Enabled:        true,
 		ResponseHeader: "X-Correlation-ID",
-		SkipPaths:      []string{"/health"},
+		SkipPaths:      []string{"/healthz"},
 	}
 	app := New(cfg, TelemetryConfig{}, SecurityConfig{}, nil)
 
 	// Skipped path should not have correlation ID
-	req := testRequest("/health")
+	req := testRequest("/healthz")
 	resp, err := app.app.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
@@ -1245,6 +1246,23 @@ func TestThreeHealthProbes(t *testing.T) {
 		cfg2.StartupEnabled = false
 		app2 := New(cfg2, TelemetryConfig{}, SecurityConfig{}, nil)
 		resp, err := app2.app.Test(testRequest("/startupz"))
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	})
+
+	t.Run("healthz_returns_200_by_default", func(t *testing.T) {
+		t.Parallel()
+		resp, err := app.app.Test(testRequest("/healthz"))
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+
+	t.Run("healthz_disabled_returns_404", func(t *testing.T) {
+		t.Parallel()
+		cfg2 := DefaultConfig()
+		cfg2.HealthEnabled = false
+		app2 := New(cfg2, TelemetryConfig{}, SecurityConfig{}, nil)
+		resp, err := app2.app.Test(testRequest("/healthz"))
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 	})

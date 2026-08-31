@@ -1401,6 +1401,7 @@ func buildServerConfig(cfg *ServiceConfig, sc ServerConf, routes []server.RouteC
 		MaxBytes:          sc.MaxBytes,
 		MetricsPath:       sc.MetricsPath,
 		HealthPath:        sc.HealthPath,
+		HealthEnabled:     sc.HealthEnabled,
 		StartupPath:       sc.StartupPath,
 		StartupEnabled:    sc.StartupEnabled,
 		ReadinessPath:     sc.ReadinessPath,

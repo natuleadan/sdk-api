@@ -40,6 +40,7 @@ type Config struct {
 
 	MetricsPath      string
 	HealthPath       string
+	HealthEnabled    bool
 	StartupPath      string
 	ReadinessPath    string
 	LivenessPath     string
@@ -174,7 +175,8 @@ func DefaultConfig() Config {
 		MaxConns:          1000,
 		MaxBytes:          4 << 20,
 		MetricsPath:       "/metrics",
-		HealthPath:        "/health",
+		HealthPath:        "/healthz",
+		HealthEnabled:     true,
 		StartupPath:       healthcheck.StartupEndpoint,
 		ReadinessPath:     healthcheck.ReadinessEndpoint,
 		LivenessPath:      healthcheck.LivenessEndpoint,
@@ -251,9 +253,11 @@ func setupGlobalMiddlewares(app *fiber.App, cfg Config, telemetry TelemetryConfi
 			SkipPaths:      cfg.Correlation.SkipPaths,
 		}))
 	}
-	app.Get(cfg.HealthPath, healthcheck.New(healthcheck.Config{
-		Probe: func(_ fiber.Ctx) bool { return true },
-	}))
+	if cfg.HealthEnabled && cfg.HealthPath != "" {
+		app.Get(cfg.HealthPath, healthcheck.New(healthcheck.Config{
+			Probe: func(_ fiber.Ctx) bool { return true },
+		}))
+	}
 	// 3-form health checks using Fiber's built-in healthcheck middleware.
 	if cfg.StartupEnabled && cfg.StartupPath != "" {
 		app.Get(cfg.StartupPath, healthcheck.New(healthcheck.Config{

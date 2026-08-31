@@ -167,8 +167,10 @@ type ServerConf struct {
 	MaxBytes int `json:"max_bytes" config:",default=4194304"`
 	// MetricsPath is a constant.
 	MetricsPath string `json:"metrics_path" config:",default=/metrics"`
-	// HealthPath is a constant.
-	HealthPath string `json:"health_path" config:",default=/health"`
+	// HealthPath is the legacy healthcheck endpoint (always 200 when enabled).
+	HealthPath string `json:"health_path" config:",default=/healthz"`
+	// HealthEnabled enables the legacy /healthz endpoint.
+	HealthEnabled bool `json:"health_enabled" config:",default=true"`
 	// StartupPath is the startup probe endpoint. It verifies the app has
 	// successfully started.
 	StartupPath string `json:"startup_path" config:",default=/startupz"`

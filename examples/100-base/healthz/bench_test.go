@@ -61,6 +61,66 @@ func TestHealthz_OK(t *testing.T) {
 	t.Log("healthz OK")
 }
 
+func TestStartupz_OK(t *testing.T) {
+	if !docker {
+		waitHTTP(t, baseURL+"/healthz", 10*time.Second)
+	}
+	resp, err := http.Get(baseURL + "/startupz")
+	if err != nil {
+		t.Fatalf("GET /startupz: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Errorf("startupz: expected 200, got %d", resp.StatusCode)
+	}
+}
+
+func TestReadyz_OK(t *testing.T) {
+	if !docker {
+		waitHTTP(t, baseURL+"/healthz", 10*time.Second)
+	}
+	resp, err := http.Get(baseURL + "/readyz")
+	if err != nil {
+		t.Fatalf("GET /readyz: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Errorf("readyz: expected 200, got %d", resp.StatusCode)
+	}
+}
+
+func TestLivez_OK(t *testing.T) {
+	if !docker {
+		waitHTTP(t, baseURL+"/healthz", 10*time.Second)
+	}
+	resp, err := http.Get(baseURL + "/livez")
+	if err != nil {
+		t.Fatalf("GET /livez: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Errorf("livez: expected 200, got %d", resp.StatusCode)
+	}
+}
+
+func TestPing_OK(t *testing.T) {
+	if !docker {
+		waitHTTP(t, baseURL+"/healthz", 10*time.Second)
+	}
+	resp, err := http.Get(baseURL + "/api/ping")
+	if err != nil {
+		t.Fatalf("GET /api/ping: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Errorf("ping: expected 200, got %d", resp.StatusCode)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	if string(body) != "pong" {
+		t.Errorf("ping: expected 'pong', got '%s'", string(body))
+	}
+}
+
 func buildService() (string, error) {
 	out, err := exec.Command("go", "build", "-buildvcs=false", "-o", "/tmp/healthz-svc", ".").CombinedOutput()
 	if err != nil {

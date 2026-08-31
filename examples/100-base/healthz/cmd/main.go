@@ -18,12 +18,21 @@ server:
   body_limit: 4194304
   max_conns: 10000
   health_path: /healthz
+  startup_enabled: true
+  readiness_enabled: true
+  liveness_enabled: true
   api_prefix: /api
   shutdown_timeout: 10s
   middleware:
     - path: "/*"
       apply:
         - logger
+
+entry:
+  - type: rest
+    method: GET
+    path: /ping
+    handler: ping
 `
 
 	svc, err := runtime.NewFromYAML([]byte(config))

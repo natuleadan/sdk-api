@@ -11,7 +11,7 @@ for i in $(seq 1 15); do
 done
 
 echo "=== functional tests ==="
-/app/tester -test.v -test.run=TestHealthz -test.count=1
+/app/tester -test.v -test.run="TestHealthz|TestStartupz|TestReadyz|TestLivez|TestPing" -test.count=1
 EXIT=$?
 
 kill $SVC_PID 2>/dev/null; wait $SVC_PID 2>/dev/null || true

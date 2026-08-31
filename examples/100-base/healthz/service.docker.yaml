@@ -7,9 +7,18 @@ server:
   timeout: 30s
   body_limit: 4194304
   max_conns: 10000
-  health_path: /healthz
   api_prefix: ""
   shutdown_timeout: 10s
+  health_enabled: true
+  startup_enabled: true
+  readiness_enabled: true
+  liveness_enabled: true
   middleware:
     - path: "/*"
       apply: []
+
+entry:
+  - type: rest
+    method: GET
+    path: /ping
+    handler: ping

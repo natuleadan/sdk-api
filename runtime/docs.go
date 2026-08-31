@@ -274,29 +274,25 @@ func registerDocs(app *fiber.App, cfg *ServiceConfig, models map[string]*db.Tabl
 	if specPath == "" {
 		specPath = "/openapi.json"
 	}
+	ttl := specCacheTTL(oai.SpecCacheTTL)
+	maxAge := fmt.Sprintf("public, max-age=%d", int(ttl.Seconds()))
 	app.Get(specPath, func(c fiber.Ctx) error {
 		c.Set("Content-Type", "application/json")
-		if strings.Contains(c.Get("Accept-Encoding"), "gzip") && len(compressedSpec) > 0 {
-			c.Set("Content-Encoding", "gzip")
-			return c.Send(compressedSpec)
-		}
 		etag := fmt.Sprintf(`"%x"`, hash.Md5(jsonData))
 		c.Set("ETag", etag)
-		c.Set("Cache-Control", "public, max-age=3600")
+		c.Set("Cache-Control", maxAge)
 		if c.Get("If-None-Match") == etag {
 			c.Status(fiber.StatusNotModified)
 			return nil
 		}
+		if strings.Contains(c.Get("Accept-Encoding"), "gzip") && len(compressedSpec) > 0 {
+			c.Set("Content-Encoding", "gzip")
+			return c.Send(compressedSpec)
+		}
 		return c.Send(jsonData)
 	})
 
-	opts := []scalargo.Option{
-		scalargo.WithSpecBytes(jsonData),
-		scalargo.WithDefaultFonts(),
-	}
-	if oai.DarkMode {
-		opts = append(opts, scalargo.WithDarkMode())
-	}
+	opts := buildScalarOptions(oai, jsonData)
 
 	scalarHTML, err := scalargo.NewV2(opts...)
 	if err != nil {
@@ -314,4 +310,35 @@ func registerDocs(app *fiber.App, cfg *ServiceConfig, models map[string]*db.Tabl
 	})
 
 	logx.Infof("docs: %s and %s", specPath, docsPath)
+}
+
+// buildScalarOptions maps the OpenAPIConf onto scalar-go render options.
+// It is the single place where YAML-driven theming and display settings are
+// translated; registerDocs calls it before rendering the /docs page.
+func buildScalarOptions(oai *OpenAPIConf, spec []byte) []scalargo.Option {
+	opts := []scalargo.Option{
+		scalargo.WithSpecBytes(spec),
+		scalargo.WithDefaultFonts(),
+	}
+	if oai.Theme != "" {
+		opts = append(opts, scalargo.WithTheme(scalargo.Theme(oai.Theme)))
+	}
+	if oai.DarkMode {
+		opts = append(opts, scalargo.WithDarkMode())
+	}
+	return opts
+}
+
+// specCacheTTL parses the configured Cache-Control max-age for /openapi.json.
+// Falls back to one hour on empty or invalid input.
+func specCacheTTL(raw string) time.Duration {
+	if raw == "" {
+		return time.Hour
+	}
+	parsed, err := time.ParseDuration(raw)
+	if err != nil || parsed <= 0 {
+		logx.Errorf("openapi spec_cache_ttl %q invalid, falling back to 1h", raw)
+		return time.Hour
+	}
+	return parsed
 }

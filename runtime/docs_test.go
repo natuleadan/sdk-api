@@ -377,3 +377,93 @@ func TestFavicon_Remote_Serves304(t *testing.T) {
 		t.Fatalf("status: got %d want 304", resp2.StatusCode)
 	}
 }
+
+// ---- OpenAPI spec cache TTL + Scalar theme (fix: fields were parsed but ignored) ----
+
+func docsTestConfig() *ServiceConfig {
+	return &ServiceConfig{
+		Name: "docs-svc",
+		Server: ServerConf{
+			OpenAPI: &OpenAPIConf{
+				Enabled:      true,
+				Theme:    "moon",
+				DarkMode: true,
+			},
+		},
+	}
+}
+
+func TestSpecCacheTTL(t *testing.T) {
+	cases := []struct {
+		raw  string
+		want time.Duration
+	}{
+		{raw: "", want: time.Hour},
+		{raw: "1h", want: time.Hour},
+		{raw: "30m", want: 30 * time.Minute},
+		{raw: "2h30m", want: 150 * time.Minute},
+		{raw: "bogus", want: time.Hour},
+		{raw: "-5m", want: time.Hour},
+	}
+	for _, tc := range cases {
+		if got := specCacheTTL(tc.raw); got != tc.want {
+			t.Errorf("specCacheTTL(%q) = %v, want %v", tc.raw, got, tc.want)
+		}
+	}
+}
+
+func TestRegisterDocs_SpecCacheHeader(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	registerDocs(app, docsTestConfig(), nil)
+
+	resp, err := app.Test(httptestNewRequest(t, "GET", "/openapi.json", ""))
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	got := resp.Header.Get("Cache-Control")
+	if got != "public, max-age=3600" {
+		t.Errorf("cache-control: got %q want 3600 (1h)", got)
+	}
+}
+
+func TestRegisterDocs_SpecCacheHeader_CustomTTL(t *testing.T) {
+	logx.Disable()
+	cfg := docsTestConfig()
+	cfg.Server.OpenAPI.SpecCacheTTL = "10m"
+	app := fiber.New()
+	registerDocs(app, cfg, nil)
+
+	resp, err := app.Test(httptestNewRequest(t, "GET", "/openapi.json", ""))
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	got := resp.Header.Get("Cache-Control")
+	if got != "public, max-age=600" {
+		t.Errorf("cache-control: got %q want 600 (10m)", got)
+	}
+}
+
+func TestRegisterDocs_ThemeRendered(t *testing.T) {
+	logx.Disable()
+	app := fiber.New()
+	registerDocs(app, docsTestConfig(), nil)
+
+	resp, err := app.Test(httptestNewRequest(t, "GET", "/docs", ""))
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body := mustReadTestBody(t, resp)
+	if !containsTestString(body, `"theme":"moon"`) {
+		t.Error("rendered /docs HTML does not embed theme moon")
+	}
+	if !containsTestString(body, `"darkMode":true`) {
+		t.Error("rendered /docs HTML does not embed darkMode true")
+	}
+}

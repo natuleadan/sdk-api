@@ -638,16 +638,30 @@ type StaticDef struct {
 	// SPA enables Single-Page Application mode: when a file is not found,
 	// the handler serves the first index file instead of returning 404.
 	SPA bool `json:"spa" config:",optional"`
+	// Methods limits which HTTP methods serve files (default: ["GET", "HEAD"]).
+	Methods []string `json:"methods" config:",optional"`
 }
 
 // RedirectDef defines a declarative HTTP redirect: from → to with status code.
+// Supports exact paths, wildcard patterns (/old/*), and path param forwarding (:id).
 type RedirectDef struct {
-	// From is the source path to match (e.g. "/").
+	// From is the source path to match. Supports:
+	//   Exact:      "/old"
+	//   Wildcard:   "/old/*" (catch-all, forwarded to target)
+	//   Param:      "/user/:id" (param forwarded to target)
 	From string `json:"from"`
-	// To is the target URL or path (e.g. "/docs").
+	// To is the target URL or path. Supports param references:
+	//   "/new"              (static target)
+	//   "/new/*"            (wildcard forwarded from From)
+	//   "/profile/:id"      (param forwarded from From)
+	//   "https://ext.com/x" (external URL)
 	To string `json:"to"`
 	// Status is the HTTP status code (default 302).
 	Status int `json:"status" config:",default=302"`
+	// Methods limits which HTTP methods trigger the redirect (default: ["GET"]).
+	Methods []string `json:"methods" config:",optional"`
+	// PreserveQuery keeps the original query string when redirecting (default: true).
+	PreserveQuery *bool `json:"preserve_query" config:",optional"`
 }
 
 type OpenAPIConf struct {

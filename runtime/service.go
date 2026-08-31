@@ -638,6 +638,54 @@ func (s *Service) WithFS(name string, fsys fs.FS) *Service {
 	return s
 }
 
+// AddStatic registers a static file route programmatically (alternative to YAML).
+// All parameters are optional with sensible defaults.
+//
+// Example:
+//
+//	svc.AddStatic("/assets", "./public")
+//	svc.AddStatic("/app", "./dist", runtime.StaticOptSPA(true), runtime.StaticOptCompress(true))
+func (s *Service) AddStatic(prefix, dir string, opts ...StaticOption) *Service {
+	sd := StaticDef{Prefix: prefix, Dir: dir}
+	for _, o := range opts {
+		o(&sd)
+	}
+	if s.srv != nil {
+		s.registerStatic(sd)
+	} else {
+		// Run() hasn't been called yet; store for later registration.
+		s.config.Server.Static = append(s.config.Server.Static, sd)
+	}
+	return s
+}
+
+// StaticOption configures AddStatic.
+type StaticOption func(*StaticDef)
+
+// StaticOptCompress enables gzip/brotli/zstd compression.
+func StaticOptCompress(v bool) StaticOption { return func(sd *StaticDef) { sd.Compress = v } }
+
+// StaticOptByteRange enables byte range requests.
+func StaticOptByteRange(v bool) StaticOption { return func(sd *StaticDef) { sd.ByteRange = v } }
+
+// StaticOptBrowse enables directory listing.
+func StaticOptBrowse(v bool) StaticOption { return func(sd *StaticDef) { sd.Browse = v } }
+
+// StaticOptDownload sets Content-Disposition: attachment.
+func StaticOptDownload(v bool) StaticOption { return func(sd *StaticDef) { sd.Download = v } }
+
+// StaticOptMaxAge sets Cache-Control max-age in seconds.
+func StaticOptMaxAge(v int) StaticOption { return func(sd *StaticDef) { sd.MaxAge = v } }
+
+// StaticOptSPA enables SPA fallback mode.
+func StaticOptSPA(v bool) StaticOption { return func(sd *StaticDef) { sd.SPA = v } }
+
+// StaticOptMethods sets which HTTP methods serve files.
+func StaticOptMethods(v ...string) StaticOption { return func(sd *StaticDef) { sd.Methods = v } }
+
+// StaticOptIndexNames sets custom index file names.
+func StaticOptIndexNames(v ...string) StaticOption { return func(sd *StaticDef) { sd.IndexNames = v } }
+
 // WithAuthValidator registers a custom authorization validator for "manual" auth mode.
 // The validator receives the AuthContext, YAML-defined roles, and YAML-defined permissions.
 // Return nil if allowed, an error with message if denied.
@@ -1263,19 +1311,25 @@ func (s *Service) registerStatic(sd StaticDef) {
 
 	prefix := sd.Prefix
 
+	// Resolve methods: default GET+HEAD.
+	methods := sd.Methods
+	if len(methods) == 0 {
+		methods = []string{"GET", "HEAD"}
+	}
+
 	// Register the static handler first.
 	handler := static.New(root, cfg)
-	s.srv.App().Get(prefix+"/*", handler)
+	s.srv.App().Add(methods, prefix+"/*", handler)
 
 	// SPA mode: register a catch-all AFTER the static handler that
 	// serves index.html for any route that wasn't served by static.
 	if sd.SPA {
 		spaHandler := buildSPAHandler(fsys, sd.Dir, indexNames[0])
-		s.srv.App().Get(prefix+"/*", spaHandler)
+		s.srv.App().Add(methods, prefix+"/*", spaHandler)
 	}
 
-	logx.Infof("static: %s → %s (compress=%v byte_range=%v spa=%v max_age=%d)",
-		prefix, displayRoot(sd), sd.Compress, sd.ByteRange, sd.SPA, sd.MaxAge)
+	logx.Infof("static: %s → %s (compress=%v byte_range=%v spa=%v max_age=%v methods=%v)",
+		prefix, displayRoot(sd), sd.Compress, sd.ByteRange, sd.SPA, sd.MaxAge, methods)
 }
 
 func buildSPAHandler(fsys fs.FS, dir, indexFile string) fiber.Handler {
@@ -1301,8 +1355,8 @@ func displayRoot(sd StaticDef) string {
 }
 
 // registerRedirects registers declarative HTTP redirects from server.redirects
-// in the YAML config. Each rule registers a GET handler on the "from" path that
-// returns a redirect to the "to" URL with the configured status code.
+// in the YAML config. Supports exact paths, wildcards (/old/*), param forwarding
+// (:id), query string preservation, and method filtering.
 func (s *Service) registerRedirects() {
 	redirects := s.config.Server.Redirects
 	if len(redirects) == 0 {
@@ -1317,14 +1371,81 @@ func (s *Service) registerRedirects() {
 		if status == 0 {
 			status = fiber.StatusFound
 		}
+		methods := rd.Methods
+		if len(methods) == 0 {
+			methods = []string{"GET"}
+		}
+		preserveQuery := true
+		if rd.PreserveQuery != nil {
+			preserveQuery = *rd.PreserveQuery
+		}
 		from := rd.From
 		to := rd.To
 		code := status
-		s.srv.App().Get(from, func(c fiber.Ctx) error {
-			return c.Redirect().Status(code).To(to)
-		})
-		logx.Infof("redirect: %s → %s (%d)", from, to, code)
+		methodSet := make(map[string]bool, len(methods))
+		for _, m := range methods {
+			methodSet[strings.ToUpper(m)] = true
+		}
+		handler := buildRedirectHandler(from, to, code, preserveQuery, methodSet)
+		s.srv.App().Add(methods, from, handler)
+		logx.Infof("redirect: %s → %s (%d) methods=%v", from, to, code, methods)
 	}
+}
+
+// buildRedirectHandler creates a Fiber handler for a declarative redirect.
+// It handles wildcard forwarding, param forwarding, and query preservation.
+func buildRedirectHandler(from, to string, status int, preserveQuery bool, methods map[string]bool) fiber.Handler {
+	hasWildcard := strings.HasSuffix(from, "/*")
+	hasParams := strings.Contains(from, ":")
+	return func(c fiber.Ctx) error {
+		// Method filter
+		if len(methods) > 0 && !methods[c.Method()] {
+			return c.Next()
+		}
+		target := to
+		// Wildcard forwarding: /old/* → /new/*, copy the wildcard segment
+		if hasWildcard && strings.HasSuffix(to, "/*") {
+			wildcardVal := c.Params("*")
+			if wildcardVal != "" {
+				target = strings.TrimSuffix(to, "/*") + "/" + wildcardVal
+			} else {
+				target = strings.TrimSuffix(to, "/*")
+			}
+		}
+		// Param forwarding: /user/:id → /profile/:id
+		if hasParams && !hasWildcard {
+			for _, param := range extractParams(from) {
+				val := c.Params(param)
+				if val != "" {
+					target = strings.ReplaceAll(target, ":"+param, val)
+				}
+			}
+		}
+		// Query string preservation
+		if preserveQuery {
+			rawQuery := c.Request().URI().QueryString()
+			if len(rawQuery) > 0 {
+				qs := string(rawQuery)
+				if strings.Contains(target, "?") {
+					target += "&" + qs
+				} else {
+					target += "?" + qs
+				}
+			}
+		}
+		return c.Redirect().Status(status).To(target)
+	}
+}
+
+// extractParams returns the param names from a Fiber route pattern.
+func extractParams(pattern string) []string {
+	var params []string
+	for _, seg := range strings.Split(pattern, "/") {
+		if strings.HasPrefix(seg, ":") {
+			params = append(params, seg[1:])
+		}
+	}
+	return params
 }
 
 func (s *Service) startExitWorkers(ctx context.Context) error {

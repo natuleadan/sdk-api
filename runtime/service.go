@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"maps"
 	"os"
@@ -21,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/static"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -83,6 +85,7 @@ type Service struct {
 	grpcClients     map[string]*GrpcClient
 	grpcRegistrars  map[string]func(srv *grpc.Server)
 	corsFuncs       map[string]func(origin string) bool
+	fsRegistry      map[string]fs.FS // name → fs.FS for static embed
 
 	stop context.CancelFunc
 }
@@ -114,6 +117,7 @@ func newFromConfig(cfg *ServiceConfig) (*Service, error) {
 		exitMgr:     NewExitWorkerManager(),
 		tables:      make(map[string]any),
 		grpcClients: make(map[string]*GrpcClient),
+		fsRegistry:  make(map[string]fs.FS),
 	}, nil
 }
 
@@ -618,6 +622,19 @@ func (s *Service) WithAsync(name string, handler AsyncHandler) *Service {
 		s.handlers.Async = make(map[string]AsyncHandler)
 	}
 	s.handlers.Async[name] = handler
+	return s
+}
+
+// WithFS registers an fs.FS by name for use in static file definitions.
+// Reference it from YAML with static[].fs: embed and static[].fs_name: <name>.
+//
+// Example:
+//
+//	//go:embed dist
+//	var distFS embed.FS
+//	svc.WithFS("dist", fs.Sub(distFS, "dist"))
+func (s *Service) WithFS(name string, fsys fs.FS) *Service {
+	s.fsRegistry[name] = fsys
 	return s
 }
 
@@ -1196,13 +1213,90 @@ func (s *Service) registerGrpcEntries() {
 
 func (s *Service) serveStaticFiles() {
 	for _, sd := range s.config.Server.Static {
-		dir := sd.Dir
-		prefix := sd.Prefix
-		s.srv.App().Get(prefix+"/*", func(c fiber.Ctx) error {
-			path := filepath.Join(dir, fiber.Params[string](c, "*"))
-			return c.SendFile(path, fiber.SendFile{})
-		})
+		s.registerStatic(sd)
 	}
+}
+
+func (s *Service) registerStatic(sd StaticDef) {
+	// Resolve filesystem: embed.FS from registry or disk via Dir.
+	var fsys fs.FS
+	if sd.FS == "embed" {
+		if sd.FSName == "" {
+			logx.Errorf("static %s: fs_name required when fs=embed", sd.Prefix)
+			return
+		}
+		var ok bool
+		fsys, ok = s.fsRegistry[sd.FSName]
+		if !ok {
+			logx.Errorf("static %s: fs_name %q not registered via WithFS()", sd.Prefix, sd.FSName)
+			return
+		}
+	} else if sd.Dir == "" {
+		logx.Errorf("static %s: dir required when fs is not embed", sd.Prefix)
+		return
+	}
+
+	indexNames := sd.IndexNames
+	if len(indexNames) == 0 {
+		indexNames = []string{"index.html"}
+	}
+
+	cfg := static.Config{
+		Compress:   sd.Compress,
+		ByteRange:  sd.ByteRange,
+		Browse:     sd.Browse,
+		Download:   sd.Download,
+		MaxAge:     sd.MaxAge,
+		IndexNames: indexNames,
+	}
+
+	// Attach filesystem if embed mode.
+	if fsys != nil {
+		cfg.FS = fsys
+	}
+
+	root := sd.Dir
+	if fsys != nil {
+		root = ""
+	}
+
+	prefix := sd.Prefix
+
+	// Register the static handler first.
+	handler := static.New(root, cfg)
+	s.srv.App().Get(prefix+"/*", handler)
+
+	// SPA mode: register a catch-all AFTER the static handler that
+	// serves index.html for any route that wasn't served by static.
+	if sd.SPA {
+		spaHandler := buildSPAHandler(fsys, sd.Dir, indexNames[0])
+		s.srv.App().Get(prefix+"/*", spaHandler)
+	}
+
+	logx.Infof("static: %s → %s (compress=%v byte_range=%v spa=%v max_age=%d)",
+		prefix, displayRoot(sd), sd.Compress, sd.ByteRange, sd.SPA, sd.MaxAge)
+}
+
+func buildSPAHandler(fsys fs.FS, dir, indexFile string) fiber.Handler {
+	return func(c fiber.Ctx) error {
+		if fsys != nil {
+			data, err := fs.ReadFile(fsys, indexFile)
+			if err != nil {
+				return c.SendStatus(fiber.StatusNotFound)
+			}
+			c.Set("Content-Type", "text/html; charset=utf-8")
+			return c.Send(data)
+		}
+		fullPath := filepath.Join(dir, indexFile)
+		return c.SendFile(fullPath)
+	}
+}
+
+func displayRoot(sd StaticDef) string {
+	if sd.FS == "embed" {
+		return "fs:" + sd.FSName
+	}
+	return sd.Dir
 }
 
 func (s *Service) startExitWorkers(ctx context.Context) error {

@@ -610,10 +610,32 @@ type CSPGroupConf struct {
 }
 
 type StaticDef struct {
-	// Prefix is a constant.
+	// Prefix is the URL prefix for serving files (e.g. "/assets").
 	Prefix string `json:"prefix"`
-	// Dir is a constant.
-	Dir string `json:"dir"`
+	// Dir is the directory path on disk (e.g. "./public").
+	// Required when FS is not set.
+	Dir string `json:"dir" config:",optional"`
+	// FS selects the filesystem source: "" or "disk" uses Dir on disk;
+	// "embed" uses an fs.FS registered via WithFS(name).
+	FS string `json:"fs" config:",optional"`
+	// FSName references the fs.FS registered via Service.WithFS(name, fsys).
+	// Required when fs: "embed".
+	FSName string `json:"fs_name" config:",optional"`
+	// Compress enables gzip/brotli/zstd compression for served files.
+	Compress bool `json:"compress" config:",optional"`
+	// ByteRange enables byte range requests (useful for video/audio).
+	ByteRange bool `json:"byte_range" config:",optional"`
+	// Browse enables directory listing when a directory is requested.
+	Browse bool `json:"browse" config:",optional"`
+	// Download sets Content-Disposition: attachment for direct downloads.
+	Download bool `json:"download" config:",optional"`
+	// MaxAge sets Cache-Control max-age in seconds. 0 means no cache header.
+	MaxAge int `json:"max_age" config:",default=0"`
+	// IndexNames overrides the default index file names (default: ["index.html"]).
+	IndexNames []string `json:"index_names" config:",optional"`
+	// SPA enables Single-Page Application mode: when a file is not found,
+	// the handler serves the first index file instead of returning 404.
+	SPA bool `json:"spa" config:",optional"`
 }
 
 type OpenAPIConf struct {

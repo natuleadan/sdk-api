@@ -1011,6 +1011,10 @@ type EntryDef struct {
 	Path string `json:"path" config:",optional"`
 	// Handler is a constant.
 	Handler string `json:"handler" config:",optional"`
+	// Summary documents the operation in the OpenAPI spec (one line).
+	Summary string `json:"summary" config:",optional"`
+	// Description documents the operation in the OpenAPI spec (long form).
+	Description string `json:"description" config:",optional"`
 	// AuthModes is a constant.
 	AuthModes []string `json:"auth_modes" config:",optional"` // ["jwt"], ["apikey"], ["jwt","apikey"]
 	// JWTFrom is a constant.

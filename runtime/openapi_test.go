@@ -299,3 +299,163 @@ func TestService_RegisterModel_InvalidType(t *testing.T) {
 		t.Error("should not register non-struct model")
 	}
 }
+
+// ---- Spec completion: async, graphql, securitySchemes, servers, tags ----
+
+func TestBuildOpenAPI_Async(t *testing.T) {
+	cfg := &ServiceConfig{
+		Name:   "async-svc",
+		Port:   23198,
+		Server: ServerConf{APIPrefix: "/api", Host: "0.0.0.0"},
+		Entry: []EntryDef{
+			{Type: "async", Path: "/jobs", Handler: "report"},
+		},
+	}
+	spec, err := BuildOpenAPI(cfg, nil)
+	if err != nil {
+		t.Fatalf("BuildOpenAPI: %v", err)
+	}
+
+	want := []string{"/api/jobs", "/api/jobs/:job_id", "/api/jobs/:job_id/status"}
+	for _, p := range want {
+		if spec.Paths.Find(p) == nil {
+			t.Errorf("async path %q missing", p)
+		}
+	}
+	list := spec.Paths.Find("/api/jobs")
+	if list.Get == nil || list.Post == nil {
+		t.Error("async base path must expose POST submit and GET list")
+	}
+	job := spec.Paths.Find("/api/jobs/:job_id")
+	if job.Get == nil || job.Delete == nil {
+		t.Error("async job path must expose GET status and DELETE cancel")
+	}
+	sse := spec.Paths.Find("/api/jobs/:job_id/status")
+	if sse == nil || sse.Get == nil {
+		t.Error("async SSE status path missing")
+	}
+}
+
+func TestBuildOpenAPI_AuthSchemes(t *testing.T) {
+	cfg := &ServiceConfig{
+		Name: "auth-svc",
+		Server: ServerConf{APIPrefix: "/api"},
+		Entry: []EntryDef{
+			{Type: "rest", Method: "GET", Path: "/open", Handler: "open"},
+			{Type: "rest", Method: "GET", Path: "/protected", Handler: "protected", AuthModes: []string{"jwt", "apikey"}},
+		},
+	}
+	spec, err := BuildOpenAPI(cfg, nil)
+	if err != nil {
+		t.Fatalf("BuildOpenAPI: %v", err)
+	}
+
+	if spec.Components == nil || spec.Components.SecuritySchemes == nil {
+		t.Fatal("securitySchemes missing")
+	}
+	if _, ok := spec.Components.SecuritySchemes["bearerAuth"]; !ok {
+		t.Error("bearerAuth scheme missing for jwt auth mode")
+	}
+	if _, ok := spec.Components.SecuritySchemes["apiKeyAuth"]; !ok {
+		t.Error("apiKeyAuth scheme missing for apikey auth mode")
+	}
+	if spec.Security == nil || len(spec.Security) == 0 {
+		t.Error("global security requirements missing")
+	}
+}
+
+func TestBuildOpenAPI_NoAuth(t *testing.T) {
+	cfg := &ServiceConfig{
+		Name:   "plain-svc",
+		Server: ServerConf{APIPrefix: "/api"},
+		Entry: []EntryDef{
+			{Type: "rest", Method: "GET", Path: "/ping", Handler: "ping"},
+		},
+	}
+	spec, err := BuildOpenAPI(cfg, nil)
+	if err != nil {
+		t.Fatalf("BuildOpenAPI: %v", err)
+	}
+	if spec.Security != nil {
+		t.Error("no-auth service must not declare security requirements")
+	}
+	if len(spec.Components.SecuritySchemes) != 0 {
+		t.Error("no security schemes expected without auth modes")
+	}
+}
+
+func TestBuildOpenAPI_ServersBlock(t *testing.T) {
+	cfg := &ServiceConfig{
+		Name: "srv-svc",
+		Port: 23197,
+		Server: ServerConf{
+			Host:      "0.0.0.0",
+			APIPrefix: "/api",
+		},
+		Entry: []EntryDef{
+			{Type: "rest", Method: "GET", Path: "/ping", Handler: "ping"},
+		},
+	}
+	spec, err := BuildOpenAPI(cfg, nil)
+	if err != nil {
+		t.Fatalf("BuildOpenAPI: %v", err)
+	}
+	if len(spec.Servers) != 1 {
+		t.Fatalf("servers = %d, want 1", len(spec.Servers))
+	}
+	if spec.Servers[0].URL != "http://localhost:23197" {
+		t.Errorf("server url = %q, want http://localhost:23197 (0.0.0.0 → localhost)", spec.Servers[0].URL)
+	}
+}
+
+func TestBuildOpenAPI_TagsAndDocs(t *testing.T) {
+	cfg := &ServiceConfig{
+		Name: "tagged-svc",
+		Server: ServerConf{APIPrefix: "/api"},
+		Entry: []EntryDef{
+			{
+				Type:        "rest",
+				Method:      "GET",
+				Path:        "/ping",
+				Handler:     "ping",
+				Summary:     "Ping the service",
+				Description: "Returns pong with latency info",
+			},
+		},
+	}
+	spec, err := BuildOpenAPI(cfg, nil)
+	if err != nil {
+		t.Fatalf("BuildOpenAPI: %v", err)
+	}
+	item := spec.Paths.Find("/api/ping")
+	if item == nil || item.Get == nil {
+		t.Fatal("/api/ping GET missing")
+	}
+	if len(item.Get.Tags) != 1 || item.Get.Tags[0] != "rest" {
+		t.Errorf("tags = %v, want [rest]", item.Get.Tags)
+	}
+	if item.Get.Summary != "Ping the service" {
+		t.Errorf("summary = %q, want entry summary", item.Get.Summary)
+	}
+	if item.Get.Description != "Returns pong with latency info" {
+		t.Errorf("description = %q", item.Get.Description)
+	}
+}
+
+func TestBuildOpenAPI_GraphQL(t *testing.T) {
+	cfg := &ServiceConfig{
+		Name:   "gql-svc",
+		Server: ServerConf{APIPrefix: "/api"},
+		Entry: []EntryDef{
+			{Type: "graphql", Path: "/graphql", Handler: "graphqlHandler"},
+		},
+	}
+	spec, err := BuildOpenAPI(cfg, nil)
+	if err != nil {
+		t.Fatalf("BuildOpenAPI: %v", err)
+	}
+	item := spec.Paths.Find("/api/graphql")
+	if item == nil || item.Post == nil {
+		t.Fatal("/api/graphql POST missing")
+	}
+}

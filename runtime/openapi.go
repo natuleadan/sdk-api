@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 
@@ -42,10 +43,104 @@ func BuildOpenAPI(cfg *ServiceConfig, models map[string]*db.TableInfo) (*openapi
 			addSSEPath(doc, &entry, prefix)
 		case "file":
 			addFilePath(doc, &entry, prefix)
+		case "async":
+			addAsyncPaths(doc, &entry, prefix)
+		case "graphql":
+			addGraphQLPath(doc, &entry, prefix)
 		}
 	}
 
+	doc.Security = securityRequirements(cfg.Entry)
+	if schemes := buildSecuritySchemes(cfg.Entry); len(schemes) > 0 {
+		doc.Components.SecuritySchemes = schemes
+	}
+	if server := specServer(cfg); server != nil {
+		doc.Servers = openapi3.Servers{server}
+	}
+
 	return doc, nil
+}
+
+// securityRequirements derives the operation-level security requirements from
+// the union of all entry auth modes. Entries without auth stay public.
+func securityRequirements(entries []EntryDef) openapi3.SecurityRequirements {
+	hasJWT := false
+	hasAPIKey := false
+	for _, entry := range entries {
+		for _, mode := range entry.AuthModes {
+			switch mode {
+			case "jwt":
+				hasJWT = true
+			case "apikey":
+				hasAPIKey = true
+			}
+		}
+	}
+	if !hasJWT && !hasAPIKey {
+		return nil
+	}
+	reqs := make(openapi3.SecurityRequirements, 0, 2)
+	if hasJWT {
+		reqs = append(reqs, openapi3.SecurityRequirement{"bearerAuth": []string{}})
+	}
+	if hasAPIKey {
+		reqs = append(reqs, openapi3.SecurityRequirement{"apiKeyAuth": []string{}})
+	}
+	return reqs
+}
+
+// buildSecuritySchemes maps the entry auth modes onto OpenAPI security
+// schemes: jwt → HTTP bearer, apikey → apiKey header (Authorization).
+func buildSecuritySchemes(entries []EntryDef) openapi3.SecuritySchemes {
+	hasJWT := false
+	hasAPIKey := false
+	for _, entry := range entries {
+		for _, mode := range entry.AuthModes {
+			switch mode {
+			case "jwt":
+				hasJWT = true
+			case "apikey":
+				hasAPIKey = true
+			}
+		}
+	}
+	if !hasJWT && !hasAPIKey {
+		return nil
+	}
+	schemes := openapi3.SecuritySchemes{}
+	if hasJWT {
+		schemes["bearerAuth"] = &openapi3.SecuritySchemeRef{Value: &openapi3.SecurityScheme{
+			Type:         "http",
+			Scheme:       "bearer",
+			BearerFormat: "JWT",
+			Description:  "JWT bearer token from the auth service",
+		}}
+	}
+	if hasAPIKey {
+		schemes["apiKeyAuth"] = &openapi3.SecuritySchemeRef{Value: &openapi3.SecurityScheme{
+			Type:        "apiKey",
+			In:          "header",
+			Name:        "Authorization",
+			Description: "API key (default header: Authorization)",
+		}}
+	}
+	return schemes
+}
+
+// specServer builds the servers block from the server host/port config.
+func specServer(cfg *ServiceConfig) *openapi3.Server {
+	if cfg.Server.Host == "" {
+		return nil
+	}
+	host := cfg.Server.Host
+	if host == "0.0.0.0" {
+		host = "localhost"
+	}
+	u := "http://" + host
+	if cfg.Port != 0 {
+		u += fmt.Sprintf(":%d", cfg.Port)
+	}
+	return &openapi3.Server{URL: u, Description: "This service"}
 }
 
 func addCRUDPaths(doc *openapi3.T, entry *EntryDef, models map[string]*db.TableInfo, prefix string) {
@@ -120,10 +215,18 @@ func addCRUDPaths(doc *openapi3.T, entry *EntryDef, models map[string]*db.TableI
 
 func addRestPath(doc *openapi3.T, entry *EntryDef, prefix string) {
 	path := prefix + entry.Path
+	summary := entry.Summary
+	if summary == "" {
+		summary = entry.Handler
+	}
 	op := &openapi3.Operation{
-		Summary:     entry.Handler,
+		Summary:     summary,
 		OperationID: entry.Handler,
+		Tags:        []string{entry.Type},
 		Responses:   okResp(),
+	}
+	if entry.Description != "" {
+		op.Description = entry.Description
 	}
 	doc.Paths.Set(path, &openapi3.PathItem{})
 	switch entry.Method {
@@ -195,6 +298,100 @@ func addFilePath(doc *openapi3.T, entry *EntryDef, prefix string) {
 	case "DELETE":
 		doc.Paths.Value(path).Delete = op
 	}
+}
+
+// addAsyncPaths documents the routes auto-registered for async entries:
+// submit, list, status, cancel and the SSE status stream.
+func addAsyncPaths(doc *openapi3.T, entry *EntryDef, prefix string) {
+	base := prefix + entry.Path
+	summary := entry.Summary
+	if summary == "" {
+		summary = "Async job " + entry.Handler
+	}
+
+	submit := &openapi3.Operation{
+		Summary:     "Submit " + entry.Handler + " job",
+		OperationID: "submit" + pascal(entry.Handler),
+		Tags:        []string{"async"},
+		Responses: openapi3.NewResponses(
+			openapi3.WithStatus(202, &openapi3.ResponseRef{
+				Value: &openapi3.Response{Description: new("Job accepted")},
+			}),
+		),
+	}
+	if entry.Description != "" {
+		submit.Description = entry.Description
+	}
+
+	doc.Paths.Set(base, &openapi3.PathItem{
+		Post: submit,
+		Get:  &openapi3.Operation{
+			Summary:     "List " + entry.Handler + " jobs",
+			OperationID: "list" + pascal(entry.Handler) + "Jobs",
+			Tags:        []string{"async"},
+			Responses:   okResp(),
+		},
+	})
+
+	jobPath := base + "/:job_id"
+	doc.Paths.Set(jobPath, &openapi3.PathItem{
+		Get: &openapi3.Operation{
+			Summary:     "Get " + entry.Handler + " job status",
+			OperationID: "get" + pascal(entry.Handler) + "Job",
+			Tags:        []string{"async"},
+			Parameters:  openapi3.Parameters{param("job_id", "path", "string")},
+			Responses:   okResp(),
+		},
+		Delete: &openapi3.Operation{
+			Summary:     "Cancel " + entry.Handler + " job",
+			OperationID: "cancel" + pascal(entry.Handler) + "Job",
+			Tags:        []string{"async"},
+			Parameters:  openapi3.Parameters{param("job_id", "path", "string")},
+			Responses:   okResp(),
+		},
+	})
+
+	ssePath := jobPath + "/status"
+	doc.Paths.Set(ssePath, &openapi3.PathItem{
+		Get: &openapi3.Operation{
+			Summary:     "Stream " + entry.Handler + " job status (SSE)",
+			OperationID: "stream" + pascal(entry.Handler) + "JobStatus",
+			Tags:        []string{"async", "sse"},
+			Parameters:  openapi3.Parameters{param("job_id", "path", "string")},
+			Responses:   okResp(),
+		},
+	})
+}
+
+// addGraphQLPath documents a GraphQL entry as a POST operation.
+func addGraphQLPath(doc *openapi3.T, entry *EntryDef, prefix string) {
+	path := prefix + entry.Path
+	summary := entry.Summary
+	if summary == "" {
+		summary = "GraphQL: " + entry.Handler
+	}
+	querySchema := &openapi3.Schema{
+		Type: oapiTypes("object"),
+		Properties: openapi3.Schemas{
+			"query":     {Value: &openapi3.Schema{Type: oapiTypes("string")}},
+			"variables": {Value: &openapi3.Schema{Type: oapiTypes("object")}},
+		},
+	}
+	op := &openapi3.Operation{
+		Summary:     summary,
+		OperationID: entry.Handler,
+		Tags:        []string{"graphql"},
+		RequestBody: &openapi3.RequestBodyRef{
+			Value: &openapi3.RequestBody{
+				Content: openapi3.NewContentWithJSONSchemaRef(&openapi3.SchemaRef{Value: querySchema}),
+			},
+		},
+		Responses: okResp(),
+	}
+	if entry.Description != "" {
+		op.Description = entry.Description
+	}
+	doc.Paths.Set(path, &openapi3.PathItem{Post: op})
 }
 
 // ---- Schema builders ----

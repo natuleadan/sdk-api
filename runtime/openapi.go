@@ -304,10 +304,6 @@ func addFilePath(doc *openapi3.T, entry *EntryDef, prefix string) {
 // submit, list, status, cancel and the SSE status stream.
 func addAsyncPaths(doc *openapi3.T, entry *EntryDef, prefix string) {
 	base := prefix + entry.Path
-	summary := entry.Summary
-	if summary == "" {
-		summary = "Async job " + entry.Handler
-	}
 
 	submit := &openapi3.Operation{
 		Summary:     "Submit " + entry.Handler + " job",
@@ -325,7 +321,7 @@ func addAsyncPaths(doc *openapi3.T, entry *EntryDef, prefix string) {
 
 	doc.Paths.Set(base, &openapi3.PathItem{
 		Post: submit,
-		Get:  &openapi3.Operation{
+		Get: &openapi3.Operation{
 			Summary:     "List " + entry.Handler + " jobs",
 			OperationID: "list" + pascal(entry.Handler) + "Jobs",
 			Tags:        []string{"async"},

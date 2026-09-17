@@ -146,11 +146,18 @@ func initTurso(cfg *DBConfig) (*sql.DB, error) {
 // tursogo-serverless driver (pure Go, no CGO, no native libs).
 func initTursoServerless(cfg *DBConfig) (*sql.DB, error) {
 	db, err := db.TursoServerlessOpen(cfg.URL, cfg.AuthToken)
+	return finalizeSQLDB(db, err, cfg.Pool)
+}
+
+// finalizeSQLDB propagates open errors and applies pool tuning on success.
+// The error arrives as a parameter (never compared at the call site) so the
+// go-libsql non-CGO stub — which always fails — doesn't trip SA4023.
+func finalizeSQLDB(db *sql.DB, err error, pool *PoolConf) (*sql.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	if cfg.Pool != nil && cfg.Pool.MaxConns > 0 {
-		db.SetMaxOpenConns(int(cfg.Pool.MaxConns))
+	if pool != nil && pool.MaxConns > 0 {
+		db.SetMaxOpenConns(int(pool.MaxConns))
 	}
 	return db, nil
 }
@@ -159,26 +166,14 @@ func initTursoServerless(cfg *DBConfig) (*sql.DB, error) {
 // (hrana wire protocol, pure Go).
 func initLibsql(cfg *DBConfig) (*sql.DB, error) {
 	db, err := db.LibsqlOpen(cfg.URL, cfg.AuthToken)
-	if err != nil {
-		return nil, err
-	}
-	if cfg.Pool != nil && cfg.Pool.MaxConns > 0 {
-		db.SetMaxOpenConns(int(cfg.Pool.MaxConns))
-	}
-	return db, nil
+	return finalizeSQLDB(db, err, cfg.Pool)
 }
 
 // initGoLibsql opens an embedded replica synced to a remote primary using the
 // go-libsql driver (requires CGO; local reads, writes to cloud primary).
 func initGoLibsql(ctx context.Context, cfg *DBConfig) (*sql.DB, error) {
 	db, err := db.GoLibsqlOpen(ctx, cfg.URL, cfg.AuthToken)
-	if err != nil {
-		return nil, err
-	}
-	if cfg.Pool != nil && cfg.Pool.MaxConns > 0 {
-		db.SetMaxOpenConns(int(cfg.Pool.MaxConns))
-	}
-	return db, nil
+	return finalizeSQLDB(db, err, cfg.Pool)
 }
 
 func initMySQL(cfg *DBConfig) (*sql.DB, error) {

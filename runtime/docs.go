@@ -273,64 +273,100 @@ func registerDocs(app *fiber.App, cfg *ServiceConfig, models map[string]*db.Tabl
 		return
 	}
 
-	// Register /favicon.ico endpoint with in-memory cache + ETag.
-	// The favicon source is resolved once at startup (inline / local file /
-	// remote with TTL refresh); every request is a cheap memory copy, and
-	// 304 responses skip the body entirely (Cache-Control max-age=86400).
-	faviconSrc := loadFavicon(oai)
-	app.Get("/favicon.ico", faviconSrc.handleFavicon)
-
-	spec, err := BuildOpenAPI(cfg, models)
-	if err != nil {
-		logx.Errorf("openapi build: %v", err)
-		return
-	}
+	registerFaviconRoute(app, oai)
 
 	var dh *DocsHooks
 	if len(hooks) > 0 {
 		dh = hooks[0]
 	}
-	if dh != nil {
-		for _, mutate := range dh.Mutators {
-			if err := mutate(spec); err != nil {
-				logx.Errorf("openapi mutator: %v", err)
-			}
+	jsonData, ok := buildSpecJSON(cfg, models, dh)
+	if !ok {
+		return
+	}
+	compressedSpec := gzipBytes(jsonData)
+
+	specPath := oai.SpecPath
+	if specPath == "" {
+		specPath = "/openapi.json"
+	}
+	registerSpecRoute(app, specPath, specCacheTTL(oai.SpecCacheTTL), jsonData, compressedSpec)
+
+	docsPath := oai.DocsPath
+	if docsPath == "" {
+		docsPath = "/docs"
+	}
+	if !registerScalarRoute(app, docsPath, oai, jsonData, dh) {
+		return
+	}
+
+	logx.Infof("docs: %s and %s", specPath, docsPath)
+}
+
+// registerFaviconRoute serves /favicon.ico from an in-memory cache with ETag.
+// The favicon source is resolved once at startup (inline / local file /
+// remote with TTL refresh); every request is a cheap memory copy, and
+// 304 responses skip the body entirely (Cache-Control max-age=86400).
+func registerFaviconRoute(app *fiber.App, oai *OpenAPIConf) {
+	faviconSrc := loadFavicon(oai)
+	app.Get("/favicon.ico", faviconSrc.handleFavicon)
+}
+
+// buildSpecJSON builds the OpenAPI spec, applies hooks and metadata, and
+// marshals it. It returns false when the spec cannot be served.
+func buildSpecJSON(cfg *ServiceConfig, models map[string]*db.TableInfo, dh *DocsHooks) ([]byte, bool) {
+	spec, err := BuildOpenAPI(cfg, models)
+	if err != nil {
+		logx.Errorf("openapi build: %v", err)
+		return nil, false
+	}
+	applySpecMutators(spec, dh)
+	applySpecInfo(spec, cfg.Server.OpenAPI)
+	jsonData, err := spec.MarshalJSON()
+	if err != nil {
+		logx.Errorf("openapi marshal: %v", err)
+		return nil, false
+	}
+	return jsonData, true
+}
+
+// applySpecMutators runs the registered spec hooks in order.
+func applySpecMutators(spec *openapi3.T, dh *DocsHooks) {
+	if dh == nil {
+		return
+	}
+	for _, mutate := range dh.Mutators {
+		if err := mutate(spec); err != nil {
+			logx.Errorf("openapi mutator: %v", err)
 		}
 	}
+}
+
+// applySpecInfo applies the YAML title/description overrides to the spec.
+func applySpecInfo(spec *openapi3.T, oai *OpenAPIConf) {
 	if oai.Title != "" && spec.Info != nil {
 		spec.Info.Title = oai.Title
 	}
 	if oai.Description != "" && spec.Info != nil {
 		spec.Info.Description = oai.Description
 	}
+}
 
-	jsonData, err := spec.MarshalJSON()
-	if err != nil {
-		logx.Errorf("openapi marshal: %v", err)
-		return
+// gzipBytes compresses data for the gzip branch of the spec endpoint.
+func gzipBytes(data []byte) []byte {
+	var buf bytes.Buffer
+	gw := gzip.NewWriter(&buf)
+	if _, err := gw.Write(data); err != nil {
+		logx.Errorf("gzip write: %v", err)
 	}
-
-	var (
-		compressedSpec []byte
-		compressOnce   sync.Once
-	)
-	compressOnce.Do(func() {
-		var buf bytes.Buffer
-		gw := gzip.NewWriter(&buf)
-		if _, err := gw.Write(jsonData); err != nil {
-			logx.Errorf("gzip write: %v", err)
-		}
-		if err := gw.Close(); err != nil {
-			logx.Errorf("gzip close: %v", err)
-		}
-		compressedSpec = buf.Bytes()
-	})
-
-	specPath := oai.SpecPath
-	if specPath == "" {
-		specPath = "/openapi.json"
+	if err := gw.Close(); err != nil {
+		logx.Errorf("gzip close: %v", err)
 	}
-	ttl := specCacheTTL(oai.SpecCacheTTL)
+	return buf.Bytes()
+}
+
+// registerSpecRoute serves the marshalled spec with ETag, Cache-Control and
+// an optional gzip branch (304 is evaluated before encoding).
+func registerSpecRoute(app *fiber.App, specPath string, ttl time.Duration, jsonData, compressedSpec []byte) {
 	maxAge := fmt.Sprintf("public, max-age=%d", int(ttl.Seconds()))
 	app.Get(specPath, func(c fiber.Ctx) error {
 		c.Set("Content-Type", "application/json")
@@ -347,7 +383,11 @@ func registerDocs(app *fiber.App, cfg *ServiceConfig, models map[string]*db.Tabl
 		}
 		return c.Send(jsonData)
 	})
+}
 
+// registerScalarRoute renders the Scalar UI page and mounts the docs route.
+// It returns false when the page cannot be rendered.
+func registerScalarRoute(app *fiber.App, docsPath string, oai *OpenAPIConf, jsonData []byte, dh *DocsHooks) bool {
 	opts := buildScalarOptions(oai, jsonData)
 	if dh != nil && len(dh.ScalarOptions) > 0 {
 		opts = append(opts, dh.ScalarOptions...)
@@ -368,13 +408,9 @@ func registerDocs(app *fiber.App, cfg *ServiceConfig, models map[string]*db.Tabl
 	scalarHTML, err := scalargo.NewV2(opts...)
 	if err != nil {
 		logx.Errorf("scalar render: %v", err)
-		return
+		return false
 	}
 
-	docsPath := oai.DocsPath
-	if docsPath == "" {
-		docsPath = "/docs"
-	}
 	app.Get(docsPath, func(c fiber.Ctx) error {
 		if len(oai.CSPConnect) > 0 {
 			c.Set("Content-Security-Policy", buildDocsCSP(oai.CSPConnect))
@@ -382,8 +418,7 @@ func registerDocs(app *fiber.App, cfg *ServiceConfig, models map[string]*db.Tabl
 		c.Set("Content-Type", "text/html; charset=utf-8")
 		return c.SendString(scalarHTML)
 	})
-
-	logx.Infof("docs: %s and %s", specPath, docsPath)
+	return true
 }
 
 // buildDocsCSP builds a Content-Security-Policy for the docs page that lets
@@ -407,6 +442,18 @@ func buildScalarOptions(oai *OpenAPIConf, spec []byte) []scalargo.Option {
 		scalargo.WithSpecBytes(spec),
 		scalargo.WithDefaultFonts(),
 	}
+	opts = append(opts, scalarThemeOptions(oai)...)
+	opts = append(opts, scalarDisplayOptions(oai)...)
+	opts = append(opts, scalarVisibilityOptions(oai)...)
+	opts = append(opts, scalarOrderingOptions(oai)...)
+	opts = append(opts, scalarClientOptions(oai)...)
+	opts = append(opts, scalarServerOptions(oai)...)
+	return opts
+}
+
+// scalarThemeOptions maps dark mode, theme and layout settings.
+func scalarThemeOptions(oai *OpenAPIConf) []scalargo.Option {
+	var opts []scalargo.Option
 	if oai.Theme != "" {
 		opts = append(opts, scalargo.WithTheme(scalargo.Theme(oai.Theme)))
 	}
@@ -422,6 +469,12 @@ func buildScalarOptions(oai *OpenAPIConf, spec []byte) []scalargo.Option {
 	if oai.Layout != "" {
 		opts = append(opts, scalargo.WithLayout(scalargo.Layout(oai.Layout)))
 	}
+	return opts
+}
+
+// scalarDisplayOptions maps custom CSS/JS and metadata settings.
+func scalarDisplayOptions(oai *OpenAPIConf) []scalargo.Option {
+	var opts []scalargo.Option
 	if oai.CustomCSS != "" {
 		opts = append(opts, scalargo.WithOverrideCSS(oai.CustomCSS))
 	}
@@ -437,6 +490,12 @@ func buildScalarOptions(oai *OpenAPIConf, spec []byte) []scalargo.Option {
 	if oai.Description != "" {
 		opts = append(opts, scalargo.WithMetaDataOpts(scalargo.WithKeyValue("description", oai.Description)))
 	}
+	return opts
+}
+
+// scalarVisibilityOptions maps sidebar, toolbar and hide-element settings.
+func scalarVisibilityOptions(oai *OpenAPIConf) []scalargo.Option {
+	var opts []scalargo.Option
 	if oai.HideDownload {
 		opts = append(opts, scalargo.WithHideDownloadButton())
 	}
@@ -458,6 +517,12 @@ func buildScalarOptions(oai *OpenAPIConf, spec []byte) []scalargo.Option {
 	if oai.Editable {
 		opts = append(opts, scalargo.WithEditable())
 	}
+	return opts
+}
+
+// scalarOrderingOptions maps tag/operation sorting settings.
+func scalarOrderingOptions(oai *OpenAPIConf) []scalargo.Option {
+	var opts []scalargo.Option
 	if oai.TagsSorter != "" {
 		opts = append(opts, scalargo.WithTagsSorter(scalargo.SorterOption(oai.TagsSorter)))
 	}
@@ -470,6 +535,12 @@ func buildScalarOptions(oai *OpenAPIConf, spec []byte) []scalargo.Option {
 	if oai.OrderSchemaPropertiesBy != "" {
 		opts = append(opts, scalargo.WithOrderSchemaPropertiesBy(scalargo.SchemaPropertiesOrder(oai.OrderSchemaPropertiesBy)))
 	}
+	return opts
+}
+
+// scalarClientOptions maps auth persistence, HTTP client and CDN settings.
+func scalarClientOptions(oai *OpenAPIConf) []scalargo.Option {
+	var opts []scalargo.Option
 	if oai.PersistAuth {
 		opts = append(opts, scalargo.WithPersistAuth(true))
 	}
@@ -485,6 +556,12 @@ func buildScalarOptions(oai *OpenAPIConf, spec []byte) []scalargo.Option {
 	if oai.Proxy != "" {
 		opts = append(opts, scalargo.WithProxy(oai.Proxy))
 	}
+	return opts
+}
+
+// scalarServerOptions maps base URL and multi-server overrides.
+func scalarServerOptions(oai *OpenAPIConf) []scalargo.Option {
+	var opts []scalargo.Option
 	if oai.BaseServerURL != "" {
 		opts = append(opts, scalargo.WithBaseServerURL(oai.BaseServerURL))
 	}

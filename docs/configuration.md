@@ -1128,7 +1128,7 @@ server:
 
     # ---- servers ----
     servers_override:                         # replaces spec servers in the UI
-      - url: https://api.natuleadan.com
+      - url: https://api.example.com
         description: production
 
     # ---- multi-service docs (tabs) ----

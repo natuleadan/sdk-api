@@ -238,7 +238,11 @@ jobs:
             exit 0
           fi
           if echo "$COMMITS" | grep -qE '^.*?\([^)]*\)?!:|^BREAKING[ -]CHANGE:'; then
-            TAG="v$((MAJOR+1)).0.0"
+            if [ "$MAJOR" = "0" ]; then
+              TAG="v0.$((MINOR+1)).0"
+            else
+              TAG="v$((MAJOR+1)).0.0"
+            fi
           elif echo "$COMMITS" | grep -q '^feat'; then
             TAG="v$MAJOR.$((MINOR+1)).0"
           elif echo "$COMMITS" | grep -qE '^fix|^perf'; then

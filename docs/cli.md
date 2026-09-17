@@ -198,6 +198,55 @@ sdk-api rpc generate proto/auth_service.proto --out=pb
 | Flag | Description | Default |
 |------|-------------|---------|
 | `--out` | Output directory | Proto file directory |
+| `--module` | Module prefix strip for output placement (monorepo layouts) | — |
+| `--go-package` | Go import path for the file via protoc `M` mapping | — |
+
+Monorepo example (canonical + vendored outputs replicate the validated flags
+`module=` + `M<file>=<path>`):
+
+```bash
+sdk-api rpc generate proto/consent/v1/consent.proto --out=. \
+  --module=github.com/acme/mono --go-package=github.com/acme/mono/gen/go/consent/v1
+```
+
+### `sdk-api proto init`
+
+Scaffolds a shared `proto/` contracts folder for a monorepo: `proto/buf.yaml`,
+`proto/buf.gen.yaml` (canonical `gen/go` output), `gen/go/go.mod` and
+`proto/README.md`.
+
+```bash
+sdk-api proto init --dir /path/to/monorepo --module example.com/mono/gen/go
+```
+
+The gen module defaults to `<root go.mod module>/gen/go` (or the existing
+`gen/go/go.mod`). Fails when nothing can be derived — pass `--module`.
+
+### `sdk-api proto generate`
+
+Regenerates every shared `proto/` contract: canonical output into `gen/go`
+(via `buf` when available, else `protoc` with module strip) plus one vendored
+`pb/` copy per service (protoc with `M` mapping + module strip).
+
+```bash
+sdk-api proto generate --dir /path/to/monorepo
+sdk-api proto generate --vend consent/v1/consent.proto=ms-consent
+```
+
+Vendored targets resolve by the same-name convention `<root>/<top>/pb`, or
+explicitly via repeatable `--vend rel-proto=svc-dir` (legacy mismatches like
+`consent` vs `ms-consent`). Services without a `pb/` dir (or `go.mod`) are
+skipped with a warning; the canonical output is always produced. Requires
+`buf` or `protoc` in PATH (`protoc` for the vendored copies).
+
+### `sdk-api new` monorepo mode
+
+When the target directory lives inside a monorepo holding shared contracts
+(`proto/buf.yaml` marker upward), `sdk-api new --grpc` writes the contract to
+`proto/<resource>/v1/<resource>.proto` (single source of truth) instead of
+`api/<resource>.proto`, keeping the vendored `pb/` stub and the `grpcserver/`
+stub inside the service. Regenerate the real stubs with
+`sdk-api proto generate`. Without the marker, scaffolding is unchanged.
 
 ### `sdk-api rpc validate <proto-file>`
 

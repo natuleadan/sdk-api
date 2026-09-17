@@ -489,6 +489,11 @@ c.SetCookie(runtime.NewCookie("token", signed, 900))
 
 ## CRUD Provider
 
+`ctx` is `*RestCtx` (never `fiber.Ctx`): custom providers only need the SDK,
+with `JSON`, `Status`, `SendStatus`, `Params`, `Query`, `Locals`, `Context`
+and the pool accessors. The SDK wraps the Fiber context at the route boundary
+(same as `WithRest` handlers).
+
 ```go
 type CRUDProvider interface {
     List(ctx, params) error

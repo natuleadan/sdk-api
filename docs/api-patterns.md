@@ -422,21 +422,30 @@ entry:
 **Go:**
 
 ```go
-svc.WithRest("onFileUpload", func(c fiber.Ctx) error {
-    file, _ := c.FormFile("file")
-    src, _ := file.Open()
-    defer src.Close()
-    dst, _ := os.Create("/data/uploads/" + file.Filename)
-    io.Copy(dst, src)
-    return c.JSON(map[string]any{"filename": file.Filename, "size": file.Size})
+svc.WithRest("onFileUpload", func(c *runtime.RestCtx) error {
+    key := c.Params("key")
+    body := c.Body()
+    path := filepath.Join("/data/uploads", key)
+    if err := os.MkdirAll(filepath.Dir(path), 0750); err != nil {
+        return c.Status(500).JSON(map[string]any{"error": err.Error()})
+    }
+    if err := os.WriteFile(path, body, 0640); err != nil {
+        return c.Status(500).JSON(map[string]any{"error": err.Error()})
+    }
+    return c.JSON(map[string]any{"uploaded": key, "size": len(body)})
 })
 
-svc.WithRest("onFileDownload", func(c fiber.Ctx) error {
+svc.WithRest("onFileDownload", func(c *runtime.RestCtx) error {
     id := c.Params("id")
-    f, _ := os.Open("/data/uploads/" + id)
-    defer f.Close()
+    data, err := os.ReadFile(filepath.Join("/data/uploads", id))
+    if err != nil {
+        if os.IsNotExist(err) {
+            return c.Status(404).JSON(map[string]any{"error": "not found"})
+        }
+        return c.Status(500).JSON(map[string]any{"error": err.Error()})
+    }
     c.Set("Content-Disposition", `attachment; filename="`+id+`"`)
-    return c.SendStream(f)
+    return c.Status(200).SendString(string(data))
 })
 ```
 
@@ -1056,7 +1065,7 @@ svc.WithAPIKeyValidator(func(ctx context.Context, key string) (*middleware.AuthC
     return &middleware.AuthContext{UserID: id, Roles: []string{role}}, nil
 })
 
-svc.WithRateLimitMaxFunc(func(c fiber.Ctx) int {
+svc.WithRateLimitMaxFunc(func(c *runtime.RestCtx) int {
     if c.Get("X-Debug") == "true" { return 5 }
     return 0
 })

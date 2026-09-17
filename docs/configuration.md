@@ -185,6 +185,7 @@ server:
   shutdown_timeout: 10s
   recover_stack: true
   api_prefix: /api
+  # trusted_proxies: ["192.0.2.0/24"]  # reverse proxies for X-Forwarded-For (else per-IP rate limit sees the proxy)
   cors:
     origins:
       - "https://app.example.com"   # Never "*" in production
@@ -935,6 +936,7 @@ Slow query logging writes a structured log entry for any database query that exc
 | `stream_request_body` | `false` | Enable streaming request body |
 | `reduce_memory_usage` | `false` | Trade ~5% throughput for lower memory |
 | `api_prefix` | `/api` | Prefix prepended to all entry paths (version via `api_version`) |
+| `trusted_proxies` | — | Proxy IPs/CIDRs trusted for `X-Forwarded-For` client IP (required behind Bunny/Traefik, else per-IP rate limiting sees only the proxy) |
 | `correlation.enabled` | `false` | Enable X-Correlation-ID tracking middleware |
 | `correlation.request_header` | `X-Correlation-ID` | Incoming correlation ID header |
 | `correlation.response_header` | `X-Correlation-ID` | Response correlation ID header |

@@ -543,6 +543,18 @@ server:
 | Per-User | JWT `sub` claim | Authenticated user |
 | Per-Key | API key value | Single API key |
 
+> Behind a reverse proxy (Bunny, Traefik, Nginx) every request arrives with
+> the proxy IP — without trust config, the per-IP bucket is effectively
+> global. Declare the proxy IPs/CIDRs so `X-Forwarded-For` is honored:
+>
+> ```yaml
+> server:
+>   trusted_proxies: ["192.0.2.0/24", "198.51.100.0/24"]  # example ranges; use your proxy/VPC CIDRs
+> ```
+>
+> Empty (default) keeps direct-remote-IP behavior. Trusting also enables
+> `X-Forwarded-Proto`/`X-Forwarded-Host` for scheme and host detection.
+
 ### Skip flags
 
 When `skip_failed_requests: true`, rate limit tokens are not consumed for HTTP responses >= 400.
@@ -554,7 +566,7 @@ Useful for pricing or abuse detection where you only want to count successful op
 At runtime, register a callback that can override per-entry rate limits dynamically:
 
 ```go
-svc.WithRateLimitMaxFunc(func(c fiber.Ctx) int {
+svc.WithRateLimitMaxFunc(func(c *runtime.RestCtx) int {
     if c.Get("X-Debug") == "true" {
         return 5 // override both RequestsPerSecond and Burst
     }

@@ -400,9 +400,15 @@ func TestJobStore_SSEHub_MultipleSubscribers(t *testing.T) {
 func TestRegisterEntries_Async_Delete(t *testing.T) {
 	app := testApp()
 
+	// The worker takes the job as soon as it is queued, so a job that finishes
+	// instantly is either still pending (204) or already processing (409)
+	// depending on timing. Block the handler so the state is deterministic:
+	// after the release the job is completed, which is always cancellable.
+	block := make(chan struct{})
 	handlers := &EntryHandlers{
 		Async: map[string]AsyncHandler{
 			"testJob": func(body []byte, js *JobState) error {
+				<-block
 				js.Result = "done"
 				return nil
 			},
@@ -431,6 +437,21 @@ func TestRegisterEntries_Async_Delete(t *testing.T) {
 		StatusURL string `json:"status_url"`
 	}
 	json.Unmarshal(body1, &submit)
+
+	// Let the handler finish so the job reaches a terminal, cancellable state.
+	close(block)
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		status, _ := request(app, "GET", submit.StatusURL, nil)
+		body, _ := io.ReadAll(status.Body)
+		status.Body.Close()
+		var js JobState
+		json.Unmarshal(body, &js)
+		if js.Status == JobCompleted {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
 
 	// Delete it
 	resp2, _ := request(app, "DELETE", submit.StatusURL, nil)

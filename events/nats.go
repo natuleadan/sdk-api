@@ -5,9 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nkeys"
 	"github.com/natuleadan/sdk-api/infra/logx"
 )
 
@@ -22,6 +26,16 @@ type ConnOptions struct {
 	// as tls://user:pass@host:4222).
 	User     string
 	Password string
+	// Token authenticates with a shared secret (server authorization.token).
+	Token string
+	// NKeySeed is the raw NKey seed (starts with SU/…). Prefer a file or
+	// ${VAR} over hardcoding it.
+	NKeySeed string
+	// NKeySeedFile points to a file holding the NKey seed.
+	NKeySeedFile string
+	// CredsFile points to a Synadia-style .creds file (user JWT + NKey
+	// seed). This is how Synadia Cloud (NGS) authenticates.
+	CredsFile string
 	// CAFile is the PEM CA used to verify the server certificate. Leave empty
 	// to use the system roots (e.g. public Let's Encrypt certs).
 	CAFile string
@@ -37,6 +51,55 @@ type Conn struct {
 	JS   nats.JetStreamContext
 	ctx  context.Context
 	kvs  map[string]nats.KeyValue
+}
+
+// authOptions builds the identity options for Connect. Precedence (first
+// set wins): creds file, NKey, token, user/pass. TLS options combine with
+// any of them and live outside this helper.
+func authOptions(opts ConnOptions) ([]nats.Option, error) {
+	switch {
+	case strings.TrimSpace(opts.CredsFile) != "":
+		return []nats.Option{nats.UserCredentials(opts.CredsFile)}, nil
+	case opts.NKeySeed != "" || opts.NKeySeedFile != "":
+		nkeyOpt, err := nkeyOption(opts)
+		if err != nil {
+			return nil, err
+		}
+		return []nats.Option{nkeyOpt}, nil
+	case opts.Token != "":
+		return []nats.Option{nats.Token(opts.Token)}, nil
+	case opts.User != "":
+		return []nats.Option{nats.UserInfo(opts.User, opts.Password)}, nil
+	default:
+		return nil, nil
+	}
+}
+
+// nkeyOption builds the NKey auth option from an inline seed or a seed
+// file. It returns (nil, nil) when no NKey material is configured.
+func nkeyOption(opts ConnOptions) (nats.Option, error) {
+	seed := strings.TrimSpace(opts.NKeySeed)
+	if seed == "" && opts.NKeySeedFile != "" {
+		raw, err := os.ReadFile(filepath.Clean(opts.NKeySeedFile))
+		if err != nil {
+			return nil, fmt.Errorf("events: read nkey seed file: %w", err)
+		}
+		seed = strings.TrimSpace(string(raw))
+	}
+	if seed == "" {
+		return nil, nil
+	}
+	kp, err := nkeys.FromSeed([]byte(seed))
+	if err != nil {
+		return nil, fmt.Errorf("events: parse nkey seed: %w", err)
+	}
+	pub, err := kp.PublicKey()
+	if err != nil {
+		return nil, fmt.Errorf("events: nkey public key: %w", err)
+	}
+	return nats.Nkey(pub, func(nonce []byte) ([]byte, error) {
+		return kp.Sign(nonce)
+	}), nil
 }
 
 func Connect(ctx context.Context, opts ConnOptions) (*Conn, error) {
@@ -62,9 +125,11 @@ func Connect(ctx context.Context, opts ConnOptions) (*Conn, error) {
 		nats.ReconnectWait(reconnectWait),
 		nats.Timeout(timeout),
 	}
-	if opts.User != "" {
-		nOpts = append(nOpts, nats.UserInfo(opts.User, opts.Password))
+	authOpts, err := authOptions(opts)
+	if err != nil {
+		return nil, err
 	}
+	nOpts = append(nOpts, authOpts...)
 	if opts.CAFile != "" {
 		nOpts = append(nOpts, nats.RootCAs(opts.CAFile))
 	}

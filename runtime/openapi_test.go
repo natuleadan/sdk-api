@@ -343,7 +343,7 @@ func TestBuildOpenAPI_Async(t *testing.T) {
 
 func TestBuildOpenAPI_AuthSchemes(t *testing.T) {
 	cfg := &ServiceConfig{
-		Name: "auth-svc",
+		Name:   "auth-svc",
 		Server: ServerConf{APIPrefix: "/api"},
 		Entry: []EntryDef{
 			{Type: "rest", Method: "GET", Path: "/open", Handler: "open"},
@@ -415,7 +415,7 @@ func TestBuildOpenAPI_ServersBlock(t *testing.T) {
 
 func TestBuildOpenAPI_TagsAndDocs(t *testing.T) {
 	cfg := &ServiceConfig{
-		Name: "tagged-svc",
+		Name:   "tagged-svc",
 		Server: ServerConf{APIPrefix: "/api"},
 		Entry: []EntryDef{
 			{

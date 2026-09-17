@@ -138,7 +138,8 @@ func TestRegisterOneEntry_SessionMode(t *testing.T) {
 	}
 }
 
-func TestValidateEntryAuthConfig_NewModes(t *testing.T) {	newSvc := func() *Service {
+func TestValidateEntryAuthConfig_NewModes(t *testing.T) {
+	newSvc := func() *Service {
 		return &Service{config: &ServiceConfig{Auth: &AuthConfig{Driver: "none"}}}
 	}
 	cases := []struct {

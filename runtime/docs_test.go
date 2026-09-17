@@ -388,7 +388,7 @@ func docsTestConfig() *ServiceConfig {
 		Name: "docs-svc",
 		Server: ServerConf{
 			OpenAPI: &OpenAPIConf{
-				Enabled:      true,
+				Enabled:  true,
 				Theme:    "moon",
 				DarkMode: true,
 			},

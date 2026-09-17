@@ -11,11 +11,11 @@ import (
 func TestSignAndParseToken_RoundTrip(t *testing.T) {
 	secret := "test-secret-hs256"
 	claims := map[string]any{
-		"sub":      "user-123",
-		"role":     "admin",
-		"purpose":  "test",
-		"exp":      time.Now().Add(time.Hour).Unix(),
-		"iat":      time.Now().Unix(),
+		"sub":     "user-123",
+		"role":    "admin",
+		"purpose": "test",
+		"exp":     time.Now().Add(time.Hour).Unix(),
+		"iat":     time.Now().Unix(),
 	}
 
 	tok, err := SignToken(secret, "HS256", claims)

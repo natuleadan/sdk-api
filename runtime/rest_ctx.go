@@ -63,6 +63,15 @@ func (c *RestCtx) Query(key string, defaultValue ...string) string {
 	return c.fc.Query(key, defaultValue...)
 }
 
+// QueryArgs returns all query parameters as a map (for filters, debug).
+func (c *RestCtx) QueryArgs() map[string]string {
+	out := make(map[string]string)
+	for key, value := range c.fc.Request().URI().QueryArgs().All() {
+		out[string(key)] = string(value)
+	}
+	return out
+}
+
 func (c *RestCtx) JSON(data any) error {
 	return c.fc.JSON(data)
 }

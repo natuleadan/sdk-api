@@ -47,7 +47,9 @@ server:
       style_src: ["'self'"]
       img_src: ["'self'", "data:"]
   cors:
-    origins: ["*"]
+    # NOTE: credentials:true forbids origins ["*"] (Fiber panics at
+    # startup) - list explicit origins instead (see docs/security.md).
+    origins: ["http://localhost:23400", "http://example.com"]
     methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"]
     headers: ["Content-Type", "Authorization", "X-CSRF-Token", "X-Debug"]
     credentials: true

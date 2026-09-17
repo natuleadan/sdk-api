@@ -47,11 +47,11 @@ func getRateLimitMaxFunc() func(c fiber.Ctx) int {
 }
 
 type CRUDProvider interface {
-	List(ctx fiber.Ctx, params ListParams) error
-	Get(ctx fiber.Ctx, id string) error
-	Create(ctx fiber.Ctx, body []byte) error
-	Update(ctx fiber.Ctx, id string, body []byte) error
-	Delete(ctx fiber.Ctx, id string) error
+	List(ctx *RestCtx, params ListParams) error
+	Get(ctx *RestCtx, id string) error
+	Create(ctx *RestCtx, body []byte) error
+	Update(ctx *RestCtx, id string, body []byte) error
+	Delete(ctx *RestCtx, id string) error
 }
 
 type ListParams struct {
@@ -297,7 +297,7 @@ func registerOneEntry(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, 
 	var err error
 	switch entry.Type {
 	case "crud":
-		err = registerCRUD(app, entry, handlers, versionPrefix, brokers, mws)
+		err = registerCRUD(app, entry, handlers, versionPrefix, brokers, mws, pools)
 	case "rest":
 		err = registerREST(app, entry, handlers, versionPrefix, brokers, mws)
 	case "webhook":

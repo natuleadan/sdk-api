@@ -7,15 +7,19 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
+// The callCRUD* helpers invoke CRUD providers out-of-band (GraphQL resolvers
+// have no HTTP request). They fabricate a Fiber context, wrap it in a
+// RestCtx like the HTTP boundary does, and read the written response back.
 func callCRUDGet(provider CRUDProvider, id string) (any, error) {
 	app := fiber.New()
 	fctx := app.AcquireCtx(&fasthttp.RequestCtx{})
 	defer app.ReleaseCtx(fctx)
 	fctx.Request().Header.SetMethod("GET")
-	if err := provider.Get(fctx, id); err != nil {
+	rc := newRestCtx(fctx, nil)
+	if err := provider.Get(rc, id); err != nil {
 		return nil, err
 	}
-	return parseCRUDResponse(fctx), nil
+	return parseCRUDResponse(rc), nil
 }
 
 func callCRUDList(provider CRUDProvider, page, size int, sort string) (any, error) {
@@ -23,25 +27,26 @@ func callCRUDList(provider CRUDProvider, page, size int, sort string) (any, erro
 	fctx := app.AcquireCtx(&fasthttp.RequestCtx{})
 	defer app.ReleaseCtx(fctx)
 	fctx.Request().Header.SetMethod("GET")
+	rc := newRestCtx(fctx, nil)
 	params := ListParams{Page: page, Size: size, Sort: sort}
-	if err := provider.List(fctx, params); err != nil {
+	if err := provider.List(rc, params); err != nil {
 		return nil, err
 	}
-	body := fctx.Response().Body()
+	body := rc.ResponseBody()
 	if len(body) > 0 {
 		var wrapper struct {
 			Data  any   `json:"data"`
 			Total int64 `json:"total"`
 		}
-		if err := json.Unmarshal(body, &wrapper); err != nil {
-			return string(body), nil
+		if err := json.Unmarshal([]byte(body), &wrapper); err != nil {
+			return body, nil
 		}
 		if wrapper.Data != nil {
 			return wrapper.Data, nil
 		}
 		var result any
-		if err := json.Unmarshal(body, &result); err != nil {
-			return string(body), nil
+		if err := json.Unmarshal([]byte(body), &result); err != nil {
+			return body, nil
 		}
 		return result, nil
 	}
@@ -56,10 +61,11 @@ func callCRUDCreate(provider CRUDProvider, input any) (any, error) {
 	fctx.Request().Header.Set("Content-Type", "application/json")
 	body, _ := json.Marshal(input)
 	fctx.Request().SetBody(body)
-	if err := provider.Create(fctx, body); err != nil {
+	rc := newRestCtx(fctx, nil)
+	if err := provider.Create(rc, body); err != nil {
 		return nil, err
 	}
-	return parseCRUDResponse(fctx), nil
+	return parseCRUDResponse(rc), nil
 }
 
 func callCRUDUpdate(provider CRUDProvider, id string, input any) (any, error) {
@@ -70,10 +76,11 @@ func callCRUDUpdate(provider CRUDProvider, id string, input any) (any, error) {
 	fctx.Request().Header.Set("Content-Type", "application/json")
 	body, _ := json.Marshal(input)
 	fctx.Request().SetBody(body)
-	if err := provider.Update(fctx, id, body); err != nil {
+	rc := newRestCtx(fctx, nil)
+	if err := provider.Update(rc, id, body); err != nil {
 		return nil, err
 	}
-	return parseCRUDResponse(fctx), nil
+	return parseCRUDResponse(rc), nil
 }
 
 func callCRUDDelete(provider CRUDProvider, id string) error {
@@ -81,15 +88,15 @@ func callCRUDDelete(provider CRUDProvider, id string) error {
 	fctx := app.AcquireCtx(&fasthttp.RequestCtx{})
 	defer app.ReleaseCtx(fctx)
 	fctx.Request().Header.SetMethod("DELETE")
-	return provider.Delete(fctx, id)
+	return provider.Delete(newRestCtx(fctx, nil), id)
 }
 
-func parseCRUDResponse(c fiber.Ctx) any {
-	body := c.Response().Body()
+func parseCRUDResponse(c *RestCtx) any {
+	body := c.ResponseBody()
 	if len(body) > 0 {
 		var result any
-		if err := json.Unmarshal(body, &result); err != nil {
-			return string(body)
+		if err := json.Unmarshal([]byte(body), &result); err != nil {
+			return body
 		}
 		return result
 	}

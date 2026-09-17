@@ -23,42 +23,42 @@ import (
 // --- Mock CRUDProvider ---
 
 type mockCRUDProvider struct {
-	listFn   func(ctx fiber.Ctx, params ListParams) error
-	getFn    func(ctx fiber.Ctx, id string) error
-	createFn func(ctx fiber.Ctx, body []byte) error
-	updateFn func(ctx fiber.Ctx, id string, body []byte) error
-	deleteFn func(ctx fiber.Ctx, id string) error
+	listFn   func(ctx *RestCtx, params ListParams) error
+	getFn    func(ctx *RestCtx, id string) error
+	createFn func(ctx *RestCtx, body []byte) error
+	updateFn func(ctx *RestCtx, id string, body []byte) error
+	deleteFn func(ctx *RestCtx, id string) error
 }
 
-func (m *mockCRUDProvider) List(ctx fiber.Ctx, params ListParams) error {
+func (m *mockCRUDProvider) List(ctx *RestCtx, params ListParams) error {
 	if m.listFn != nil {
 		return m.listFn(ctx, params)
 	}
 	return nil
 }
 
-func (m *mockCRUDProvider) Get(ctx fiber.Ctx, id string) error {
+func (m *mockCRUDProvider) Get(ctx *RestCtx, id string) error {
 	if m.getFn != nil {
 		return m.getFn(ctx, id)
 	}
-	return ctx.JSON(fiber.Map{"id": id, "name": "test"})
+	return ctx.JSON(Map{"id": id, "name": "test"})
 }
 
-func (m *mockCRUDProvider) Create(ctx fiber.Ctx, body []byte) error {
+func (m *mockCRUDProvider) Create(ctx *RestCtx, body []byte) error {
 	if m.createFn != nil {
 		return m.createFn(ctx, body)
 	}
-	return ctx.Status(201).JSON(fiber.Map{"id": "new", "data": string(body)})
+	return ctx.Status(201).JSON(Map{"id": "new", "data": string(body)})
 }
 
-func (m *mockCRUDProvider) Update(ctx fiber.Ctx, id string, body []byte) error {
+func (m *mockCRUDProvider) Update(ctx *RestCtx, id string, body []byte) error {
 	if m.updateFn != nil {
 		return m.updateFn(ctx, id, body)
 	}
-	return ctx.JSON(fiber.Map{"id": id, "data": string(body)})
+	return ctx.JSON(Map{"id": id, "data": string(body)})
 }
 
-func (m *mockCRUDProvider) Delete(ctx fiber.Ctx, id string) error {
+func (m *mockCRUDProvider) Delete(ctx *RestCtx, id string) error {
 	if m.deleteFn != nil {
 		return m.deleteFn(ctx, id)
 	}

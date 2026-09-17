@@ -5,7 +5,6 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/gofiber/fiber/v3"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
@@ -35,7 +34,7 @@ func (t *tableCRUD[T]) SetHooks(hooks any) {
 	}
 }
 
-func tenantInfo(c fiber.Ctx) (field, id string) {
+func tenantInfo(c *RestCtx) (field, id string) {
 	f, okF := c.Locals("tenant_field").(string)
 	i, okI := c.Locals("tenant_id").(string)
 	if okF && okI && f != "" && i != "" {
@@ -44,7 +43,7 @@ func tenantInfo(c fiber.Ctx) (field, id string) {
 	return "", ""
 }
 
-func (t *tableCRUD[T]) List(ctx fiber.Ctx, params ListParams) error {
+func (t *tableCRUD[T]) List(ctx *RestCtx, params ListParams) error {
 	tf, tid := tenantInfo(ctx)
 	if params.Pagination == "keyset" {
 		where := makeFiltersMap(params.Filters)
@@ -93,7 +92,7 @@ func (t *tableCRUD[T]) List(ctx fiber.Ctx, params ListParams) error {
 	return ctx.JSON(PaginatedResponse{Data: data, Total: total, Page: params.Page, Size: params.Size})
 }
 
-func (t *tableCRUD[T]) Get(ctx fiber.Ctx, id string) error {
+func (t *tableCRUD[T]) Get(ctx *RestCtx, id string) error {
 	tf, tid := tenantInfo(ctx)
 	if tf != "" && tid != "" {
 		item, err := t.table.GetScoped(ctx.Context(), id, tf, tid)
@@ -115,7 +114,7 @@ func (t *tableCRUD[T]) Get(ctx fiber.Ctx, id string) error {
 	return ctx.JSON(item)
 }
 
-func (t *tableCRUD[T]) Create(ctx fiber.Ctx, body []byte) error {
+func (t *tableCRUD[T]) Create(ctx *RestCtx, body []byte) error {
 	var entity T
 	if err := json.Unmarshal(body, &entity); err != nil {
 		return errcode.ErrValidation("body", "json", err)
@@ -144,7 +143,7 @@ func (t *tableCRUD[T]) Create(ctx fiber.Ctx, body []byte) error {
 	return ctx.Status(201).JSON(entity)
 }
 
-func (t *tableCRUD[T]) Update(ctx fiber.Ctx, id string, body []byte) error {
+func (t *tableCRUD[T]) Update(ctx *RestCtx, id string, body []byte) error {
 	var patch map[string]any
 	if err := json.Unmarshal(body, &patch); err != nil {
 		return errcode.ErrValidation("body", "json", err)
@@ -186,7 +185,7 @@ func (t *tableCRUD[T]) Update(ctx fiber.Ctx, id string, body []byte) error {
 	return ctx.JSON(entity)
 }
 
-func (t *tableCRUD[T]) Delete(ctx fiber.Ctx, id string) error {
+func (t *tableCRUD[T]) Delete(ctx *RestCtx, id string) error {
 	if err := t.hooks.BeforeDelete(ctx.Context(), id); err != nil {
 		return errcode.ErrValidation("hook", "rejected", err)
 	}
@@ -248,7 +247,7 @@ func (t *mysqlCRUD[T]) SetHooks(hooks any) {
 	}
 }
 
-func (t *mysqlCRUD[T]) List(ctx fiber.Ctx, params ListParams) error {
+func (t *mysqlCRUD[T]) List(ctx *RestCtx, params ListParams) error {
 	tf, tid := tenantInfo(ctx)
 	if params.Pagination == "keyset" {
 		where := makeFiltersMap(params.Filters)
@@ -291,7 +290,7 @@ func (t *mysqlCRUD[T]) List(ctx fiber.Ctx, params ListParams) error {
 	return ctx.JSON(PaginatedResponse{Data: items, Total: total, Page: params.Page, Size: params.Size})
 }
 
-func (t *mysqlCRUD[T]) Get(ctx fiber.Ctx, id string) error {
+func (t *mysqlCRUD[T]) Get(ctx *RestCtx, id string) error {
 	tf, tid := tenantInfo(ctx)
 	if tf != "" && tid != "" {
 		item, err := t.table.GetScoped(ctx.Context(), id, tf, tid)
@@ -313,7 +312,7 @@ func (t *mysqlCRUD[T]) Get(ctx fiber.Ctx, id string) error {
 	return ctx.JSON(item)
 }
 
-func (t *mysqlCRUD[T]) Create(ctx fiber.Ctx, body []byte) error {
+func (t *mysqlCRUD[T]) Create(ctx *RestCtx, body []byte) error {
 	var entity T
 	if err := json.Unmarshal(body, &entity); err != nil {
 		return errcode.ErrValidation("body", "json", err)
@@ -338,7 +337,7 @@ func (t *mysqlCRUD[T]) Create(ctx fiber.Ctx, body []byte) error {
 	return ctx.Status(201).JSON(entity)
 }
 
-func (t *mysqlCRUD[T]) Update(ctx fiber.Ctx, id string, body []byte) error {
+func (t *mysqlCRUD[T]) Update(ctx *RestCtx, id string, body []byte) error {
 	var patch map[string]any
 	if err := json.Unmarshal(body, &patch); err != nil {
 		return errcode.ErrValidation("body", "json", err)
@@ -374,7 +373,7 @@ func (t *mysqlCRUD[T]) Update(ctx fiber.Ctx, id string, body []byte) error {
 	return ctx.JSON(entity)
 }
 
-func (t *mysqlCRUD[T]) Delete(ctx fiber.Ctx, id string) error {
+func (t *mysqlCRUD[T]) Delete(ctx *RestCtx, id string) error {
 	if err := t.hooks.BeforeDelete(ctx.Context(), id); err != nil {
 		return errcode.ErrValidation("hook", "rejected", err)
 	}
@@ -421,7 +420,7 @@ func (t *tursoCRUD[T]) SetHooks(hooks any) {
 	}
 }
 
-func (t *tursoCRUD[T]) List(ctx fiber.Ctx, params ListParams) error {
+func (t *tursoCRUD[T]) List(ctx *RestCtx, params ListParams) error {
 	tf, tid := tenantInfo(ctx)
 	if params.Pagination == "keyset" {
 		where := makeFiltersMap(params.Filters)
@@ -464,7 +463,7 @@ func (t *tursoCRUD[T]) List(ctx fiber.Ctx, params ListParams) error {
 	return ctx.JSON(PaginatedResponse{Data: items, Total: total, Page: params.Page, Size: params.Size})
 }
 
-func (t *tursoCRUD[T]) Get(ctx fiber.Ctx, id string) error {
+func (t *tursoCRUD[T]) Get(ctx *RestCtx, id string) error {
 	tf, tid := tenantInfo(ctx)
 	if tf != "" && tid != "" {
 		item, err := t.table.GetScoped(ctx.Context(), id, tf, tid)
@@ -486,7 +485,7 @@ func (t *tursoCRUD[T]) Get(ctx fiber.Ctx, id string) error {
 	return ctx.JSON(item)
 }
 
-func (t *tursoCRUD[T]) Create(ctx fiber.Ctx, body []byte) error {
+func (t *tursoCRUD[T]) Create(ctx *RestCtx, body []byte) error {
 	var entity T
 	if err := json.Unmarshal(body, &entity); err != nil {
 		return errcode.ErrValidation("body", "json", err)
@@ -511,7 +510,7 @@ func (t *tursoCRUD[T]) Create(ctx fiber.Ctx, body []byte) error {
 	return ctx.Status(201).JSON(entity)
 }
 
-func (t *tursoCRUD[T]) Update(ctx fiber.Ctx, id string, body []byte) error {
+func (t *tursoCRUD[T]) Update(ctx *RestCtx, id string, body []byte) error {
 	var patch map[string]any
 	if err := json.Unmarshal(body, &patch); err != nil {
 		return errcode.ErrValidation("body", "json", err)
@@ -547,7 +546,7 @@ func (t *tursoCRUD[T]) Update(ctx fiber.Ctx, id string, body []byte) error {
 	return ctx.JSON(entity)
 }
 
-func (t *tursoCRUD[T]) Delete(ctx fiber.Ctx, id string) error {
+func (t *tursoCRUD[T]) Delete(ctx *RestCtx, id string) error {
 	if err := t.hooks.BeforeDelete(ctx.Context(), id); err != nil {
 		return errcode.ErrValidation("hook", "rejected", err)
 	}
@@ -586,7 +585,7 @@ func NewMongoCRUDProvider(model *mon.Model, lookupField string) CRUDProvider {
 	return &mongoCRUD{model: model, lookupField: lookupField}
 }
 
-func (m *mongoCRUD) List(ctx fiber.Ctx, params ListParams) error {
+func (m *mongoCRUD) List(ctx *RestCtx, params ListParams) error {
 	tf, tid := tenantInfo(ctx)
 	filter := bson.M{}
 	if tf != "" && tid != "" {
@@ -627,7 +626,7 @@ func (m *mongoCRUD) List(ctx fiber.Ctx, params ListParams) error {
 	return ctx.JSON(PaginatedResponse{Data: results, Total: 0, Page: params.Page, Size: size})
 }
 
-func (m *mongoCRUD) Get(ctx fiber.Ctx, id string) error {
+func (m *mongoCRUD) Get(ctx *RestCtx, id string) error {
 	var result any
 	filter := m.filterFor(id)
 	if tf, tid := tenantInfo(ctx); tf != "" && tid != "" {
@@ -639,7 +638,7 @@ func (m *mongoCRUD) Get(ctx fiber.Ctx, id string) error {
 	return ctx.JSON(result)
 }
 
-func (m *mongoCRUD) Create(ctx fiber.Ctx, body []byte) error {
+func (m *mongoCRUD) Create(ctx *RestCtx, body []byte) error {
 	var doc any
 	if err := json.Unmarshal(body, &doc); err != nil {
 		return errcode.ErrValidation("body", "json", err)
@@ -659,7 +658,7 @@ func (m *mongoCRUD) Create(ctx fiber.Ctx, body []byte) error {
 	return ctx.Status(201).JSON(doc)
 }
 
-func (m *mongoCRUD) Update(ctx fiber.Ctx, id string, body []byte) error {
+func (m *mongoCRUD) Update(ctx *RestCtx, id string, body []byte) error {
 	var patch map[string]any
 	if err := json.Unmarshal(body, &patch); err != nil {
 		return errcode.ErrValidation("body", "json", err)
@@ -674,7 +673,7 @@ func (m *mongoCRUD) Update(ctx fiber.Ctx, id string, body []byte) error {
 	return ctx.JSON(patch)
 }
 
-func (m *mongoCRUD) Delete(ctx fiber.Ctx, id string) error {
+func (m *mongoCRUD) Delete(ctx *RestCtx, id string) error {
 	filter := m.filterFor(id)
 	if tf, tid := tenantInfo(ctx); tf != "" && tid != "" {
 		filter[tf] = tid

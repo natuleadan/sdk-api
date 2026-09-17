@@ -14,7 +14,7 @@ import (
 
 type cachedMarker interface{ isCached() }
 
-func registerCRUD(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, mws []fiber.Handler) error {
+func registerCRUD(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, mws []fiber.Handler, pools map[string]any) error {
 	provider, ok := handlers.CRUD[entry.Model]
 	if !ok {
 		return fmt.Errorf("crud model %q: no provider registered", entry.Model)
@@ -41,19 +41,19 @@ func registerCRUD(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, pref
 	pubTargets := getPublishTargets(entry)
 	hasPublish := len(pubTargets) > 0 && len(brokers) > 0
 
-	if err := registerCRUDList(app, base, ov, handlers, provider, entry, mws); err != nil {
+	if err := registerCRUDList(app, base, ov, handlers, provider, entry, mws, pools); err != nil {
 		return err
 	}
-	if err := registerCRUDGet(app, base, ov, handlers, provider, mws); err != nil {
+	if err := registerCRUDGet(app, base, ov, handlers, provider, mws, pools); err != nil {
 		return err
 	}
-	if err := registerCRUDCreate(app, base, ov, handlers, provider, ctx, pubTargets, entry, brokers, hasPublish, mws); err != nil {
+	if err := registerCRUDCreate(app, base, ov, handlers, provider, ctx, pubTargets, entry, brokers, hasPublish, mws, pools); err != nil {
 		return err
 	}
-	if err := registerCRUDUpdate(app, base, ov, handlers, provider, ctx, pubTargets, entry, brokers, hasPublish, mws); err != nil {
+	if err := registerCRUDUpdate(app, base, ov, handlers, provider, ctx, pubTargets, entry, brokers, hasPublish, mws, pools); err != nil {
 		return err
 	}
-	if err := registerCRUDDelete(app, base, ov, handlers, provider, ctx, pubTargets, entry, brokers, hasPublish, mws); err != nil {
+	if err := registerCRUDDelete(app, base, ov, handlers, provider, ctx, pubTargets, entry, brokers, hasPublish, mws, pools); err != nil {
 		return err
 	}
 	return nil
@@ -83,7 +83,7 @@ func buildTenantMiddleware(entry *EntryDef) fiber.Handler {
 	}
 }
 
-func registerCRUDList(app *fiber.App, base string, ov *CRUDOverrides, handlers *EntryHandlers, provider CRUDProvider, entry *EntryDef, mws []fiber.Handler) error {
+func registerCRUDList(app *fiber.App, base string, ov *CRUDOverrides, handlers *EntryHandlers, provider CRUDProvider, entry *EntryDef, mws []fiber.Handler, pools map[string]any) error {
 	if isDisabled(ov, ov.List) {
 		return nil
 	}
@@ -116,13 +116,13 @@ func registerCRUDList(app *fiber.App, base string, ov *CRUDOverrides, handlers *
 			if err != nil {
 				return err
 			}
-			return provider.List(c, params)
+			return provider.List(newRestCtx(c, pools), params)
 		})
 	}
 	return nil
 }
 
-func registerCRUDGet(app *fiber.App, base string, ov *CRUDOverrides, handlers *EntryHandlers, provider CRUDProvider, mws []fiber.Handler) error {
+func registerCRUDGet(app *fiber.App, base string, ov *CRUDOverrides, handlers *EntryHandlers, provider CRUDProvider, mws []fiber.Handler, pools map[string]any) error {
 	if isDisabled(ov, ov.Get) {
 		return nil
 	}
@@ -135,13 +135,13 @@ func registerCRUDGet(app *fiber.App, base string, ov *CRUDOverrides, handlers *E
 		registerWithMws(app, "GET", base+idParam, mws, h)
 	} else {
 		registerWithMws(app, "GET", base+idParam, mws, func(c fiber.Ctx) error {
-			return provider.Get(c, c.Params("id"))
+			return provider.Get(newRestCtx(c, pools), c.Params("id"))
 		})
 	}
 	return nil
 }
 
-func registerCRUDCreate(app *fiber.App, base string, ov *CRUDOverrides, handlers *EntryHandlers, provider CRUDProvider, ctx context.Context, pubTargets []EventPublishTarget, entry *EntryDef, brokers map[string]events.EventBroker, hasPublish bool, mws []fiber.Handler) error {
+func registerCRUDCreate(app *fiber.App, base string, ov *CRUDOverrides, handlers *EntryHandlers, provider CRUDProvider, ctx context.Context, pubTargets []EventPublishTarget, entry *EntryDef, brokers map[string]events.EventBroker, hasPublish bool, mws []fiber.Handler, pools map[string]any) error {
 	if isDisabled(ov, ov.Create) {
 		return nil
 	}
@@ -152,7 +152,7 @@ func registerCRUDCreate(app *fiber.App, base string, ov *CRUDOverrides, handlers
 		}
 	} else {
 		handler = func(c fiber.Ctx) error {
-			return provider.Create(c, c.Body())
+			return provider.Create(newRestCtx(c, pools), c.Body())
 		}
 	}
 	if hasPublish {
@@ -162,7 +162,7 @@ func registerCRUDCreate(app *fiber.App, base string, ov *CRUDOverrides, handlers
 	return nil
 }
 
-func registerCRUDUpdate(app *fiber.App, base string, ov *CRUDOverrides, handlers *EntryHandlers, provider CRUDProvider, ctx context.Context, pubTargets []EventPublishTarget, entry *EntryDef, brokers map[string]events.EventBroker, hasPublish bool, mws []fiber.Handler) error {
+func registerCRUDUpdate(app *fiber.App, base string, ov *CRUDOverrides, handlers *EntryHandlers, provider CRUDProvider, ctx context.Context, pubTargets []EventPublishTarget, entry *EntryDef, brokers map[string]events.EventBroker, hasPublish bool, mws []fiber.Handler, pools map[string]any) error {
 	if isDisabled(ov, ov.Update) {
 		return nil
 	}
@@ -174,7 +174,7 @@ func registerCRUDUpdate(app *fiber.App, base string, ov *CRUDOverrides, handlers
 		}
 	} else {
 		handler = func(c fiber.Ctx) error {
-			return provider.Update(c, c.Params("id"), c.Body())
+			return provider.Update(newRestCtx(c, pools), c.Params("id"), c.Body())
 		}
 	}
 	if hasPublish {
@@ -184,7 +184,7 @@ func registerCRUDUpdate(app *fiber.App, base string, ov *CRUDOverrides, handlers
 	return nil
 }
 
-func registerCRUDDelete(app *fiber.App, base string, ov *CRUDOverrides, handlers *EntryHandlers, provider CRUDProvider, ctx context.Context, pubTargets []EventPublishTarget, entry *EntryDef, brokers map[string]events.EventBroker, hasPublish bool, mws []fiber.Handler) error {
+func registerCRUDDelete(app *fiber.App, base string, ov *CRUDOverrides, handlers *EntryHandlers, provider CRUDProvider, ctx context.Context, pubTargets []EventPublishTarget, entry *EntryDef, brokers map[string]events.EventBroker, hasPublish bool, mws []fiber.Handler, pools map[string]any) error {
 	if isDisabled(ov, ov.Delete) {
 		return nil
 	}
@@ -196,7 +196,7 @@ func registerCRUDDelete(app *fiber.App, base string, ov *CRUDOverrides, handlers
 		}
 	} else {
 		handler = func(c fiber.Ctx) error {
-			return provider.Delete(c, c.Params("id"))
+			return provider.Delete(newRestCtx(c, pools), c.Params("id"))
 		}
 	}
 	if hasPublish {

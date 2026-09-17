@@ -295,7 +295,7 @@ func (c *cachedCRUD[T]) delCache(keys ...string) {
 	}
 }
 
-func (c *cachedCRUD[T]) Get(fc fiber.Ctx, id string) error {
+func (c *cachedCRUD[T]) Get(fc *RestCtx, id string) error {
 	key := c.keyPrefix + id
 
 	if c.l1 != nil {
@@ -328,11 +328,11 @@ func (c *cachedCRUD[T]) Get(fc fiber.Ctx, id string) error {
 	return fc.JSON(val)
 }
 
-func (c *cachedCRUD[T]) List(fc fiber.Ctx, params ListParams) error {
+func (c *cachedCRUD[T]) List(fc *RestCtx, params ListParams) error {
 	return fc.Status(405).JSON(map[string]any{"code": 405, "message": "list not available for cached provider"})
 }
 
-func (c *cachedCRUD[T]) Create(fc fiber.Ctx, body []byte) error {
+func (c *cachedCRUD[T]) Create(fc *RestCtx, body []byte) error {
 	var entity T
 	if err := json.Unmarshal(body, &entity); err != nil {
 		return fc.Status(400).JSON(map[string]any{"code": 400, "message": err.Error()})
@@ -343,7 +343,7 @@ func (c *cachedCRUD[T]) Create(fc fiber.Ctx, body []byte) error {
 	return fc.Status(201).JSON(entity)
 }
 
-func (c *cachedCRUD[T]) Update(fc fiber.Ctx, id string, body []byte) error {
+func (c *cachedCRUD[T]) Update(fc *RestCtx, id string, body []byte) error {
 	var patch map[string]any
 	if err := json.Unmarshal(body, &patch); err != nil {
 		return fc.Status(400).JSON(map[string]any{"code": 400, "message": err.Error()})
@@ -359,7 +359,7 @@ func (c *cachedCRUD[T]) Update(fc fiber.Ctx, id string, body []byte) error {
 	return fc.JSON(entity)
 }
 
-func (c *cachedCRUD[T]) Delete(fc fiber.Ctx, id string) error {
+func (c *cachedCRUD[T]) Delete(fc *RestCtx, id string) error {
 	if err := c.table.Delete(fc.Context(), id); err != nil {
 		if errors.Is(err, db.ErrNotFound) {
 			return fc.Status(404).JSON(map[string]any{"code": 404, "message": "not found"})
@@ -423,7 +423,7 @@ type mysqlCachedCRUD[T any] struct {
 
 func (c *mysqlCachedCRUD[T]) isCached() {}
 
-func (c *mysqlCachedCRUD[T]) Get(fc fiber.Ctx, id string) error {
+func (c *mysqlCachedCRUD[T]) Get(fc *RestCtx, id string) error {
 	key := c.keyPrefix + id
 
 	if c.l1 != nil {
@@ -456,11 +456,11 @@ func (c *mysqlCachedCRUD[T]) Get(fc fiber.Ctx, id string) error {
 	return fc.JSON(val)
 }
 
-func (c *mysqlCachedCRUD[T]) List(fc fiber.Ctx, params ListParams) error {
+func (c *mysqlCachedCRUD[T]) List(fc *RestCtx, params ListParams) error {
 	return fc.SendStatus(405)
 }
 
-func (c *mysqlCachedCRUD[T]) Create(fc fiber.Ctx, body []byte) error {
+func (c *mysqlCachedCRUD[T]) Create(fc *RestCtx, body []byte) error {
 	var entity T
 	if err := json.Unmarshal(body, &entity); err != nil {
 		return fc.Status(400).JSON(map[string]any{"code": 400, "message": err.Error()})
@@ -471,7 +471,7 @@ func (c *mysqlCachedCRUD[T]) Create(fc fiber.Ctx, body []byte) error {
 	return fc.Status(201).JSON(entity)
 }
 
-func (c *mysqlCachedCRUD[T]) Update(fc fiber.Ctx, id string, body []byte) error {
+func (c *mysqlCachedCRUD[T]) Update(fc *RestCtx, id string, body []byte) error {
 	var patch map[string]any
 	if err := json.Unmarshal(body, &patch); err != nil {
 		return fc.Status(400).JSON(map[string]any{"code": 400, "message": err.Error()})
@@ -494,7 +494,7 @@ func (c *mysqlCachedCRUD[T]) Update(fc fiber.Ctx, id string, body []byte) error 
 	return fc.JSON(entity)
 }
 
-func (c *mysqlCachedCRUD[T]) Delete(fc fiber.Ctx, id string) error {
+func (c *mysqlCachedCRUD[T]) Delete(fc *RestCtx, id string) error {
 	if err := c.table.Delete(fc.Context(), id); err != nil {
 		if errors.Is(err, db.ErrNotFound) {
 			return fc.Status(404).JSON(map[string]any{"code": 404, "message": "not found"})

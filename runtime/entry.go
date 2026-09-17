@@ -37,13 +37,15 @@ func buildEntryPrefix(prefix string, entry *EntryDef) string {
 
 var rlMaxFunc atomic.Value
 
-func SetRateLimitMaxFunc(fn func(c fiber.Ctx) int) {
+func SetRateLimitMaxFunc(fn func(c *RestCtx) int) {
 	rlMaxFunc.Store(fn)
 }
 
 func getRateLimitMaxFunc() func(c fiber.Ctx) int {
-	fn, _ := rlMaxFunc.Load().(func(c fiber.Ctx) int)
-	return fn
+	if fn, ok := rlMaxFunc.Load().(func(c *RestCtx) int); ok && fn != nil {
+		return func(c fiber.Ctx) int { return fn(newRestCtx(c, nil)) }
+	}
+	return nil
 }
 
 type CRUDProvider interface {
@@ -76,10 +78,10 @@ type EntryHandlers struct {
 }
 
 func RegisterEntries(app *fiber.App, cfg *ServiceConfig, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, models map[string]*db.TableInfo, jwtCfg *middleware.JWTConfig, authValidator func(context.Context, *middleware.AuthContext, []string, []string) error, apiKeyValidator func(ctx context.Context, key string) (*middleware.AuthContext, error), fgaClient openfga.Checker, oryClient *ory.Client, zitadelClient *zitadel.Client, rlRdb ...*redis.Redis) error {
-	return registerEntries(app, cfg, handlers, prefix, brokers, models, jwtCfg, authValidator, apiKeyValidator, fgaClient, oryClient, zitadelClient, nil, nil, nil, rlRdb...)
+	return registerEntries(app, cfg, handlers, prefix, brokers, models, jwtCfg, authValidator, apiKeyValidator, nil, fgaClient, oryClient, zitadelClient, nil, nil, nil, rlRdb...)
 }
 
-func registerEntries(app *fiber.App, cfg *ServiceConfig, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, models map[string]*db.TableInfo, jwtCfg *middleware.JWTConfig, authValidator func(context.Context, *middleware.AuthContext, []string, []string) error, apiKeyValidator func(ctx context.Context, key string) (*middleware.AuthContext, error), fgaClient openfga.Checker, oryClient *ory.Client, zitadelClient *zitadel.Client, pools map[string]any, kvConns map[string]*redis.Redis, corsFuncs map[string]func(origin string) bool, rlRdb ...*redis.Redis) error {
+func registerEntries(app *fiber.App, cfg *ServiceConfig, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, models map[string]*db.TableInfo, jwtCfg *middleware.JWTConfig, authValidator func(context.Context, *middleware.AuthContext, []string, []string) error, apiKeyValidator func(ctx context.Context, key string) (*middleware.AuthContext, error), basicValidator func(ctx context.Context, user, pass string) (*middleware.AuthContext, error), fgaClient openfga.Checker, oryClient *ory.Client, zitadelClient *zitadel.Client, pools map[string]any, kvConns map[string]*redis.Redis, corsFuncs map[string]func(origin string) bool, rlRdb ...*redis.Redis) error {
 	driver := ""
 	if cfg.Auth != nil {
 		driver = cfg.Auth.Driver
@@ -114,13 +116,18 @@ func registerEntries(app *fiber.App, cfg *ServiceConfig, handlers *EntryHandlers
 		rlRedis = rlRdb[0]
 	}
 
+	extra, err := buildAuthExtra(cfg.Auth, basicValidator, kvConns)
+	if err != nil {
+		return fmt.Errorf("auth setup: %w", err)
+	}
+
 	for i, entry := range cfg.Entry {
 		if len(entry.AuthModes) > 0 {
 			if err := validateEntryAuth(&entry, handlers); err != nil {
 				return fmt.Errorf("entry[%d] %s:%s: %w", i, entry.Type, entry.Path, err)
 			}
 		}
-		if err := registerOneEntry(app, &entry, handlers, prefix, brokers, models, jwtCfg, authValidator, apiKeyValidator, fgaClient, oryClient, zitadelClient, driver, serverPerUser, serverPerKey, rlAlgorithm, rlTTL, pools, kvConns, rlRedis); err != nil {
+		if err := registerOneEntry(app, &entry, handlers, prefix, brokers, models, jwtCfg, authValidator, apiKeyValidator, fgaClient, oryClient, zitadelClient, driver, serverPerUser, serverPerKey, rlAlgorithm, rlTTL, pools, kvConns, extra, rlRedis); err != nil {
 			return fmt.Errorf("entry[%d] %s %s: %w", i, entry.Type, entry.Path, err)
 		}
 		registerEntryCORS(app, &entry, prefix, cfg.Server.CORSGroups, corsFuncs)
@@ -150,34 +157,156 @@ func validateEntryAuth(entry *EntryDef, handlers *EntryHandlers) error {
 	return nil
 }
 
-func registerAuthMiddleware(entry *EntryDef, driver string, jwtCfg *middleware.JWTConfig, authValidator func(context.Context, *middleware.AuthContext, []string, []string) error, apiKeyValidator func(ctx context.Context, key string) (*middleware.AuthContext, error), fgaClient openfga.Checker, oryClient *ory.Client, zitadelClient *zitadel.Client, serverPerUser, serverPerKey *middleware.RateLimitEntry, rlAlgorithm string, rlTTL time.Duration, rlRdb ...*redis.Redis) []fiber.Handler {
+func registerAuthMiddleware(entry *EntryDef, driver string, jwtCfg *middleware.JWTConfig, authValidator func(context.Context, *middleware.AuthContext, []string, []string) error, apiKeyValidator func(ctx context.Context, key string) (*middleware.AuthContext, error), fgaClient openfga.Checker, oryClient *ory.Client, zitadelClient *zitadel.Client, serverPerUser, serverPerKey *middleware.RateLimitEntry, rlAlgorithm string, rlTTL time.Duration, extra entryAuthExtra, rlRdb ...*redis.Redis) []fiber.Handler {
 	var mws []fiber.Handler
 	hasAPIKey := hasAuth(entry, "apikey")
 	hasJWT := hasAuth(entry, "jwt") && driver != "none" && driver != ""
+	hasBasic := hasAuth(entry, "basic")
+	hasOAuth := hasAuth(entry, "oauth")
+	hasSession := hasAuth(entry, "session")
 
-	if hasAPIKey && hasJWT && jwtReadsHeader(entry, jwtCfg) {
+	if needsAuthRouter(entry, hasJWT, hasOAuth, hasAPIKey, hasBasic, jwtCfg) {
 		mws = append(mws, authRouter(entry))
 	}
 
-	if hasAPIKey {
-		mws = append(mws, apiKeyMiddleware(entry, apiKeyValidator, fgaClient))
-		mws = append(mws, apiKeyRoleMiddleware(entry, authValidator)...)
-	}
+	mws = appendCredentialMiddlewares(mws, entry, extra, driver, jwtCfg, authValidator, apiKeyValidator, fgaClient, oryClient, zitadelClient)
+	mws = appendNonJWTRoles(mws, entry, driver, hasJWT, authValidator, fgaClient, oryClient)
 
-	if hasJWT {
-		mws = appendJWTMiddleware(mws, entry, driver, jwtCfg, authValidator, fgaClient, oryClient, zitadelClient)
-		if entry.RequiresMFA {
-			mws = append(mws, middleware.MFARequired())
-		}
-	}
-
-	if hasAPIKey || hasJWT {
+	if hasAPIKey || hasJWT || hasBasic || hasOAuth || hasSession {
 		if mw := buildPostAuthRL(serverPerUser, serverPerKey, entry, rlAlgorithm, rlTTL, rlRdb...); mw != nil {
 			mws = append(mws, mw)
 		}
 	}
 
 	return mws
+}
+
+// appendCredentialMiddlewares registers one validator per enabled auth mode.
+// Each validator skips requests routed to another mode; roles and rate
+// limits run downstream once any validator injects an AuthContext.
+func appendCredentialMiddlewares(mws []fiber.Handler, entry *EntryDef, extra entryAuthExtra, driver string, jwtCfg *middleware.JWTConfig, authValidator func(context.Context, *middleware.AuthContext, []string, []string) error, apiKeyValidator func(ctx context.Context, key string) (*middleware.AuthContext, error), fgaClient openfga.Checker, oryClient *ory.Client, zitadelClient *zitadel.Client) []fiber.Handler {
+	if hasAuth(entry, "apikey") {
+		mws = append(mws, apiKeyMiddleware(entry, apiKeyValidator, fgaClient))
+		mws = append(mws, apiKeyRoleMiddleware(entry, authValidator)...)
+	}
+	if hasAuth(entry, "basic") {
+		mws = append(mws, basicMiddleware(entry, extra.basicValidator))
+	}
+	if hasAuth(entry, "oauth") && extra.oauth != nil {
+		mws = append(mws, oauthMiddleware(entry, extra.oauth))
+	}
+	if hasAuth(entry, "session") && extra.session != nil {
+		mws = append(mws, sessionMiddleware(entry, extra.session))
+	}
+	if hasAuth(entry, "jwt") && driver != "none" && driver != "" {
+		mws = appendJWTMiddleware(mws, entry, driver, jwtCfg, authValidator, fgaClient, oryClient, zitadelClient)
+		if entry.RequiresMFA {
+			mws = append(mws, middleware.MFARequired())
+		}
+	}
+	return mws
+}
+
+// appendNonJWTRoles enforces roles for non-JWT identity modes (jwt entries
+// get theirs from appendJWTMiddleware above). Each factory returns nil
+// unless its requirements hold, so no nil handler ever reaches the chain.
+func appendNonJWTRoles(mws []fiber.Handler, entry *EntryDef, driver string, hasJWT bool, authValidator func(context.Context, *middleware.AuthContext, []string, []string) error, fgaClient openfga.Checker, oryClient *ory.Client) []fiber.Handler {
+	if hasJWT || !hasIdentityAuth(entry) {
+		return mws
+	}
+	switch driver {
+	case "openfga-zitadel":
+		if mw := openfgaMiddleware(entry, fgaClient, entry.Roles, entry.Permissions); mw != nil {
+			mws = append(mws, mw)
+		}
+	case "ory":
+		if mw := oryMiddleware(entry, oryClient, entry.Roles, entry.Permissions); mw != nil {
+			mws = append(mws, mw)
+		}
+	default:
+		if mw := manualAuthMiddleware(entry, entry.Roles, entry.Permissions, authValidator); mw != nil {
+			mws = append(mws, mw)
+		}
+	}
+	return mws
+}
+
+// entryAuthExtra carries optional auth integrations into registration.
+type entryAuthExtra struct {
+	basicValidator func(ctx context.Context, user, pass string) (*middleware.AuthContext, error)
+	oauth          *middleware.OAuthConfig
+	session        *middleware.SessionConfig
+}
+
+// hasIdentityAuth reports whether the entry accepts a user-identity mode
+// (jwt/basic/oauth/session). API keys use apiKeyRoleMiddleware instead.
+func hasIdentityAuth(entry *EntryDef) bool {
+	for _, m := range []string{"jwt", "basic", "oauth", "session"} {
+		if hasAuth(entry, m) {
+			return true
+		}
+	}
+	return false
+}
+
+// buildAuthExtra resolves optional auth integrations once per Run: the
+// Basic validator passes through, OAuth introspection is copied, and the
+// session store is resolved from the shared KV connections (fail fast).
+func buildAuthExtra(auth *AuthConfig, basicValidator func(ctx context.Context, user, pass string) (*middleware.AuthContext, error), kvConns map[string]*redis.Redis) (entryAuthExtra, error) {
+	var extra entryAuthExtra
+	extra.basicValidator = basicValidator
+	if auth == nil {
+		return extra, nil
+	}
+	if auth.OAuth != nil {
+		extra.oauth = &middleware.OAuthConfig{
+			IntrospectionURL: auth.OAuth.IntrospectionURL,
+			ClientID:         auth.OAuth.ClientID,
+			ClientSecret:     auth.OAuth.ClientSecret,
+			CacheTTL:         parseServerDuration(auth.OAuth.CacheTTL, 60*time.Second),
+		}
+	}
+	if auth.Session != nil {
+		if strings.TrimSpace(auth.Session.Store) == "" {
+			return extra, fmt.Errorf("auth.session.store is required (shared KV)")
+		}
+		store, ok := kvConns[auth.Session.Store]
+		if !ok || store == nil {
+			return extra, fmt.Errorf("auth.session.store %q not found", auth.Session.Store)
+		}
+		cookie := auth.Session.Cookie
+		if cookie == "" {
+			cookie = "sid"
+		}
+		extra.session = &middleware.SessionConfig{
+			Cookie: cookie,
+			Store:  store,
+			TTL:    parseServerDuration(auth.Session.TTL, 24*time.Hour),
+		}
+	}
+	return extra, nil
+}
+
+// needsAuthRouter reports whether credential routing is ambiguous: the
+// Bearer channel serves jwt+oauth (jwt wins), plus Basic and prefix channels.
+func needsAuthRouter(entry *EntryDef, hasJWT, hasOAuth, hasAPIKey, hasBasic bool, jwtCfg *middleware.JWTConfig) bool {
+	channels := 0
+	if hasJWT {
+		channels++
+	}
+	if hasOAuth {
+		channels++
+	}
+	if hasAPIKey {
+		channels++
+	}
+	if hasBasic {
+		channels++
+	}
+	if channels < 2 {
+		return false
+	}
+	return jwtReadsHeader(entry, jwtCfg) || hasBasic || hasOAuth
 }
 
 func appendJWTMiddleware(mws []fiber.Handler, entry *EntryDef, driver string, jwtCfg *middleware.JWTConfig, authValidator func(context.Context, *middleware.AuthContext, []string, []string) error, fgaClient openfga.Checker, oryClient *ory.Client, zitadelClient *zitadel.Client) []fiber.Handler {
@@ -267,19 +396,28 @@ func jwtReadsHeader(entry *EntryDef, jwtCfg *middleware.JWTConfig) bool {
 }
 
 func authRouter(entry *EntryDef) fiber.Handler {
+	allowJWT := hasAuth(entry, "jwt")
+	allowOAuth := hasAuth(entry, "oauth")
+	allowBasic := hasAuth(entry, "basic")
+	allowAPIKey := hasAuth(entry, "apikey")
 	prefix := entry.APIPrefix
 	return func(c fiber.Ctx) error {
 		raw := c.Get("Authorization")
-		if strings.HasPrefix(raw, "Bearer ") {
+		switch {
+		case strings.HasPrefix(raw, "Bearer ") && allowJWT:
 			c.Locals("auth_mode", "jwt")
-		} else if prefix == "" || strings.HasPrefix(raw, prefix) {
+		case strings.HasPrefix(raw, "Bearer ") && allowOAuth:
+			c.Locals("auth_mode", "oauth")
+		case strings.HasPrefix(raw, "Basic ") && allowBasic:
+			c.Locals("auth_mode", "basic")
+		case (prefix == "" || strings.HasPrefix(raw, prefix)) && allowAPIKey:
 			c.Locals("auth_mode", "apikey")
 		}
 		return c.Next()
 	}
 }
 
-func registerOneEntry(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, models map[string]*db.TableInfo, jwtCfg *middleware.JWTConfig, authValidator func(context.Context, *middleware.AuthContext, []string, []string) error, apiKeyValidator func(ctx context.Context, key string) (*middleware.AuthContext, error), fgaClient openfga.Checker, oryClient *ory.Client, zitadelClient *zitadel.Client, driver string, serverPerUser, serverPerKey *middleware.RateLimitEntry, rlAlgorithm string, rlTTL time.Duration, pools map[string]any, kvConns map[string]*redis.Redis, rlRdb ...*redis.Redis) error {
+func registerOneEntry(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, models map[string]*db.TableInfo, jwtCfg *middleware.JWTConfig, authValidator func(context.Context, *middleware.AuthContext, []string, []string) error, apiKeyValidator func(ctx context.Context, key string) (*middleware.AuthContext, error), fgaClient openfga.Checker, oryClient *ory.Client, zitadelClient *zitadel.Client, driver string, serverPerUser, serverPerKey *middleware.RateLimitEntry, rlAlgorithm string, rlTTL time.Duration, pools map[string]any, kvConns map[string]*redis.Redis, extra entryAuthExtra, rlRdb ...*redis.Redis) error {
 	versionPrefix := buildEntryPrefix(prefix, entry)
 
 	registerDeprecation(app, entry, versionPrefix)
@@ -289,7 +427,7 @@ func registerOneEntry(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, 
 	registerEntryTimeout(app, entry, versionPrefix)
 	registerFallback(app, entry, versionPrefix)
 	registerBulkhead(entry)
-	mws := registerAuthMiddleware(entry, driver, jwtCfg, authValidator, apiKeyValidator, fgaClient, oryClient, zitadelClient, serverPerUser, serverPerKey, rlAlgorithm, rlTTL, rlRdb...)
+	mws := registerAuthMiddleware(entry, driver, jwtCfg, authValidator, apiKeyValidator, fgaClient, oryClient, zitadelClient, serverPerUser, serverPerKey, rlAlgorithm, rlTTL, extra, rlRdb...)
 	if len(entry.Bulkhead) > 0 {
 		mws = append(mws, bulkheadMiddleware(entry))
 	}
@@ -391,7 +529,7 @@ func jwtMiddleware(entry *EntryDef, jwtCfg *middleware.JWTConfig) fiber.Handler 
 	mw := middleware.JWT(cfg)
 	return func(c fiber.Ctx) error {
 		mode, _ := c.Locals("auth_mode").(string)
-		if mode == "apikey" {
+		if mode == "apikey" || mode == "basic" || mode == "oauth" || mode == "session" {
 			return c.Next()
 		}
 		if !hasCustomLookup && mode == "" && !strings.HasPrefix(c.Get("Authorization"), "Bearer ") {
@@ -416,7 +554,7 @@ func oryJWTMiddleware(entry *EntryDef, jwtCfg *middleware.JWTConfig, oClient *or
 }
 
 func openfgaMiddleware(entry *EntryDef, fgaClient openfga.Checker, roles, permissions []string) fiber.Handler {
-	if !hasAuth(entry, "jwt") || fgaClient == nil {
+	if !hasIdentityAuth(entry) || fgaClient == nil {
 		return nil
 	}
 	return middleware.OpenFGA(middleware.OpenFGAConfig{
@@ -427,7 +565,7 @@ func openfgaMiddleware(entry *EntryDef, fgaClient openfga.Checker, roles, permis
 }
 
 func oryMiddleware(entry *EntryDef, oryClient *ory.Client, roles, permissions []string) fiber.Handler {
-	if !hasAuth(entry, "jwt") || oryClient == nil {
+	if !hasIdentityAuth(entry) || oryClient == nil {
 		return nil
 	}
 	return middleware.Ory(middleware.OryConfig{
@@ -438,7 +576,7 @@ func oryMiddleware(entry *EntryDef, oryClient *ory.Client, roles, permissions []
 }
 
 func manualAuthMiddleware(entry *EntryDef, roles, permissions []string, validator func(context.Context, *middleware.AuthContext, []string, []string) error) fiber.Handler {
-	if !hasAuth(entry, "jwt") || validator == nil {
+	if !hasIdentityAuth(entry) || validator == nil {
 		return nil
 	}
 	return func(c fiber.Ctx) error {
@@ -474,11 +612,62 @@ func apiKeyMiddleware(entry *EntryDef, apiKeyValidator func(ctx context.Context,
 	})
 	return func(c fiber.Ctx) error {
 		mode, _ := c.Locals("auth_mode").(string)
-		if mode == "jwt" {
+		if mode == "jwt" || mode == "basic" || mode == "oauth" || mode == "session" {
 			return c.Next()
 		}
 		// If no router set a mode and header starts with Bearer, let JWT handle it
 		if mode == "" && strings.HasPrefix(c.Get("Authorization"), "Bearer ") {
+			return c.Next()
+		}
+		return mw(c)
+	}
+}
+
+func basicMiddleware(entry *EntryDef, validator func(ctx context.Context, user, pass string) (*middleware.AuthContext, error)) fiber.Handler {
+	if !hasAuth(entry, "basic") {
+		return nil
+	}
+	mw := middleware.Basic(middleware.BasicConfig{Validator: validator})
+	return func(c fiber.Ctx) error {
+		if middleware.GetAuth(c) != nil {
+			return c.Next()
+		}
+		mode, _ := c.Locals("auth_mode").(string)
+		if mode == "jwt" || mode == "apikey" || mode == "oauth" || mode == "session" {
+			return c.Next()
+		}
+		return mw(c)
+	}
+}
+
+func oauthMiddleware(entry *EntryDef, cfg *middleware.OAuthConfig) fiber.Handler {
+	if !hasAuth(entry, "oauth") || cfg == nil {
+		return nil
+	}
+	mw := middleware.Introspect(*cfg)
+	return func(c fiber.Ctx) error {
+		if middleware.GetAuth(c) != nil {
+			return c.Next()
+		}
+		mode, _ := c.Locals("auth_mode").(string)
+		if mode == "jwt" || mode == "apikey" || mode == "basic" || mode == "session" {
+			return c.Next()
+		}
+		return mw(c)
+	}
+}
+
+func sessionMiddleware(entry *EntryDef, cfg *middleware.SessionConfig) fiber.Handler {
+	if !hasAuth(entry, "session") || cfg == nil {
+		return nil
+	}
+	mw := middleware.Session(*cfg)
+	return func(c fiber.Ctx) error {
+		if middleware.GetAuth(c) != nil {
+			return c.Next()
+		}
+		mode, _ := c.Locals("auth_mode").(string)
+		if mode == "jwt" || mode == "apikey" || mode == "basic" || mode == "oauth" {
 			return c.Next()
 		}
 		return mw(c)
@@ -490,7 +679,7 @@ func apiKeyRoleMiddleware(entry *EntryDef, authValidator func(context.Context, *
 		return nil
 	}
 	return []fiber.Handler{func(c fiber.Ctx) error {
-		if c.Locals("auth_mode") == "jwt" {
+		if mode, _ := c.Locals("auth_mode").(string); mode == "jwt" || mode == "basic" || mode == "oauth" || mode == "session" {
 			return c.Next()
 		}
 		auth := middleware.GetAuth(c)

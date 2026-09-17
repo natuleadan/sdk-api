@@ -51,7 +51,11 @@ func BuildOpenAPI(cfg *ServiceConfig, models map[string]*db.TableInfo) (*openapi
 	}
 
 	doc.Security = securityRequirements(cfg.Entry)
-	if schemes := buildSecuritySchemes(cfg.Entry); len(schemes) > 0 {
+	sessionCookie := "sid"
+	if cfg.Auth != nil && cfg.Auth.Session != nil && cfg.Auth.Session.Cookie != "" {
+		sessionCookie = cfg.Auth.Session.Cookie
+	}
+	if schemes := buildSecuritySchemes(cfg.Entry, sessionCookie); len(schemes) > 0 {
 		doc.Components.SecuritySchemes = schemes
 	}
 	if server := specServer(cfg); server != nil {
@@ -64,51 +68,49 @@ func BuildOpenAPI(cfg *ServiceConfig, models map[string]*db.TableInfo) (*openapi
 // securityRequirements derives the operation-level security requirements from
 // the union of all entry auth modes. Entries without auth stay public.
 func securityRequirements(entries []EntryDef) openapi3.SecurityRequirements {
-	hasJWT := false
-	hasAPIKey := false
+	has := map[string]bool{}
 	for _, entry := range entries {
 		for _, mode := range entry.AuthModes {
-			switch mode {
-			case "jwt":
-				hasJWT = true
-			case "apikey":
-				hasAPIKey = true
-			}
+			has[mode] = true
 		}
 	}
-	if !hasJWT && !hasAPIKey {
+	reqs := make(openapi3.SecurityRequirements, 0, 5)
+	for _, m := range []struct {
+		mode string
+		name string
+	}{
+		{"jwt", "bearerAuth"},
+		{"apikey", "apiKeyAuth"},
+		{"basic", "basicAuth"},
+		{"oauth", "oauthAuth"},
+		{"session", "sessionAuth"},
+	} {
+		if has[m.mode] {
+			reqs = append(reqs, openapi3.SecurityRequirement{m.name: []string{}})
+		}
+	}
+	if len(reqs) == 0 {
 		return nil
-	}
-	reqs := make(openapi3.SecurityRequirements, 0, 2)
-	if hasJWT {
-		reqs = append(reqs, openapi3.SecurityRequirement{"bearerAuth": []string{}})
-	}
-	if hasAPIKey {
-		reqs = append(reqs, openapi3.SecurityRequirement{"apiKeyAuth": []string{}})
 	}
 	return reqs
 }
 
 // buildSecuritySchemes maps the entry auth modes onto OpenAPI security
-// schemes: jwt → HTTP bearer, apikey → apiKey header (Authorization).
-func buildSecuritySchemes(entries []EntryDef) openapi3.SecuritySchemes {
-	hasJWT := false
-	hasAPIKey := false
+// schemes: jwt → HTTP bearer, apikey → apiKey header (Authorization),
+// basic → HTTP basic, oauth → HTTP bearer (opaque token), session → apiKey
+// cookie (name from auth.session.cookie).
+func buildSecuritySchemes(entries []EntryDef, sessionCookie string) openapi3.SecuritySchemes {
+	has := map[string]bool{}
 	for _, entry := range entries {
 		for _, mode := range entry.AuthModes {
-			switch mode {
-			case "jwt":
-				hasJWT = true
-			case "apikey":
-				hasAPIKey = true
-			}
+			has[mode] = true
 		}
 	}
-	if !hasJWT && !hasAPIKey {
+	if len(has) == 0 {
 		return nil
 	}
 	schemes := openapi3.SecuritySchemes{}
-	if hasJWT {
+	if has["jwt"] {
 		schemes["bearerAuth"] = &openapi3.SecuritySchemeRef{Value: &openapi3.SecurityScheme{
 			Type:         "http",
 			Scheme:       "bearer",
@@ -116,12 +118,38 @@ func buildSecuritySchemes(entries []EntryDef) openapi3.SecuritySchemes {
 			Description:  "JWT bearer token from the auth service",
 		}}
 	}
-	if hasAPIKey {
+	if has["apikey"] {
 		schemes["apiKeyAuth"] = &openapi3.SecuritySchemeRef{Value: &openapi3.SecurityScheme{
 			Type:        "apiKey",
 			In:          "header",
 			Name:        "Authorization",
 			Description: "API key (default header: Authorization)",
+		}}
+	}
+	if has["basic"] {
+		schemes["basicAuth"] = &openapi3.SecuritySchemeRef{Value: &openapi3.SecurityScheme{
+			Type:        "http",
+			Scheme:      "basic",
+			Description: "HTTP Basic credentials (RFC 7617)",
+		}}
+	}
+	if has["oauth"] {
+		schemes["oauthAuth"] = &openapi3.SecuritySchemeRef{Value: &openapi3.SecurityScheme{
+			Type:         "http",
+			Scheme:       "bearer",
+			BearerFormat: "opaque",
+			Description:  "Opaque OAuth access token (RFC 7662 introspection)",
+		}}
+	}
+	if has["session"] {
+		if sessionCookie == "" {
+			sessionCookie = "sid"
+		}
+		schemes["sessionAuth"] = &openapi3.SecuritySchemeRef{Value: &openapi3.SecurityScheme{
+			Type:        "apiKey",
+			In:          "cookie",
+			Name:        sessionCookie,
+			Description: "Server-side session cookie",
 		}}
 	}
 	return schemes

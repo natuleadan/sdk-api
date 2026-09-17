@@ -98,6 +98,35 @@ type AuthConfig struct {
 	Refresh *RefreshConfig `json:"refresh" config:",optional"`
 	// Cookie is a constant.
 	Cookie *AuthCookieConfig `json:"cookie" config:",optional"`
+	// OAuth configures RFC 7662 introspection for auth_modes [oauth]
+	// (opaque third-party access tokens). For JWT-shaped OAuth/OIDC tokens,
+	// use jwt mode with jwks_url + issuer instead.
+	OAuth *OAuthConf `json:"oauth" config:",optional"`
+	// Session configures server-side sessions for auth_modes [session].
+	Session *SessionConf `json:"session" config:",optional"`
+}
+
+// OAuthConf holds third-party OAuth introspection settings.
+type OAuthConf struct {
+	// IntrospectionURL is the RFC 7662 endpoint (https recommended).
+	IntrospectionURL string `json:"introspection_url"`
+	// ClientID/Secret authenticate this service at the endpoint.
+	ClientID     string `json:"client_id" config:",optional"`
+	ClientSecret string `json:"client_secret" config:",optional"`
+	// CacheTTL caches active verdicts in memory (default 60s, 0 disables).
+	// A cached token stays valid until TTL even if revoked upstream.
+	CacheTTL string `json:"cache_ttl" config:",default=60s"`
+}
+
+// SessionConf holds server-side session settings.
+type SessionConf struct {
+	// Cookie is the session cookie name (default sid).
+	Cookie string `json:"cookie" config:",default=sid"`
+	// Store is a kv-conn name holding sessions (shared storage required:
+	// memory would break under prefork/clustering).
+	Store string `json:"store"`
+	// TTL is the session lifetime from creation, no sliding refresh.
+	TTL string `json:"ttl" config:",default=24h"`
 }
 
 type RefreshConfig struct {
@@ -385,6 +414,16 @@ type StreamConfig struct {
 	User string `json:"user" config:",optional"`
 	// Password authenticates to the NATS server.
 	Password string `json:"password" config:",optional"`
+	// Token authenticates with a shared secret (server authorization.token).
+	Token string `json:"token" config:",optional"`
+	// NKeySeed is the raw NKey seed (user ${VAR}, never hardcode it).
+	NKeySeed string `json:"nkey_seed" config:",optional"`
+	// NKeySeedFile points to a file holding the NKey seed.
+	NKeySeedFile string `json:"nkey_seed_file" config:",optional"`
+	// CredsFile points to a Synadia-style .creds file (user JWT + NKey
+	// seed). This is how Synadia Cloud (NGS) authenticates. Takes
+	// precedence over nkey/token/user when set.
+	CredsFile string `json:"creds_file" config:",optional"`
 	// CAFile verifies the server certificate (leave empty for system roots).
 	CAFile string `json:"ca_file" config:",optional"`
 	// CertFile/KeyFile are the client certificate pair for mTLS servers.

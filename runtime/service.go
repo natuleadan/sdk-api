@@ -81,7 +81,8 @@ type Service struct {
 	oryClient       *ory.Client
 	authValidator   func(context.Context, *middleware.AuthContext, []string, []string) error
 	apiKeyValidator func(ctx context.Context, key string) (*middleware.AuthContext, error)
-	rlMaxFunc       func(c fiber.Ctx) int
+	basicValidator  func(ctx context.Context, user, pass string) (*middleware.AuthContext, error)
+	rlMaxFunc       func(c *RestCtx) int
 	grpcServer      *GrpcServer
 	grpcClients     map[string]*GrpcClient
 	grpcRegistrars  map[string]func(srv *grpc.Server)
@@ -717,16 +718,64 @@ func (s *Service) WithAPIKeyValidator(fn func(ctx context.Context, key string) (
 	return s
 }
 
+// WithBasicValidator registers an HTTP Basic credential checker for the
+// "basic" auth mode. Return nil (no error) to reject with 403, an error
+// for 401. Required by any entry using auth_modes [basic].
+func (s *Service) WithBasicValidator(fn func(ctx context.Context, user, pass string) (*middleware.AuthContext, error)) *Service {
+	s.basicValidator = fn
+	return s
+}
+
+// sessionStore resolves the shared KV store backing server-side sessions.
+func (s *Service) sessionStore() (*redis.Redis, time.Duration, error) {
+	sc := s.config.Auth.Session
+	if sc == nil {
+		return nil, 0, fmt.Errorf("auth.session not configured")
+	}
+	if sc.Store == "" {
+		return nil, 0, fmt.Errorf("auth.session.store is required (shared KV)")
+	}
+	store, ok := s.kvConns[sc.Store]
+	if !ok || store == nil {
+		return nil, 0, fmt.Errorf("auth.session.store %q not found", sc.Store)
+	}
+	return store, parseServerDuration(sc.TTL, 24*time.Hour), nil
+}
+
+// CreateSession stores a server-side session and returns its ID. Set it as
+// the session cookie (name from auth.session.cookie) in the login handler.
+func (s *Service) CreateSession(ctx context.Context, userID string, roles []string) (string, error) {
+	store, ttl, err := s.sessionStore()
+	if err != nil {
+		return "", err
+	}
+	return middleware.CreateSession(ctx, store, ttl, userID, roles)
+}
+
+// DestroySession revokes a session immediately (logout).
+func (s *Service) DestroySession(ctx context.Context, id string) error {
+	store, _, err := s.sessionStore()
+	if err != nil {
+		return err
+	}
+	return middleware.DestroySession(ctx, store, id)
+}
+
+// SessionCookieName returns the configured session cookie name.
+func (s *Service) SessionCookieName() string {
+	if sc := s.config.Auth.Session; sc != nil && sc.Cookie != "" {
+		return sc.Cookie
+	}
+	return "sid"
+}
+
 // WithRateLimitMaxFunc registers a dynamic rate limit resolver.
 // The function receives the SDK RestCtx and returns the max requests per window.
 // Overrides YAML-defined static limits when it returns > 0.
 // Useful for per-tenant, per-user, or per-request dynamic rate limits.
 func (s *Service) WithRateLimitMaxFunc(fn func(c *RestCtx) int) *Service {
-	wrapped := func(fc fiber.Ctx) int {
-		return fn(newRestCtx(fc, nil))
-	}
-	SetRateLimitMaxFunc(wrapped)
-	s.rlMaxFunc = wrapped
+	SetRateLimitMaxFunc(fn)
+	s.rlMaxFunc = fn
 	return s
 }
 
@@ -1015,24 +1064,52 @@ func (s *Service) validateAuthEnabled() error {
 }
 
 func (s *Service) validateEntryAuthConfig(entry *EntryDef, driver string) error {
-	hasAPIKey := hasAuth(entry, "apikey")
-	hasJWT := hasAuth(entry, "jwt")
-
-	if hasAPIKey {
-		if driver == "none" || driver == "" {
-			return fmt.Errorf("entry %s %s: apikey mode requires auth.driver (manual, openfga-zitadel, or ory)", entry.Type, entry.Path)
-		}
-		if driver == "manual" && s.apiKeyValidator == nil {
-			return fmt.Errorf("entry %s %s: apikey mode requires WithAPIKeyValidator() for driver=manual", entry.Type, entry.Path)
+	if err := s.validateAPIKeyEntry(entry, driver); err != nil {
+		return err
+	}
+	if err := s.validateJWTEntry(entry, driver, hasAuth(entry, "apikey")); err != nil {
+		return err
+	}
+	if hasAuth(entry, "basic") && s.basicValidator == nil {
+		return fmt.Errorf("entry %s %s: basic mode requires WithBasicValidator()", entry.Type, entry.Path)
+	}
+	if hasAuth(entry, "oauth") {
+		oauth := s.config.Auth.OAuth
+		if oauth == nil || strings.TrimSpace(oauth.IntrospectionURL) == "" {
+			return fmt.Errorf("entry %s %s: oauth mode requires auth.oauth.introspection_url", entry.Type, entry.Path)
 		}
 	}
-	if hasJWT {
-		if driver == "none" || driver == "" {
-			return fmt.Errorf("entry %s %s: jwt mode requires driver != none", entry.Type, entry.Path)
+	if hasAuth(entry, "session") {
+		sess := s.config.Auth.Session
+		if sess == nil || strings.TrimSpace(sess.Store) == "" {
+			return fmt.Errorf("entry %s %s: session mode requires auth.session.store (shared KV)", entry.Type, entry.Path)
 		}
-		if driver == "manual" && s.authValidator == nil && !hasAPIKey {
-			return fmt.Errorf("entry %s %s: jwt mode requires WithAuthValidator() for driver=manual", entry.Type, entry.Path)
-		}
+	}
+	return nil
+}
+
+func (s *Service) validateAPIKeyEntry(entry *EntryDef, driver string) error {
+	if !hasAuth(entry, "apikey") {
+		return nil
+	}
+	if driver == "none" || driver == "" {
+		return fmt.Errorf("entry %s %s: apikey mode requires auth.driver (manual, openfga-zitadel, or ory)", entry.Type, entry.Path)
+	}
+	if driver == "manual" && s.apiKeyValidator == nil {
+		return fmt.Errorf("entry %s %s: apikey mode requires WithAPIKeyValidator() for driver=manual", entry.Type, entry.Path)
+	}
+	return nil
+}
+
+func (s *Service) validateJWTEntry(entry *EntryDef, driver string, hasAPIKey bool) error {
+	if !hasAuth(entry, "jwt") {
+		return nil
+	}
+	if driver == "none" || driver == "" {
+		return fmt.Errorf("entry %s %s: jwt mode requires driver != none", entry.Type, entry.Path)
+	}
+	if driver == "manual" && s.authValidator == nil && !hasAPIKey {
+		return fmt.Errorf("entry %s %s: jwt mode requires WithAuthValidator() for driver=manual", entry.Type, entry.Path)
 	}
 	return nil
 }
@@ -1238,7 +1315,7 @@ func (s *Service) registerEntryRoutes() error {
 	if s.config.Server.RateLimit != nil && s.config.Server.RateLimit.KV != "" && s.kvConns != nil {
 		rlRedis = s.kvConns[s.config.Server.RateLimit.KV]
 	}
-	if err := registerEntries(s.srv.App(), s.config, s.handlers, s.config.Server.APIPrefix, s.natsConns, s.models, s.jwtCfg, s.authValidator, s.apiKeyValidator, s.fgaClient, s.oryClient, s.zitadelClient, s.pools, s.kvConns, s.corsFuncs, rlRedis); err != nil {
+	if err := registerEntries(s.srv.App(), s.config, s.handlers, s.config.Server.APIPrefix, s.natsConns, s.models, s.jwtCfg, s.authValidator, s.apiKeyValidator, s.basicValidator, s.fgaClient, s.oryClient, s.zitadelClient, s.pools, s.kvConns, s.corsFuncs, rlRedis); err != nil {
 		return err
 	}
 
@@ -1745,6 +1822,10 @@ func initStreams(ctx context.Context, configs []StreamConfig) (map[string]events
 				RetryOnFail:   cfg.RetryOnFail,
 				User:          cfg.User,
 				Password:      cfg.Password,
+				Token:         cfg.Token,
+				NKeySeed:      cfg.NKeySeed,
+				NKeySeedFile:  cfg.NKeySeedFile,
+				CredsFile:     cfg.CredsFile,
 				CAFile:        cfg.CAFile,
 				CertFile:      cfg.CertFile,
 				KeyFile:       cfg.KeyFile,

@@ -732,6 +732,47 @@ svc.WithAPIKeyValidator(func(ctx context.Context, key string) (*middleware.AuthC
 
 The returned `AuthContext` must include at least `UserID` and `Roles`. The function receives the raw key value (already stripped of any configured prefix).
 
+### WithBasicValidator
+
+Registers the HTTP Basic credential checker for `auth_modes: [basic]`
+(RFC 7617). Return nil (no error) to reject with 403, an error for 401:
+
+```go
+svc.WithBasicValidator(func(ctx context.Context, user, pass string) (*middleware.AuthContext, error) {
+    hash, err := lookupHash(ctx, user)  // your users table
+    if err != nil || !runtime.VerifyPassword(hash, pass) {
+        return nil, nil
+    }
+    return &middleware.AuthContext{UserID: user, Roles: []string{"viewer"}}, nil
+})
+```
+
+Password hashing helpers live in `runtime/auth` (`HashPassword`/`VerifyPassword`
+below). Required by any entry using the basic mode.
+
+### Server-side sessions
+
+For `auth_modes: [session]`, configure a shared KV store (`auth.session`
+with `cookie`/`store`/`ttl`) and mint sessions in the login handler:
+
+```go
+sid, err := svc.CreateSession(ctx, userID, []string{"viewer"})
+// set svc.SessionCookieName() = sid, then:
+svc.DestroySession(ctx, sid)  // logout
+```
+
+Sessions live in shared KV (works under prefork/clustering), expire after
+TTL with no sliding refresh, and inject `AuthContext` like every mode
+(roles, per-user rate limiting and handlers all apply).
+
+### OAuth access tokens
+
+For opaque third-party access tokens use `auth_modes: [oauth]` with
+`auth.oauth.introspection_url` (RFC 7662): `sub` becomes UserID, `scope`
+words become Roles, active verdicts cache for `cache_ttl`. For JWT-shaped
+OAuth/OIDC tokens, `jwt` mode with `jwks_url` + `issuer` already validates
+them — no separate mode needed.
+
 ### Auth Utilities
 
 The `runtime/auth` package provides password, token, and role utilities:

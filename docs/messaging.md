@@ -118,6 +118,33 @@ producer.PublishWithID(OrderEvent{}, "idempotency-key-123")
 reply, _ := producer.PublishAndWait(ctx, OrderEvent{}, 5*time.Second)
 ```
 
+### NATS Authentication
+
+Beyond user/password and mTLS, streams accept token, NKey and Synadia-style
+credentials. Precedence when several are set: `creds_file` > NKey > token >
+user/password (TLS options combine with any of them).
+
+```yaml
+stream:
+  - name: default
+    driver: nats
+    url: "tls://connect.ngs.global"      # Synadia Cloud
+    creds_file: "${NATS_CREDS}"          # .creds file (user JWT + NKey seed)
+```
+
+```yaml
+    token: "${NATS_TOKEN}"               # shared secret (server authorization.token)
+    nkey_seed: "${NATS_NKEY_SEED}"       # raw seed (starts with SU…), or:
+    nkey_seed_file: "${NATS_NKEY_FILE}"  # path to a file holding the seed
+```
+
+```go
+nc, _ := events.Connect(ctx, events.ConnOptions{
+    URL:       "tls://connect.ngs.global",
+    CredsFile: os.Getenv("NATS_CREDS"),
+})
+```
+
 ## EventBroker Interface
 
 The `EventBroker` abstraction allows switching between NATS and Kafka without code changes:

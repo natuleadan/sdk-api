@@ -95,6 +95,23 @@ svc.WithRest("onCustomList", func(c *runtime.RestCtx) error {
 })
 ```
 
+### REST Pagination
+
+REST handlers parse the same pagination as CRUD with
+`runtime.ParseListParams` (`page`/`size`/`sort`/`cursor` + extra query args
+as filters; `sortable` allowlist; `"offset"` (default) or `"keyset"` mode):
+
+```go
+svc.WithRest("onSearch", func(c *runtime.RestCtx) error {
+    params, err := runtime.ParseListParams(c, 20, 100, []string{"id", "name"}, "")
+    if err != nil {
+        return c.Status(400).JSON(map[string]any{"error": err.Error()})
+    }
+    // params.Page / .Size / .Sort / .Cursor / .Filters / .Pagination
+    return c.JSON(map[string]any{"data": items, "total": total})
+})
+```
+
 Override values:
 - `""` (empty) or `~` (null) → use auto-generated handler
 - `"-"` → don't register this endpoint

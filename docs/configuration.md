@@ -295,6 +295,15 @@ server:
     zitadel_url: "https://auth.tld"        # Zitadel issuer (OIDC)
     kratos_url: "http://localhost:4433"    # Ory Kratos public URL
     keto_url: "http://localhost:4466"      # Ory Keto URL
+    oauth:                                 # RFC 7662 introspection for auth_modes [oauth]
+      introspection_url: "https://auth.tld/oauth/introspect"
+      client_id: "sdk-api"                 # service credential at the endpoint
+      client_secret: "${OAUTH_CLIENT_SECRET}"
+      cache_ttl: 60s                       # active-verdict cache (0 disables)
+    session:                               # server-side sessions for auth_modes [session]
+      cookie: sid                          # session cookie name
+      store: cache-main                    # kv-conn name (shared storage, required)
+      ttl: 24h                             # lifetime from creation, no sliding refresh
 
 Token blacklist: use `svc.WithJWTBlacklist()` at runtime to register a callback. See `docs/runtime.md` for API details.
     cookie:                                # Cookie settings for JWT tokens
@@ -462,6 +471,10 @@ stream:
     url: "${NATS_URL}"            # may embed auth: tls://user:pass@host:4222
     user: "${NATS_USER}"          # mTLS/auth (optional)
     password: "${NATS_PASSWORD}"
+    token: "${NATS_TOKEN}"          # shared secret (server authorization.token)
+    nkey_seed: "${NATS_NKEY_SEED}"  # raw NKey seed (or nkey_seed_file path)
+    nkey_seed_file: "${NATS_NKEY_FILE}"
+    creds_file: "${NATS_CREDS}"     # Synadia .creds (JWT + seed); wins over nkey/token/user
     ca_file: "${NATS_CA}"         # PEM CA to verify the server cert (empty = system roots)
     cert_file: "${NATS_CERT}"     # client cert pair for mTLS servers (verify: true)
     key_file: "${NATS_KEY}"
@@ -805,7 +818,7 @@ gRPC service definition paired with `svc.RegisterGrpcService()`. The SDK auto-wi
 
 | Field | Applies to | Description |
 |-------|-----------|-------------|
-| `auth_modes` | crud, rest, webhook, file | Authentication modes (`jwt`, `apikey`, or both) |
+| `auth_modes` | crud, rest, webhook, file | Authentication modes: `jwt`, `apikey`, `basic`, `oauth`, `session` (combinable; first valid credential wins; roles enforced for identity modes) |
 | `roles` | crud, rest, webhook | Required roles (validated by auth driver) |
 | `permissions` | crud, rest, webhook | Required permissions (validated by auth driver) |
 | `jwt_from` | crud, rest, webhook, file | JWT source: `"header:Authorization"`, `"cookie:token"`, `"query:token"` (default `header:Authorization`) |

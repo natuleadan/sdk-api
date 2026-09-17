@@ -95,6 +95,21 @@ func TestRunNewWithGRPC(t *testing.T) {
 	checkFile(t, dir, "grpcserver/products.go", "type ProductServer struct")
 }
 
+func TestRunNewWithGRPCDashedName(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "grpc-dashed-svc")
+	err := runNew([]string{
+		"grpc-dashed-svc", "--model", "Product",
+		"--fields", "name:string",
+		"--grpc",
+		"--dir", dir,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	checkFile(t, dir, "api/products.proto", "package grpc_dashed_svc;")
+}
+
 func TestRunNewWithGRPCCustomServiceName(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "grpc-custom-svc")
 	err := runNew([]string{

@@ -300,7 +300,7 @@ func detectMonorepo(cfg *newConfig) {
 	if !cfg.GrpcEnabled {
 		return
 	}
-	cfg.ProtoPackage = cfg.ServiceName
+	cfg.ProtoPackage = strings.ReplaceAll(cfg.ServiceName, "-", "_")
 	cfg.ProtoGoPackage = cfg.ModulePath + "/pb;pb"
 	abs, err := filepath.Abs(cfg.Dir)
 	if err != nil {

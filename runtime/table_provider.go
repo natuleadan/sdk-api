@@ -44,6 +44,7 @@ func tenantInfo(c *RestCtx) (field, id string) {
 }
 
 func (t *tableCRUD[T]) List(ctx *RestCtx, params ListParams) error {
+	params.Filters = db.ResolveFilterColumns(t.table.TableInfo(), params.Filters)
 	tf, tid := tenantInfo(ctx)
 	if params.Pagination == "keyset" {
 		where := makeFiltersMap(params.Filters)
@@ -271,12 +272,16 @@ func (t *mysqlCRUD[T]) List(ctx *RestCtx, params ListParams) error {
 	var total int64
 	var items []T
 	var err error
-	if tf != "" && tid != "" {
-		total, err = t.table.CountScoped(ctx.Context(), tf, tid)
+	if len(params.Filters) > 0 || (tf != "" && tid != "") {
+		where := offsetFilteredWhere(t.table.TableInfo(), params.Filters, tf, tid)
+		total, err = t.table.CountWhere(ctx.Context(), where)
 		if err != nil {
-			return errcode.ErrDBQuery("op", "table", err)
+			return errcode.ErrDBQuery("CountWhere", "table", err)
 		}
-		items, err = t.table.ListScopedPaginated(ctx.Context(), tf, tid, limit, offset)
+		items, err = t.table.QueryWhere(ctx.Context(), where, params.Sort, limit, offset)
+		if err != nil {
+			return errcode.ErrDBQuery("QueryWhere", "table", err)
+		}
 	} else {
 		total, err = t.table.Count(ctx.Context())
 		if err != nil {
@@ -444,12 +449,16 @@ func (t *tursoCRUD[T]) List(ctx *RestCtx, params ListParams) error {
 	var total int64
 	var items []T
 	var err error
-	if tf != "" && tid != "" {
-		total, err = t.table.CountScoped(ctx.Context(), tf, tid)
+	if len(params.Filters) > 0 || (tf != "" && tid != "") {
+		where := offsetFilteredWhere(t.table.TableInfo(), params.Filters, tf, tid)
+		total, err = t.table.CountWhere(ctx.Context(), where)
 		if err != nil {
-			return errcode.ErrDBQuery("op", "table", err)
+			return errcode.ErrDBQuery("CountWhere", "table", err)
 		}
-		items, err = t.table.ListScopedPaginated(ctx.Context(), tf, tid, limit, offset)
+		items, err = t.table.QueryWhere(ctx.Context(), where, params.Sort, limit, offset)
+		if err != nil {
+			return errcode.ErrDBQuery("QueryWhere", "table", err)
+		}
 	} else {
 		total, err = t.table.Count(ctx.Context())
 		if err != nil {
@@ -682,6 +691,19 @@ func (m *mongoCRUD) Delete(ctx *RestCtx, id string) error {
 		return errcode.ErrDBQuery("op", "table", err)
 	}
 	return ctx.SendStatus(204)
+}
+
+// offsetFilteredWhere merges JSON-mapped filters with tenant scoping for
+// offset queries. Unknown filter keys pass through; the table validates.
+func offsetFilteredWhere(info *db.TableInfo, filters map[string]string, tf, tid string) map[string]any {
+	where := makeFiltersMap(db.ResolveFilterColumns(info, filters))
+	if where == nil {
+		where = make(map[string]any)
+	}
+	if tf != "" && tid != "" {
+		where[tf] = tid
+	}
+	return where
 }
 
 // makeFiltersMap converts ListParams.Filters (map[string]string) to map[string]any.

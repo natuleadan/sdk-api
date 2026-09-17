@@ -387,16 +387,22 @@ func (t *Table[T]) ResolvePatch(patch map[string]any) map[string]any {
 	return ResolvePatchColumns(t.info, patch)
 }
 
-// ResolvePatchColumns maps PATCH keys (JSON names from request bodies) to
-// database column names using the struct tags. Keys that already match a
-// column pass through; unknown keys pass through unchanged so the caller's
-// validation (or the database) still rejects them.
-func ResolvePatchColumns(info *TableInfo, patch map[string]any) map[string]any {
-	resolved := make(map[string]any, len(patch))
+// ResolvePatchColumns maps PATCH/filter keys (JSON names from request bodies
+// and query strings) to database column names using the struct tags. Keys
+// that already match a column pass through; unknown keys pass through
+// unchanged so the caller's validation (or the database) still rejects them.
+func ResolvePatchColumns[V any](info *TableInfo, patch map[string]V) map[string]V {
+	resolved := make(map[string]V, len(patch))
 	for k, v := range patch {
 		resolved[resolveColumn(info, k)] = v
 	}
 	return resolved
+}
+
+// ResolveFilterColumns maps list filter keys (JSON names from query strings)
+// to database columns. Same rules as ResolvePatchColumns.
+func ResolveFilterColumns(info *TableInfo, filters map[string]string) map[string]string {
+	return ResolvePatchColumns(info, filters)
 }
 
 // resolveColumn maps one JSON key to its database column.

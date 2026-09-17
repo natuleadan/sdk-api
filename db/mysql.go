@@ -64,6 +64,90 @@ func (t *MySQLTable[T]) columnField(column string) *FieldInfo {
 	return nil
 }
 
+// QueryWhere lists rows matching all filters with limit/offset (offset
+// pagination). Column names are validated against the model.
+func (t *MySQLTable[T]) QueryWhere(ctx context.Context, where map[string]any, orderBy string, limit, offset int) ([]T, error) {
+	if orderBy == "" {
+		orderBy = t.info.PrimaryKey
+	} else if t.columnField(orderBy) == nil {
+		return nil, fmt.Errorf("db: mysql where: invalid column %q", orderBy)
+	}
+	var b strings.Builder
+	b.Grow(128)
+	b.WriteString("SELECT ")
+	b.WriteString(t.columnsList())
+	b.WriteString(" FROM ")
+	b.WriteString(t.tableName)
+	var args []any
+	first := true
+	for col, val := range where {
+		if t.columnField(col) == nil {
+			return nil, fmt.Errorf("db: mysql where: invalid column %q", col)
+		}
+		if first {
+			b.WriteString(" WHERE ")
+			first = false
+		} else {
+			b.WriteString(" AND ")
+		}
+		b.WriteString(col)
+		b.WriteString(" = ?")
+		args = append(args, val)
+	}
+	b.WriteString(" ORDER BY ")
+	b.WriteString(orderBy)
+	if limit > 0 {
+		fmt.Fprintf(&b, " LIMIT %d", limit)
+	}
+	if offset > 0 {
+		fmt.Fprintf(&b, " OFFSET %d", offset)
+	}
+	rows, err := t.db.QueryContext(ctx, b.String(), args...)
+	if err != nil {
+		return nil, fmt.Errorf("db: mysql where: %w", err)
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			fmt.Printf("close error: %v\n", err)
+		}
+	}()
+	return t.scanRows(rows)
+}
+
+// CountWhere counts rows matching all filters.
+func (t *MySQLTable[T]) CountWhere(ctx context.Context, where map[string]any) (int64, error) {
+	var b strings.Builder
+	b.Grow(64)
+	b.WriteString("SELECT COUNT(*) FROM ")
+	b.WriteString(t.tableName)
+	var args []any
+	first := true
+	for col, val := range where {
+		if t.columnField(col) == nil {
+			return 0, fmt.Errorf("db: mysql count: invalid column %q", col)
+		}
+		if first {
+			b.WriteString(" WHERE ")
+			first = false
+		} else {
+			b.WriteString(" AND ")
+		}
+		b.WriteString(col)
+		b.WriteString(" = ?")
+		args = append(args, val)
+	}
+	var total int64
+	if err := t.db.QueryRowContext(ctx, b.String(), args...).Scan(&total); err != nil {
+		return 0, fmt.Errorf("db: mysql count: %w", err)
+	}
+	return total, nil
+}
+
+// TableInfo exposes the parsed struct metadata (columns, tags).
+func (t *MySQLTable[T]) TableInfo() *TableInfo {
+	return t.info
+}
+
 func (t *MySQLTable[T]) AutoInit(ctx context.Context) error {
 	var parts []string
 	var indexes []string

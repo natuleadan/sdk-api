@@ -109,8 +109,17 @@ func TestIdempot_SelfTransfer(t *testing.T) {
 		fmt.Sprintf(`{"from_account_id":"%s","to_account_id":"%s","amount":10,"idempotency_key":"self"}`, ac, ac), demoToken)
 	st := int(r["_status"].(float64))
 	if st == 201 {
-		bal := doJSONAuth("GET", baseURL["account"]+"/api/v1/accounts/"+ac+"/balance", "", demoToken)
-		bv, _ := bal["balance"].(float64)
+		// The debit/credit pair completes asynchronously via NATS: poll
+		// until the balance settles instead of asserting mid-flight.
+		bv := -1.0
+		for i := 0; i < 50; i++ {
+			bal := doJSONAuth("GET", baseURL["account"]+"/api/v1/accounts/"+ac+"/balance", "", demoToken)
+			bv, _ = bal["balance"].(float64)
+			if bv == 1000 {
+				break
+			}
+			time.Sleep(200 * time.Millisecond)
+		}
 		if bv != 1000 {
 			t.Errorf("self-transfer changed balance from 1000 to %.0f", bv)
 		}

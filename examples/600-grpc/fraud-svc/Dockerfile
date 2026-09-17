@@ -1,9 +1,9 @@
-FROM golang:1.26-alpine AS builder
+FROM golang:1.27-alpine AS builder
 RUN apk add --no-cache protobuf protoc
 RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && \
     go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 WORKDIR /build
-ARG SDK_VERSION=v0.24.0
+ARG SDK_VERSION=v0.26.0
 COPY sdk-api/examples/600-grpc ./
 RUN go mod edit -require=github.com/natuleadan/sdk-api@${SDK_VERSION} && go mod tidy && go mod download
 RUN protoc --proto_path=proto --go_out=. --go_opt=module=600-grpc --go-grpc_out=. --go-grpc_opt=module=600-grpc proto/*.proto

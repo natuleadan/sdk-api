@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/gofiber/contrib/v3/websocket"
-	"github.com/gofiber/fiber/v3"
 	"github.com/natuleadan/sdk-api/runtime"
 )
 
@@ -97,40 +96,40 @@ func NewProductCRUD() runtime.CRUDProvider {
 	return &ProductCRUD{items: map[string]Product{}}
 }
 
-func (p *ProductCRUD) List(c fiber.Ctx, params runtime.ListParams) error {
+func (p *ProductCRUD) List(c *runtime.RestCtx, params runtime.ListParams) error {
 	out := make([]Product, 0, len(p.items))
 	for _, v := range p.items {
 		out = append(out, v)
 	}
-	return c.JSON(fiber.Map{"items": out})
+	return c.JSON(runtime.Map{"items": out})
 }
 
-func (p *ProductCRUD) Get(c fiber.Ctx, id string) error {
+func (p *ProductCRUD) Get(c *runtime.RestCtx, id string) error {
 	item, ok := p.items[id]
 	if !ok {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "not found"})
+		return c.Status(404).JSON(runtime.Map{"error": "not found"})
 	}
 	return c.JSON(item)
 }
 
-func (p *ProductCRUD) Create(c fiber.Ctx, body []byte) error {
+func (p *ProductCRUD) Create(c *runtime.RestCtx, body []byte) error {
 	p.seq++
 	id := fmt.Sprintf("prod-%d", p.seq)
 	p.items[id] = Product{ID: id, Name: fmt.Sprintf("product-%d", p.seq), Price: p.seq * 10}
-	return c.JSON(fiber.Map{"id": id})
+	return c.JSON(runtime.Map{"id": id})
 }
 
-func (p *ProductCRUD) Update(c fiber.Ctx, id string, body []byte) error {
+func (p *ProductCRUD) Update(c *runtime.RestCtx, id string, body []byte) error {
 	item, ok := p.items[id]
 	if !ok {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "not found"})
+		return c.Status(404).JSON(runtime.Map{"error": "not found"})
 	}
 	item.Price++
 	p.items[id] = item
 	return c.JSON(item)
 }
 
-func (p *ProductCRUD) Delete(c fiber.Ctx, id string) error {
+func (p *ProductCRUD) Delete(c *runtime.RestCtx, id string) error {
 	delete(p.items, id)
-	return c.SendStatus(fiber.StatusNoContent)
+	return c.SendStatus(204)
 }

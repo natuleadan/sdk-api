@@ -113,3 +113,31 @@ func TestToSnake(t *testing.T) {
 		}
 	}
 }
+
+func TestResolvePatchColumns(t *testing.T) {
+	info, err := parseStruct[TursoLinkPatch]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	patch := map[string]any{"targetUrl": "https://new.example.com", "id": int64(7)}
+	got := ResolvePatchColumns(info, patch)
+	if got["target_url"] != "https://new.example.com" {
+		t.Errorf("targetUrl mapped to %v", got)
+	}
+	if got["id"] != int64(7) {
+		t.Errorf("column key changed: %v", got)
+	}
+	if _, ok := got["targetUrl"]; ok {
+		t.Errorf("json key leaked through: %v", got)
+	}
+	unknown := ResolvePatchColumns(info, map[string]any{"nope": 1})
+	if _, ok := unknown["nope"]; !ok {
+		t.Errorf("unknown key should pass through: %v", unknown)
+	}
+}
+
+type TursoLinkPatch struct {
+	ID        int64  `db:"id,primary,auto" json:"id"`
+	ShortCode string `db:"short_code" json:"shortCode"`
+	TargetURL string `db:"target_url" json:"targetUrl"`
+}

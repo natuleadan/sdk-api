@@ -243,6 +243,7 @@ func (t *Table[T]) Update(ctx context.Context, id any, patch map[string]any) (*T
 	if len(patch) >= math.MaxInt {
 		return nil, fmt.Errorf("db: update: too many fields")
 	}
+	patch = ResolvePatchColumns(t.info, patch)
 	n := len(patch) + 1
 
 	idx := 1
@@ -288,6 +289,7 @@ func (t *Table[T]) UpdateScoped(ctx context.Context, id any, patch map[string]an
 	if len(patch) == 0 {
 		return nil, fmt.Errorf("db: update: no fields")
 	}
+	patch = ResolvePatchColumns(t.info, patch)
 
 	idx := 1
 	var sets []string
@@ -382,11 +384,36 @@ func (t *Table[T]) ResolveColumn(jsonKey string) string {
 }
 
 func (t *Table[T]) ResolvePatch(patch map[string]any) map[string]any {
+	return ResolvePatchColumns(t.info, patch)
+}
+
+// ResolvePatchColumns maps PATCH keys (JSON names from request bodies) to
+// database column names using the struct tags. Keys that already match a
+// column pass through; unknown keys pass through unchanged so the caller's
+// validation (or the database) still rejects them.
+func ResolvePatchColumns(info *TableInfo, patch map[string]any) map[string]any {
 	resolved := make(map[string]any, len(patch))
 	for k, v := range patch {
-		resolved[t.ResolveColumn(k)] = v
+		resolved[resolveColumn(info, k)] = v
 	}
 	return resolved
+}
+
+// resolveColumn maps one JSON key to its database column.
+func resolveColumn(info *TableInfo, jsonKey string) string {
+	for _, f := range info.Fields {
+		tag := f.Tags.Get("json")
+		if tag == "" {
+			if f.Column == jsonKey {
+				return f.Column
+			}
+			continue
+		}
+		if name, _, _ := strings.Cut(tag, ","); name == jsonKey {
+			return f.Column
+		}
+	}
+	return jsonKey
 }
 
 func (t *Table[T]) TableInfo() *TableInfo {

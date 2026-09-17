@@ -474,6 +474,7 @@ func (t *MySQLTable[T]) Update(ctx context.Context, id any, patch map[string]any
 	if len(patch) == 0 {
 		return nil, fmt.Errorf("db: mysql update: no fields")
 	}
+	patch = ResolvePatchColumns(t.info, patch)
 	var sets []string
 	var args []any
 	for col, val := range patch {
@@ -570,6 +571,7 @@ func (t *MySQLTable[T]) UpdateScoped(ctx context.Context, id any, patch map[stri
 	if len(patch) == 0 {
 		return nil, fmt.Errorf("db: mysql update scoped: no fields")
 	}
+	patch = ResolvePatchColumns(t.info, patch)
 	var sets []string
 	var args []any
 	for col, val := range patch {

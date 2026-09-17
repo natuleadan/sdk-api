@@ -483,3 +483,40 @@ func TestTursoTableValidColumn(t *testing.T) {
 		t.Error("expected error for injection column")
 	}
 }
+
+func TestTursoTableUpdateJSONKeys(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "updatejson.db")
+	table, err := NewTursoTable[TursoLinkPatch](dbPath, "test_updatejson")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer table.Close()
+	ctx := context.Background()
+	if err := table.AutoInit(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	row := TursoLinkPatch{ShortCode: "abc123", TargetURL: "https://old.example.com"}
+	if err := table.Create(ctx, &row); err != nil {
+		t.Fatal(err)
+	}
+
+	updated, err := table.Update(ctx, row.ID, map[string]any{"targetUrl": "https://new.example.com"})
+	if err != nil {
+		t.Fatalf("Update with JSON key: %v", err)
+	}
+	if updated.TargetURL != "https://new.example.com" {
+		t.Errorf("expected updated URL, got %q", updated.TargetURL)
+	}
+	got, err := table.Get(ctx, row.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.TargetURL != "https://new.example.com" {
+		t.Errorf("expected persisted URL, got %q", got.TargetURL)
+	}
+
+	if _, err := table.Update(ctx, row.ID, map[string]any{"nope": 1}); err == nil {
+		t.Error("expected error for unknown column, got nil")
+	}
+}

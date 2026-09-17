@@ -51,6 +51,10 @@ type Config struct {
 	RecoverStack     bool
 	APIPrefix        string
 	Routes           []RouteConfig
+	// TrustedProxies lists proxy IPs/CIDRs (Bunny, Traefik, Nginx) trusted
+	// for X-Forwarded-For client IP detection (per-IP rate limiting, logs).
+	// Empty (default) keeps direct-remote-IP behavior.
+	TrustedProxies []string
 
 	Logger            bool
 	LoadShedding      bool
@@ -224,7 +228,7 @@ func New(cfg Config, telemetry TelemetryConfig, security SecurityConfig, corsCfg
 		cfg.ShutdownTimeout = 10 * time.Second
 	}
 
-	app := fiber.New(fiber.Config{
+	appCfg := fiber.Config{
 		BodyLimit:         cfg.BodyLimit,
 		ReadTimeout:       cfg.ReadTimeout,
 		WriteTimeout:      cfg.WriteTimeout,
@@ -232,7 +236,13 @@ func New(cfg Config, telemetry TelemetryConfig, security SecurityConfig, corsCfg
 		ErrorHandler:      errorHandler,
 		StreamRequestBody: cfg.StreamRequestBody,
 		ReduceMemoryUsage: cfg.ReduceMemoryUsage,
-	})
+	}
+	if len(cfg.TrustedProxies) > 0 {
+		appCfg.TrustProxy = true
+		appCfg.TrustProxyConfig = fiber.TrustProxyConfig{Proxies: cfg.TrustedProxies}
+		appCfg.ProxyHeader = "X-Forwarded-For"
+	}
+	app := fiber.New(appCfg)
 
 	s := &Server{app: app, config: cfg}
 	setupGlobalMiddlewares(app, cfg, telemetry, s)

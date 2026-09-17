@@ -192,6 +192,10 @@ type ServerConf struct {
 	RecoverStack bool `json:"recover_stack" config:",default=true"`
 	// APIPrefix is a constant.
 	APIPrefix string `json:"api_prefix" config:",default=/api"`
+	// TrustedProxies lists proxy IPs/CIDRs trusted for X-Forwarded-For
+	// client IP detection. Required behind Bunny/Traefik/Nginx, otherwise
+	// per-IP rate limiting sees only the proxy IP. Empty by default.
+	TrustedProxies []string `json:"trusted_proxies" config:",optional"`
 	// CORS is a constant.
 	CORS *CORSConf `json:"cors" config:",optional"`
 	// CORSGroups is a list of named CORS policies that routes can reference.

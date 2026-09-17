@@ -1280,3 +1280,34 @@ func TestCustomPathOverride(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
+
+func TestTrustedProxiesClientIP(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+
+	newIPApp := func(cfg Config) *Server {
+		app := New(cfg, TelemetryConfig{}, SecurityConfig{}, nil)
+		app.app.Get("/ip", func(c fiber.Ctx) error { return c.SendString(c.IP()) })
+		return app
+	}
+	ipOf := func(app *Server, forwardedFor string) string {
+		t.Helper()
+		req := testRequest("/ip")
+		if forwardedFor != "" {
+			req.Header.Set("X-Forwarded-For", forwardedFor)
+		}
+		resp, err := app.app.Test(req)
+		require.NoError(t, err)
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		return string(body)
+	}
+
+	trusted := DefaultConfig()
+	trusted.TrustedProxies = []string{"0.0.0.0/0"}
+	trustedApp := newIPApp(trusted)
+	assert.Equal(t, "203.0.113.9", ipOf(trustedApp, "203.0.113.9"))
+
+	plainApp := newIPApp(DefaultConfig())
+	assert.NotEqual(t, "203.0.113.9", ipOf(plainApp, "203.0.113.9"))
+}

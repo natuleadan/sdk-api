@@ -31,14 +31,14 @@ func TestAdaptiveShedder(t *testing.T) {
 	DisableLog()
 	shedder := NewAdaptiveShedder(WithWindow(bucketDuration), WithBuckets(buckets), WithCpuThreshold(100))
 	var wg sync.WaitGroup
-	var drop int64
+	var drop atomic.Int64
 	proba := mathx.NewProba()
 	for range 100 {
 		wg.Go(func() {
 			for range 30 {
 				promise, err := shedder.Allow()
 				if err != nil {
-					atomic.AddInt64(&drop, 1)
+					drop.Add(1)
 				} else {
 					count := rand.Intn(5)
 					time.Sleep(time.Millisecond * time.Duration(count))

@@ -227,10 +227,10 @@ func TestTimingWheel_SetTimer(t *testing.T) {
 		t.Run(stringx.RandId(), func(t *testing.T) {
 			t.Parallel()
 
-			var count int32
+			var count atomic.Int32
 			ticker := timex.NewFakeTicker()
 			tick := func() {
-				atomic.AddInt32(&count, 1)
+				count.Add(1)
 				ticker.Tick()
 				time.Sleep(time.Millisecond)
 			}
@@ -239,7 +239,7 @@ func TestTimingWheel_SetTimer(t *testing.T) {
 			tw, err := NewTimingWheelWithTicker(testStep, test.slots, func(key, value any) {
 				assert.Equal(t, 1, key.(int))
 				assert.Equal(t, 2, value.(int))
-				actual = atomic.LoadInt32(&count)
+				actual = count.Load()
 				close(done)
 			}, ticker)
 			require.NoError(t, err)
@@ -307,17 +307,17 @@ func TestTimingWheel_SetAndMoveThenStart(t *testing.T) {
 		t.Run(stringx.RandId(), func(t *testing.T) {
 			t.Parallel()
 
-			var count int32
+			var count atomic.Int32
 			ticker := timex.NewFakeTicker()
 			tick := func() {
-				atomic.AddInt32(&count, 1)
+				count.Add(1)
 				ticker.Tick()
 				time.Sleep(time.Millisecond * 10)
 			}
 			var actual int32
 			done := make(chan lang.PlaceholderType)
 			tw, err := NewTimingWheelWithTicker(testStep, test.slots, func(key, value any) {
-				actual = atomic.LoadInt32(&count)
+				actual = count.Load()
 				close(done)
 			}, ticker)
 			require.NoError(t, err)
@@ -394,17 +394,17 @@ func TestTimingWheel_SetAndMoveTwice(t *testing.T) {
 		t.Run(stringx.RandId(), func(t *testing.T) {
 			t.Parallel()
 
-			var count int32
+			var count atomic.Int32
 			ticker := timex.NewFakeTicker()
 			tick := func() {
-				atomic.AddInt32(&count, 1)
+				count.Add(1)
 				ticker.Tick()
 				time.Sleep(time.Millisecond * 10)
 			}
 			var actual int32
 			done := make(chan lang.PlaceholderType)
 			tw, err := NewTimingWheelWithTicker(testStep, test.slots, func(key, value any) {
-				actual = atomic.LoadInt32(&count)
+				actual = count.Load()
 				close(done)
 			}, ticker)
 			require.NoError(t, err)
@@ -474,17 +474,17 @@ func TestTimingWheel_ElapsedAndSet(t *testing.T) {
 		t.Run(stringx.RandId(), func(t *testing.T) {
 			t.Parallel()
 
-			var count int32
+			var count atomic.Int32
 			ticker := timex.NewFakeTicker()
 			tick := func() {
-				atomic.AddInt32(&count, 1)
+				count.Add(1)
 				ticker.Tick()
 				time.Sleep(time.Millisecond * 10)
 			}
 			var actual int32
 			done := make(chan lang.PlaceholderType)
 			tw, err := NewTimingWheelWithTicker(testStep, test.slots, func(key, value any) {
-				actual = atomic.LoadInt32(&count)
+				actual = count.Load()
 				close(done)
 			}, ticker)
 			require.NoError(t, err)
@@ -564,17 +564,17 @@ func TestTimingWheel_ElapsedAndSetThenMove(t *testing.T) {
 		t.Run(stringx.RandId(), func(t *testing.T) {
 			t.Parallel()
 
-			var count int32
+			var count atomic.Int32
 			ticker := timex.NewFakeTicker()
 			tick := func() {
-				atomic.AddInt32(&count, 1)
+				count.Add(1)
 				ticker.Tick()
 				time.Sleep(time.Millisecond * 10)
 			}
 			var actual int32
 			done := make(chan lang.PlaceholderType)
 			tw, err := NewTimingWheelWithTicker(testStep, test.slots, func(key, value any) {
-				actual = atomic.LoadInt32(&count)
+				actual = count.Load()
 				close(done)
 			}, ticker)
 			require.NoError(t, err)

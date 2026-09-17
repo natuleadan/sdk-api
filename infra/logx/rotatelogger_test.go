@@ -106,9 +106,7 @@ func TestSizeLimitRotateRuleOutdatedFiles(t *testing.T) {
 
 	t.Run("bad files", func(t *testing.T) {
 		rule := SizeLimitRotateRule{
-			DailyRotateRule: DailyRotateRule{
-				filename: "[a-z",
-			},
+			filename: "[a-z",
 		}
 		assert.Empty(t, rule.OutdatedFiles())
 		rule.days = 1
@@ -135,10 +133,8 @@ func TestSizeLimitRotateRuleOutdatedFiles(t *testing.T) {
 			_ = os.Remove(f3.Name())
 		})
 		rule := SizeLimitRotateRule{
-			DailyRotateRule: DailyRotateRule{
-				filename: path.Join(os.TempDir(), "go-zero-test-"),
-				days:     1,
-			},
+			filename:   path.Join(os.TempDir(), "go-zero-test-"),
+			days:       1,
 			maxBackups: 3,
 		}
 		assert.NotEmpty(t, rule.OutdatedFiles())
@@ -162,10 +158,8 @@ func TestSizeLimitRotateRuleOutdatedFiles(t *testing.T) {
 			_ = os.Remove(f3.Name())
 		})
 		rule := SizeLimitRotateRule{
-			DailyRotateRule: DailyRotateRule{
-				filename: path.Join(os.TempDir(), "go-zero-test-"),
-				days:     1,
-			},
+			filename: path.Join(os.TempDir(), "go-zero-test-"),
+			days:     1,
 		}
 		assert.NotEmpty(t, rule.OutdatedFiles())
 
@@ -487,10 +481,10 @@ func TestGzipFile(t *testing.T) {
 	})
 
 	t.Run("gzip file last close failed", func(t *testing.T) {
-		var called int32
+		var called atomic.Int32
 		fsys := &fakeFileSystem{
 			closeFn: func(closer io.Closer) error {
-				if atomic.AddInt32(&called, 1) > 2 {
+				if called.Add(1) > 2 {
 					return err
 				}
 				return nil
@@ -585,7 +579,7 @@ func BenchmarkRotateLogger(b *testing.B) {
 }
 
 type fakeFileSystem struct {
-	removed  int32
+	removed  atomic.Int32
 	closeFn  func(closer io.Closer) error
 	copyFn   func(writer io.Writer, reader io.Reader) (int64, error)
 	createFn func(name string) (*os.File, error)
@@ -622,7 +616,7 @@ func (f *fakeFileSystem) Open(name string) (*os.File, error) {
 }
 
 func (f *fakeFileSystem) Remove(name string) error {
-	atomic.AddInt32(&f.removed, 1)
+	f.removed.Add(1)
 
 	if f.removeFn != nil {
 		return f.removeFn(name)
@@ -631,5 +625,5 @@ func (f *fakeFileSystem) Remove(name string) error {
 }
 
 func (f *fakeFileSystem) Removed() bool {
-	return atomic.LoadInt32(&f.removed) > 0
+	return f.removed.Load() > 0
 }

@@ -142,15 +142,13 @@ func (r *DailyRotateRule) ShallRotate(_ int64) bool {
 // NewSizeLimitRotateRule returns the rotation rule with size limit
 func NewSizeLimitRotateRule(filename, delimiter string, days, maxSize, maxBackups int, gzip bool) RotateRule {
 	return &SizeLimitRotateRule{
-		DailyRotateRule: DailyRotateRule{
-			rotatedTime: getNowDateInRFC3339Format(),
-			filename:    filename,
-			delimiter:   delimiter,
-			days:        days,
-			gzip:        gzip,
-		},
-		maxSize:    int64(maxSize) * megaBytes,
-		maxBackups: maxBackups,
+		rotatedTime: getNowDateInRFC3339Format(),
+		filename:    filename,
+		delimiter:   delimiter,
+		days:        days,
+		gzip:        gzip,
+		maxSize:     int64(maxSize) * megaBytes,
+		maxBackups:  maxBackups,
 	}
 }
 

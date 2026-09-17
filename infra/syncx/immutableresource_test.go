@@ -64,10 +64,10 @@ func TestImmutableResourceError(t *testing.T) {
 // and wait another to pass the read lock before it gets the write lock.
 func TestImmutableResourceConcurrent(t *testing.T) {
 	const message = "hello"
-	var count int32
+	var count atomic.Int32
 	ready := make(chan struct{})
 	r := NewImmutableResource(func() (any, error) {
-		atomic.AddInt32(&count, 1)
+		count.Add(1)
 		close(ready)                      // signal that fetch started
 		time.Sleep(10 * time.Millisecond) // simulate slow fetch
 		return message, nil
@@ -94,7 +94,7 @@ func TestImmutableResourceConcurrent(t *testing.T) {
 	wg.Wait()
 
 	// fetch should only be called once despite concurrent access
-	assert.Equal(t, int32(1), atomic.LoadInt32(&count))
+	assert.Equal(t, int32(1), count.Load())
 
 	// all goroutines should eventually get the same result
 	for i := range goroutines {

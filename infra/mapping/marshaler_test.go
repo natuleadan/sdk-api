@@ -42,9 +42,7 @@ func TestMarshal_Anonymous(t *testing.T) {
 			Name:    "kevin",
 			Address: "shanghai",
 			Age:     20,
-			BaseHeader: BaseHeader{
-				Token: "token_xxx",
-			},
+			Token:   "token_xxx",
 		}
 		m, err := Marshal(v)
 		require.NoError(t, err)
@@ -82,12 +80,8 @@ func TestMarshal_Anonymous(t *testing.T) {
 			Name:    "kevin",
 			Address: "shanghai",
 			Age:     20,
-			BaseHeader: BaseHeader{
-				Token: "token_xxx",
-			},
-			AnotherHeader: AnotherHeader{
-				Version: "v1.0",
-			},
+			Token:   "token_xxx",
+			Version: "v1.0",
 		}
 		m2, err2 := Marshal(v2)
 		assert.NoError(t, err2)
@@ -110,9 +104,7 @@ func TestMarshal_Anonymous(t *testing.T) {
 			Name:    "kevin",
 			Address: "shanghai",
 			Age:     20,
-			PointerHeader: PointerHeader{
-				Ref: &ref,
-			},
+			Ref:     &ref,
 		}
 		m3, err3 := Marshal(v3)
 		assert.NoError(t, err3)
@@ -136,9 +128,7 @@ func TestMarshal_Anonymous(t *testing.T) {
 			Name:    "kevin",
 			Address: "shanghai",
 			Age:     20,
-			BaseHeader: BaseHeader{
-				Token: "c",
-			},
+			Token:   "c",
 		}
 
 		_, err := Marshal(v)

@@ -37,7 +37,7 @@ type (
 		// avoid race condition on waitGroup when calling wg.Add/Done/Wait(...)
 		wgBarrier   syncx.Barrier
 		confirmChan chan lang.PlaceholderType
-		inflight    int32
+		inflight    atomic.Int32
 		guarded     bool
 		newTicker   func(duration time.Duration) timex.Ticker
 		lock        sync.Mutex
@@ -106,7 +106,7 @@ func (pe *PeriodicalExecutor) addAndCheck(task any) (any, bool) {
 	}()
 
 	if pe.container.AddTask(task) {
-		atomic.AddInt32(&pe.inflight, 1)
+		pe.inflight.Add(1)
 		return pe.container.RemoveAll(), true
 	}
 
@@ -127,7 +127,7 @@ func (pe *PeriodicalExecutor) backgroundFlush() {
 			select {
 			case vals := <-pe.commander:
 				commanded = true
-				atomic.AddInt32(&pe.inflight, -1)
+				pe.inflight.Add(-1)
 				pe.enterExecution()
 				pe.confirmChan <- lang.Placeholder
 				pe.executeTasks(vals)
@@ -191,7 +191,7 @@ func (pe *PeriodicalExecutor) shallQuit(last time.Duration) (stop bool) {
 
 	// checking pe.inflight and setting pe.guarded should be locked together
 	pe.lock.Lock()
-	if atomic.LoadInt32(&pe.inflight) == 0 {
+	if pe.inflight.Load() == 0 {
 		pe.guarded = false
 		stop = true
 	}

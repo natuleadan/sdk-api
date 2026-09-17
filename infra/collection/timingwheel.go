@@ -146,10 +146,8 @@ func (tw *TimingWheel) SetTimer(key, value any, delay time.Duration) error {
 
 	select {
 	case tw.setChannel <- timingEntry{
-		baseEntry: baseEntry{
-			delay: delay,
-			key:   key,
-		},
+		delay: delay,
+		key:   key,
 		value: value,
 	}:
 		return nil

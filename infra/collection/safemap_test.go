@@ -137,13 +137,13 @@ func TestSafeMap_Range(t *testing.T) {
 		}
 	}
 
-	var count int32
+	var count atomic.Int32
 	m.Range(func(k, v any) bool {
-		atomic.AddInt32(&count, 1)
+		count.Add(1)
 		newMap.Set(k, v)
 		return true
 	})
-	assert.Equal(t, int(atomic.LoadInt32(&count)), m.Size())
+	assert.Equal(t, int(count.Load()), m.Size())
 	assert.Equal(t, m.dirtyNew, newMap.dirtyNew)
 	assert.Equal(t, m.dirtyOld, newMap.dirtyOld)
 }

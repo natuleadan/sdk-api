@@ -37,8 +37,7 @@ func testError(t *testing.T, err error, wantCode string, wantStatus int, wantPub
 		t.Fatal("expected error, got nil")
 	}
 
-	var fe *fiber.Error
-	if errors.As(err, &fe) {
+	if fe, ok := errors.AsType[*fiber.Error](err); ok {
 		if fe.Code != wantStatus {
 			t.Errorf("fiber error code: expected %d, got %d", wantStatus, fe.Code)
 		}
@@ -46,8 +45,7 @@ func testError(t *testing.T, err error, wantCode string, wantStatus int, wantPub
 		t.Errorf("expected fiber.Error, got %T", err)
 	}
 
-	var oo oops.OopsError
-	if errors.As(err, &oo) {
+	if oo, ok := errors.AsType[oops.OopsError](err); ok {
 		if c := oo.Code(); c != wantCode {
 			t.Errorf("oops code: expected %q, got %v", wantCode, c)
 		}

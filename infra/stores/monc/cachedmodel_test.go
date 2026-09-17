@@ -28,10 +28,8 @@ func TestMustNewModel(t *testing.T) {
 	assert.Panics(t, func() {
 		MustNewModel("foo", "db", "collectino", cache.CacheConf{
 			cache.NodeConf{
-				RedisConf: redis.RedisConf{
-					Host: s.Addr(),
-					Type: redis.NodeType,
-				},
+				Host:   s.Addr(),
+				Type:   redis.NodeType,
 				Weight: 100,
 			},
 		})
@@ -55,10 +53,8 @@ func TestNewModel(t *testing.T) {
 	require.NoError(t, err)
 	_, err = NewModel("foo", "db", "coll", cache.CacheConf{
 		cache.NodeConf{
-			RedisConf: redis.RedisConf{
-				Host: s.Addr(),
-				Type: redis.NodeType,
-			},
+			Host:   s.Addr(),
+			Type:   redis.NodeType,
 			Weight: 100,
 		},
 	})
@@ -519,15 +515,13 @@ func TestModel_UpdateOneNoCache(t *testing.T) {
 func createModel(t *testing.T, coll mon.Collection) *Model {
 	s, err := miniredis.Run()
 	require.NoError(t, err)
-	if atomic.AddInt32(&index, 1)%2 == 0 {
+	if index.Add(1)%2 == 0 {
 		return mustNewTestNodeModel(coll, redis.MustNewRedis(redis.RedisConf{Host: s.Addr(), Type: redis.NodeType}))
 	} else {
 		return mustNewTestModel(coll, cache.CacheConf{
 			cache.NodeConf{
-				RedisConf: redis.RedisConf{
-					Host: s.Addr(),
-					Type: redis.NodeType,
-				},
+				Host:   s.Addr(),
+				Type:   redis.NodeType,
 				Weight: 100,
 			},
 		})
@@ -557,7 +551,7 @@ func mustNewTestNodeModel(collection mon.Collection, rds *redis.Redis, opts ...c
 
 var (
 	errMocked = errors.New("mocked error")
-	index     int32
+	index     atomic.Int32
 )
 
 type mockedCache struct {

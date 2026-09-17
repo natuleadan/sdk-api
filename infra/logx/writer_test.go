@@ -269,11 +269,11 @@ func TestLogWithSensitive(t *testing.T) {
 }
 
 func TestLogWithLimitContentLength(t *testing.T) {
-	maxLen := atomic.LoadUint32(&maxContentLength)
-	atomic.StoreUint32(&maxContentLength, 10)
+	maxLen := maxContentLength.Load()
+	maxContentLength.Store(10)
 
 	t.Cleanup(func() {
-		atomic.StoreUint32(&maxContentLength, maxLen)
+		maxContentLength.Store(maxLen)
 	})
 
 	t.Run("alert", func(t *testing.T) {

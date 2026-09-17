@@ -47,12 +47,12 @@ func (c *container) RemoveAll() any {
 }
 
 func TestPeriodicalExecutor_Sync(t *testing.T) {
-	var done int32
+	var done atomic.Int32
 	exec := NewPeriodicalExecutor(time.Second, newContainer(time.Millisecond*500, nil))
 	exec.Sync(func() {
-		atomic.AddInt32(&done, 1)
+		done.Add(1)
 	})
-	assert.Equal(t, int32(1), atomic.LoadInt32(&done))
+	assert.Equal(t, int32(1), done.Load())
 }
 
 func TestPeriodicalExecutor_QuitGoroutine(t *testing.T) {

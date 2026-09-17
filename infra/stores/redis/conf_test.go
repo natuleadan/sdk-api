@@ -15,49 +15,39 @@ func TestRedisConf(t *testing.T) {
 	}{
 		{
 			name: "missing host",
-			RedisConf: RedisConf{
-				Host: "",
-				Type: NodeType,
-				Pass: "",
-			},
-			ok: false,
+			Host: "",
+			Type: NodeType,
+			Pass: "",
+			ok:   false,
 		},
 		{
 			name: "missing type",
-			RedisConf: RedisConf{
-				Host: "localhost:6379",
-				Type: "",
-				Pass: "",
-			},
-			ok: false,
+			Host: "localhost:6379",
+			Type: "",
+			Pass: "",
+			ok:   false,
 		},
 		{
 			name: "ok",
-			RedisConf: RedisConf{
-				Host: "localhost:6379",
-				Type: NodeType,
-				Pass: "",
-			},
-			ok: true,
+			Host: "localhost:6379",
+			Type: NodeType,
+			Pass: "",
+			ok:   true,
 		},
 		{
 			name: "ok",
-			RedisConf: RedisConf{
-				Host: "localhost:6379",
-				Type: ClusterType,
-				Pass: "pwd",
-				Tls:  true,
-			},
-			ok: true,
+			Host: "localhost:6379",
+			Type: ClusterType,
+			Pass: "pwd",
+			Tls:  true,
+			ok:   true,
 		},
 		{
-			name: "sentinel",
-			RedisConf: RedisConf{
-				Host:       "host1:26379,host2:26379",
-				Type:       SentinelType,
-				MasterName: "mymaster",
-			},
-			ok: true,
+			name:       "sentinel",
+			Host:       "host1:26379,host2:26379",
+			Type:       SentinelType,
+			MasterName: "mymaster",
+			ok:         true,
 		},
 	}
 
@@ -81,39 +71,27 @@ func TestRedisKeyConf(t *testing.T) {
 	}{
 		{
 			name: "missing host",
-			RedisKeyConf: RedisKeyConf{
-				RedisConf: RedisConf{
-					Host: "",
-					Type: NodeType,
-					Pass: "",
-				},
-				Key: "foo",
-			},
-			ok: false,
+			Host: "",
+			Type: NodeType,
+			Pass: "",
+			Key:  "foo",
+			ok:   false,
 		},
 		{
 			name: "missing key",
-			RedisKeyConf: RedisKeyConf{
-				RedisConf: RedisConf{
-					Host: "localhost:6379",
-					Type: NodeType,
-					Pass: "",
-				},
-				Key: "",
-			},
-			ok: false,
+			Host: "localhost:6379",
+			Type: NodeType,
+			Pass: "",
+			Key:  "",
+			ok:   false,
 		},
 		{
 			name: "ok",
-			RedisKeyConf: RedisKeyConf{
-				RedisConf: RedisConf{
-					Host: "localhost:6379",
-					Type: NodeType,
-					Pass: "",
-				},
-				Key: "foo",
-			},
-			ok: true,
+			Host: "localhost:6379",
+			Type: NodeType,
+			Pass: "",
+			Key:  "foo",
+			ok:   true,
 		},
 	}
 

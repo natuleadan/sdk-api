@@ -117,17 +117,13 @@ func TestCache_SetDel(t *testing.T) {
 		r2 := redistest.CreateRedis(t)
 		conf := ClusterConf{
 			{
-				RedisConf: redis.RedisConf{
-					Host: r1.Addr,
-					Type: redis.NodeType,
-				},
+				Host:   r1.Addr,
+				Type:   redis.NodeType,
 				Weight: 100,
 			},
 			{
-				RedisConf: redis.RedisConf{
-					Host: r2.Addr,
-					Type: redis.NodeType,
-				},
+				Host:   r2.Addr,
+				Type:   redis.NodeType,
 				Weight: 100,
 			},
 		}
@@ -167,17 +163,13 @@ func TestCache_SetDel(t *testing.T) {
 
 		conf := ClusterConf{
 			{
-				RedisConf: redis.RedisConf{
-					Host: r1.Addr(),
-					Type: redis.NodeType,
-				},
+				Host:   r1.Addr(),
+				Type:   redis.NodeType,
 				Weight: 100,
 			},
 			{
-				RedisConf: redis.RedisConf{
-					Host: r2.Addr(),
-					Type: redis.NodeType,
-				},
+				Host:   r2.Addr(),
+				Type:   redis.NodeType,
 				Weight: 100,
 			},
 		}
@@ -193,10 +185,8 @@ func TestCache_OneNode(t *testing.T) {
 	r := redistest.CreateRedis(t)
 	conf := ClusterConf{
 		{
-			RedisConf: redis.RedisConf{
-				Host: r.Addr,
-				Type: redis.NodeType,
-			},
+			Host:   r.Addr,
+			Type:   redis.NodeType,
 			Weight: 100,
 		},
 	}

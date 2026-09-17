@@ -40,9 +40,9 @@ func TestExclusiveCallDoErr(t *testing.T) {
 func TestExclusiveCallDoDupSuppress(t *testing.T) {
 	g := NewSingleFlight()
 	c := make(chan string)
-	var calls int32
+	var calls atomic.Int32
 	fn := func() (any, error) {
-		atomic.AddInt32(&calls, 1)
+		calls.Add(1)
 		v := <-c
 		if time.Now().UnixNano() < 0 {
 			return nil, io.EOF
@@ -66,7 +66,7 @@ func TestExclusiveCallDoDupSuppress(t *testing.T) {
 	time.Sleep(100 * time.Millisecond) // let goroutines above block
 	c <- "bar"
 	wg.Wait()
-	if got := atomic.LoadInt32(&calls); got != 1 {
+	if got := calls.Load(); got != 1 {
 		t.Errorf("number of calls = %d; want 1", got)
 	}
 }
@@ -74,7 +74,7 @@ func TestExclusiveCallDoDupSuppress(t *testing.T) {
 func TestExclusiveCallDoDiffDupSuppress(t *testing.T) {
 	g := NewSingleFlight()
 	broadcast := make(chan struct{})
-	var calls int32
+	var calls atomic.Int32
 	tests := []string{"e", "a", "e", "a", "b", "c", "b", "a", "c", "d", "b", "c", "d"}
 
 	var wg sync.WaitGroup
@@ -83,7 +83,7 @@ func TestExclusiveCallDoDiffDupSuppress(t *testing.T) {
 		go func(k string) {
 			<-broadcast // get all goroutines ready
 			_, err := g.Do(k, func() (any, error) {
-				atomic.AddInt32(&calls, 1)
+				calls.Add(1)
 				time.Sleep(10 * time.Millisecond)
 				return nil, nil
 			})
@@ -98,7 +98,7 @@ func TestExclusiveCallDoDiffDupSuppress(t *testing.T) {
 	close(broadcast)
 	wg.Wait()
 
-	if got := atomic.LoadInt32(&calls); got != 5 {
+	if got := calls.Load(); got != 5 {
 		// five letters
 		t.Errorf("number of calls = %d; want 5", got)
 	}
@@ -107,9 +107,9 @@ func TestExclusiveCallDoDiffDupSuppress(t *testing.T) {
 func TestExclusiveCallDoExDupSuppress(t *testing.T) {
 	g := NewSingleFlight()
 	c := make(chan string)
-	var calls int32
+	var calls atomic.Int32
 	fn := func() (any, error) {
-		atomic.AddInt32(&calls, 1)
+		calls.Add(1)
 		v := <-c
 		if time.Now().UnixNano() < 0 {
 			return nil, io.EOF
@@ -119,7 +119,7 @@ func TestExclusiveCallDoExDupSuppress(t *testing.T) {
 
 	const n = 10
 	var wg sync.WaitGroup
-	var freshes int32
+	var freshes atomic.Int32
 	for range n {
 		wg.Go(func() {
 			v, fresh, err := g.DoEx("key", fn)
@@ -127,7 +127,7 @@ func TestExclusiveCallDoExDupSuppress(t *testing.T) {
 				t.Errorf("Do error: %v", err)
 			}
 			if fresh {
-				atomic.AddInt32(&freshes, 1)
+				freshes.Add(1)
 			}
 			if v.(string) != "bar" {
 				t.Errorf("got %q; want %q", v, "bar")
@@ -137,10 +137,10 @@ func TestExclusiveCallDoExDupSuppress(t *testing.T) {
 	time.Sleep(100 * time.Millisecond) // let goroutines above block
 	c <- "bar"
 	wg.Wait()
-	if got := atomic.LoadInt32(&calls); got != 1 {
+	if got := calls.Load(); got != 1 {
 		t.Errorf("number of calls = %d; want 1", got)
 	}
-	if got := atomic.LoadInt32(&freshes); got != 1 {
+	if got := freshes.Load(); got != 1 {
 		t.Errorf("freshes = %d; want 1", got)
 	}
 }

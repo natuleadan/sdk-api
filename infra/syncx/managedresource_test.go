@@ -8,9 +8,9 @@ import (
 )
 
 func TestManagedResource(t *testing.T) {
-	var count int32
+	var count atomic.Int32
 	resource := NewManagedResource(func() any {
-		return atomic.AddInt32(&count, 1)
+		return count.Add(1)
 	}, func(a, b any) bool {
 		return a == b
 	})

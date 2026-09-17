@@ -34,7 +34,7 @@ var (
 // A RedisLock is a redis lock.
 type RedisLock struct {
 	store   *Redis
-	seconds uint32
+	seconds atomic.Uint32
 	key     string
 	id      string
 }
@@ -59,7 +59,7 @@ func (rl *RedisLock) Acquire() (bool, error) {
 
 // AcquireCtx acquires the lock with the given ctx.
 func (rl *RedisLock) AcquireCtx(ctx context.Context) (bool, error) {
-	seconds := atomic.LoadUint32(&rl.seconds)
+	seconds := rl.seconds.Load()
 	resp, err := rl.store.ScriptRunCtx(ctx, lockScript, []string{rl.key}, []string{
 		rl.id, strconv.Itoa(int(seconds)*millisPerSecond + tolerance),
 	})
@@ -110,5 +110,5 @@ func (rl *RedisLock) SetExpire(seconds int) {
 	if seconds > math.MaxUint32 {
 		return
 	}
-	atomic.StoreUint32(&rl.seconds, uint32(seconds))
+	rl.seconds.Store(uint32(seconds))
 }

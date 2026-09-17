@@ -9,13 +9,13 @@ import (
 )
 
 func TestDelayExecutor(t *testing.T) {
-	var count int32
+	var count atomic.Int32
 	ex := NewDelayExecutor(func() {
-		atomic.AddInt32(&count, 1)
+		count.Add(1)
 	}, time.Millisecond*10)
 	for range 100 {
 		ex.Trigger()
 	}
 	time.Sleep(time.Millisecond * 100)
-	assert.Equal(t, int32(1), atomic.LoadInt32(&count))
+	assert.Equal(t, int32(1), count.Load())
 }

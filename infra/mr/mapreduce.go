@@ -220,10 +220,10 @@ func executeMappers[T, U any](mCtx mapperContext[T, U]) {
 		drain(mCtx.source)
 	}()
 
-	var failed int32
+	var failed atomic.Int32
 	pool := make(chan struct{}, mCtx.workers)
 	writer := newGuardedWriter(mCtx.ctx, mCtx.collector, mCtx.doneChan)
-	for atomic.LoadInt32(&failed) == 0 {
+	for failed.Load() == 0 {
 		select {
 		case <-mCtx.ctx.Done():
 			return
@@ -240,7 +240,7 @@ func executeMappers[T, U any](mCtx mapperContext[T, U]) {
 			go func() {
 				defer func() {
 					if r := recover(); r != nil {
-						atomic.AddInt32(&failed, 1)
+						failed.Add(1)
 						mCtx.panicChan.write(buildPanicInfo(r, debug.Stack()))
 					}
 					wg.Done()

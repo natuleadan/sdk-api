@@ -17,8 +17,7 @@ func redirectTestApp() *fiber.App {
 	return fiber.New(fiber.Config{
 		ErrorHandler: func(c fiber.Ctx, err error) error {
 			code := fiber.StatusInternalServerError
-			var e *fiber.Error
-			if errors.As(err, &e) {
+			if e, ok := errors.AsType[*fiber.Error](err); ok {
 				code = e.Code
 			}
 			return c.Status(code).JSON(fiber.Map{"code": code, "message": err.Error()})

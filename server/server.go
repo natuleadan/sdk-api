@@ -622,14 +622,12 @@ func errorHandler(c fiber.Ctx, err error) error {
 	errCode := errcode.ErrCodeInternal
 	message := "internal server error"
 
-	var fe *fiber.Error
-	if errors.As(err, &fe) {
+	if fe, ok := errors.AsType[*fiber.Error](err); ok {
 		code = fe.Code
 		message = fe.Message
 	}
 
-	var oo oops.OopsError
-	if errors.As(err, &oo) {
+	if oo, ok := errors.AsType[oops.OopsError](err); ok {
 		if c := oo.Code(); c != nil {
 			errCode = c.(string)
 			if code >= 500 {

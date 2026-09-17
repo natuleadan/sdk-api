@@ -14,29 +14,29 @@ func init() {
 }
 
 func TestRescue(t *testing.T) {
-	var count int32
+	var count atomic.Int32
 	assert.NotPanics(t, func() {
 		defer Recover(func() {
-			atomic.AddInt32(&count, 2)
+			count.Add(2)
 		}, func() {
-			atomic.AddInt32(&count, 3)
+			count.Add(3)
 		})
 
 		panic("hello")
 	})
-	assert.Equal(t, int32(5), atomic.LoadInt32(&count))
+	assert.Equal(t, int32(5), count.Load())
 }
 
 func TestRescueCtx(t *testing.T) {
-	var count int32
+	var count atomic.Int32
 	assert.NotPanics(t, func() {
 		defer RecoverCtx(context.Background(), func() {
-			atomic.AddInt32(&count, 2)
+			count.Add(2)
 		}, func() {
-			atomic.AddInt32(&count, 3)
+			count.Add(3)
 		})
 
 		panic("hello")
 	})
-	assert.Equal(t, int32(5), atomic.LoadInt32(&count))
+	assert.Equal(t, int32(5), count.Load())
 }

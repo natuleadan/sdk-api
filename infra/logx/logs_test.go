@@ -803,7 +803,7 @@ func TestDisable(t *testing.T) {
 	WithMaxSize(1024)(&opt)
 	assert.NoError(t, Close())
 	assert.NoError(t, Close())
-	assert.Equal(t, uint32(disableLevel), atomic.LoadUint32(&logLevel))
+	assert.Equal(t, uint32(disableLevel), logLevel.Load())
 }
 
 func TestDisableStat(t *testing.T) {
@@ -829,7 +829,7 @@ func TestAddWriter(t *testing.T) {
 }
 
 func TestSetWriter(t *testing.T) {
-	atomic.StoreUint32(&logLevel, 0)
+	logLevel.Store(0)
 	Reset()
 	SetWriter(nopWriter{})
 	assert.NotNil(t, writer.Load())
@@ -900,7 +900,7 @@ func TestWithField_LogLevel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			olevel := atomic.LoadUint32(&logLevel)
+			olevel := logLevel.Load()
 			SetLevel(tt.level)
 			defer SetLevel(olevel)
 
@@ -913,7 +913,7 @@ func TestWithField_LogLevel(t *testing.T) {
 
 func TestWithField_LogLevelWithContext(t *testing.T) {
 	t.Run("context more than once with info/info", func(t *testing.T) {
-		olevel := atomic.LoadUint32(&logLevel)
+		olevel := logLevel.Load()
 		SetLevel(InfoLevel)
 		defer SetLevel(olevel)
 
@@ -927,7 +927,7 @@ func TestWithField_LogLevelWithContext(t *testing.T) {
 	})
 
 	t.Run("context more than once with error/info", func(t *testing.T) {
-		olevel := atomic.LoadUint32(&logLevel)
+		olevel := logLevel.Load()
 		SetLevel(ErrorLevel)
 		defer SetLevel(olevel)
 
@@ -1048,7 +1048,7 @@ func doTestStructedLogConsole(t *testing.T, w *mockWriter, write func(...any)) {
 }
 
 func doTestStructedLogEmpty(t *testing.T, w *mockWriter, level uint32, write func(...any)) {
-	olevel := atomic.LoadUint32(&logLevel)
+	olevel := logLevel.Load()
 	SetLevel(level)
 	defer SetLevel(olevel)
 
@@ -1140,15 +1140,15 @@ func (s panicStringer) String() string {
 }
 
 type countingStringer struct {
-	count int32
+	count atomic.Int32
 }
 
 func (s *countingStringer) Count() int32 {
-	return atomic.LoadInt32(&s.count)
+	return s.count.Load()
 }
 
 func (s *countingStringer) String() string {
-	atomic.AddInt32(&s.count, 1)
+	s.count.Add(1)
 	return "countingStringer"
 }
 

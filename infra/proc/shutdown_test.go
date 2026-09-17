@@ -42,18 +42,18 @@ func TestShutdownWithMultipleServices(t *testing.T) {
 	assert.Equal(t, time.Hour, waitTime)
 	shutdownLock.Unlock()
 
-	var val int32
+	var val atomic.Int32
 	called1 := AddShutdownListener(func() {
-		atomic.AddInt32(&val, 1)
+		val.Add(1)
 	})
 	called2 := AddShutdownListener(func() {
-		atomic.AddInt32(&val, 2)
+		val.Add(2)
 	})
 	Shutdown()
 	called1()
 	called2()
 
-	assert.Equal(t, int32(3), atomic.LoadInt32(&val))
+	assert.Equal(t, int32(3), val.Load())
 }
 
 func TestWrapUpWithMultipleServices(t *testing.T) {
@@ -64,18 +64,18 @@ func TestWrapUpWithMultipleServices(t *testing.T) {
 	assert.Equal(t, time.Hour, waitTime)
 	shutdownLock.Unlock()
 
-	var val int32
+	var val atomic.Int32
 	called1 := AddWrapUpListener(func() {
-		atomic.AddInt32(&val, 1)
+		val.Add(1)
 	})
 	called2 := AddWrapUpListener(func() {
-		atomic.AddInt32(&val, 2)
+		val.Add(2)
 	})
 	WrapUp()
 	called1()
 	called2()
 
-	assert.Equal(t, int32(3), atomic.LoadInt32(&val))
+	assert.Equal(t, int32(3), val.Load())
 }
 
 func TestNotifyMoreThanOnce(t *testing.T) {

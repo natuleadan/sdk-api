@@ -46,14 +46,14 @@ func TestLimitedExecutor_logOrDiscard(t *testing.T) {
 			executor.discarded = test.discarded
 			executor.lastTime.Set(test.lastTime)
 
-			var run int32
+			var run atomic.Int32
 			executor.logOrDiscard(func() {
-				atomic.AddInt32(&run, 1)
+				run.Add(1)
 			})
 			if test.executed {
-				assert.Equal(t, int32(1), atomic.LoadInt32(&run))
+				assert.Equal(t, int32(1), run.Load())
 			} else {
-				assert.Equal(t, int32(0), atomic.LoadInt32(&run))
+				assert.Equal(t, int32(0), run.Load())
 				assert.Equal(t, test.discarded+1, atomic.LoadUint32(&executor.discarded))
 			}
 		})

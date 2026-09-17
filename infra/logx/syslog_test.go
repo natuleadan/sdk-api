@@ -3,7 +3,6 @@ package logx
 import (
 	"encoding/json"
 	"log"
-	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -34,7 +33,7 @@ func captureOutput(f func()) string {
 	old := writer.Swap(w)
 	defer writer.Store(old)
 
-	prevLevel := atomic.LoadUint32(&logLevel)
+	prevLevel := logLevel.Load()
 	SetLevel(InfoLevel)
 	f()
 	SetLevel(prevLevel)

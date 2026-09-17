@@ -25,10 +25,10 @@ func TestFakeTicker(t *testing.T) {
 	ticker := NewFakeTicker()
 	defer ticker.Stop()
 
-	var count int32
+	var count atomic.Int32
 	go func() {
 		for range ticker.Chan() {
-			if atomic.AddInt32(&count, 1) == total {
+			if count.Add(1) == total {
 				ticker.Done()
 			}
 		}
@@ -39,7 +39,7 @@ func TestFakeTicker(t *testing.T) {
 	}
 
 	assert.NoError(t, ticker.Wait(time.Second))
-	assert.Equal(t, int32(total), atomic.LoadInt32(&count))
+	assert.Equal(t, int32(total), count.Load())
 }
 
 func TestFakeTickerTimeout(t *testing.T) {

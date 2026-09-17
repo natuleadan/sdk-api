@@ -36,9 +36,9 @@ func BenchmarkAtomicError(b *testing.B) {
 	wg := sync.WaitGroup{}
 
 	b.Run("Load", func(b *testing.B) {
-		var done uint32
+		var done atomic.Uint32
 		go func() {
-			for atomic.LoadUint32(&done) == 0 {
+			for done.Load() == 0 {
 				wg.Go(func() {
 					aerr.Set(errDummy)
 				})
@@ -49,13 +49,13 @@ func BenchmarkAtomicError(b *testing.B) {
 			aerr.Load()
 		}
 		b.StopTimer()
-		atomic.StoreUint32(&done, 1)
+		done.Store(1)
 		wg.Wait()
 	})
 	b.Run("Set", func(b *testing.B) {
-		var done uint32
+		var done atomic.Uint32
 		go func() {
-			for atomic.LoadUint32(&done) == 0 {
+			for done.Load() == 0 {
 				aerr.Load()
 			}
 		}()
@@ -64,7 +64,7 @@ func BenchmarkAtomicError(b *testing.B) {
 			aerr.Set(errDummy)
 		}
 		b.StopTimer()
-		atomic.StoreUint32(&done, 1)
+		done.Store(1)
 		wg.Wait()
 	})
 }

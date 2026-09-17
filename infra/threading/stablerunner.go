@@ -20,8 +20,8 @@ var (
 // This runner is typically useful for Kafka consumers with parallel processing.
 type StableRunner[I, O any] struct {
 	handle        func(I) O
-	consumedIndex uint64
-	writtenIndex  uint64
+	consumedIndex atomic.Uint64
+	writtenIndex  atomic.Uint64
 	ring          []*struct {
 		value chan O
 		lock  sync.Mutex
@@ -56,9 +56,9 @@ func NewStableRunner[I, O any](fn func(I) O) *StableRunner[I, O] {
 // Get returns the next processed message in order.
 // This method should be called in one goroutine.
 func (r *StableRunner[I, O]) Get() (O, error) {
-	defer atomic.AddUint64(&r.consumedIndex, 1)
+	defer r.consumedIndex.Add(1)
 
-	index := atomic.LoadUint64(&r.consumedIndex)
+	index := r.consumedIndex.Load()
 	// #nosec G115 — bufSize is runtime.NumCPU()*factor (≤ 1600), safe for int
 	idx := int(index % uint64(bufSize))
 	if idx >= bufSize {
@@ -71,7 +71,7 @@ func (r *StableRunner[I, O]) Get() (O, error) {
 	case o := <-holder.value:
 		return o, nil
 	case <-r.done:
-		if atomic.LoadUint64(&r.consumedIndex) < atomic.LoadUint64(&r.writtenIndex) {
+		if r.consumedIndex.Load() < r.writtenIndex.Load() {
 			return <-holder.value, nil
 		}
 
@@ -87,7 +87,7 @@ func (r *StableRunner[I, O]) Push(v I) error {
 	case <-r.done:
 		return ErrRunnerClosed
 	default:
-		index := atomic.AddUint64(&r.writtenIndex, 1)
+		index := r.writtenIndex.Add(1)
 		// #nosec G115 — bufSize is runtime.NumCPU()*factor (≤ 1600), safe for int
 		idx := int((index - 1) % uint64(bufSize))
 		if idx >= bufSize {
@@ -110,7 +110,7 @@ func (r *StableRunner[I, O]) Push(v I) error {
 func (r *StableRunner[I, O]) Wait() {
 	close(r.done)
 	r.runner.Wait()
-	for atomic.LoadUint64(&r.consumedIndex) < atomic.LoadUint64(&r.writtenIndex) {
+	for r.consumedIndex.Load() < r.writtenIndex.Load() {
 		time.Sleep(time.Millisecond)
 	}
 }

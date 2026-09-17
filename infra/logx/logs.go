@@ -20,10 +20,10 @@ var (
 	timeFormat        = "2006-01-02T15:04:05.000Z07:00"
 	encoding   uint32 = jsonEncodingType
 	// maxContentLength is used to truncate the log content, 0 for not truncating.
-	maxContentLength uint32
+	maxContentLength atomic.Uint32
 	// use uint32 for atomic operations
-	disableStat uint32
-	logLevel    uint32
+	disableStat atomic.Uint32
+	logLevel    atomic.Uint32
 	options     logOptions
 	writer      = new(atomicWriter)
 	setupOnce   sync.Once
@@ -123,13 +123,13 @@ func Debugw(msg string, fields ...LogField) {
 
 // Disable disables the logging.
 func Disable() {
-	atomic.StoreUint32(&logLevel, disableLevel)
+	logLevel.Store(disableLevel)
 	writer.Store(nopWriter{})
 }
 
 // DisableStat disables the stat logs.
 func DisableStat() {
-	atomic.StoreUint32(&disableStat, 1)
+	disableStat.Store(1)
 }
 
 // Error writes v into error log.
@@ -257,12 +257,12 @@ func Reset() Writer {
 
 // SetLevel sets the logging level. It can be used to suppress some logs.
 func SetLevel(level uint32) {
-	atomic.StoreUint32(&logLevel, level)
+	logLevel.Store(level)
 }
 
 // SetWriter sets the logging writer. It can be used to customize the logging.
 func SetWriter(w Writer) {
-	if atomic.LoadUint32(&logLevel) != disableLevel {
+	if logLevel.Load() != disableLevel {
 		writer.Store(w)
 	}
 }
@@ -291,7 +291,7 @@ func SetUp(c LogConf) (err error) {
 			fileTimeFormat = c.FileTimeFormat
 		}
 
-		atomic.StoreUint32(&maxContentLength, c.MaxContentLength)
+		maxContentLength.Store(c.MaxContentLength)
 
 		switch c.Encoding {
 		case plainEncoding:
@@ -545,11 +545,11 @@ func setupWithVolume(c LogConf) error {
 }
 
 func shallLog(level uint32) bool {
-	return atomic.LoadUint32(&logLevel) <= level
+	return logLevel.Load() <= level
 }
 
 func shallLogStat() bool {
-	return atomic.LoadUint32(&disableStat) == 0
+	return disableStat.Load() == 0
 }
 
 // writeDebug writes v into debug log.

@@ -72,9 +72,9 @@ func TestPoolPopTooMany(t *testing.T) {
 }
 
 func TestPoolPopFirst(t *testing.T) {
-	var value int32
+	var value atomic.Int32
 	stack := NewPool(limit, func() any {
-		return atomic.AddInt32(&value, 1)
+		return value.Add(1)
 	}, destroy)
 
 	for range 100 {
@@ -85,9 +85,9 @@ func TestPoolPopFirst(t *testing.T) {
 }
 
 func TestPoolWithMaxAge(t *testing.T) {
-	var value int32
+	var value atomic.Int32
 	stack := NewPool(limit, func() any {
-		return atomic.AddInt32(&value, 1)
+		return value.Add(1)
 	}, destroy, WithMaxAge(time.Millisecond))
 
 	v1 := stack.Get().(int32)

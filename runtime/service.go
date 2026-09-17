@@ -1443,7 +1443,7 @@ func buildRedirectHandler(from, to string, status int, preserveQuery bool, metho
 // extractParams returns the param names from a Fiber route pattern.
 func extractParams(pattern string) []string {
 	var params []string
-	for _, seg := range strings.Split(pattern, "/") {
+	for seg := range strings.SplitSeq(pattern, "/") {
 		if strings.HasPrefix(seg, ":") {
 			params = append(params, seg[1:])
 		}

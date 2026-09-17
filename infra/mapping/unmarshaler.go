@@ -468,15 +468,13 @@ func (u *Unmarshaler) parseOptionsWithContext(field reflect.StructField, m Value
 		if len(options.OptionalDep) > 0 {
 			// need to create a new fieldOption, because the original one is shared through cache.
 			options = &fieldOptions{
-				fieldOptionsWithContext: fieldOptionsWithContext{
-					Inherit:    options.Inherit,
-					FromString: options.FromString,
-					Optional:   options.Optional,
-					Options:    options.Options,
-					Default:    options.Default,
-					EnvVar:     options.EnvVar,
-					Range:      options.Range,
-				},
+				Inherit:     options.Inherit,
+				FromString:  options.FromString,
+				Optional:    options.Optional,
+				Options:     options.Options,
+				Default:     options.Default,
+				EnvVar:      options.EnvVar,
+				Range:       options.Range,
 				OptionalDep: u.opts.canonicalKey(options.OptionalDep),
 			}
 		}

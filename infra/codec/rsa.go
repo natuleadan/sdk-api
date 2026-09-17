@@ -68,9 +68,7 @@ func NewRsaDecrypter(file string) (RsaDecrypter, error) {
 	}
 
 	return &rsaDecrypter{
-		rsaBase: rsaBase{
-			bytesLimit: privateKey.N.BitLen() >> 3,
-		},
+		bytesLimit: privateKey.N.BitLen() >> 3,
 		privateKey: privateKey,
 	}, nil
 }
@@ -111,13 +109,11 @@ func NewRsaEncrypter(key []byte) (RsaEncrypter, error) {
 	switch pubKey := pub.(type) {
 	case *rsa.PublicKey:
 		return &rsaEncrypter{
-			rsaBase: rsaBase{
-				// https://www.ietf.org/rfc/rfc2313.txt
-				// The length of the data D shall not be more than k-11 octets, which is
-				// positive since the length k of the modulus is at least 12 octets.
-				bytesLimit: (pubKey.N.BitLen() >> 3) - 11,
-			},
-			publicKey: pubKey,
+			// https://www.ietf.org/rfc/rfc2313.txt
+			// The length of the data D shall not be more than k-11 octets, which is
+			// positive since the length k of the modulus is at least 12 octets.
+			bytesLimit: (pubKey.N.BitLen() >> 3) - 11,
+			publicKey:  pubKey,
 		}, nil
 	default:
 		return nil, ErrNotRsaKey
@@ -174,9 +170,7 @@ func NewRsaOAEPDecrypter(file string) (RsaDecrypter, error) {
 	}
 
 	return &rsaOAEPDecrypter{
-		rsaBase: rsaBase{
-			bytesLimit: privateKey.N.BitLen() >> 3,
-		},
+		bytesLimit: privateKey.N.BitLen() >> 3,
 		privateKey: privateKey,
 	}, nil
 }
@@ -198,10 +192,8 @@ func NewRsaOAEPEncrypter(key []byte) (RsaEncrypter, error) {
 		// OAEP overhead: 2*hash_size + 2
 		hashSize := sha256.New().Size()
 		return &rsaOAEPEncrypter{
-			rsaBase: rsaBase{
-				bytesLimit: (pubKey.N.BitLen() >> 3) - 2*hashSize - 2,
-			},
-			publicKey: pubKey,
+			bytesLimit: (pubKey.N.BitLen() >> 3) - 2*hashSize - 2,
+			publicKey:  pubKey,
 		}, nil
 	default:
 		return nil, ErrNotRsaKey

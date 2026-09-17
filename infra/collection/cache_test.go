@@ -48,12 +48,12 @@ func TestCacheTake(t *testing.T) {
 	cache, err := NewCache(time.Second * 2)
 	require.NoError(t, err)
 
-	var count int32
+	var count atomic.Int32
 	var wg sync.WaitGroup
 	for range 100 {
 		wg.Go(func() {
 			cache.Take("first", func() (any, error) {
-				atomic.AddInt32(&count, 1)
+				count.Add(1)
 				time.Sleep(time.Millisecond * 100)
 				return "first element", nil
 			})
@@ -62,20 +62,20 @@ func TestCacheTake(t *testing.T) {
 	wg.Wait()
 
 	assert.Equal(t, 1, cache.size())
-	assert.Equal(t, int32(1), atomic.LoadInt32(&count))
+	assert.Equal(t, int32(1), count.Load())
 }
 
 func TestCacheTakeExists(t *testing.T) {
 	cache, err := NewCache(time.Second * 2)
 	require.NoError(t, err)
 
-	var count int32
+	var count atomic.Int32
 	var wg sync.WaitGroup
 	for range 100 {
 		wg.Go(func() {
 			cache.Set("first", "first element")
 			cache.Take("first", func() (any, error) {
-				atomic.AddInt32(&count, 1)
+				count.Add(1)
 				time.Sleep(time.Millisecond * 100)
 				return "first element", nil
 			})
@@ -84,19 +84,19 @@ func TestCacheTakeExists(t *testing.T) {
 	wg.Wait()
 
 	assert.Equal(t, 1, cache.size())
-	assert.Equal(t, int32(0), atomic.LoadInt32(&count))
+	assert.Equal(t, int32(0), count.Load())
 }
 
 func TestCacheTakeError(t *testing.T) {
 	cache, err := NewCache(time.Second * 2)
 	require.NoError(t, err)
 
-	var count int32
+	var count atomic.Int32
 	var wg sync.WaitGroup
 	for range 100 {
 		wg.Go(func() {
 			_, err := cache.Take("first", func() (any, error) {
-				atomic.AddInt32(&count, 1)
+				count.Add(1)
 				time.Sleep(time.Millisecond * 100)
 				return "", errDummy
 			})
@@ -106,7 +106,7 @@ func TestCacheTakeError(t *testing.T) {
 	wg.Wait()
 
 	assert.Equal(t, 0, cache.size())
-	assert.Equal(t, int32(1), atomic.LoadInt32(&count))
+	assert.Equal(t, int32(1), count.Load())
 }
 
 func TestCacheWithLruEvicts(t *testing.T) {

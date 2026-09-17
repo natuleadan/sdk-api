@@ -7,7 +7,7 @@ import (
 
 // A SpinLock is used as a lock a fast execution.
 type SpinLock struct {
-	lock uint32
+	lock atomic.Uint32
 }
 
 // Lock locks the SpinLock.
@@ -19,10 +19,10 @@ func (sl *SpinLock) Lock() {
 
 // TryLock tries to lock the SpinLock.
 func (sl *SpinLock) TryLock() bool {
-	return atomic.CompareAndSwapUint32(&sl.lock, 0, 1)
+	return sl.lock.CompareAndSwap(0, 1)
 }
 
 // Unlock unlocks the SpinLock.
 func (sl *SpinLock) Unlock() {
-	atomic.StoreUint32(&sl.lock, 0)
+	sl.lock.Store(0)
 }

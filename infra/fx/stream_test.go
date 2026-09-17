@@ -19,7 +19,7 @@ import (
 func TestBuffer(t *testing.T) {
 	runCheckedTest(t, func(t *testing.T) {
 		const N = 5
-		var count int32
+		var count atomic.Int32
 		var wait sync.WaitGroup
 		wait.Add(1)
 		From(func(source chan<- any) {
@@ -29,7 +29,7 @@ func TestBuffer(t *testing.T) {
 			for i := range 2 * N {
 				select {
 				case source <- i:
-					atomic.AddInt32(&count, 1)
+					count.Add(1)
 				case <-ticker.C:
 					wait.Done()
 					return
@@ -38,7 +38,7 @@ func TestBuffer(t *testing.T) {
 		}).Buffer(N).ForAll(func(pipe <-chan any) {
 			wait.Wait()
 			// why N+1, because take one more to wait for sending into the channel
-			assert.Equal(t, int32(N+1), atomic.LoadInt32(&count))
+			assert.Equal(t, int32(N+1), count.Load())
 		})
 	})
 }

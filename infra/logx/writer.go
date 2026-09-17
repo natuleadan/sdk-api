@@ -368,7 +368,7 @@ func output(writer io.Writer, level string, val any, fields ...LogField) {
 	switch v := val.(type) {
 	case string:
 		// only truncate string content, don't know how to truncate the values of other types.
-		maxLen := atomic.LoadUint32(&maxContentLength)
+		maxLen := maxContentLength.Load()
 		if maxLen > 0 && len(v) > int(maxLen) {
 			val = v[:maxLen]
 			fields = append(fields, truncatedField)

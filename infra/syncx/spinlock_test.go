@@ -41,7 +41,7 @@ func TestSpinLockRace(t *testing.T) {
 
 func TestSpinLock_TryLock(t *testing.T) {
 	var lock SpinLock
-	var count int32
+	var count atomic.Int32
 	var wait sync.WaitGroup
 	wait.Add(2)
 	sig := make(chan lang.PlaceholderType)
@@ -49,7 +49,7 @@ func TestSpinLock_TryLock(t *testing.T) {
 	go func() {
 		lock.TryLock()
 		sig <- lang.Placeholder
-		atomic.AddInt32(&count, 1)
+		count.Add(1)
 		runtime.Gosched()
 		lock.Unlock()
 		wait.Done()
@@ -58,11 +58,11 @@ func TestSpinLock_TryLock(t *testing.T) {
 	go func() {
 		<-sig
 		lock.Lock()
-		atomic.AddInt32(&count, 1)
+		count.Add(1)
 		lock.Unlock()
 		wait.Done()
 	}()
 
 	wait.Wait()
-	assert.Equal(t, int32(2), atomic.LoadInt32(&count))
+	assert.Equal(t, int32(2), count.Load())
 }

@@ -19,19 +19,19 @@ var errDummy = errors.New("dummy")
 func TestFinish(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	var total uint32
+	var total atomic.Uint32
 	err := Finish(func() error {
-		atomic.AddUint32(&total, 2)
+		total.Add(2)
 		return nil
 	}, func() error {
-		atomic.AddUint32(&total, 3)
+		total.Add(3)
 		return nil
 	}, func() error {
-		atomic.AddUint32(&total, 5)
+		total.Add(5)
 		return nil
 	})
 
-	assert.Equal(t, uint32(10), atomic.LoadUint32(&total))
+	assert.Equal(t, uint32(10), total.Load())
 	require.NoError(t, err)
 }
 
@@ -80,15 +80,15 @@ func TestFinishVoidNone(t *testing.T) {
 func TestFinishErr(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	var total uint32
+	var total atomic.Uint32
 	err := Finish(func() error {
-		atomic.AddUint32(&total, 2)
+		total.Add(2)
 		return nil
 	}, func() error {
-		atomic.AddUint32(&total, 3)
+		total.Add(3)
 		return errDummy
 	}, func() error {
-		atomic.AddUint32(&total, 5)
+		total.Add(5)
 		return nil
 	})
 
@@ -98,16 +98,16 @@ func TestFinishErr(t *testing.T) {
 func TestFinishVoid(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	var total uint32
+	var total atomic.Uint32
 	FinishVoid(func() {
-		atomic.AddUint32(&total, 2)
+		total.Add(2)
 	}, func() {
-		atomic.AddUint32(&total, 3)
+		total.Add(3)
 	}, func() {
-		atomic.AddUint32(&total, 5)
+		total.Add(5)
 	})
 
-	assert.Equal(t, uint32(10), atomic.LoadUint32(&total))
+	assert.Equal(t, uint32(10), total.Load())
 }
 
 func TestForEach(t *testing.T) {
@@ -191,7 +191,7 @@ func TestPanics(t *testing.T) {
 		})
 	})
 
-	var run int32
+	var run atomic.Int32
 	t.Run("Mapper panics", func(t *testing.T) {
 		assert.Panics(t, func() {
 			defer func() {
@@ -205,12 +205,12 @@ func TestPanics(t *testing.T) {
 					source <- i
 				}
 			}, func(item int, writer Writer[int], cancel func(error)) {
-				atomic.AddInt32(&run, 1)
+				run.Add(1)
 				panic("foo")
 			}, func(pipe <-chan int, writer Writer[int], cancel func(error)) {
 			})
 		})
-		assert.Less(t, atomic.LoadInt32(&run), int32(tasks/2))
+		assert.Less(t, run.Load(), int32(tasks/2))
 	})
 }
 
@@ -349,7 +349,7 @@ func TestMapReduceWithReduerWriteMoreThanOnce(t *testing.T) {
 func TestMapReduceVoid(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	var value uint32
+	var value atomic.Uint32
 	tests := []struct {
 		name        string
 		mapper      MapperFunc[int, int]
@@ -386,7 +386,7 @@ func TestMapReduceVoid(t *testing.T) {
 			name: "cancel with more",
 			reducer: func(pipe <-chan int, cancel func(error)) {
 				for item := range pipe {
-					result := atomic.AddUint32(&value, uint32(item))
+					result := value.Add(uint32(item))
 					if result > 10 {
 						cancel(errDummy)
 					}
@@ -398,7 +398,7 @@ func TestMapReduceVoid(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			atomic.StoreUint32(&value, 0)
+			value.Store(0)
 
 			if test.mapper == nil {
 				test.mapper = func(v int, writer Writer[int], cancel func(error)) {
@@ -408,7 +408,7 @@ func TestMapReduceVoid(t *testing.T) {
 			if test.reducer == nil {
 				test.reducer = func(pipe <-chan int, cancel func(error)) {
 					for item := range pipe {
-						atomic.AddUint32(&value, uint32(item))
+						value.Add(uint32(item))
 					}
 				}
 			}
@@ -420,7 +420,7 @@ func TestMapReduceVoid(t *testing.T) {
 
 			assert.Equal(t, test.expectErr, err)
 			if err == nil {
-				assert.Equal(t, test.expectValue, atomic.LoadUint32(&value))
+				assert.Equal(t, test.expectValue, value.Load())
 			}
 		})
 	}
@@ -573,12 +573,12 @@ func TestMapReduceVoidPanicInReducer(t *testing.T) {
 
 	const message = "foo"
 	assert.Panics(t, func() {
-		var done int32
+		var done atomic.Int32
 		_ = MapReduceVoid(func(source chan<- int) {
 			for i := range defaultWorkers * 2 {
 				source <- i
 			}
-			atomic.AddInt32(&done, 1)
+			done.Add(1)
 		}, func(i int, writer Writer[int], cancel func(error)) {
 			writer.Write(i)
 		}, func(pipe <-chan int, cancel func(error)) {
@@ -590,13 +590,13 @@ func TestMapReduceVoidPanicInReducer(t *testing.T) {
 func TestForEachWithContext(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	var done int32
+	var done atomic.Int32
 	ctx, cancel := context.WithCancel(context.Background())
 	ForEach(func(source chan<- int) {
 		for i := range defaultWorkers * 2 {
 			source <- i
 		}
-		atomic.AddInt32(&done, 1)
+		done.Add(1)
 	}, func(i int) {
 		if i == defaultWorkers/2 {
 			cancel()
@@ -607,14 +607,14 @@ func TestForEachWithContext(t *testing.T) {
 func TestMapReduceWithContext(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	var done int32
+	var done atomic.Int32
 	var result []int
 	ctx, cancel := context.WithCancel(context.Background())
 	err := MapReduceVoid(func(source chan<- int) {
 		for i := range defaultWorkers * 2 {
 			source <- i
 		}
-		atomic.AddInt32(&done, 1)
+		done.Add(1)
 	}, func(i int, writer Writer[int], c func(error)) {
 		if i == defaultWorkers/2 {
 			cancel()

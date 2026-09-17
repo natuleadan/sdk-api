@@ -274,8 +274,8 @@ func (klru *keyLru) removeElement(e *list.Element) {
 
 type cacheStat struct {
 	name         string
-	hit          uint64
-	miss         uint64
+	hit          atomic.Uint64
+	miss         atomic.Uint64
 	sizeCallback func() int
 }
 
@@ -289,11 +289,11 @@ func newCacheStat(name string, sizeCallback func() int) *cacheStat {
 }
 
 func (cs *cacheStat) IncrementHit() {
-	atomic.AddUint64(&cs.hit, 1)
+	cs.hit.Add(1)
 }
 
 func (cs *cacheStat) IncrementMiss() {
-	atomic.AddUint64(&cs.miss, 1)
+	cs.miss.Add(1)
 }
 
 func (cs *cacheStat) statLoop() {
@@ -301,8 +301,8 @@ func (cs *cacheStat) statLoop() {
 	defer ticker.Stop()
 
 	for range ticker.C {
-		hit := atomic.SwapUint64(&cs.hit, 0)
-		miss := atomic.SwapUint64(&cs.miss, 0)
+		hit := cs.hit.Swap(0)
+		miss := cs.miss.Swap(0)
 		total := hit + miss
 		if total == 0 {
 			continue

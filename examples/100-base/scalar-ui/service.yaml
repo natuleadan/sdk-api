@@ -124,6 +124,41 @@ entry:
     cors: app
     summary: Ping the service
     description: Returns pong; used by the CORS matrix tests
+  # rest - typed write op: body + documented error statuses from the YAML
+  - type: rest
+    method: POST
+    path: /widgets
+    handler: createWidget
+    cors: app
+    summary: Create a widget
+    description: Echoes the posted widget; demonstrates request_model and responses.
+    request_model: Product
+    response_model: Product
+    error_model: ErrorEnvelope
+    tags: [widgets]
+    responses:
+      "400": Invalid payload
+      "401": Missing or invalid token
+      "500": Internal error
+  # rest - shared path: GET + POST on /notes must both survive in the spec
+  - type: rest
+    method: GET
+    path: /notes
+    handler: listNotes
+    cors: app
+    summary: List notes
+    description: Lists notes; shares its path with POST /notes.
+  - type: rest
+    method: POST
+    path: /notes
+    handler: createNote
+    cors: app
+    summary: Create a note
+    description: Creates a note; shares its path with GET /notes.
+    request_model: Product
+    error_model: ErrorEnvelope
+    responses:
+      "400": Invalid payload
   # webhook - server-to-server (variant 4)
   - type: webhook
     method: POST

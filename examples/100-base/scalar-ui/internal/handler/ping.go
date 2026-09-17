@@ -23,6 +23,28 @@ func Echo() func(*runtime.RestCtx) error {
 	}
 }
 
+// CreateWidget echoes the posted body; exists to exercise entry.request_model,
+// entry.responses, entry.error_model and entry.tags in the OpenAPI spec.
+func CreateWidget() func(*runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		return c.SendString(string(c.Body()))
+	}
+}
+
+// ListNotes and CreateNote share the /notes path; they exist to verify the
+// spec keeps both methods on one PathItem.
+func ListNotes() func(*runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		return c.SendString("notes")
+	}
+}
+
+func CreateNote() func(*runtime.RestCtx) error {
+	return func(c *runtime.RestCtx) error {
+		return c.SendString(string(c.Body()))
+	}
+}
+
 func Upload() func(*runtime.RestCtx) error {
 	return func(c *runtime.RestCtx) error {
 		return c.SendString("uploaded")
@@ -84,6 +106,12 @@ type Product struct {
 	ID    string `json:"id" db:"id"`
 	Name  string `json:"name" db:"name"`
 	Price int    `json:"price" db:"price"`
+}
+
+// ErrorEnvelope mirrors the SDK error body; documented via entry.error_model.
+type ErrorEnvelope struct {
+	Message string `json:"message" db:"message"`
+	Code    string `json:"code" db:"code"`
 }
 
 // ProductCRUD is an in-memory CRUD provider for the /products endpoint.

@@ -1171,6 +1171,57 @@ operations, entry `auth_modes` produce `securitySchemes` (jwt → bearer,
 apikey → Authorization header), `entry.summary` / `entry.description` fill the
 operation docs, and a `servers` block is derived from `server.host`/`port`.
 
+**REST/webhook/file/async bodies and status codes.** Non-CRUD operations start
+with a bare 200/201 response. Name a registered model with `request_model` /
+`response_model` to emit a typed body (a `$ref` into `components.schemas`,
+registered automatically), list the other statuses under `responses`, and name
+an `error_model` to attach that schema to every 4xx/5xx:
+
+```yaml
+entry:
+  - type: rest
+    method: POST
+    path: /widgets
+    handler: createWidget
+    summary: Create a widget
+    description: Creates a widget and returns it.
+    request_model: Product       # body   -> $ref Product
+    response_model: Product      # 201    -> $ref Product
+    error_model: ErrorEnvelope   # 4xx/5xx -> $ref ErrorEnvelope
+    tags: [widgets]              # optional; defaults to the entry type
+    responses:
+      "400": Invalid payload
+      "401": Missing or invalid token
+      "500": Internal error
+
+svc.RegisterModel("Product", (*Product)(nil))
+svc.RegisterModel("ErrorEnvelope", (*ErrorEnvelope)(nil))
+```
+
+Notes:
+
+- Without `request_model` the operation has no body; an unregistered name is
+  ignored (the operation stays valid, it just has no schema). The same applies
+  to `response_model` and `error_model`.
+- `error_model` only affects codes `>= 400`; the success response keeps the
+  `response_model` schema.
+- The success code is derived from the method (201 for POST, 200 otherwise) and
+  does not need a `responses` entry.
+- **Several entries may share one path** (e.g. `GET /subjects` + `POST
+  /subjects`): each contributes its own method and the spec merges them instead
+  of dropping the earlier operations.
+- An operation is considered documented when it has a summary, a description,
+  and a response for its success code — `go test ./runtime/ -run
+  TestOperationDocs` enforces this contract.
+
+With these four fields you can document any REST surface entirely from YAML:
+`entry.summary` / `entry.description` / `entry.tags` for the operation text,
+`request_model` / `response_model` / `error_model` for the bodies, and
+`responses` for the status list. `WithOpenAPIMutator` remains the escape hatch
+for anything the schema cannot express (x-* extensions, custom media types,
+anyOf/oneOf shapes), but it forces a direct `github.com/getkin/kin-openapi`
+dependency on the consumer — prefer the YAML fields.
+
 **Redirect the root to the docs** (common for service landing pages):
 
 ```yaml

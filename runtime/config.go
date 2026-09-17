@@ -1058,6 +1058,24 @@ type EntryDef struct {
 	Summary string `json:"summary" config:",optional"`
 	// Description documents the operation in the OpenAPI spec (long form).
 	Description string `json:"description" config:",optional"`
+	// RequestModel names a model registered with RegisterModel; its schema is
+	// used as the request body for rest/webhook/file/async entries. Without it
+	// those operations have no body in the spec.
+	RequestModel string `json:"request_model" config:",optional"`
+	// ResponseModel names a model registered with RegisterModel; its schema is
+	// used as the 200/201 response body for rest/webhook/file/async entries.
+	ResponseModel string `json:"response_model" config:",optional"`
+	// ErrorModel names a model registered with RegisterModel; its schema is
+	// attached as the body of every non-2xx response declared in Responses
+	// (the shared error envelope).
+	ErrorModel string `json:"error_model" config:",optional"`
+	// Responses documents the non-happy-path status codes in the spec, as
+	// status code (e.g. "400", "404", "500") to a short description. The
+	// success code is derived automatically and does not need an entry here.
+	Responses map[string]string `json:"responses" config:",optional"`
+	// Tags overrides the default OpenAPI tag for this operation. Empty uses
+	// the entry type (rest, webhook, file, async, ...).
+	Tags []string `json:"tags" config:",optional"`
 	// AuthModes is a constant.
 	AuthModes []string `json:"auth_modes" config:",optional"` // ["jwt"], ["apikey"], ["jwt","apikey"]
 	// JWTFrom is a constant.

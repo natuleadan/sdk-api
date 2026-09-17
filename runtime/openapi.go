@@ -2,7 +2,10 @@ package runtime
 
 import (
 	"fmt"
+	"net/http"
 	"reflect"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -34,9 +37,9 @@ func BuildOpenAPI(cfg *ServiceConfig, models map[string]*db.TableInfo) (*openapi
 		case "crud":
 			addCRUDPaths(doc, &entry, models, prefix)
 		case "rest":
-			addRestPath(doc, &entry, prefix)
+			addRestPath(doc, &entry, models, prefix)
 		case "webhook":
-			addRestPath(doc, &entry, prefix)
+			addRestPath(doc, &entry, models, prefix)
 		case "websocket":
 			addWSPath(doc, &entry, prefix)
 		case "sse":
@@ -190,8 +193,9 @@ func addCRUDPaths(doc *openapi3.T, entry *EntryDef, models map[string]*db.TableI
 	}
 
 	// GET list
-	doc.Paths.Set(base, &openapi3.PathItem{
-		Get: &openapi3.Operation{
+	baseItem := pathItem(doc, base)
+	if baseItem.Get == nil {
+		baseItem.Get = &openapi3.Operation{
 			Summary:     "List " + resource,
 			OperationID: "list" + pascal(resource),
 			Parameters: openapi3.Parameters{
@@ -201,34 +205,41 @@ func addCRUDPaths(doc *openapi3.T, entry *EntryDef, models map[string]*db.TableI
 				param("sort", "query", "string"),
 			},
 			Responses: responses200(schemaRef),
-		},
-		Post: &openapi3.Operation{
+		}
+	}
+	if baseItem.Post == nil {
+		baseItem.Post = &openapi3.Operation{
 			Summary:     "Create " + resource,
 			OperationID: "create" + pascal(resource),
 			RequestBody: jsonBody(schemaRef),
 			Responses:   responses201(schemaRef),
-		},
-	})
+		}
+	}
 
 	// GET/PATCH/DELETE by ID
 	idPath := base + "/:id"
 	if strings.Contains(entry.Path, ":id") {
 		idPath = prefix + entry.Path
 	}
-	doc.Paths.Set(idPath, &openapi3.PathItem{
-		Get: &openapi3.Operation{
+	idItem := pathItem(doc, idPath)
+	if idItem.Get == nil {
+		idItem.Get = &openapi3.Operation{
 			Summary:     "Get " + resource + " by ID",
 			OperationID: "get" + pascal(resource),
 			Parameters:  openapi3.Parameters{param("id", "path", "string")},
 			Responses:   responses200(schemaRef),
-		},
-		Patch: &openapi3.Operation{
+		}
+	}
+	if idItem.Patch == nil {
+		idItem.Patch = &openapi3.Operation{
 			Summary:     "Update " + resource,
 			OperationID: "update" + pascal(resource),
 			Parameters:  openapi3.Parameters{param("id", "path", "string")},
 			Responses:   okResp(),
-		},
-		Delete: &openapi3.Operation{
+		}
+	}
+	if idItem.Delete == nil {
+		idItem.Delete = &openapi3.Operation{
 			Summary:     "Delete " + resource,
 			OperationID: "delete" + pascal(resource),
 			Parameters:  openapi3.Parameters{param("id", "path", "string")},
@@ -237,73 +248,163 @@ func addCRUDPaths(doc *openapi3.T, entry *EntryDef, models map[string]*db.TableI
 					Value: &openapi3.Response{Description: new("Deleted")},
 				}),
 			),
-		},
-	})
+		}
+	}
 }
 
-func addRestPath(doc *openapi3.T, entry *EntryDef, prefix string) {
+func addRestPath(doc *openapi3.T, entry *EntryDef, models map[string]*db.TableInfo, prefix string) {
 	path := prefix + entry.Path
 	summary := entry.Summary
 	if summary == "" {
 		summary = entry.Handler
 	}
+	tags := entry.Tags
+	if len(tags) == 0 {
+		tags = []string{entry.Type}
+	}
+
+	var reqSchema *openapi3.SchemaRef
+	if entry.RequestModel != "" {
+		reqSchema = registerModelSchema(doc, entry.RequestModel, models)
+	}
+	var respSchema *openapi3.SchemaRef
+	if entry.ResponseModel != "" {
+		respSchema = registerModelSchema(doc, entry.ResponseModel, models)
+	}
+
 	op := &openapi3.Operation{
 		Summary:     summary,
 		OperationID: entry.Handler,
-		Tags:        []string{entry.Type},
-		Responses:   okResp(),
+		Tags:        tags,
+		Responses:   operationResponses(doc, entry, respSchema, models),
 	}
 	if entry.Description != "" {
 		op.Description = entry.Description
 	}
-	doc.Paths.Set(path, &openapi3.PathItem{})
+	if entry.Method != "" && entry.Method != "GET" && entry.Method != "DELETE" && reqSchema != nil {
+		op.RequestBody = jsonBody(reqSchema)
+	}
+	// Merge into any existing PathItem: several entries may share one path
+	// (e.g. GET + POST on /subjects), and each contributes its own method.
+	item := pathItem(doc, path)
 	switch entry.Method {
 	case "GET":
-		doc.Paths.Value(path).Get = op
+		item.Get = op
 	case "POST":
-		doc.Paths.Value(path).Post = op
+		item.Post = op
 	case "PUT":
-		doc.Paths.Value(path).Put = op
+		item.Put = op
 	case "PATCH":
-		doc.Paths.Value(path).Patch = op
+		item.Patch = op
 	case "DELETE":
-		doc.Paths.Value(path).Delete = op
+		item.Delete = op
 	}
+}
+
+// registerModelSchema registers a named model in components.schemas (once) and
+// returns a reference to it. Unknown names return nil so the caller can fall
+// back to a schema-less operation.
+func registerModelSchema(doc *openapi3.T, name string, models map[string]*db.TableInfo) *openapi3.SchemaRef {
+	info := models[name]
+	if info == nil {
+		return nil
+	}
+	if doc.Components.Schemas == nil {
+		doc.Components.Schemas = openapi3.Schemas{}
+	}
+	if _, ok := doc.Components.Schemas[name]; !ok {
+		doc.Components.Schemas[name] = &openapi3.SchemaRef{Value: buildSchema(info)}
+	}
+	return &openapi3.SchemaRef{Ref: "#/components/schemas/" + name}
+}
+
+// operationResponses builds the responses object for a non-CRUD operation:
+// a success code (200 for GET/PUT/PATCH/DELETE, 201 for POST) plus every
+// status documented in entry.Responses, sorted for stable output. When
+// entry.ErrorModel names a registered model, every non-2xx response carries
+// that schema as its body (the shared error envelope).
+func operationResponses(doc *openapi3.T, entry *EntryDef, successSchema *openapi3.SchemaRef, models map[string]*db.TableInfo) *openapi3.Responses {
+	success := 200
+	successDesc := "OK"
+	if entry.Method == "POST" {
+		success = 201
+		successDesc = "Created"
+	}
+	successResp := &openapi3.Response{Description: new(successDesc)}
+	if successSchema != nil {
+		successResp.Content = openapi3.NewContentWithJSONSchemaRef(successSchema)
+	}
+	responses := openapi3.NewResponses(
+		openapi3.WithStatus(success, &openapi3.ResponseRef{Value: successResp}),
+	)
+	var errSchema *openapi3.SchemaRef
+	if entry.ErrorModel != "" {
+		errSchema = registerModelSchema(doc, entry.ErrorModel, models)
+	}
+	codes := make([]string, 0, len(entry.Responses))
+	for code := range entry.Responses {
+		codes = append(codes, code)
+	}
+	sort.Strings(codes)
+	for _, code := range codes {
+		n, err := strconv.Atoi(code)
+		if err != nil {
+			continue
+		}
+		desc := entry.Responses[code]
+		if desc == "" {
+			desc = http.StatusText(n)
+		}
+		resp := &openapi3.Response{Description: new(desc)}
+		if errSchema != nil && n >= 400 {
+			resp.Content = openapi3.NewContentWithJSONSchemaRef(errSchema)
+		}
+		responses.Set(code, &openapi3.ResponseRef{Value: resp})
+	}
+	return responses
+}
+
+// pathItem returns the PathItem for a path, creating it on first use. Entries
+// that share a path (GET + POST on /subjects, etc.) each contribute their own
+// method; without this the last entry would replace the whole PathItem and
+// silently drop the earlier operations from the spec.
+func pathItem(doc *openapi3.T, path string) *openapi3.PathItem {
+	if existing := doc.Paths.Value(path); existing != nil {
+		return existing
+	}
+	doc.Paths.Set(path, &openapi3.PathItem{})
+	return doc.Paths.Value(path)
 }
 
 func addWSPath(doc *openapi3.T, entry *EntryDef, prefix string) {
 	path := prefix + entry.Path
-	doc.Paths.Set(path, &openapi3.PathItem{
-		Get: &openapi3.Operation{
-			Summary:     "WebSocket: " + entry.Handler,
-			OperationID: entry.Handler,
-			Responses: openapi3.NewResponses(
-				openapi3.WithStatus(101, &openapi3.ResponseRef{
-					Value: &openapi3.Response{Description: new("Switching Protocols")},
-				}),
-			),
-		},
-	})
+	pathItem(doc, path).Get = &openapi3.Operation{
+		Summary:     "WebSocket: " + entry.Handler,
+		OperationID: entry.Handler,
+		Responses: openapi3.NewResponses(
+			openapi3.WithStatus(101, &openapi3.ResponseRef{
+				Value: &openapi3.Response{Description: new("Switching Protocols")},
+			}),
+		),
+	}
 }
 
 func addSSEPath(doc *openapi3.T, entry *EntryDef, prefix string) {
 	path := prefix + entry.Path
-	doc.Paths.Set(path, &openapi3.PathItem{
-		Get: &openapi3.Operation{
-			Summary:     "SSE stream: " + entry.Handler,
-			OperationID: entry.Handler,
-			Responses: openapi3.NewResponses(
-				openapi3.WithStatus(200, &openapi3.ResponseRef{
-					Value: &openapi3.Response{
-						Description: new("SSE stream"),
-						Content: openapi3.NewContentWithJSONSchema(&openapi3.Schema{
-							Type: oapiTypes("string"),
-						}),
-					},
-				}),
-			),
-		},
-	})
+	pathItem(doc, path).Get = &openapi3.Operation{
+		Summary:     "SSE stream: " + entry.Handler,
+		OperationID: entry.Handler,
+		Responses: openapi3.NewResponses(
+			openapi3.WithStatus(200, &openapi3.ResponseRef{
+				Value: &openapi3.Response{
+					Description: new("SSE stream"),
+					Content: openapi3.NewContentWithJSONSchema(&openapi3.Schema{
+						Type: oapiTypes("string"),
+					}),
+				},
+			}),
+		),
+	}
 }
 
 func addFilePath(doc *openapi3.T, entry *EntryDef, prefix string) {
@@ -313,18 +414,17 @@ func addFilePath(doc *openapi3.T, entry *EntryDef, prefix string) {
 		OperationID: entry.Handler,
 		Responses:   okResp(),
 	}
-	doc.Paths.Set(path, &openapi3.PathItem{})
 	switch entry.Method {
 	case "GET":
-		doc.Paths.Value(path).Get = op
+		pathItem(doc, path).Get = op
 	case "POST":
-		doc.Paths.Value(path).Post = op
+		pathItem(doc, path).Post = op
 	case "PUT":
-		doc.Paths.Value(path).Put = op
+		pathItem(doc, path).Put = op
 	case "PATCH":
-		doc.Paths.Value(path).Patch = op
+		pathItem(doc, path).Patch = op
 	case "DELETE":
-		doc.Paths.Value(path).Delete = op
+		pathItem(doc, path).Delete = op
 	}
 }
 
@@ -347,44 +447,51 @@ func addAsyncPaths(doc *openapi3.T, entry *EntryDef, prefix string) {
 		submit.Description = entry.Description
 	}
 
-	doc.Paths.Set(base, &openapi3.PathItem{
-		Post: submit,
-		Get: &openapi3.Operation{
+	baseItem := pathItem(doc, base)
+	if baseItem.Post == nil {
+		baseItem.Post = submit
+	}
+	if baseItem.Get == nil {
+		baseItem.Get = &openapi3.Operation{
 			Summary:     "List " + entry.Handler + " jobs",
 			OperationID: "list" + pascal(entry.Handler) + "Jobs",
 			Tags:        []string{"async"},
 			Responses:   okResp(),
-		},
-	})
+		}
+	}
 
 	jobPath := base + "/:job_id"
-	doc.Paths.Set(jobPath, &openapi3.PathItem{
-		Get: &openapi3.Operation{
+	jobItem := pathItem(doc, jobPath)
+	if jobItem.Get == nil {
+		jobItem.Get = &openapi3.Operation{
 			Summary:     "Get " + entry.Handler + " job status",
 			OperationID: "get" + pascal(entry.Handler) + "Job",
 			Tags:        []string{"async"},
 			Parameters:  openapi3.Parameters{param("job_id", "path", "string")},
 			Responses:   okResp(),
-		},
-		Delete: &openapi3.Operation{
+		}
+	}
+	if jobItem.Delete == nil {
+		jobItem.Delete = &openapi3.Operation{
 			Summary:     "Cancel " + entry.Handler + " job",
 			OperationID: "cancel" + pascal(entry.Handler) + "Job",
 			Tags:        []string{"async"},
 			Parameters:  openapi3.Parameters{param("job_id", "path", "string")},
 			Responses:   okResp(),
-		},
-	})
+		}
+	}
 
 	ssePath := jobPath + "/status"
-	doc.Paths.Set(ssePath, &openapi3.PathItem{
-		Get: &openapi3.Operation{
+	sseItem := pathItem(doc, ssePath)
+	if sseItem.Get == nil {
+		sseItem.Get = &openapi3.Operation{
 			Summary:     "Stream " + entry.Handler + " job status (SSE)",
 			OperationID: "stream" + pascal(entry.Handler) + "JobStatus",
 			Tags:        []string{"async", "sse"},
 			Parameters:  openapi3.Parameters{param("job_id", "path", "string")},
 			Responses:   okResp(),
-		},
-	})
+		}
+	}
 }
 
 // addGraphQLPath documents a GraphQL entry as a POST operation.

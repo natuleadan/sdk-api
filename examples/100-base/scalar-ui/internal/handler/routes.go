@@ -7,6 +7,9 @@ import (
 func RegisterRoutes(s *runtime.Service) {
 	s.WithRest("ping", Ping())
 	s.WithRest("echo", Echo())
+	s.WithRest("createWidget", CreateWidget())
+	s.WithRest("listNotes", ListNotes())
+	s.WithRest("createNote", CreateNote())
 	s.WithRest("upload", Upload())
 	s.WithRest("status", Status())
 	s.WithRest("sub", Sub())
@@ -15,4 +18,5 @@ func RegisterRoutes(s *runtime.Service) {
 	s.WithAsync("job", Job)
 	s.WithCRUD("Product", NewProductCRUD())
 	s.RegisterModel("Product", (*Product)(nil))
+	s.RegisterModel("ErrorEnvelope", (*ErrorEnvelope)(nil))
 }

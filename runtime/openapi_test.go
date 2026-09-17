@@ -15,6 +15,11 @@ type TestProduct struct {
 	Price float64 `db:"price" json:"price"`
 }
 
+type TestError struct {
+	Message string `db:"message" json:"message"`
+	Code    string `db:"code" json:"code"`
+}
+
 func TestBuildOpenAPI_CRUD(t *testing.T) {
 	info, err := db.ParseStructReflect(reflect.TypeFor[TestProduct]())
 	if err != nil {
@@ -457,5 +462,223 @@ func TestBuildOpenAPI_GraphQL(t *testing.T) {
 	item := spec.Paths.Find("/api/graphql")
 	if item == nil || item.Post == nil {
 		t.Fatal("/api/graphql POST missing")
+	}
+}
+
+// TestOperationDocs_BodyTitleDescription asserts the contract infra asked for:
+// every non-CRUD operation documents a summary (title), a description, and a
+// response for every status it can return — including a body for write
+// methods. Guards against regressions where a new entry type silently ships
+// schema-less, undocumented operations.
+func TestOperationDocs_BodyTitleDescription(t *testing.T) {
+	info, err := db.ParseStructReflect(reflect.TypeFor[TestProduct]())
+	if err != nil {
+		t.Fatalf("ParseStructReflect: %v", err)
+	}
+	cfg := &ServiceConfig{
+		Name:   "docs-svc",
+		Server: ServerConf{APIPrefix: "/api"},
+		Entry: []EntryDef{
+			{
+				Type:          "rest",
+				Method:        "POST",
+				Path:          "/widgets",
+				Handler:       "createWidget",
+				Summary:       "Create a widget",
+				Description:   "Creates a widget and returns it.",
+				RequestModel:  "Product",
+				ResponseModel: "Product",
+				Responses: map[string]string{
+					"400": "Invalid payload",
+					"401": "Missing or invalid token",
+					"500": "Internal error",
+				},
+				Tags: []string{"widgets"},
+			},
+			{
+				Type:          "rest",
+				Method:        "GET",
+				Path:          "/widgets/:id",
+				Handler:       "getWidget",
+				Summary:       "Get a widget",
+				Description:   "Returns a single widget by ID.",
+				ResponseModel: "Product",
+				Responses:     map[string]string{"404": "Widget not found"},
+			},
+		},
+	}
+	models := map[string]*db.TableInfo{"Product": info}
+	spec, err := BuildOpenAPI(cfg, models)
+	if err != nil {
+		t.Fatalf("BuildOpenAPI: %v", err)
+	}
+
+	post := spec.Paths.Find("/api/widgets").Post
+	if post == nil {
+		t.Fatal("POST /api/widgets missing")
+	}
+	if post.Summary == "" {
+		t.Error("POST: missing summary (title)")
+	}
+	if post.Description == "" {
+		t.Error("POST: missing description")
+	}
+	if len(post.Tags) != 1 || post.Tags[0] != "widgets" {
+		t.Errorf("POST: tags = %v, want [widgets]", post.Tags)
+	}
+	if post.RequestBody == nil {
+		t.Error("POST: missing request body")
+	}
+	if _, ok := post.Responses.Map()["201"]; !ok {
+		t.Error("POST: missing 201 success response")
+	}
+	for _, code := range []string{"400", "401", "500"} {
+		if _, ok := post.Responses.Map()[code]; !ok {
+			t.Errorf("POST: missing %s response", code)
+		}
+	}
+	// The body must be a $ref into components.schemas, populated even though
+	// Product is not a CRUD entry.
+	if _, ok := spec.Components.Schemas["Product"]; !ok {
+		t.Error("Product schema not registered in components")
+	}
+
+	get := spec.Paths.Find("/api/widgets/:id").Get
+	if get == nil {
+		t.Fatal("GET /api/widgets/:id missing")
+	}
+	if get.RequestBody != nil {
+		t.Error("GET: request body must not be set")
+	}
+	if _, ok := get.Responses.Map()["200"]; !ok {
+		t.Error("GET: missing 200 success response")
+	}
+	if _, ok := get.Responses.Map()["404"]; !ok {
+		t.Error("GET: missing documented 404 response")
+	}
+}
+
+// TestOperationDocs_UnknownModelDegrades softens the contract: an entry that
+// names an unregistered model must still produce a valid operation rather
+// than panic or drop the path.
+func TestOperationDocs_UnknownModelDegrades(t *testing.T) {
+	cfg := &ServiceConfig{
+		Name:   "degrade-svc",
+		Server: ServerConf{APIPrefix: "/api"},
+		Entry: []EntryDef{
+			{
+				Type:          "rest",
+				Method:        "POST",
+				Path:          "/things",
+				Handler:       "createThing",
+				Summary:       "Create a thing",
+				Description:   "Creates a thing.",
+				RequestModel:  "DoesNotExist",
+				ResponseModel: "DoesNotExist",
+				Responses:     map[string]string{"500": "Internal error"},
+			},
+		},
+	}
+	spec, err := BuildOpenAPI(cfg, nil)
+	if err != nil {
+		t.Fatalf("BuildOpenAPI: %v", err)
+	}
+	post := spec.Paths.Find("/api/things").Post
+	if post == nil {
+		t.Fatal("POST /api/things missing")
+	}
+	if post.RequestBody != nil {
+		t.Error("unknown request model: body must be omitted, not malformed")
+	}
+	if _, ok := post.Responses.Map()["201"]; !ok {
+		t.Error("unknown response model: success response still required")
+	}
+}
+
+// TestOperationDocs_SharedPathKeepsBothMethods guards the regression infra hit:
+// two entries on the same path (GET + POST /subjects) must both survive in the
+// spec. Before the merge helper the later entry replaced the whole PathItem.
+func TestOperationDocs_SharedPathKeepsBothMethods(t *testing.T) {
+	info, err := db.ParseStructReflect(reflect.TypeFor[TestProduct]())
+	if err != nil {
+		t.Fatalf("ParseStructReflect: %v", err)
+	}
+	cfg := &ServiceConfig{
+		Name:   "shared-svc",
+		Server: ServerConf{APIPrefix: "/api"},
+		Entry: []EntryDef{
+			{Type: "rest", Method: "POST", Path: "/subjects", Handler: "CreateSubject", Summary: "C", Description: "d", RequestModel: "Product"},
+			{Type: "rest", Method: "GET", Path: "/subjects", Handler: "ListSubjects", Summary: "L", Description: "d"},
+			{Type: "rest", Method: "GET", Path: "/subjects/:id", Handler: "GetSubject", Summary: "G", Description: "d"},
+			{Type: "rest", Method: "PATCH", Path: "/subjects/:id", Handler: "LinkExternalId", Summary: "P", Description: "d"},
+		},
+	}
+	spec, err := BuildOpenAPI(cfg, map[string]*db.TableInfo{"Product": info})
+	if err != nil {
+		t.Fatalf("BuildOpenAPI: %v", err)
+	}
+	subjects := spec.Paths.Find("/api/subjects")
+	if subjects == nil || subjects.Get == nil || subjects.Post == nil {
+		t.Fatalf("shared path lost a method: %+v", subjects)
+	}
+	if subjects.Get.OperationID != "ListSubjects" || subjects.Post.OperationID != "CreateSubject" {
+		t.Errorf("wrong op ids: get=%q post=%q", subjects.Get.OperationID, subjects.Post.OperationID)
+	}
+	byID := spec.Paths.Find("/api/subjects/:id")
+	if byID == nil || byID.Get == nil || byID.Patch == nil {
+		t.Fatalf("shared path /:id lost a method: %+v", byID)
+	}
+}
+
+// TestOperationDocs_ErrorModelOnFailures documents the shared error envelope:
+// when entry.error_model names a registered model, every declared 4xx/5xx
+// response carries its schema, while the success response does not.
+func TestOperationDocs_ErrorModelOnFailures(t *testing.T) {
+	info, err := db.ParseStructReflect(reflect.TypeFor[TestError]())
+	if err != nil {
+		t.Fatalf("ParseStructReflect: %v", err)
+	}
+	cfg := &ServiceConfig{
+		Name:   "err-svc",
+		Server: ServerConf{APIPrefix: "/api"},
+		Entry: []EntryDef{
+			{
+				Type:        "rest",
+				Method:      "POST",
+				Path:        "/things",
+				Handler:     "createThing",
+				Summary:     "Create a thing",
+				Description: "Creates a thing.",
+				ErrorModel:  "ErrorEnvelope",
+				Responses: map[string]string{
+					"400": "Invalid payload",
+					"401": "Missing token",
+					"500": "Internal error",
+				},
+			},
+		},
+	}
+	spec, err := BuildOpenAPI(cfg, map[string]*db.TableInfo{"ErrorEnvelope": info})
+	if err != nil {
+		t.Fatalf("BuildOpenAPI: %v", err)
+	}
+	post := spec.Paths.Find("/api/things").Post
+	if _, ok := spec.Components.Schemas["ErrorEnvelope"]; !ok {
+		t.Fatal("error model not registered in components")
+	}
+	for _, code := range []string{"400", "401", "500"} {
+		ref := post.Responses.Map()[code]
+		if ref == nil || ref.Value == nil || ref.Value.Content == nil {
+			t.Errorf("%s: missing error body", code)
+			continue
+		}
+		mt := ref.Value.Content["application/json"]
+		if mt == nil || mt.Schema == nil || mt.Schema.Ref != "#/components/schemas/ErrorEnvelope" {
+			t.Errorf("%s: error body not a $ref to ErrorEnvelope", code)
+		}
+	}
+	okRef := post.Responses.Map()["201"]
+	if okRef.Value != nil && okRef.Value.Content != nil {
+		t.Error("201 must not carry the error envelope")
 	}
 }

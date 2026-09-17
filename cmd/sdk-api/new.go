@@ -158,6 +158,12 @@ type newConfig struct {
 	CacheKV         string
 	Split           bool
 	StreamNames     []string
+	// Monorepo fields: set when the service is scaffolded inside a monorepo
+	// holding shared protobuf contracts (proto/buf.yaml marker upward).
+	MonorepoRoot   string
+	ProtoDir       string
+	ProtoPackage   string
+	ProtoGoPackage string
 }
 
 func runNew(args []string) error {
@@ -274,6 +280,7 @@ func finalizeConfig(cfg *newConfig) error {
 	if cfg.GrpcPort == 0 {
 		cfg.GrpcPort = cfg.Port + 1
 	}
+	detectMonorepo(cfg)
 	if err := validateAuthDriver(cfg.AuthDriver); err != nil {
 		return err
 	}
@@ -285,6 +292,30 @@ func validateAuthDriver(driver string) error {
 		return nil
 	}
 	return fmt.Errorf("auth driver %q invalid (use none or manual)", driver)
+}
+
+// detectMonorepo switches gRPC scaffolding to shared contracts when the
+// service is created inside a monorepo (proto/buf.yaml marker upward).
+func detectMonorepo(cfg *newConfig) {
+	if !cfg.GrpcEnabled {
+		return
+	}
+	cfg.ProtoPackage = cfg.ServiceName
+	cfg.ProtoGoPackage = cfg.ModulePath + "/pb;pb"
+	abs, err := filepath.Abs(cfg.Dir)
+	if err != nil {
+		return
+	}
+	root := findSharedProto(abs)
+	if root == "" {
+		return
+	}
+	cfg.MonorepoRoot = root
+	cfg.ProtoDir = cfg.ResourceName
+	cfg.ProtoPackage = cfg.ResourceName + ".v1"
+	if genMod, err := genGoModule(root); err == nil {
+		cfg.ProtoGoPackage = genMod + "/" + cfg.ProtoDir + "/v1"
+	}
 }
 
 func handleModelFlag(args []string, i int, cfg *newConfig) int {
@@ -555,14 +586,7 @@ func collectTemplates(cfg newConfig) ([]tmplDef, []string) {
 	}
 
 	if cfg.GrpcEnabled {
-		for _, d := range []string{"grpcserver", "pb", "api"} {
-			extraDirs = append(extraDirs, filepath.Join(cfg.Dir, d))
-		}
-		files = append(files,
-			tmplDef{rel: "api/" + cfg.ResourceName + ".proto", src: tmplProto},
-			tmplDef{rel: "pb/" + cfg.ResourceName + ".pb.go", src: tmplPB},
-			tmplDef{rel: "grpcserver/" + cfg.ResourceName + ".go", src: tmplGrpcServer},
-		)
+		collectGRPCTemplates(&cfg, &files, &extraDirs)
 	}
 
 	if cfg.AuthDriver == "manual" {
@@ -577,6 +601,26 @@ func collectTemplates(cfg newConfig) ([]tmplDef, []string) {
 	}
 
 	return files, extraDirs
+}
+
+// collectGRPCTemplates stages gRPC scaffolding: in monorepo mode the .proto
+// contract lives shared (written by writeSharedProto), so only the vendored
+// pb stub and the server stub go inside the service.
+func collectGRPCTemplates(cfg *newConfig, files *[]tmplDef, extraDirs *[]string) {
+	dirs := []string{"grpcserver", "pb"}
+	if cfg.MonorepoRoot == "" {
+		dirs = append(dirs, "api")
+		*files = append(*files,
+			tmplDef{rel: "api/" + cfg.ResourceName + ".proto", src: tmplProto},
+		)
+	}
+	for _, d := range dirs {
+		*extraDirs = append(*extraDirs, filepath.Join(cfg.Dir, d))
+	}
+	*files = append(*files,
+		tmplDef{rel: "pb/" + cfg.ResourceName + ".pb.go", src: tmplPB},
+		tmplDef{rel: "grpcserver/" + cfg.ResourceName + ".go", src: tmplGrpcServer},
+	)
 }
 
 func protoType(goType string) string {
@@ -647,6 +691,36 @@ func generate(cfg newConfig) error {
 	}
 	prog.Done()
 
+	if cfg.GrpcEnabled && cfg.MonorepoRoot != "" {
+		if err := writeSharedProto(cfg); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// writeSharedProto writes the canonical contract to proto/<res>/v1/ in the
+// monorepo root (single source of truth). The service keeps its vendored
+// pb/ stub until `sdk-api proto generate` compiles the real stubs.
+func writeSharedProto(cfg newConfig) error {
+	t, err := template.New("shared").Funcs(template.FuncMap{"protoType": protoType}).Parse(tmplProto)
+	if err != nil {
+		return fmt.Errorf("template shared proto: %w", err)
+	}
+	var buf bytes.Buffer
+	if err := t.Execute(&buf, cfg); err != nil {
+		return fmt.Errorf("execute shared proto: %w", err)
+	}
+	rel := filepath.Join("proto", cfg.ProtoDir, "v1", cfg.ProtoDir+".proto")
+	path := filepath.Join(cfg.MonorepoRoot, rel)
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		return fmt.Errorf("create shared proto dir: %w", err)
+	}
+	if err := os.WriteFile(path, buf.Bytes(), 0o600); err != nil {
+		return fmt.Errorf("write shared proto: %w", err)
+	}
+	fmt.Printf("Shared contract: %s (regenerate with: sdk-api proto generate --dir %s)\n", rel, cfg.MonorepoRoot)
 	return nil
 }
 

@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package {{.ServiceName}};
+package {{.ProtoPackage}};
 
-option go_package = "{{.ModulePath}}/pb;pb";
+option go_package = "{{.ProtoGoPackage}}";
 
 service {{.ModelName}}Service {
   rpc List{{.ModelName}}(List{{.ModelName}}Request) returns (List{{.ModelName}}Response);

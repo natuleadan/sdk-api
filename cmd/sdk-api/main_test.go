@@ -725,3 +725,237 @@ func TestValidateCmd_JSONOutput(t *testing.T) {
 		t.Errorf("valid = %v, want true", result["valid"])
 	}
 }
+
+func TestProtoInit(t *testing.T) {
+	root := t.TempDir()
+	if err := runProtoInit(root, "example.com/mono/gen/go"); err != nil {
+		t.Fatal(err)
+	}
+
+	checkFile(t, root, "proto/buf.yaml", "version: v2")
+	checkFile(t, root, "proto/buf.gen.yaml", "out: gen/go")
+	checkFile(t, root, "gen/go/go.mod", "module example.com/mono/gen/go")
+	checkFile(t, root, "proto/README.md", "sdk-api proto generate")
+}
+
+func TestProtoInitDerivesModule(t *testing.T) {
+	root := t.TempDir()
+	os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/mono\n\ngo 1.27\n"), 0o600)
+	if err := runProtoInit(root, ""); err != nil {
+		t.Fatal(err)
+	}
+
+	checkFile(t, root, "gen/go/go.mod", "module example.com/mono/gen/go")
+}
+
+func TestProtoInitAlreadyExists(t *testing.T) {
+	root := t.TempDir()
+	if err := runProtoInit(root, "example.com/mono/gen/go"); err != nil {
+		t.Fatal(err)
+	}
+	if err := runProtoInit(root, "example.com/mono/gen/go"); err == nil {
+		t.Error("expected error on second init, got nil")
+	}
+}
+
+func TestProtoInitNeedsModule(t *testing.T) {
+	root := t.TempDir()
+	if err := runProtoInit(root, ""); err == nil {
+		t.Error("expected error without module source, got nil")
+	}
+}
+
+func TestNewMonorepoGRPC(t *testing.T) {
+	root := t.TempDir()
+	if err := runProtoInit(root, "example.com/mono/gen/go"); err != nil {
+		t.Fatal(err)
+	}
+
+	svcDir := filepath.Join(root, "ms-payments")
+	err := runNew([]string{
+		"ms-payments", "--model", "Payment",
+		"--fields", "amount:float64",
+		"--grpc", "--grpc-port", "50052",
+		"--dir", svcDir,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	checkFile(t, root, "proto/payments/v1/payments.proto", "package payments.v1;")
+	checkFile(t, root, "proto/payments/v1/payments.proto", `option go_package = "example.com/mono/gen/go/payments/v1";`)
+	checkFile(t, root, "proto/payments/v1/payments.proto", "service PaymentService")
+	if _, err := os.Stat(filepath.Join(svcDir, "api")); !os.IsNotExist(err) {
+		t.Error("expected no api/ dir in monorepo service")
+	}
+	checkFile(t, svcDir, "pb/payments.pb.go", "type Payment struct")
+	checkFile(t, svcDir, "grpcserver/payments.go", "type PaymentServer struct")
+	checkFile(t, svcDir, "service.yaml", "service_name: PaymentService")
+}
+
+func TestNewMonorepoFallbackModule(t *testing.T) {
+	root := t.TempDir()
+	legacy := filepath.Join(root, "proto", "consent", "v1")
+	os.MkdirAll(legacy, 0o750)
+	os.WriteFile(filepath.Join(legacy, "consent.proto"), []byte("syntax = \"proto3\";\n"), 0o600)
+
+	svcDir := filepath.Join(root, "ms-consent")
+	err := runNew([]string{
+		"ms-consent", "--model", "Consent",
+		"--fields", "subject:string",
+		"--grpc",
+		"--dir", svcDir,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	checkFile(t, root, "proto/consents/v1/consents.proto", "package consents.v1;")
+	checkFile(t, root, "proto/consents/v1/consents.proto", `option go_package = "github.com/natuleadan/ms-consent/pb;pb";`)
+}
+
+func TestFindSharedProto(t *testing.T) {
+	root := t.TempDir()
+	if err := runProtoInit(root, "example.com/mono/gen/go"); err != nil {
+		t.Fatal(err)
+	}
+
+	nested := filepath.Join(root, "services", "ms-a")
+	os.MkdirAll(nested, 0o750)
+	if got := findSharedProto(nested); got != root {
+		t.Errorf("findSharedProto = %q, want %q", got, root)
+	}
+	if got := findSharedProto(t.TempDir()); got != "" {
+		t.Errorf("findSharedProto fresh = %q, want empty", got)
+	}
+}
+
+func TestDiscoverSharedProtos(t *testing.T) {
+	root := t.TempDir()
+	for _, rel := range []string{"b/v1/b.proto", "a/v1/a.proto", "a/v1/notes.txt"} {
+		p := filepath.Join(root, "proto", rel)
+		os.MkdirAll(filepath.Dir(p), 0o750)
+		os.WriteFile(p, []byte("x"), 0o600)
+	}
+
+	got, err := discoverSharedProtos(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0] != "a/v1/a.proto" || got[1] != "b/v1/b.proto" {
+		t.Errorf("discover = %v, want sorted proto pair", got)
+	}
+}
+
+func TestResolveGenModule(t *testing.T) {
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, "gen", "go"), 0o750)
+	os.WriteFile(filepath.Join(root, "gen", "go", "go.mod"), []byte("module example.com/mono/gen/go\n"), 0o600)
+	os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/mono\n"), 0o600)
+
+	if got, _ := resolveGenModule(root, "flag/mod"); got != "flag/mod" {
+		t.Errorf("flag precedence = %q", got)
+	}
+	if got, _ := resolveGenModule(root, ""); got != "example.com/mono/gen/go" {
+		t.Errorf("gen/go.mod = %q", got)
+	}
+	os.Remove(filepath.Join(root, "gen", "go", "go.mod"))
+	if got, _ := resolveGenModule(root, ""); got != "example.com/mono/gen/go" {
+		t.Errorf("root derived = %q", got)
+	}
+	if _, err := resolveGenModule(t.TempDir(), ""); err == nil {
+		t.Error("expected error without module source, got nil")
+	}
+}
+
+func TestBuildGenerateOpts(t *testing.T) {
+	goOpts, grpcOpts := buildGenerateOpts("a.proto", "", "")
+	if len(goOpts) != 1 || goOpts[0] != "paths=import" {
+		t.Errorf("default goOpts = %v", goOpts)
+	}
+	if len(grpcOpts) != 1 || grpcOpts[0] != "paths=import" {
+		t.Errorf("default grpcOpts = %v", grpcOpts)
+	}
+
+	goOpts, grpcOpts = buildGenerateOpts("c.proto", "github.com/acme/mono", "github.com/acme/mono/gen/go/c/v1")
+	want := []string{"paths=import", "module=github.com/acme/mono", "Mc.proto=github.com/acme/mono/gen/go/c/v1"}
+	if strings.Join(goOpts, "|") != strings.Join(want, "|") {
+		t.Errorf("goOpts = %v, want %v", goOpts, want)
+	}
+	if strings.Join(grpcOpts, "|") != strings.Join(want, "|") {
+		t.Errorf("grpcOpts = %v, want %v", grpcOpts, want)
+	}
+}
+
+func TestProtocOutArgs(t *testing.T) {
+	got := protocOutArgs("--go_out", "/o", []string{"paths=import", "module=m"})
+	want := []string{"--go_out=/o", "--go_opt=paths=import", "--go_opt=module=m"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Errorf("args = %v, want %v", got, want)
+	}
+}
+
+func TestCanonicalVendoredArgs(t *testing.T) {
+	got := canonicalProtocArgs("/r/proto", "c/v1/c.proto", "/r/gen/go", "example.com/mono/gen/go")
+	joined := strings.Join(got, " ")
+	for _, want := range []string{"--proto_path=/r/proto", "c/v1/c.proto", "--go_out=/r/gen/go", "--go_opt=module=example.com/mono/gen/go", "--go-grpc_opt=module=example.com/mono/gen/go"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("canonical args %q missing %q", joined, want)
+		}
+	}
+
+	got = vendoredProtocArgs("/r/proto", "c/v1/c.proto", "/r/ms-c", "example.com/mono/ms-c")
+	joined = strings.Join(got, " ")
+	for _, want := range []string{"--go_out=/r/ms-c", "Mc/v1/c.proto=example.com/mono/ms-c/pb"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("vendored args %q missing %q", joined, want)
+		}
+	}
+}
+
+func TestResolveVendTargets(t *testing.T) {
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, "payments", "pb"), 0o750)
+	os.WriteFile(filepath.Join(root, "payments", "go.mod"), []byte("module example.com/mono/payments\n"), 0o600)
+	os.MkdirAll(filepath.Join(root, "ms-consent", "pb"), 0o750)
+	os.WriteFile(filepath.Join(root, "ms-consent", "go.mod"), []byte("module example.com/mono/ms-consent\n"), 0o600)
+
+	targets, err := resolveVendTargets(root,
+		[]string{"payments/v1/payments.proto", "consent/v1/consent.proto", "orphan/v1/orphan.proto"},
+		[]string{"consent/v1/consent.proto=" + filepath.Join(root, "ms-consent")},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(targets) != 2 {
+		t.Fatalf("targets = %v, want 2", targets)
+	}
+	if targets[0].svcDir != filepath.Join(root, "payments") || targets[0].svcMod != "example.com/mono/payments" {
+		t.Errorf("auto target = %+v", targets[0])
+	}
+	if targets[1].svcDir != filepath.Join(root, "ms-consent") {
+		t.Errorf("explicit target = %+v", targets[1])
+	}
+
+	if _, err := resolveVendTargets(root, nil, []string{"badformat"}); err == nil {
+		t.Error("expected error on bad --vend, got nil")
+	}
+}
+
+func TestModuleOf(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "go.mod")
+	os.WriteFile(p, []byte("module example.com/x\n\ngo 1.27\n"), 0o600)
+	if got, err := moduleOf(p); err != nil || got != "example.com/x" {
+		t.Errorf("moduleOf = %q, %v", got, err)
+	}
+	if _, err := moduleOf(filepath.Join(dir, "missing.mod")); err == nil {
+		t.Error("expected error on missing go.mod, got nil")
+	}
+}
+
+func TestProtoGenerateNoProtos(t *testing.T) {
+	if err := runProtoGenerate(t.TempDir(), "", nil); err == nil {
+		t.Error("expected error without protos, got nil")
+	}
+}

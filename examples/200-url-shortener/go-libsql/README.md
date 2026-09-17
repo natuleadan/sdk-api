@@ -33,16 +33,30 @@ docker compose up --build
 
 | Endpoint | req/s |
 |----------|:-----:|
-| Update (PATCH /links/:id) | 95,561 |
+| Update (PATCH /links/:id) | ~1,480¹ |
 | Expand (GET /expand/:shortCode) | 68,527 |
 | GetByID (GET /links/:id) | 62,425 |
 | List (GET /links) | 41,852 |
 | Create (POST /links) | 0.2 |
 | Delete (DELETE /links/:id) | 0.2 |
 
+¹ Re-measured 2026-09-17 on Docker/Mac with the JSON→column fix: zero
+non-2xx, stable warmup→measure (wrk timeouts on slow primary writes are
+client-side impatience, not server errors). Other rows pending re-measure
+on the fixed SDK.
+
 > Embedded replica: **reads are local** (fast, ~40-95k req/s), **writes go to
 > the Turso cloud primary** (slow, network RTT dominates). This is the
 > local-first read path - ideal for low-latency reads on the same VPS.
+>
+> **2026-09 anomaly (fixed):** the 2026-09-01 VPS sweep measured update
+> 95,561 req/s — those were HTTP 500s, not updates: PATCH with JSON keys
+> (`targetUrl`) failed with `no such column` because the SDK used patch keys
+> raw as column names. The SDK now maps JSON names to columns on update
+> (verified live: PATCH → 200; re-measure update on a clean DB for true
+> numbers). The expand 0.00 from the same sweep did not reproduce (clean
+> ~76k warmup/measure, zero errors on Docker/Mac) — VPS-run environment,
+> not SDK code.
 
 ## Notes
 

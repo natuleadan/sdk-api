@@ -28,6 +28,15 @@ update (34K) already uses the PATCH fix.
 Measured 2026-08-20 on v0.18.2 (Dedicated = 12-core AMD Linux; wrk inside
 Docker, clean host). Baseline 2026-08-01.
 
+> **2026-09 anomaly (fixed):** the 2026-09-01 VPS sweep measured expand
+> 106k→24k with `Error 1226 (max_user_connections)` — ProxySQL capped the
+> `dev` user and the hostgroup at 200 connections while prefork × pool opens
+> up to ~1200. Both caps raised to 1500 in `proxysql.cnf` (recreate the
+> proxysql container after editing: it only reads the file on a fresh
+> datadir). Re-measured clean on Docker/Mac: expand ~32k warmup/measure with
+> zero non-2xx. Also fixed: PATCH with JSON keys (`targetUrl`) returned 500
+> (`no such column`) — the SDK now maps JSON names to columns on update.
+
 ## Architecture
 
 | File | Purpose |

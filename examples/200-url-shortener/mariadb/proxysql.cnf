@@ -38,7 +38,9 @@ mysql_servers =
         address="mariadb"
         port=3306
         hostgroup=0
-        max_connections=200
+        # Must cover prefork workers x SDK pool max (e.g. 12 x 100 = 1200)
+        # with headroom, within the server max_connections=2000.
+        max_connections=1500
     }
 )
 
@@ -48,7 +50,9 @@ mysql_users:
         username="dev"
         password="devpass"
         default_hostgroup=0
-        max_connections=200
+        # Same budget as the hostgroup above: bench opens up to
+        # prefork x pool connections for this single user.
+        max_connections=1500
         default_schema="shorturl"
         active=1
     }

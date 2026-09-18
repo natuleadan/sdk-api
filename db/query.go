@@ -39,11 +39,11 @@ func Placeholder(d SQLDialect, i int) string {
 	return "?"
 }
 
-// Rewrite converts a query written with $n placeholders to the dialect's
-// placeholders and returns the matching arguments. PostgreSQL is a no-op. For
-// positional dialects a repeated $n duplicates its argument, since `?` cannot
-// refer to the same argument twice. Placeholders inside single-quoted string
-// literals are left untouched.
+// Rewrite converts a query written with PostgreSQL syntax to the dialect:
+// $n placeholders become positional (with argument expansion), and the generic
+// expressions now() and gen_random_uuid() are translated. PostgreSQL is a
+// no-op. Placeholders and expressions inside single-quoted string literals are
+// left untouched.
 func Rewrite(d SQLDialect, query string, args ...any) (string, []any) {
 	if d == DialectPostgres {
 		return query, args
@@ -63,7 +63,11 @@ func Rewrite(d SQLDialect, query string, args ...any) (string, []any) {
 			b.WriteByte(c)
 			continue
 		}
-		if !inQuote && c == '$' && i+1 < len(query) && isDigit(query[i+1]) {
+		if inQuote {
+			b.WriteByte(c)
+			continue
+		}
+		if c == '$' && i+1 < len(query) && isDigit(query[i+1]) {
 			j := i + 1
 			for j < len(query) && isDigit(query[j]) {
 				j++
@@ -76,9 +80,71 @@ func Rewrite(d SQLDialect, query string, args ...any) (string, []any) {
 				continue
 			}
 		}
+		if isIdentStart(c) {
+			j := i + 1
+			for j < len(query) && isIdentPart(query[j]) {
+				j++
+			}
+			if _, n, ok := matchCall(query, j); ok {
+				switch strings.ToLower(query[i:j]) {
+				case "now":
+					b.WriteString(Now(d))
+					i = n
+					continue
+				case "gen_random_uuid":
+					b.WriteString(RandomUUIDExpr(d))
+					i = n
+					continue
+				}
+			}
+			b.WriteString(query[i:j])
+			i = j - 1
+			continue
+		}
 		b.WriteByte(c)
 	}
 	return b.String(), out
+}
+
+// RandomUUIDExpr returns a server-side random id expression for the dialect.
+func RandomUUIDExpr(d SQLDialect) string {
+	switch d {
+	case DialectMySQL:
+		return "(UUID())"
+	case DialectSQLite:
+		return "(lower(hex(randomblob(16))))"
+	default:
+		return "gen_random_uuid()"
+	}
+}
+
+// matchCall reports whether the identifier ending at `from` is followed by an
+// (optionally spaced) empty-argument call "()", returning the index of the
+// closing parenthesis.
+func matchCall(query string, from int) (string, int, bool) {
+	i := from
+	for i < len(query) && query[i] == ' ' {
+		i++
+	}
+	if i >= len(query) || query[i] != '(' {
+		return "", 0, false
+	}
+	j := i + 1
+	for j < len(query) && query[j] == ' ' {
+		j++
+	}
+	if j >= len(query) || query[j] != ')' {
+		return "", 0, false
+	}
+	return query[from:i], j, true
+}
+
+func isIdentStart(b byte) bool {
+	return b == '_' || (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z')
+}
+
+func isIdentPart(b byte) bool {
+	return isIdentStart(b) || isDigit(b)
 }
 
 // Now returns the current-timestamp expression for the dialect.

@@ -37,6 +37,26 @@ func TestRewrite(t *testing.T) {
 	assert.Equal(t, "SELECT '$1' WHERE a = ?", q)
 }
 
+func TestRewriteExpressions(t *testing.T) {
+	q, args := Rewrite(DialectSQLite, "UPDATE t SET a = now() WHERE b = $1", 1)
+	assert.Equal(t, "UPDATE t SET a = CURRENT_TIMESTAMP WHERE b = ?", q)
+	assert.Equal(t, []any{1}, args)
+
+	q, _ = Rewrite(DialectMySQL, "INSERT INTO t (id) VALUES (gen_random_uuid())")
+	assert.Equal(t, "INSERT INTO t (id) VALUES ((UUID()))", q)
+
+	q, _ = Rewrite(DialectSQLite, "SELECT gen_random_uuid()")
+	assert.Equal(t, "SELECT (lower(hex(randomblob(16))))", q)
+
+	// Inside quotes, and non-call identifiers, are untouched.
+	q, _ = Rewrite(DialectSQLite, "SELECT 'now()' AS x, nowhere FROM t")
+	assert.Equal(t, "SELECT 'now()' AS x, nowhere FROM t", q)
+
+	// Postgres keeps the pivot syntax.
+	q, _ = Rewrite(DialectPostgres, "SELECT now(), gen_random_uuid()")
+	assert.Equal(t, "SELECT now(), gen_random_uuid()", q)
+}
+
 func TestQueryExpressions(t *testing.T) {
 	assert.Equal(t, "now()", Now(DialectPostgres))
 	assert.Equal(t, "NOW()", Now(DialectMySQL))

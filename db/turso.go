@@ -141,21 +141,11 @@ func (t *TursoTable[T]) buildColumnDef(f FieldInfo) string {
 
 func (t *TursoTable[T]) scanRow(row *sql.Row, entity *T) error {
 	v := reflect.ValueOf(entity).Elem()
-	ptrs := make([]any, 0, len(t.columns))
-	for _, col := range t.columns {
-		fi := t.columnField(col)
-		if fi == nil {
-			ptrs = append(ptrs, new(any))
-			continue
-		}
-		fv := v.FieldByName(fi.GoName)
-		if !fv.IsValid() || !fv.CanInterface() {
-			ptrs = append(ptrs, new(any))
-			continue
-		}
-		ptrs = append(ptrs, fv.Addr().Interface())
+	ptrs, dests := scanTargets(v, t.info.Fields, t.columns)
+	if err := row.Scan(ptrs...); err != nil {
+		return err
 	}
-	return row.Scan(ptrs...)
+	return assignTargets(dests, ptrs)
 }
 
 func (t *TursoTable[T]) scanRows(rows *sql.Rows) ([]T, error) {
@@ -163,21 +153,11 @@ func (t *TursoTable[T]) scanRows(rows *sql.Rows) ([]T, error) {
 	for rows.Next() {
 		var entity T
 		v := reflect.ValueOf(&entity).Elem()
-		ptrs := make([]any, 0, len(t.columns))
-		for _, col := range t.columns {
-			fi := t.columnField(col)
-			if fi == nil {
-				ptrs = append(ptrs, new(any))
-				continue
-			}
-			fv := v.FieldByName(fi.GoName)
-			if !fv.IsValid() || !fv.CanInterface() {
-				ptrs = append(ptrs, new(any))
-				continue
-			}
-			ptrs = append(ptrs, fv.Addr().Interface())
-		}
+		ptrs, dests := scanTargets(v, t.info.Fields, t.columns)
 		if err := rows.Scan(ptrs...); err != nil {
+			return nil, fmt.Errorf("db: turso scan: %w", err)
+		}
+		if err := assignTargets(dests, ptrs); err != nil {
 			return nil, fmt.Errorf("db: turso scan: %w", err)
 		}
 		result = append(result, entity)
@@ -474,25 +454,11 @@ func (t *TursoTable[T]) Create(ctx context.Context, entity *T) error {
 	b.WriteString(strings.Join(cols, ", "))
 	b.WriteString(") VALUES (")
 	b.WriteString(t.placeholder(len(cols)))
-	b.WriteString(")")
-	query := b.String()
-	res, err := t.db.ExecContext(ctx, query, vals...)
-	if err != nil {
+	b.WriteString(") RETURNING ")
+	b.WriteString(t.columnsList())
+	if err := t.scanRow(t.db.QueryRowContext(ctx, b.String(), vals...), entity); err != nil {
 		return fmt.Errorf("db: turso create: %w", err)
 	}
-
-	pk := t.info.Fields[0]
-	if pk.FieldType.Kind() == reflect.String {
-		// A string primary key cannot come from LastInsertId; the caller set
-		// it (the SQLite default is omitted for generated ids) so leave it.
-		return nil
-	}
-	id, err := res.LastInsertId()
-	if err != nil {
-		return fmt.Errorf("db: turso lastid: %w", err)
-	}
-
-	v.FieldByName(pk.GoName).SetInt(id)
 	return nil
 }
 

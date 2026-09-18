@@ -218,21 +218,11 @@ func (t *MySQLTable[T]) buildColumnDef(f FieldInfo) string {
 
 func (t *MySQLTable[T]) scanRow(row *sql.Row, entity *T) error {
 	v := reflect.ValueOf(entity).Elem()
-	ptrs := make([]any, 0, len(t.columns))
-	for _, col := range t.columns {
-		fi := t.columnField(col)
-		if fi == nil {
-			ptrs = append(ptrs, new(any))
-			continue
-		}
-		fv := v.FieldByName(fi.GoName)
-		if !fv.IsValid() || !fv.CanInterface() {
-			ptrs = append(ptrs, new(any))
-			continue
-		}
-		ptrs = append(ptrs, fv.Addr().Interface())
+	ptrs, dests := scanTargets(v, t.info.Fields, t.columns)
+	if err := row.Scan(ptrs...); err != nil {
+		return err
 	}
-	return row.Scan(ptrs...)
+	return assignTargets(dests, ptrs)
 }
 
 func (t *MySQLTable[T]) scanRows(rows *sql.Rows) ([]T, error) {
@@ -240,21 +230,11 @@ func (t *MySQLTable[T]) scanRows(rows *sql.Rows) ([]T, error) {
 	for rows.Next() {
 		var entity T
 		v := reflect.ValueOf(&entity).Elem()
-		ptrs := make([]any, 0, len(t.columns))
-		for _, col := range t.columns {
-			fi := t.columnField(col)
-			if fi == nil {
-				ptrs = append(ptrs, new(any))
-				continue
-			}
-			fv := v.FieldByName(fi.GoName)
-			if !fv.IsValid() || !fv.CanInterface() {
-				ptrs = append(ptrs, new(any))
-				continue
-			}
-			ptrs = append(ptrs, fv.Addr().Interface())
-		}
+		ptrs, dests := scanTargets(v, t.info.Fields, t.columns)
 		if err := rows.Scan(ptrs...); err != nil {
+			return nil, fmt.Errorf("db: mysql scan: %w", err)
+		}
+		if err := assignTargets(dests, ptrs); err != nil {
 			return nil, fmt.Errorf("db: mysql scan: %w", err)
 		}
 		result = append(result, entity)
@@ -486,21 +466,10 @@ func (t *MySQLTable[T]) Get(ctx context.Context, id any) (*T, error) {
 
 func (t *MySQLTable[T]) Create(ctx context.Context, entity *T) error {
 	v := reflect.ValueOf(entity).Elem()
-	var cols []string
-	var vals []any
-	for _, f := range t.info.Fields {
-		if f.Skip || f.Auto {
-			continue
-		}
-		fv := v.FieldByName(f.GoName)
-		if !fv.IsValid() {
-			continue
-		}
-		if f.Default != "" && fv.IsZero() {
-			continue
-		}
-		cols = append(cols, "`"+f.Column+"`")
-		vals = append(vals, fv.Interface())
+	stringPK := t.ensureStringPK(v)
+	cols, vals := t.insertColumns(v)
+	if len(cols) == 0 {
+		return fmt.Errorf("db: mysql create: no insertable columns for %s", t.tableName)
 	}
 
 	var b strings.Builder
@@ -518,7 +487,7 @@ func (t *MySQLTable[T]) Create(ctx context.Context, entity *T) error {
 		return fmt.Errorf("db: mysql create: %w", err)
 	}
 
-	if t.info.PrimaryKey != "" {
+	if t.info.PrimaryKey != "" && !stringPK {
 		id, err := res.LastInsertId()
 		if err != nil {
 			return fmt.Errorf("db: mysql lastid: %w", err)
@@ -531,6 +500,43 @@ func (t *MySQLTable[T]) Create(ctx context.Context, entity *T) error {
 		}
 	}
 	return nil
+}
+
+// ensureStringPK generates a UUID for an empty string primary key, reporting
+// whether the table uses one.
+func (t *MySQLTable[T]) ensureStringPK(v reflect.Value) bool {
+	for _, f := range t.info.Fields {
+		if !f.Primary || f.FieldType.Kind() != reflect.String {
+			continue
+		}
+		if fv := v.FieldByName(f.GoName); fv.IsValid() && fv.IsZero() {
+			fv.SetString(NewID())
+		}
+		return true
+	}
+	return false
+}
+
+// insertColumns lists the column names and values to persist for entity.
+func (t *MySQLTable[T]) insertColumns(v reflect.Value) ([]string, []any) {
+	var cols []string
+	var vals []any
+	for _, f := range t.info.Fields {
+		fv := v.FieldByName(f.GoName)
+		if !fv.IsValid() {
+			continue
+		}
+		stringPK := f.Primary && f.FieldType.Kind() == reflect.String && !fv.IsZero()
+		if f.Skip || (f.Auto && !stringPK) {
+			continue
+		}
+		if f.Default != "" && fv.IsZero() {
+			continue
+		}
+		cols = append(cols, "`"+f.Column+"`")
+		vals = append(vals, fv.Interface())
+	}
+	return cols, vals
 }
 
 func (t *MySQLTable[T]) Update(ctx context.Context, id any, patch map[string]any) (*T, error) {

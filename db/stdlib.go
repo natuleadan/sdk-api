@@ -18,7 +18,11 @@ func OpenStdlib(driver, dsn string) (*sql.DB, error) {
 		name = "pgx"
 	case "mysql", "mariadb":
 		name = "mysql"
-	case "turso", "turso-serverless", "libsql", "go-libsql":
+	case "turso":
+		name = "turso"
+	case "turso-serverless":
+		name = "turso-serverless"
+	case "libsql", "go-libsql":
 		name = "libsql"
 	}
 	database, err := sql.Open(name, dsn)

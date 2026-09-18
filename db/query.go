@@ -221,11 +221,11 @@ func translateMySQLUpsert(query string) string {
 
 // firstColumn returns the first identifier inside the first parentheses.
 func firstColumn(s string) string {
-	open := strings.Index(s, "(")
-	if open < 0 {
+	_, after, ok := strings.Cut(s, "(")
+	if !ok {
 		return ""
 	}
-	rest := s[open+1:]
+	rest := after
 	end := len(rest)
 	for i := 0; i < len(rest); i++ {
 		if rest[i] == ',' || rest[i] == ')' {

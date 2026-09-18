@@ -518,15 +518,28 @@ func jwtMiddleware(entry *EntryDef, jwtCfg *middleware.JWTConfig) fiber.Handler 
 	if !hasAuth(entry, "jwt") || jwtCfg == nil {
 		return nil
 	}
-	// Apply per-entry jwt_from override
+	return jwtSkipWrapper(entry, middleware.JWT(jwtConfigForEntry(entry, jwtCfg)))
+}
+
+// jwtConfigForEntry resolves the token lookup for one entry: the entry's
+// jwt_from when set, otherwise the shared default (header:Authorization).
+// Required by the JWKS-based middlewares, which read TokenLookup directly.
+func jwtConfigForEntry(entry *EntryDef, jwtCfg *middleware.JWTConfig) middleware.JWTConfig {
 	cfg := *jwtCfg
 	if entry.JWTFrom != "" {
 		cfg.TokenLookup = entry.JWTFrom
 	}
-	// When jwt_from overrides the default (header:Authorization), don't skip
-	// based on Authorization header — token may be in cookie or query param.
+	if cfg.TokenLookup == "" {
+		cfg.TokenLookup = "header:Authorization"
+	}
+	return cfg
+}
+
+// jwtSkipWrapper skips the JWT middleware when another credential mode already
+// authenticated the request (apikey/basic/oauth/session), or when no Bearer
+// token is present and the entry uses the default lookup.
+func jwtSkipWrapper(entry *EntryDef, mw fiber.Handler) fiber.Handler {
 	hasCustomLookup := entry.JWTFrom != ""
-	mw := middleware.JWT(cfg)
 	return func(c fiber.Ctx) error {
 		mode, _ := c.Locals("auth_mode").(string)
 		if mode == "apikey" || mode == "basic" || mode == "oauth" || mode == "session" {
@@ -543,14 +556,14 @@ func zitadelJWTMiddleware(entry *EntryDef, jwtCfg *middleware.JWTConfig, zClient
 	if !hasAuth(entry, "jwt") || zClient == nil {
 		return nil
 	}
-	return middleware.JWTWithZitadel(*jwtCfg, zClient)
+	return jwtSkipWrapper(entry, middleware.JWTWithZitadel(jwtConfigForEntry(entry, jwtCfg), zClient))
 }
 
 func oryJWTMiddleware(entry *EntryDef, jwtCfg *middleware.JWTConfig, oClient *ory.Client) fiber.Handler {
 	if !hasAuth(entry, "jwt") || oClient == nil {
 		return nil
 	}
-	return middleware.JWTWithOry(*jwtCfg, oClient)
+	return jwtSkipWrapper(entry, middleware.JWTWithOry(jwtConfigForEntry(entry, jwtCfg), oClient))
 }
 
 func openfgaMiddleware(entry *EntryDef, fgaClient openfga.Checker, roles, permissions []string) fiber.Handler {

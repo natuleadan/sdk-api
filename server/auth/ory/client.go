@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -345,6 +346,42 @@ type PermissionDef struct {
 	Role     string
 	Resource string
 	Action   string
+}
+
+// DeleteKetoTuple removes a relation tuple from Ory Keto. Keto deletes by
+// query parameters (namespace + object + relation + subject_id). A 404 means
+// the tuple was already absent and is treated as success.
+func (c *Client) DeleteKetoTuple(ctx context.Context, namespace, object, relation, subjectID string) error {
+	q := url.Values{}
+	q.Set("namespace", namespace)
+	q.Set("object", object)
+	q.Set("relation", relation)
+	q.Set("subject_id", subjectID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete,
+		c.ketoWriteURL+"/admin/relation-tuples?"+q.Encode(), nil)
+	if err != nil {
+		return fmt.Errorf("ory: keto delete request: %w", err)
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("ory: keto delete failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNotFound {
+		return fmt.Errorf("ory: keto delete returned %d", resp.StatusCode)
+	}
+	return nil
+}
+
+// CheckPermission reports whether subjectID has relation on namespace:object
+// according to Keto (a direct check, distinct from the middleware gate).
+func (c *Client) CheckPermission(ctx context.Context, namespace, object, relation, subjectID string) (bool, error) {
+	return c.KetoCheck(ctx, KetoCheckRequest{
+		Namespace: namespace,
+		Object:    object,
+		Relation:  relation,
+		SubjectID: subjectID,
+	})
 }
 
 // SeedPermissions writes the role → permission tuples that let a role reach a

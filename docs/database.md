@@ -129,10 +129,10 @@ type Product struct {
 | `primary` | Primary key field |
 | `auto` | Auto-increment (PostgreSQL serial, MySQL AUTO_INCREMENT, Turso AUTOINCREMENT) |
 | `required` | NOT NULL constraint |
-| `default=...` | DEFAULT constraint value |
+| `default=...` | DEFAULT value; `now()` and `gen_random_uuid()` are normalized per driver (Turso omits the uuid default and the app sets the id) |
 | `unique` | UNIQUE INDEX |
 | `index` | INDEX |
-| `type=...` | Override SQL type (e.g. `type=DECIMAL(10,2)`, `type=JSONB`, `type=TEXT[]`) |
+| `type=...` | Override SQL type (e.g. `type=DECIMAL(10,2)`, `type=JSONB`, `type=TEXT[]`); translated per driver (`JSONB`/`TEXT[]` → `JSON` on MySQL, `TEXT` on Turso; `DECIMAL` → `NUMERIC`; `timestamptz` → `DATETIME(3)`/`TEXT`; `UUID` → `CHAR(36)`/`TEXT`) |
 | `fk=table.col` | Foreign key reference (e.g. `fk=users.id` generates `REFERENCES users(id)`) |
 | `-` | Skip this field |
 
@@ -269,7 +269,17 @@ table.AutoInit(ctx)
 - Creates `CREATE TABLE IF NOT EXISTS ...` with columns from struct tags
 - Creates indexes for `index` and `unique` fields
 - Applies table-level constraints declared via `TableConstraints` interface (composite UNIQUE, INDEX, CHECK)
+- Translates `type=` overrides and `default=` values per driver, so the same model targets PostgreSQL, MySQL and Turso/libSQL (see the dialect notes under **DB Tags**)
 - Does NOT run migrations (ALTER TABLE). Schema changes must be manual.
+
+MongoDB has no DDL. Its AutoInit equivalent is ensuring indexes at startup:
+`db.IndexFields[Model]()` derives the `primary`/`unique`/`index` columns and the
+extra fields are passed to the Mongo registration:
+
+```go
+fields, _ := db.IndexFields[Widget]()
+runtime.MongoMustRegister(svc, "Widget", "mongo", "app", "widgets", "slug", fields...)
+```
 
 #### TableConstraints
 

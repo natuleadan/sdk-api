@@ -838,6 +838,7 @@ gRPC service definition paired with `svc.RegisterGrpcService()`. The SDK auto-wi
 | `csrf` | crud, rest, webhook | Per-entry override: `false` skips CSRF for this entry |
 | `validate` | crud, rest, webhook | Validation model name |
 | `api_version` | all | API version prefix (e.g. `v1`, `v2`). Empty = no version prefix |
+| `hidden` | all | Keeps the route mounted at runtime but removes it from the generated OpenAPI spec and the docs UI (operational/system endpoints) |
 | `api_status` | all | Lifecycle status: `current`, `deprecated`, `removed` |
 | `sunset_date` | all | RFC3339 date when endpoint will be removed (e.g. `2026-12-31T23:59:59Z`) |
 | `retry` | rest, webhook | Retry configuration for idempotent methods (GET, HEAD, PUT, DELETE, OPTIONS) |
@@ -1146,6 +1147,10 @@ server:
       - url: https://api.example.com
         description: production
 
+    # ---- publishing (hide from the spec, routes stay mounted) ----
+    exclude_paths: ["/v1/system/*"]           # remove matching paths (trailing * = prefix)
+    exclude_tags: [System]                    # drop operations carrying these tags
+
     # ---- multi-service docs (tabs) ----
     sources:                                  # extra OpenAPI documents
       - title: Email service
@@ -1165,7 +1170,11 @@ svc.WithOpenAPIMutator(func(spec *openapi3.T) error {
 svc.WithScalarOptions(scalargo.WithSearchHotKey("k")) // raw escape hatch
 ```
 
-The generated spec also documents every entry automatically: `async` entries
+**Publishing controls.** An entry marked `hidden: true` is served at runtime but
+omitted from `openapi.json` and the docs UI; `openapi.exclude_paths` removes whole
+paths (a trailing `*` matches a prefix) and `openapi.exclude_tags` drops any
+operation carrying a listed tag. Security schemes used only by hidden entries are
+not advertised either. The generated spec also documents every entry automatically: `async` entries
 expand to submit/list/status/cancel/SSE paths, `graphql` entries render as POST
 operations, entry `auth_modes` produce `securitySchemes` (jwt → bearer,
 apikey → Authorization header), `entry.summary` / `entry.description` fill the

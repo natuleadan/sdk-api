@@ -534,7 +534,9 @@ func TursoMustRegister[T any](svc *Service, name, poolName, tableName string, ho
 // MongoMustRegister registers a CRUD provider for MongoDB backend.
 // The model is lazily initialized on the first HTTP request.
 // lookupField is the document field used for Get (e.g. "_id" or "short_code").
-func MongoMustRegister(svc *Service, name, poolName, database, collection, lookupField string) {
+// Extra indexFields (e.g. db.IndexFields[Model]()) are ensured as Mongo
+// indexes at startup: MongoDB has no DDL, so this is its AutoInit equivalent.
+func MongoMustRegister(svc *Service, name, poolName, database, collection, lookupField string, indexFields ...string) {
 	svc.WithCRUDFactory(name, func() CRUDProvider {
 		uri, ok := svc.pools[poolName].(string)
 		if !ok {
@@ -546,6 +548,14 @@ func MongoMustRegister(svc *Service, name, poolName, database, collection, looku
 		if lookupField != "" && lookupField != "_id" {
 			if err := model.EnsureIndex(context.Background(), lookupField); err != nil {
 				log.Fatalf("runtime: mongo index %q: %v", lookupField, err)
+			}
+		}
+		for _, field := range indexFields {
+			if field == "" || field == lookupField {
+				continue
+			}
+			if err := model.EnsureIndex(context.Background(), field); err != nil {
+				log.Fatalf("runtime: mongo index %q: %v", field, err)
 			}
 		}
 		return NewMongoCRUDProvider(model, lookupField)

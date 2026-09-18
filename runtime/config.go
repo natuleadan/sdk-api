@@ -99,6 +99,9 @@ type AuthConfig struct {
 	KratosURL string `json:"kratos_url" config:",optional"`
 	// KetoURL is a constant.
 	KetoURL string `json:"keto_url" config:",optional"`
+	// Ory tunes the Ory (Kratos + Keto) driver. All fields are optional and
+	// default to the standard Ory conventions.
+	Ory *OryConf `json:"ory" config:",optional"`
 	// Refresh is a constant.
 	Refresh *RefreshConfig `json:"refresh" config:",optional"`
 	// Cookie is a constant.
@@ -112,6 +115,18 @@ type AuthConfig struct {
 }
 
 // OAuthConf holds third-party OAuth introspection settings.
+// OryConf tunes the Ory (Kratos + Keto) driver. Empty fields fall back to the
+// standard Ory conventions.
+type OryConf struct {
+	// RoleNamespace is the Keto namespace modelling roles (default "roles").
+	RoleNamespace string `json:"role_namespace" config:",optional"`
+	// RoleRelation is the Keto relation granting a role (default "assignee").
+	RoleRelation string `json:"role_relation" config:",optional"`
+	// PermissionRelation is the Keto relation granting a permission on a
+	// resource namespace (default "perform").
+	PermissionRelation string `json:"permission_relation" config:",optional"`
+}
+
 type OAuthConf struct {
 	// IntrospectionURL is the RFC 7662 endpoint (https recommended).
 	IntrospectionURL string `json:"introspection_url"`

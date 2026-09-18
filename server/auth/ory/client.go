@@ -21,6 +21,10 @@ type Client struct {
 	ketoURL         string
 	http            *http.Client
 	resolver        *jwks.Resolver
+
+	roleNamespace      string
+	roleRelation       string
+	permissionRelation string
 }
 
 // Config holds Ory connection settings.
@@ -28,6 +32,12 @@ type Config struct {
 	KratosPublicURL string
 	KetoURL         string
 	TTL             time.Duration
+	// RoleNamespace/RoleRelation name the Keto tuple that grants a role
+	// (default: roles / assignee). PermissionRelation names the relation that
+	// grants a permission on a resource namespace (default: perform).
+	RoleNamespace      string
+	RoleRelation       string
+	PermissionRelation string
 }
 
 // NewClient creates an Ory client (Kratos + Keto).
@@ -36,13 +46,36 @@ func NewClient(cfg Config) *Client {
 	if cfg.TTL > 0 {
 		opts = append(opts, jwks.WithTTL(cfg.TTL))
 	}
-	return &Client{
+	c := &Client{
 		kratosPublicURL: cfg.KratosPublicURL,
 		ketoURL:         cfg.KetoURL,
 		http:            &http.Client{Timeout: 10 * time.Second},
 		resolver:        jwks.New(cfg.KratosPublicURL+"/.well-known/jwks.json", opts...),
+
+		roleNamespace:      cfg.RoleNamespace,
+		roleRelation:       cfg.RoleRelation,
+		permissionRelation: cfg.PermissionRelation,
 	}
+	if c.roleNamespace == "" {
+		c.roleNamespace = "roles"
+	}
+	if c.roleRelation == "" {
+		c.roleRelation = "assignee"
+	}
+	if c.permissionRelation == "" {
+		c.permissionRelation = "perform"
+	}
+	return c
 }
+
+// RoleNamespace returns the Keto namespace that models role membership.
+func (c *Client) RoleNamespace() string { return c.roleNamespace }
+
+// RoleRelation returns the Keto relation that grants a role to a subject.
+func (c *Client) RoleRelation() string { return c.roleRelation }
+
+// PermissionRelation returns the Keto relation that grants a permission.
+func (c *Client) PermissionRelation() string { return c.permissionRelation }
 
 // Session holds the validated user session from Kratos.
 type Session struct {
@@ -50,6 +83,33 @@ type Session struct {
 		ID     string         `json:"id"`
 		Traits map[string]any `json:"traits"`
 	} `json:"identity"`
+}
+
+// Roles extracts role names from the identity traits ("roles" as a list of
+// strings). Keto remains the authorization source of truth; this is only a
+// convenience for drivers that mirror roles into traits.
+func (s *Session) Roles() []string {
+	if s == nil || s.Identity.Traits == nil {
+		return nil
+	}
+	raw, ok := s.Identity.Traits["roles"]
+	if !ok {
+		return nil
+	}
+	switch v := raw.(type) {
+	case []string:
+		return v
+	case []any:
+		roles := make([]string, 0, len(v))
+		for _, item := range v {
+			if r, ok := item.(string); ok && r != "" {
+				roles = append(roles, r)
+			}
+		}
+		return roles
+	default:
+		return nil
+	}
 }
 
 // ValidateSession validates a session cookie or token against Ory Kratos.
@@ -165,7 +225,7 @@ func (c *Client) WriteKetoTuple(ctx context.Context, namespace, object, relation
 		return fmt.Errorf("ory: keto write marshal failed: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost,
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPut,
 		c.ketoURL+"/admin/relation-tuples", bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("ory: keto write request failed: %w", err)

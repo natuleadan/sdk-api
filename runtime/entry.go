@@ -198,6 +198,9 @@ func appendCredentialMiddlewares(mws []fiber.Handler, entry *EntryDef, extra ent
 	if hasAuth(entry, "session") && extra.session != nil {
 		mws = append(mws, sessionMiddleware(entry, extra.session))
 	}
+	if hasAuth(entry, "session") && driver == "ory" && oryClient != nil {
+		mws = append(mws, kratosSessionMiddleware(entry, oryClient))
+	}
 	if hasAuth(entry, "jwt") && driver != "none" && driver != "" {
 		mws = appendJWTMiddleware(mws, entry, driver, jwtCfg, authValidator, fgaClient, oryClient, zitadelClient)
 		if entry.RequiresMFA {
@@ -632,6 +635,11 @@ func apiKeyMiddleware(entry *EntryDef, apiKeyValidator func(ctx context.Context,
 		if mode == "" && strings.HasPrefix(c.Get("Authorization"), "Bearer ") {
 			return c.Next()
 		}
+		// Entries that also accept an identity mode may carry the credential in
+		// a cookie (e.g. an Ory Kratos session); let those middlewares try.
+		if mode == "" && hasIdentityAuth(entry) && c.Get("Authorization") == "" {
+			return c.Next()
+		}
 		return mw(c)
 	}
 }
@@ -675,6 +683,26 @@ func sessionMiddleware(entry *EntryDef, cfg *middleware.SessionConfig) fiber.Han
 		return nil
 	}
 	mw := middleware.Session(*cfg)
+	return func(c fiber.Ctx) error {
+		if middleware.GetAuth(c) != nil {
+			return c.Next()
+		}
+		mode, _ := c.Locals("auth_mode").(string)
+		if mode == "jwt" || mode == "apikey" || mode == "basic" || mode == "oauth" {
+			return c.Next()
+		}
+		return mw(c)
+	}
+}
+
+// kratosSessionMiddleware validates an Ory Kratos session for driver "ory"
+// entries using auth_modes [session]. Identity comes from Kratos; roles are
+// enforced downstream by the Keto middleware.
+func kratosSessionMiddleware(entry *EntryDef, oClient *ory.Client) fiber.Handler {
+	if !hasAuth(entry, "session") || oClient == nil {
+		return nil
+	}
+	mw := middleware.KratosSession(middleware.KratosSessionConfig{Client: oClient})
 	return func(c fiber.Ctx) error {
 		if middleware.GetAuth(c) != nil {
 			return c.Next()

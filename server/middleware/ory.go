@@ -58,10 +58,10 @@ func Ory(cfg OryConfig) fiber.Handler {
 func checkRolesViaKeto(c fiber.Ctx, client *ory.Client, auth *AuthContext, roles []string) (bool, error) {
 	for _, role := range roles {
 		allowed, err := client.KetoCheck(c.Context(), ory.KetoCheckRequest{
-			Namespace: "roles",
+			Namespace: client.RoleNamespace(),
 			Object:    role,
-			Relation:  "assignee",
-			SubjectID: auth.UserID,
+			Relation:  client.RoleRelation(),
+			SubjectID: subjectID(auth),
 		})
 		if err != nil {
 			return false, fmt.Errorf("ory keto role check: %w", err)
@@ -82,8 +82,8 @@ func checkPermissionsViaKeto(c fiber.Ctx, client *ory.Client, auth *AuthContext,
 		allowed, err := client.KetoCheck(c.Context(), ory.KetoCheckRequest{
 			Namespace: parts[0],
 			Object:    parts[1],
-			Relation:  "perform",
-			SubjectID: auth.UserID,
+			Relation:  client.PermissionRelation(),
+			SubjectID: subjectID(auth),
 		})
 		if err != nil {
 			return false, fmt.Errorf("ory keto permission check: %w", err)
@@ -93,6 +93,12 @@ func checkPermissionsViaKeto(c fiber.Ctx, client *ory.Client, auth *AuthContext,
 		}
 	}
 	return false, nil
+}
+
+// subjectID is the Keto subject for an authenticated identity (the Kratos
+// identity id). Keto namespaces reference it as "user:<id>".
+func subjectID(auth *AuthContext) string {
+	return "user:" + auth.UserID
 }
 
 func splitPermission(perm string) []string {

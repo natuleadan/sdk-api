@@ -493,6 +493,37 @@ func TestOry_NilClientPanics(t *testing.T) {
 	Ory(OryConfig{Client: nil})
 }
 
+func TestKratosSession_MissingSession(t *testing.T) {
+	t.Parallel()
+	logx.Disable()
+	app := fiber.New()
+	oryClient := ory.NewClient(ory.Config{KratosPublicURL: "http://localhost:4433"})
+	app.Use(KratosSession(KratosSessionConfig{Client: oryClient}))
+	app.Get("/protected", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+	req := testRequest(context.Background(), "GET", "/protected", nil)
+	resp, _ := app.Test(req)
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestOryConfig_Defaults(t *testing.T) {
+	t.Parallel()
+	c := ory.NewClient(ory.Config{})
+	assert.Equal(t, "roles", c.RoleNamespace())
+	assert.Equal(t, "assignee", c.RoleRelation())
+	assert.Equal(t, "perform", c.PermissionRelation())
+
+	custom := ory.NewClient(ory.Config{
+		RoleNamespace:      "grupos",
+		RoleRelation:       "miembro",
+		PermissionRelation: "puede",
+	})
+	assert.Equal(t, "grupos", custom.RoleNamespace())
+	assert.Equal(t, "miembro", custom.RoleRelation())
+	assert.Equal(t, "puede", custom.PermissionRelation())
+}
+
 func TestOry_NoAuthContext(t *testing.T) {
 	t.Parallel()
 	logx.Disable()

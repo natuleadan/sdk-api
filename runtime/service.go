@@ -1105,6 +1105,11 @@ func (s *Service) validateEntryAuthConfig(entry *EntryDef, driver string) error 
 		}
 	}
 	if hasAuth(entry, "session") {
+		// With driver "ory" the session is a Kratos session validated against
+		// Kratos; any other driver uses the SDK's own KV-backed sessions.
+		if driver == "ory" {
+			return nil
+		}
 		sess := s.config.Auth.Session
 		if sess == nil || strings.TrimSpace(sess.Store) == "" {
 			return fmt.Errorf("entry %s %s: session mode requires auth.session.store (shared KV)", entry.Type, entry.Path)
@@ -1120,8 +1125,8 @@ func (s *Service) validateAPIKeyEntry(entry *EntryDef, driver string) error {
 	if driver == "none" || driver == "" {
 		return fmt.Errorf("entry %s %s: apikey mode requires auth.driver (manual, openfga-zitadel, or ory)", entry.Type, entry.Path)
 	}
-	if driver == "manual" && s.apiKeyValidator == nil {
-		return fmt.Errorf("entry %s %s: apikey mode requires WithAPIKeyValidator() for driver=manual", entry.Type, entry.Path)
+	if (driver == "manual" || driver == "ory") && s.apiKeyValidator == nil {
+		return fmt.Errorf("entry %s %s: apikey mode requires WithAPIKeyValidator() for driver=%s", entry.Type, entry.Path, driver)
 	}
 	return nil
 }
@@ -1969,10 +1974,16 @@ func initAuthClients(s *Service, auth *AuthConfig) {
 		}
 	case "ory":
 		if auth.KratosURL != "" || auth.KetoURL != "" {
-			s.oryClient = ory.NewClient(ory.Config{
+			oryCfg := ory.Config{
 				KratosPublicURL: auth.KratosURL,
 				KetoURL:         auth.KetoURL,
-			})
+			}
+			if auth.Ory != nil {
+				oryCfg.RoleNamespace = auth.Ory.RoleNamespace
+				oryCfg.RoleRelation = auth.Ory.RoleRelation
+				oryCfg.PermissionRelation = auth.Ory.PermissionRelation
+			}
+			s.oryClient = ory.NewClient(oryCfg)
 			logx.Infof("auth: Ory client initialized (kratos=%s, keto=%s)", auth.KratosURL, auth.KetoURL)
 		}
 	}

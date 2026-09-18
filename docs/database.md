@@ -281,6 +281,11 @@ fields, _ := db.IndexFields[Widget]()
 runtime.MongoMustRegister(svc, "Widget", "mongo", "app", "widgets", "slug", fields...)
 ```
 
+The lookup field (`slug`) gets a **unique** index; the extra fields get plain
+(non-unique) indexes via `mon.EnsureIndexField(ctx, field, unique)`. Call
+`mon.Disconnect(url)` on graceful shutdown (or test cleanup) so the driver's
+background monitors stop.
+
 #### TableConstraints
 
 For composite constraints (UNIQUE across multiple columns), implement the optional interface:

@@ -892,6 +892,21 @@ func (s *Service) PoolRead(name string) *pgxpool.Pool {
 	return PoolPGRead(s.pools, name)
 }
 
+// PoolSQLTyped returns a *sql.DB by name (Turso/libSQL or MySQL), or nil.
+func (s *Service) PoolSQLTyped(name string) *sql.DB {
+	return PoolSQL(s.pools, name)
+}
+
+// PoolTurso returns the Turso/libSQL *sql.DB by name.
+func (s *Service) PoolTurso(name string) *sql.DB {
+	return PoolSQL(s.pools, name)
+}
+
+// PoolMySQL returns the MySQL/MariaDB *sql.DB by name.
+func (s *Service) PoolMySQL(name string) *sql.DB {
+	return PoolSQL(s.pools, name)
+}
+
 // KV returns a KV store (Redis/Dragonfly) connection by name, or nil.
 func (s *Service) GetGrpcServer() *GrpcServer {
 	return s.grpcServer

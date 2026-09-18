@@ -2070,6 +2070,10 @@ func seedOpenFGAPermissions(s *Service, client *openfga.Client) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	if _, err := client.EnsureModel(ctx, permissions); err != nil {
+		logx.Errorf("auth: failed to write OpenFGA model: %v", err)
+		return
+	}
 	if err := client.SeedPermissions(ctx, permissions); err != nil {
 		logx.Errorf("auth: failed to seed OpenFGA permissions: %v", err)
 	} else {
@@ -2083,6 +2087,21 @@ func collectPermissionsFromEntries(cfg *ServiceConfig) []openfga.PermissionDef {
 	}
 	seen := make(map[string]bool)
 	var permissions []openfga.PermissionDef
+	add := func(role, resource, action string) {
+		if resource == "" || action == "" {
+			return
+		}
+		k := role + "|" + resource + "|" + action
+		if seen[k] {
+			return
+		}
+		seen[k] = true
+		permissions = append(permissions, openfga.PermissionDef{
+			Role:     role,
+			Resource: resource,
+			Actions:  []string{action},
+		})
+	}
 	for _, entry := range cfg.Entry {
 		if len(entry.Roles) == 0 {
 			continue
@@ -2091,19 +2110,23 @@ func collectPermissionsFromEntries(cfg *ServiceConfig) []openfga.PermissionDef {
 		if resource == "" {
 			resource = entry.Model
 		}
-		if resource == "" {
-			continue
-		}
 		for _, role := range entry.Roles {
-			if seen[role] {
+			// Explicit entry.permissions ("resource:action") grant exactly
+			// that action to the role; otherwise fall back to the role's
+			// default CRUD action set on the entry resource.
+			if len(entry.Permissions) > 0 {
+				for _, perm := range entry.Permissions {
+					parts := strings.SplitN(perm, ":", 2)
+					if len(parts) != 2 {
+						continue
+					}
+					add(role, parts[0], parts[1])
+				}
 				continue
 			}
-			seen[role] = true
-			permissions = append(permissions, openfga.PermissionDef{
-				Role:     role,
-				Resource: resource,
-				Actions:  defaultActionsForRole(role),
-			})
+			for _, action := range defaultActionsForRole(role) {
+				add(role, resource, action)
+			}
 		}
 	}
 	return permissions

@@ -127,8 +127,8 @@ func checkRolesViaFGA(c fiber.Ctx, client openfga.Checker, user string, roles []
 	for _, role := range roles {
 		allowed, err := client.Check(c.Context(), openfga.CheckRequest{
 			User:     user,
-			Relation: fmt.Sprintf("role:%s", role),
-			Object:   "role-assignment",
+			Relation: "member",
+			Object:   fmt.Sprintf("role:%s", role),
 		})
 		if err != nil {
 			return false, err

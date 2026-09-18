@@ -125,7 +125,7 @@ func (t *TursoTable[T]) buildColumnDef(f FieldInfo) string {
 		return strings.Join(parts, " ")
 	}
 	parts = append(parts, columnType(dialectSQLite, f))
-	if f.Required {
+	if f.Required || f.Primary {
 		parts = append(parts, "NOT NULL")
 	}
 	if def, ok := columnDefault(dialectSQLite, f.Default); ok {

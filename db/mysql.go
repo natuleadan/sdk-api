@@ -200,7 +200,7 @@ func (t *MySQLTable[T]) buildColumnDef(f FieldInfo) string {
 		}
 		return strings.Join(parts, " ")
 	}
-	if f.Required {
+	if f.Required || f.Primary {
 		parts = append(parts, "NOT NULL")
 	} else {
 		parts = append(parts, "NULL")

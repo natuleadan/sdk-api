@@ -72,7 +72,7 @@ func buildColumnDef(f FieldInfo) string {
 	if f.Primary {
 		parts = append(parts, "PRIMARY KEY")
 	}
-	if f.Required {
+	if f.Required || f.Primary {
 		parts = append(parts, "NOT NULL")
 	}
 	if def, ok := columnDefault(dialectPostgres, f.Default); ok {

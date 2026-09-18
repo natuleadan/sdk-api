@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/natuleadan/sdk-api/db"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type TestProduct struct {
@@ -680,5 +682,51 @@ func TestOperationDocs_ErrorModelOnFailures(t *testing.T) {
 	okRef := post.Responses.Map()["201"]
 	if okRef.Value != nil && okRef.Value.Content != nil {
 		t.Error("201 must not carry the error envelope")
+	}
+}
+
+func TestBuildOpenAPI_HiddenEntry(t *testing.T) {
+	cfg := &ServiceConfig{
+		Name:   "svc",
+		Server: ServerConf{APIPrefix: "/v1", OpenAPI: &OpenAPIConf{Enabled: true}},
+		Entry: []EntryDef{
+			{Type: "rest", Method: "GET", Path: "/public", Handler: "pub", Summary: "Public", AuthModes: []string{"jwt"}},
+			{Type: "rest", Method: "PUT", Path: "/system/secret", Handler: "sys", Summary: "System", Hidden: true, AuthModes: []string{"apikey"}},
+		},
+	}
+	spec, err := BuildOpenAPI(cfg, map[string]*db.TableInfo{})
+	require.NoError(t, err)
+
+	assert.NotNil(t, spec.Paths.Find("/v1/public"))
+	assert.Nil(t, spec.Paths.Find("/v1/system/secret"), "hidden path leaked into the spec")
+
+	_, hasAPIKey := spec.Components.SecuritySchemes["apiKeyAuth"]
+	assert.False(t, hasAPIKey, "hidden entry apikey scheme leaked into the spec")
+	_, hasBearer := spec.Components.SecuritySchemes["bearerAuth"]
+	assert.True(t, hasBearer, "visible entry bearer scheme missing")
+}
+
+func TestBuildOpenAPI_ExcludePathsAndTags(t *testing.T) {
+	cfg := &ServiceConfig{
+		Name: "svc",
+		Server: ServerConf{APIPrefix: "/v1", OpenAPI: &OpenAPIConf{
+			Enabled:      true,
+			ExcludePaths: []string{"/v1/system/*", "/v1/internal"},
+			ExcludeTags:  []string{"Internal"},
+		}},
+		Entry: []EntryDef{
+			{Type: "rest", Method: "GET", Path: "/public", Handler: "pub", Summary: "Public"},
+			{Type: "rest", Method: "GET", Path: "/system/a", Handler: "a", Summary: "A"},
+			{Type: "rest", Method: "GET", Path: "/system/b", Handler: "b", Summary: "B"},
+			{Type: "rest", Method: "GET", Path: "/internal", Handler: "c", Summary: "C"},
+			{Type: "rest", Method: "GET", Path: "/hidden-by-tag", Handler: "d", Summary: "D", Tags: []string{"Internal"}},
+		},
+	}
+	spec, err := BuildOpenAPI(cfg, map[string]*db.TableInfo{})
+	require.NoError(t, err)
+
+	assert.NotNil(t, spec.Paths.Find("/v1/public"))
+	for _, p := range []string{"/v1/system/a", "/v1/system/b", "/v1/internal", "/v1/hidden-by-tag"} {
+		assert.Nil(t, spec.Paths.Find(p), "path %q should have been excluded", p)
 	}
 }

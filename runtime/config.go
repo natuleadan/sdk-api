@@ -782,6 +782,12 @@ type OpenAPIConf struct {
 	BaseServerURL string `json:"base_server_url" config:",optional"`
 	// ServersOverride replaces the spec servers list in the docs UI.
 	ServersOverride []ServerOverrideDef `json:"servers_override" config:",optional"`
+	// ExcludePaths removes matching paths from the generated spec while the
+	// routes stay mounted. A trailing "*" matches a prefix (e.g. "/api/v1/system/*").
+	ExcludePaths []string `json:"exclude_paths" config:",optional"`
+	// ExcludeTags removes every operation carrying any of these tags from the
+	// generated spec. A path left with no operations is removed as well.
+	ExcludeTags []string `json:"exclude_tags" config:",optional"`
 	// Sources renders multiple OpenAPI documents as docs tabs.
 	Sources []SourceDef `json:"sources" config:",optional"`
 	// Auth prefills the Try-It authentication panel.
@@ -1076,6 +1082,10 @@ type EntryDef struct {
 	// Tags overrides the default OpenAPI tag for this operation. Empty uses
 	// the entry type (rest, webhook, file, async, ...).
 	Tags []string `json:"tags" config:",optional"`
+	// Hidden keeps the route mounted at runtime but removes it from the
+	// generated OpenAPI spec and the docs UI. Use it for operational or
+	// system endpoints (e.g. /system/*) that must not be published.
+	Hidden bool `json:"hidden" config:",optional"`
 	// AuthModes is a constant.
 	AuthModes []string `json:"auth_modes" config:",optional"` // ["jwt"], ["apikey"], ["jwt","apikey"]
 	// JWTFrom is a constant.

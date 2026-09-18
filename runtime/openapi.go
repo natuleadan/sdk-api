@@ -32,25 +32,12 @@ func BuildOpenAPI(cfg *ServiceConfig, models map[string]*db.TableInfo) (*openapi
 		},
 	}
 
-	for _, entry := range cfg.Entry {
-		switch entry.Type {
-		case "crud":
-			addCRUDPaths(doc, &entry, models, prefix)
-		case "rest":
-			addRestPath(doc, &entry, models, prefix)
-		case "webhook":
-			addRestPath(doc, &entry, models, prefix)
-		case "websocket":
-			addWSPath(doc, &entry, prefix)
-		case "sse":
-			addSSEPath(doc, &entry, prefix)
-		case "file":
-			addFilePath(doc, &entry, prefix)
-		case "async":
-			addAsyncPaths(doc, &entry, prefix)
-		case "graphql":
-			addGraphQLPath(doc, &entry, prefix)
+	for i := range cfg.Entry {
+		entry := &cfg.Entry[i]
+		if entry.Hidden {
+			continue
 		}
+		addEntryPaths(doc, entry, models, prefix)
 	}
 
 	doc.Security = securityRequirements(cfg.Entry)
@@ -65,7 +52,95 @@ func BuildOpenAPI(cfg *ServiceConfig, models map[string]*db.TableInfo) (*openapi
 		doc.Servers = openapi3.Servers{server}
 	}
 
+	applySpecExclusions(doc, cfg)
+
 	return doc, nil
+}
+
+// addEntryPaths renders the OpenAPI paths for one entry type. Extracted from
+// BuildOpenAPI to keep its cyclomatic complexity in check.
+func addEntryPaths(doc *openapi3.T, entry *EntryDef, models map[string]*db.TableInfo, prefix string) {
+	switch entry.Type {
+	case "crud":
+		addCRUDPaths(doc, entry, models, prefix)
+	case "rest", "webhook":
+		addRestPath(doc, entry, models, prefix)
+	case "websocket":
+		addWSPath(doc, entry, prefix)
+	case "sse":
+		addSSEPath(doc, entry, prefix)
+	case "file":
+		addFilePath(doc, entry, prefix)
+	case "async":
+		addAsyncPaths(doc, entry, prefix)
+	case "graphql":
+		addGraphQLPath(doc, entry, prefix)
+	}
+}
+
+// applySpecExclusions prunes the generated spec without touching the runtime
+// routes: entries marked hidden never reach the spec, path patterns listed in
+// openapi.exclude_paths are removed (a trailing "*" matches a prefix) and any
+// operation carrying an openapi.exclude_tags tag is dropped. A path left with
+// no operations is removed as well.
+func applySpecExclusions(doc *openapi3.T, cfg *ServiceConfig) {
+	if cfg.Server.OpenAPI == nil || doc.Paths == nil {
+		return
+	}
+	oai := cfg.Server.OpenAPI
+	for _, pattern := range oai.ExcludePaths {
+		pruneSpecPaths(doc, pattern)
+	}
+	if len(oai.ExcludeTags) == 0 {
+		return
+	}
+	excluded := make(map[string]bool, len(oai.ExcludeTags))
+	for _, tag := range oai.ExcludeTags {
+		excluded[tag] = true
+	}
+	for path, item := range doc.Paths.Map() {
+		if item == nil {
+			continue
+		}
+		for method, op := range item.Operations() {
+			if operationHasTag(op, excluded) {
+				item.SetOperation(method, nil)
+			}
+		}
+		if len(item.Operations()) == 0 {
+			doc.Paths.Delete(path)
+		}
+	}
+}
+
+// pruneSpecPaths removes one path pattern: exact match, or prefix when the
+// pattern ends with "*".
+func pruneSpecPaths(doc *openapi3.T, pattern string) {
+	if pattern == "" {
+		return
+	}
+	if before, ok := strings.CutSuffix(pattern, "*"); ok {
+		prefix := before
+		for path := range doc.Paths.Map() {
+			if strings.HasPrefix(path, prefix) {
+				doc.Paths.Delete(path)
+			}
+		}
+		return
+	}
+	doc.Paths.Delete(pattern)
+}
+
+func operationHasTag(op *openapi3.Operation, excluded map[string]bool) bool {
+	if op == nil {
+		return false
+	}
+	for _, tag := range op.Tags {
+		if excluded[tag] {
+			return true
+		}
+	}
+	return false
 }
 
 // securityRequirements derives the operation-level security requirements from
@@ -73,6 +148,9 @@ func BuildOpenAPI(cfg *ServiceConfig, models map[string]*db.TableInfo) (*openapi
 func securityRequirements(entries []EntryDef) openapi3.SecurityRequirements {
 	has := map[string]bool{}
 	for _, entry := range entries {
+		if entry.Hidden {
+			continue
+		}
 		for _, mode := range entry.AuthModes {
 			has[mode] = true
 		}
@@ -105,6 +183,9 @@ func securityRequirements(entries []EntryDef) openapi3.SecurityRequirements {
 func buildSecuritySchemes(entries []EntryDef, sessionCookie string) openapi3.SecuritySchemes {
 	has := map[string]bool{}
 	for _, entry := range entries {
+		if entry.Hidden {
+			continue
+		}
 		for _, mode := range entry.AuthModes {
 			has[mode] = true
 		}

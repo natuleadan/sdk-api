@@ -67,14 +67,7 @@ func buildColumnDef(f FieldInfo) string {
 	var parts []string
 	parts = append(parts, f.Column)
 
-	switch {
-	case f.Auto:
-		parts = append(parts, "BIGSERIAL")
-	case f.TypeOverride != "":
-		parts = append(parts, f.TypeOverride)
-	default:
-		parts = append(parts, sqlType(f.FieldType))
-	}
+	parts = append(parts, columnType(dialectPostgres, f))
 
 	if f.Primary {
 		parts = append(parts, "PRIMARY KEY")
@@ -82,11 +75,7 @@ func buildColumnDef(f FieldInfo) string {
 	if f.Required {
 		parts = append(parts, "NOT NULL")
 	}
-	if f.Default != "" {
-		def := f.Default
-		if needsQuotedDefault(def) {
-			def = "'" + def + "'"
-		}
+	if def, ok := columnDefault(dialectPostgres, f.Default); ok {
 		parts = append(parts, "DEFAULT "+def)
 	}
 	if f.FK != "" {

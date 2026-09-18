@@ -122,32 +122,16 @@ func (t *TursoTable[T]) buildColumnDef(f FieldInfo) string {
 
 	if f.Auto {
 		parts = append(parts, "INTEGER PRIMARY KEY AUTOINCREMENT")
+		return strings.Join(parts, " ")
 	}
-	if !f.Auto {
-		switch f.FieldType.Kind() {
-		case reflect.Int, reflect.Int64:
-			parts = append(parts, "INTEGER")
-		case reflect.Float64:
-			parts = append(parts, "REAL")
-		case reflect.String:
-			parts = append(parts, "TEXT")
-		case reflect.Bool:
-			parts = append(parts, "INTEGER")
-		default:
-			parts = append(parts, "TEXT")
-		}
-		if f.Required {
-			parts = append(parts, "NOT NULL")
-		}
-		if f.Default != "" {
-			def := f.Default
-			if needsQuotedDefault(def) {
-				def = "'" + def + "'"
-			}
-			parts = append(parts, "DEFAULT "+def)
-		}
+	parts = append(parts, columnType(dialectSQLite, f))
+	if f.Required {
+		parts = append(parts, "NOT NULL")
 	}
-	if f.Primary && !f.Auto {
+	if def, ok := columnDefault(dialectSQLite, f.Default); ok {
+		parts = append(parts, "DEFAULT "+def)
+	}
+	if f.Primary {
 		parts = append(parts, "PRIMARY KEY")
 	}
 	return strings.Join(parts, " ")
@@ -495,12 +479,18 @@ func (t *TursoTable[T]) Create(ctx context.Context, entity *T) error {
 		return fmt.Errorf("db: turso create: %w", err)
 	}
 
+	pk := t.info.Fields[0]
+	if pk.FieldType.Kind() == reflect.String {
+		// A string primary key cannot come from LastInsertId; the caller set
+		// it (the SQLite default is omitted for generated ids) so leave it.
+		return nil
+	}
 	id, err := res.LastInsertId()
 	if err != nil {
 		return fmt.Errorf("db: turso lastid: %w", err)
 	}
 
-	v.FieldByName(t.info.Fields[0].GoName).SetInt(id)
+	v.FieldByName(pk.GoName).SetInt(id)
 	return nil
 }
 

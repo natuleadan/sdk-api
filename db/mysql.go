@@ -192,47 +192,24 @@ func (t *MySQLTable[T]) AutoInit(ctx context.Context) error {
 func (t *MySQLTable[T]) buildColumnDef(f FieldInfo) string {
 	var parts []string
 	parts = append(parts, "`"+f.Column+"`")
+	parts = append(parts, columnType(dialectMySQL, f))
 
 	if f.Auto {
-		parts = append(parts, "BIGINT UNSIGNED AUTO_INCREMENT")
 		if f.Primary {
 			parts = append(parts, "PRIMARY KEY")
 		}
+		return strings.Join(parts, " ")
+	}
+	if f.Required {
+		parts = append(parts, "NOT NULL")
 	} else {
-		switch f.FieldType.Kind() {
-		case reflect.Int, reflect.Int64:
-			parts = append(parts, "BIGINT")
-		case reflect.Float64:
-			parts = append(parts, "DOUBLE")
-		case reflect.String:
-			parts = append(parts, "VARCHAR(255)")
-		case reflect.Bool:
-			parts = append(parts, "TINYINT(1)")
-		default:
-			switch {
-			case f.FieldType.Kind() == reflect.Slice || f.FieldType.Kind() == reflect.Map:
-				parts = append(parts, "JSON")
-			case f.FieldType.Name() == "Time":
-				parts = append(parts, "DATETIME(3)")
-			default:
-				parts = append(parts, "VARCHAR(255)")
-			}
-		}
-		if f.Required {
-			parts = append(parts, "NOT NULL")
-		} else {
-			parts = append(parts, "NULL")
-		}
-		if f.Primary {
-			parts = append(parts, "PRIMARY KEY")
-		}
-		if f.Default != "" {
-			def := f.Default
-			if needsQuotedDefault(def) {
-				def = "'" + def + "'"
-			}
-			parts = append(parts, "DEFAULT "+def)
-		}
+		parts = append(parts, "NULL")
+	}
+	if f.Primary {
+		parts = append(parts, "PRIMARY KEY")
+	}
+	if def, ok := columnDefault(dialectMySQL, f.Default); ok {
+		parts = append(parts, "DEFAULT "+def)
 	}
 	return strings.Join(parts, " ")
 }

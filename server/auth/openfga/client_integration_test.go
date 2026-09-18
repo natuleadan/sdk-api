@@ -216,3 +216,96 @@ func TestIntegration_OpenFGA_CheckRoleAssignment(t *testing.T) {
 		t.Error("expected allowed=true for user:admin")
 	}
 }
+
+func ensureOpenFGAStoreNamed(t *testing.T, name string) string {
+	t.Helper()
+	ctx := context.Background()
+
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, openfgaAPIURL+"/stores", nil)
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		t.Fatalf("list stores failed: %v", err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+
+	var list struct {
+		Stores []struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		} `json:"stores"`
+	}
+	json.Unmarshal(body, &list)
+	for _, s := range list.Stores {
+		if s.Name == name {
+			return s.ID
+		}
+	}
+
+	req, _ = http.NewRequestWithContext(ctx, http.MethodPost, openfgaAPIURL+"/stores",
+		strings.NewReader(`{"name":"`+name+`"}`))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err = httpClient.Do(req)
+	if err != nil {
+		t.Fatalf("create store failed: %v", err)
+	}
+	defer resp.Body.Close()
+	body, _ = io.ReadAll(resp.Body)
+	var created struct {
+		ID string `json:"id"`
+	}
+	json.Unmarshal(body, &created)
+	if created.ID == "" {
+		t.Fatalf("failed to create store: %s", string(body))
+	}
+	return created.ID
+}
+
+// TestIntegration_OpenFGA_RolesAndPermissions covers the SDK convention
+// end-to-end: a user that is `member` of role:<name> inherits can_<action>.
+func TestIntegration_OpenFGA_RolesAndPermissions(t *testing.T) {
+	skipIfNoOpenFGA(t)
+	ctx := context.Background()
+	storeID := ensureOpenFGAStoreNamed(t, "sdk-api-test-role")
+	client, err := NewClient(Config{APIURL: openfgaAPIURL, StoreID: storeID})
+	if err != nil {
+		t.Fatalf("NewClient failed: %v", err)
+	}
+
+	permissions := []PermissionDef{
+		{Role: "admin", Resource: "products", Actions: []string{"create"}},
+		{Role: "admin", Resource: "users", Actions: []string{"manage"}},
+		{Role: "viewer", Resource: "products", Actions: []string{"read"}},
+	}
+	if _, err := client.EnsureModel(ctx, permissions); err != nil {
+		t.Fatalf("EnsureModel failed: %v", err)
+	}
+	if err := client.SeedPermissions(ctx, permissions); err != nil {
+		t.Fatalf("SeedPermissions failed: %v", err)
+	}
+	if err := client.AssignRole(ctx, "user:admin", "admin"); err != nil {
+		t.Fatalf("AssignRole failed: %v", err)
+	}
+
+	checks := []struct {
+		desc string
+		req  CheckRequest
+		want bool
+	}{
+		{"admin is member of role:admin", CheckRequest{User: "user:admin", Relation: "member", Object: "role:admin"}, true},
+		{"admin inherits can_manage on users:manage", CheckRequest{User: "user:admin", Relation: "can_manage", Object: "users:manage"}, true},
+		{"admin inherits can_create on products:create", CheckRequest{User: "user:admin", Relation: "can_create", Object: "products:create"}, true},
+		{"admin lacks can_read (not granted)", CheckRequest{User: "user:admin", Relation: "can_read", Object: "products:read"}, false},
+		{"bob is not a member", CheckRequest{User: "user:bob", Relation: "member", Object: "role:admin"}, false},
+		{"bob has no permission", CheckRequest{User: "user:bob", Relation: "can_manage", Object: "users:manage"}, false},
+	}
+	for _, c := range checks {
+		got, err := client.Check(ctx, c.req)
+		if err != nil {
+			t.Fatalf("%s: check failed: %v", c.desc, err)
+		}
+		if got != c.want {
+			t.Errorf("%s: got %v want %v", c.desc, got, c.want)
+		}
+	}
+}

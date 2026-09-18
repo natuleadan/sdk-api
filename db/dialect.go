@@ -196,7 +196,7 @@ func columnDefault(d dialect, def string) (string, bool) {
 		case dialectMySQL:
 			return "(UUID())", true
 		case dialectSQLite:
-			return "", false
+			return "(lower(hex(randomblob(16))))", true
 		default:
 			return "gen_random_uuid()", true
 		}

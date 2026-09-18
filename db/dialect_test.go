@@ -53,7 +53,7 @@ func TestColumnDefault(t *testing.T) {
 		sqliteOK bool
 	}{
 		{"now()", "now()", true, "CURRENT_TIMESTAMP(3)", "CURRENT_TIMESTAMP", true},
-		{"gen_random_uuid()", "gen_random_uuid()", true, "(UUID())", "", false},
+		{"gen_random_uuid()", "gen_random_uuid()", true, "(UUID())", "(lower(hex(randomblob(16))))", true},
 		{"true", "true", true, "1", "1", true},
 		{"false", "false", true, "0", "0", true},
 		{"null", "NULL", true, "NULL", "NULL", true},

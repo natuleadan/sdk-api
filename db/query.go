@@ -2,6 +2,7 @@ package db
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -48,8 +49,12 @@ func Rewrite(d SQLDialect, query string, args ...any) (string, []any) {
 	if d == DialectPostgres {
 		return query, args
 	}
+	if d == DialectMySQL {
+		query = translateMySQLUpsert(query)
+	}
 	var b strings.Builder
 	out := make([]any, 0, len(args))
+	usedDollar := false
 	inQuote := false
 	for i := 0; i < len(query); i++ {
 		c := query[i]
@@ -70,6 +75,7 @@ func Rewrite(d SQLDialect, query string, args ...any) (string, []any) {
 		if n, end, ok := takePlaceholder(query, i, len(args)); ok {
 			b.WriteString(Placeholder(d, len(out)+1))
 			out = append(out, args[n-1])
+			usedDollar = true
 			i = end
 			continue
 		}
@@ -79,6 +85,11 @@ func Rewrite(d SQLDialect, query string, args ...any) (string, []any) {
 			continue
 		}
 		b.WriteByte(c)
+	}
+	if !usedDollar {
+		// The query already used positional (?) placeholders, so the caller's
+		// arguments line up with them unchanged.
+		return b.String(), args
 	}
 	return b.String(), out
 }
@@ -115,12 +126,114 @@ func takeFunction(query string, i int, d SQLDialect) (string, int, bool) {
 	}
 	switch strings.ToLower(query[i:j]) {
 	case "now":
+		if expr, e, ok := takeInterval(query, end, d); ok {
+			return expr, e, true
+		}
 		return Now(d), end, true
 	case "gen_random_uuid":
 		return RandomUUIDExpr(d), end, true
 	default:
 		return "", 0, false
 	}
+}
+
+// takeInterval translates "now() + interval 'N unit'" into the dialect form.
+func takeInterval(query string, from int, d SQLDialect) (string, int, bool) {
+	i := skipSpace(query, from+1)
+	if i >= len(query) || query[i] != '+' {
+		return "", 0, false
+	}
+	i = skipSpace(query, i+1)
+	const kw = "interval"
+	if !strings.HasPrefix(strings.ToLower(query[i:]), kw) {
+		return "", 0, false
+	}
+	lit, end, ok := takeQuoted(query, skipSpace(query, i+len(kw)))
+	if !ok {
+		return "", 0, false
+	}
+	return AddInterval(d, Now(d), lit), end, true
+}
+
+func skipSpace(q string, i int) int {
+	for i < len(q) && q[i] == ' ' {
+		i++
+	}
+	return i
+}
+
+func takeQuoted(q string, i int) (string, int, bool) {
+	if i >= len(q) || q[i] != '\'' {
+		return "", 0, false
+	}
+	j := i + 1
+	for j < len(q) && q[j] != '\'' {
+		j++
+	}
+	if j >= len(q) {
+		return "", 0, false
+	}
+	return q[i+1 : j], j, true
+}
+
+var excludedRe = regexp.MustCompile(`EXCLUDED\.([A-Za-z0-9_]+)`)
+
+// translateMySQLUpsert converts a PostgreSQL ON CONFLICT clause into the
+// MySQL equivalent (INSERT ... ON DUPLICATE KEY UPDATE).
+func translateMySQLUpsert(query string) string {
+	idx := strings.Index(strings.ToLower(query), "on conflict")
+	if idx < 0 {
+		return query
+	}
+	head := query[:idx]
+	rest := strings.TrimLeft(query[idx+len("on conflict"):], " ")
+	col := firstColumn(head)
+	if strings.HasPrefix(rest, "(") {
+		depth, k := 1, 1
+		for k < len(rest) && depth > 0 {
+			switch rest[k] {
+			case '(':
+				depth++
+			case ')':
+				depth--
+			}
+			k++
+		}
+		if c := firstColumn(rest[:k]); c != "" {
+			col = c
+		}
+		rest = strings.TrimLeft(rest[k:], " ")
+	}
+	upper := strings.ToUpper(rest)
+	switch {
+	case strings.HasPrefix(upper, "DO NOTHING"):
+		if col == "" {
+			return query
+		}
+		return head + "ON DUPLICATE KEY UPDATE " + col + " = " + col
+	case strings.HasPrefix(upper, "DO UPDATE SET"):
+		sets := strings.TrimSpace(rest[len("DO UPDATE SET"):])
+		return head + "ON DUPLICATE KEY UPDATE " + excludedRe.ReplaceAllString(sets, "VALUES($1)")
+	default:
+		return query
+	}
+}
+
+// firstColumn returns the first identifier inside the first parentheses.
+func firstColumn(s string) string {
+	open := strings.Index(s, "(")
+	if open < 0 {
+		return ""
+	}
+	rest := s[open+1:]
+	end := len(rest)
+	for i := 0; i < len(rest); i++ {
+		if rest[i] == ',' || rest[i] == ')' {
+			end = i
+			break
+		}
+	}
+	return strings.Trim(strings.TrimSpace(rest[:end]), "`\"")
 }
 
 // RandomUUIDExpr returns a server-side random id expression for the dialect.

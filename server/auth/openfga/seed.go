@@ -4,9 +4,21 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 
 	openfga "github.com/openfga/go-sdk"
 )
+
+// isDuplicate reports whether err is OpenFGA's "tuple already exists" error,
+// which seeding must treat as success so restarts and multiple processes are
+// idempotent.
+func isDuplicate(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := err.Error()
+	return strings.Contains(s, "already exist") || strings.Contains(s, "already existed")
+}
 
 // DefaultActions lists the actions granted by DefaultPermissions.
 var DefaultActions = []string{"create", "read", "update", "delete", "publish"}
@@ -30,6 +42,9 @@ func (c *Client) SeedPermissions(ctx context.Context, permissions []PermissionDe
 			object := fmt.Sprintf("%s:%s", p.Resource, action)
 
 			if err := c.WriteTuple(ctx, user, relation, object); err != nil {
+				if isDuplicate(err) {
+					continue
+				}
 				return fmt.Errorf("seed: write %s %s %s: %w", user, relation, object, err)
 			}
 		}
@@ -38,8 +53,12 @@ func (c *Client) SeedPermissions(ctx context.Context, permissions []PermissionDe
 }
 
 // AssignRole makes a user a member of a role (user → member → role:<role>).
+// Idempotent: re-assigning an existing role is a no-op.
 func (c *Client) AssignRole(ctx context.Context, user, role string) error {
-	return c.WriteTuple(ctx, user, "member", fmt.Sprintf("role:%s", role))
+	if err := c.WriteTuple(ctx, user, "member", fmt.Sprintf("role:%s", role)); err != nil && !isDuplicate(err) {
+		return err
+	}
+	return nil
 }
 
 // ResourceActions maps a resource type to the actions that must exist as

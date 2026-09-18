@@ -18,7 +18,8 @@ import (
 // Client wraps Ory Kratos (auth) and Keto (authorization).
 type Client struct {
 	kratosPublicURL string
-	ketoURL         string
+	ketoReadURL     string
+	ketoWriteURL    string
 	http            *http.Client
 	resolver        *jwks.Resolver
 
@@ -30,8 +31,14 @@ type Client struct {
 // Config holds Ory connection settings.
 type Config struct {
 	KratosPublicURL string
-	KetoURL         string
-	TTL             time.Duration
+	// KetoURL is the base Keto URL, used for both reads (checks) and writes
+	// when the specific URLs below are empty.
+	KetoURL string
+	// KetoReadURL is the Keto read API (checks); defaults to KetoURL.
+	KetoReadURL string
+	// KetoWriteURL is the Keto write API (tuples); defaults to KetoURL.
+	KetoWriteURL string
+	TTL          time.Duration
 	// RoleNamespace/RoleRelation name the Keto tuple that grants a role
 	// (default: roles / assignee). PermissionRelation names the relation that
 	// grants a permission on a resource namespace (default: perform).
@@ -48,7 +55,8 @@ func NewClient(cfg Config) *Client {
 	}
 	c := &Client{
 		kratosPublicURL: cfg.KratosPublicURL,
-		ketoURL:         cfg.KetoURL,
+		ketoReadURL:     firstNonEmpty(cfg.KetoReadURL, cfg.KetoURL),
+		ketoWriteURL:    firstNonEmpty(cfg.KetoWriteURL, cfg.KetoURL),
 		http:            &http.Client{Timeout: 10 * time.Second},
 		resolver:        jwks.New(cfg.KratosPublicURL+"/.well-known/jwks.json", opts...),
 
@@ -68,6 +76,15 @@ func NewClient(cfg Config) *Client {
 	return c
 }
 
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
 // RoleNamespace returns the Keto namespace that models role membership.
 func (c *Client) RoleNamespace() string { return c.roleNamespace }
 
@@ -83,6 +100,18 @@ type Session struct {
 		ID     string         `json:"id"`
 		Traits map[string]any `json:"traits"`
 	} `json:"identity"`
+}
+
+// OrgID extracts the tenant/organization from the identity traits ("org_id").
+// Returns "" when absent.
+func (s *Session) OrgID() string {
+	if s == nil || s.Identity.Traits == nil {
+		return ""
+	}
+	if v, ok := s.Identity.Traits["org_id"].(string); ok {
+		return v
+	}
+	return ""
 }
 
 // Roles extracts role names from the identity traits ("roles" as a list of
@@ -187,7 +216,7 @@ func (c *Client) KetoCheck(ctx context.Context, req KetoCheckRequest) (bool, err
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		c.ketoURL+"/relation-tuples/check", bytes.NewReader(body))
+		c.ketoReadURL+"/relation-tuples/check", bytes.NewReader(body))
 	if err != nil {
 		return false, fmt.Errorf("ory: keto check request failed: %w", err)
 	}
@@ -226,7 +255,7 @@ func (c *Client) WriteKetoTuple(ctx context.Context, namespace, object, relation
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPut,
-		c.ketoURL+"/admin/relation-tuples", bytes.NewReader(body))
+		c.ketoWriteURL+"/admin/relation-tuples", bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("ory: keto write request failed: %w", err)
 	}
@@ -246,5 +275,58 @@ func (c *Client) WriteKetoTuple(ctx context.Context, namespace, object, relation
 		return fmt.Errorf("ory: keto write tuple returned %d", resp.StatusCode)
 	}
 
+	return nil
+}
+
+// PermissionDef declares a role → permission grant seeded into Keto.
+type PermissionDef struct {
+	Role     string
+	Resource string
+	Action   string
+}
+
+// SeedPermissions writes the role → permission tuples that let a role reach a
+// permission through a Keto subject set:
+//
+//	<resource>:<action>#<permission_relation>@<role_namespace>:<role>#<role_relation>
+//
+// Idempotent: Keto's write API returns 201 on create and 409/200 on repeat.
+func (c *Client) SeedPermissions(ctx context.Context, permissions []PermissionDef) error {
+	for _, p := range permissions {
+		if p.Role == "" || p.Resource == "" || p.Action == "" {
+			continue
+		}
+		body, err := json.Marshal(map[string]any{
+			"namespace": p.Resource,
+			"object":    p.Action,
+			"relation":  c.permissionRelation,
+			"subject_set": map[string]any{
+				"namespace": c.roleNamespace,
+				"object":    p.Role,
+				"relation":  c.roleRelation,
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("ory: keto seed marshal failed: %w", err)
+		}
+		httpReq, err := http.NewRequestWithContext(ctx, http.MethodPut,
+			c.ketoWriteURL+"/admin/relation-tuples", bytes.NewReader(body))
+		if err != nil {
+			return fmt.Errorf("ory: keto seed request failed: %w", err)
+		}
+		httpReq.Header.Set("Content-Type", "application/json")
+		resp, err := c.http.Do(httpReq)
+		if err != nil {
+			return fmt.Errorf("ory: keto seed failed: %w", err)
+		}
+		// 201 created, 200/409 when the tuple already exists: all are fine.
+		if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusConflict {
+			_ = resp.Body.Close()
+			return fmt.Errorf("ory: keto seed returned %d", resp.StatusCode)
+		}
+		if err := resp.Body.Close(); err != nil {
+			return fmt.Errorf("ory: keto seed close: %w", err)
+		}
+	}
 	return nil
 }

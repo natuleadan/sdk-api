@@ -294,7 +294,13 @@ server:
     openfga_store: "default"               # OpenFGA store ID
     zitadel_url: "https://auth.tld"        # Zitadel issuer (OIDC)
     kratos_url: "http://localhost:4433"    # Ory Kratos public URL
-    keto_url: "http://localhost:4466"      # Ory Keto URL
+    keto_url: "http://localhost:4466"      # Ory Keto base URL (read + write)
+    keto_read_url: "http://localhost:4466" # Keto read API for checks (optional)
+    keto_write_url: "http://localhost:4467" # Keto write API for tuples (optional)
+    ory:                                   # driver: ory tuning (all optional)
+      role_namespace: "roles"              # Keto namespace modelling roles
+      role_relation: "assignee"            # Keto relation granting a role
+      permission_relation: "perform"       # Keto relation granting a permission
     oauth:                                 # RFC 7662 introspection for auth_modes [oauth]
       introspection_url: "https://auth.tld/oauth/introspect"
       client_id: "sdk-api"                 # service credential at the endpoint
@@ -304,6 +310,8 @@ server:
       cookie: sid                          # session cookie name
       store: cache-main                    # kv-conn name (shared storage, required)
       ttl: 24h                             # lifetime from creation, no sliding refresh
+    # With driver: ory, auth_modes [session] validates an Ory Kratos session
+    # (Bearer token or cookie) through /sessions/whoami instead of the KV store.
 
 Token blacklist: use `svc.WithJWTBlacklist()` at runtime to register a callback. See `docs/runtime.md` for API details.
     cookie:                                # Cookie settings for JWT tokens

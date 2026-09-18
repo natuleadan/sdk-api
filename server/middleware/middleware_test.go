@@ -524,6 +524,22 @@ func TestOryConfig_Defaults(t *testing.T) {
 	assert.Equal(t, "puede", custom.PermissionRelation())
 }
 
+func TestOrySession_RolesAndOrg(t *testing.T) {
+	t.Parallel()
+	var s ory.Session
+	s.Identity.ID = "id-1"
+	s.Identity.Traits = map[string]any{
+		"roles":  []any{"admin", "editor", 42},
+		"org_id": "org-alfa",
+	}
+	assert.Equal(t, []string{"admin", "editor"}, s.Roles())
+	assert.Equal(t, "org-alfa", s.OrgID())
+
+	var empty ory.Session
+	assert.Nil(t, empty.Roles())
+	assert.Equal(t, "", empty.OrgID())
+}
+
 func TestOry_NoAuthContext(t *testing.T) {
 	t.Parallel()
 	logx.Disable()

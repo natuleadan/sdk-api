@@ -10,6 +10,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/natuleadan/sdk-api/events"
 	"github.com/natuleadan/sdk-api/runtime/errcode"
+	"github.com/natuleadan/sdk-api/server/middleware"
 )
 
 type cachedMarker interface{ isCached() }
@@ -69,6 +70,13 @@ func buildTenantMiddleware(entry *EntryDef) fiber.Handler {
 		if claims, ok := c.Locals("claims").(jwt.MapClaims); ok {
 			if tid, ok := claims[scope].(string); ok {
 				tenantID = tid
+			}
+		}
+		// Identity modes that do not carry JWT claims (basic, oauth, session)
+		// expose the tenant through the AuthContext instead.
+		if tenantID == "" {
+			if a := middleware.GetAuth(c); a != nil {
+				tenantID = a.OrgID
 			}
 		}
 		if tenantID == "" {

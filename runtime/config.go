@@ -97,8 +97,15 @@ type AuthConfig struct {
 	RolePermissions map[string][]string `json:"role_permissions" config:",optional"`
 	// KratosURL is a constant.
 	KratosURL string `json:"kratos_url" config:",optional"`
-	// KetoURL is a constant.
+	// KetoURL is the base Ory Keto URL (used for reads and writes when the
+	// specific URLs below are not set).
 	KetoURL string `json:"keto_url" config:",optional"`
+	// KetoReadURL is the Keto read API used for permission checks
+	// (default: keto_url).
+	KetoReadURL string `json:"keto_read_url" config:",optional"`
+	// KetoWriteURL is the Keto write API used to create/delete tuples
+	// (default: keto_url).
+	KetoWriteURL string `json:"keto_write_url" config:",optional"`
 	// Ory tunes the Ory (Kratos + Keto) driver. All fields are optional and
 	// default to the standard Ory conventions.
 	Ory *OryConf `json:"ory" config:",optional"`

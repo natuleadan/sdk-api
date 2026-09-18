@@ -47,6 +47,7 @@ func KratosSession(cfg KratosSessionConfig) fiber.Handler {
 		c.Locals(cfg.ContextKey, session)
 		injectAuth(c, &AuthContext{
 			UserID:   session.Identity.ID,
+			OrgID:    session.OrgID(),
 			Roles:    session.Roles(),
 			RawToken: token,
 		})

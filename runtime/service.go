@@ -1977,6 +1977,8 @@ func initAuthClients(s *Service, auth *AuthConfig) {
 			oryCfg := ory.Config{
 				KratosPublicURL: auth.KratosURL,
 				KetoURL:         auth.KetoURL,
+				KetoReadURL:     auth.KetoReadURL,
+				KetoWriteURL:    auth.KetoWriteURL,
 			}
 			if auth.Ory != nil {
 				oryCfg.RoleNamespace = auth.Ory.RoleNamespace
@@ -1984,6 +1986,7 @@ func initAuthClients(s *Service, auth *AuthConfig) {
 				oryCfg.PermissionRelation = auth.Ory.PermissionRelation
 			}
 			s.oryClient = ory.NewClient(oryCfg)
+			seedOryPermissions(s.oryClient, collectPermissions(s.config))
 			logx.Infof("auth: Ory client initialized (kratos=%s, keto=%s)", auth.KratosURL, auth.KetoURL)
 		}
 	}
@@ -2087,6 +2090,26 @@ func registerAuthRefresh(s *Service, auth *AuthConfig) {
 		})
 	})
 	logx.Infof("auth: refresh endpoint auto-registered at POST %s", path)
+}
+
+// seedOryPermissions writes the role → permission subject sets declared in the
+// YAML into Ory Keto. Unlike OpenFGA there is no model to write (Keto namespaces
+// come from keto.yml), so only the tuples are seeded.
+func seedOryPermissions(client *ory.Client, permissions []openfga.PermissionDef) {
+	if client == nil || len(permissions) == 0 {
+		return
+	}
+	defs := make([]ory.PermissionDef, 0, len(permissions))
+	for _, p := range permissions {
+		defs = append(defs, ory.PermissionDef{Role: p.Role, Resource: p.Resource, Action: p.Actions[0]})
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := client.SeedPermissions(ctx, defs); err != nil {
+		logx.Errorf("auth: failed to seed Ory Keto permissions: %v", err)
+	} else {
+		logx.Infof("auth: seeded %d Ory Keto permissions", len(defs))
+	}
 }
 
 func seedOpenFGAPermissions(s *Service, client *openfga.Client) {

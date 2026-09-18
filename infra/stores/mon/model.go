@@ -163,13 +163,24 @@ func (m *Model) RawCollection() *mongo.Collection {
 // lookup fields (e.g. short_code) so CRUD Get/Update/Delete are indexed lookups
 // instead of collection scans. _id is already indexed by Mongo.
 func (m *Model) EnsureIndex(ctx context.Context, field string) error {
+	return m.EnsureIndexField(ctx, field, true)
+}
+
+// EnsureIndexField creates an index on field (idempotent). Set unique to also
+// enforce uniqueness; a plain index accelerates reads without restricting
+// writes. _id is already indexed by Mongo.
+func (m *Model) EnsureIndexField(ctx context.Context, field string, unique bool) error {
 	if field == "" || field == "_id" {
 		return nil
 	}
-	_, err := m.rawColl.Indexes().CreateOne(ctx, mongo.IndexModel{
+	idx := mongo.IndexModel{
 		Keys:    bson.D{{Key: field, Value: 1}},
-		Options: options.Index().SetUnique(true),
-	})
+		Options: options.Index(),
+	}
+	if unique {
+		idx.Options.SetUnique(true)
+	}
+	_, err := m.rawColl.Indexes().CreateOne(ctx, idx)
 	if err != nil {
 		var ce mongo.CommandError
 		if errors.As(err, &ce) && ce.Code == 85 { // IndexOptionsConflict: already exists

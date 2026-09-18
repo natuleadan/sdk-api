@@ -77,3 +77,19 @@ func (manager *ResourceManager) Inject(key string, resource io.Closer) {
 	manager.resources[key] = resource
 	manager.lock.Unlock()
 }
+
+// Remove closes and removes the resource associated with key, leaving the
+// others untouched. It is a no-op when the key is unknown.
+func (manager *ResourceManager) Remove(key string) error {
+	manager.lock.Lock()
+	resource, ok := manager.resources[key]
+	if ok {
+		delete(manager.resources, key)
+	}
+	manager.lock.Unlock()
+
+	if !ok {
+		return nil
+	}
+	return resource.Close()
+}

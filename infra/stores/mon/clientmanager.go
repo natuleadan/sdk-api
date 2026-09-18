@@ -27,6 +27,12 @@ func Inject(key string, client *mongo.Client) {
 	clientManager.Inject(key, &ClosableClient{client})
 }
 
+// Disconnect closes and removes the cached client for url. Call it on graceful
+// shutdown (or test cleanup) so the driver's background monitors stop.
+func Disconnect(url string) error {
+	return clientManager.Remove(url)
+}
+
 func getClient(url string, opts ...Option) (*mongo.Client, error) {
 	val, err := clientManager.GetResource(url, func() (io.Closer, error) {
 		o := options.Client().ApplyURI(url)

@@ -297,7 +297,7 @@ The YAML fields `entry.roles` and `entry.permissions` define **contracts**: "thi
 |----------|-----------|-----------------------------------|------------------------------|
 | **A: JWT claims** | `none`, `manual` | The IDP that issued the JWT | Middleware extracts `claims.roles[]` and compares with `entry.roles[]` (set intersection). The hook receives the result in `AuthContext.Roles`. |
 | **B: Custom hook** | `manual` | Your code via `WithAuthValidator` | SDK calls your validator callback with `(ctx, auth, entry.roles, entry.permissions)`. You query DB, Redis, or any source and return error if denied. |
-| **C: OpenFGA / Keto** | `openfga-zitadel`, `ory` | OpenFGA or Ory Keto (tuples) | Middleware calls `fga.Check(user, "role:admin", "role-assignment")` or `keto.Check(namespace, object, relation, subject)` for each role. |
+| **C: OpenFGA / Keto** | `openfga-zitadel`, `ory` | OpenFGA or Ory Keto (tuples) | Middleware calls `fga.Check(user, "member", "role:<role>")` or `keto.Check(namespace, object, relation, subject)` for each role. |
 
 In all cases, the hook receives the final `AuthContext` with `Roles` and `Permissions` populated, and can perform additional fine-grained checks.
 
@@ -366,7 +366,20 @@ Uses **Zitadel** as OpenID Connect provider (login, MFA, user management) and **
 The driver derives the authorization model from the entries (each resource gets
 a `can_<action>` relation, reachable by `user` and by `role#member`) and seeds
 the `role:<role>#member` tuples, so `roles`/`permissions` in the YAML work out of
-the box. Assign a role to a subject with the client:
+the box. Role names are **arbitrary** (no fixed set, no name-based defaults):
+any number of roles can be declared, and permissions are always explicit
+(`resource:action`). To grant the same permissions to many roles without
+touching endpoints, declare a global map:
+
+```yaml
+auth:
+  role_permissions:
+    admin: ["users:manage", "products:create", "products:read"]
+    soporte_nivel_2: ["products:read"]
+    facturacion-lectura: ["invoices:read"]
+```
+
+Assign a role to a subject with the client:
 
 ```go
 fgaClient.AssignRole(ctx, "user:org123:user456", "admin")

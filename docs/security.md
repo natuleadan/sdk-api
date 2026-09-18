@@ -356,20 +356,29 @@ svc.WithAuthValidator(func(ctx context.Context, auth *middleware.AuthContext, ro
 
 Uses **Zitadel** as OpenID Connect provider (login, MFA, user management) and **OpenFGA** for fine-grained relationship-based authorization (ReBAC).
 
-**Zitadel** validates JWTs via JWKS:
+**Convention** (the model and tuples are written from the entry YAML on startup):
+
+| Gate | Check | Tuple that grants it |
+|------|-------|----------------------|
+| `entry.roles: [admin]` | `Check(user, "member", "role:admin")` | `user:<id> member role:admin` |
+| `entry.permissions: [users:manage]` | `Check(user, "can_manage", "users:manage")` | `role:<role>#member can_manage users:manage` |
+
+The driver derives the authorization model from the entries (each resource gets
+a `can_<action>` relation, reachable by `user` and by `role#member`) and seeds
+the `role:<role>#member` tuples, so `roles`/`permissions` in the YAML work out of
+the box. Assign a role to a subject with the client:
 
 ```go
+fgaClient.AssignRole(ctx, "user:org123:user456", "admin")
 fgaClient.Check(ctx, openfga.CheckRequest{
     User:     "user:org123:user456",
-    Relation: "can_write",
-    Object:   "products:create",
+    Relation: "member",
+    Object:   "role:admin",
 })
 ```
 
-The middleware automatically:
-1. Validates the JWT against Zitadel's JWKS endpoint
-2. Calls OpenFGA gRPC Check API for configured roles/permissions
-3. Caches results in NATS KV or Redis (configurable)
+The middleware validates the JWT against Zitadel's JWKS endpoint, then calls the
+OpenFGA Check API for the configured roles/permissions.
 
 Start OpenFGA + Zitadel via Docker:
 

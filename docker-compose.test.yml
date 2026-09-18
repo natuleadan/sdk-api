@@ -38,6 +38,16 @@ services:
     ports:
       - "9092:9092"
 
+  mongo:
+    image: mongo:8.2
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
   # OpenFGA for authorization (ReBAC)
   postgres_openfga:
     image: postgres:18-alpine

@@ -41,6 +41,7 @@ test-integration:
 	NATS_URL="nats://localhost:14222" \
 	KAFKA_URL="localhost:9092" \
 	MYSQL_URL="test:pass@tcp(localhost:13306)/test?parseTime=true" \
+	MONGO_URL="mongodb://localhost:27017" \
 	go test -race -v -count=1 -tags=integration ./...
 	@echo "Stopping test services..."
 	docker compose -f docker-compose.test.yml down

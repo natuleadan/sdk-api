@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,6 +19,7 @@ import (
 // Client wraps Ory Kratos (auth) and Keto (authorization).
 type Client struct {
 	kratosPublicURL string
+	kratosAdminURL  string
 	ketoReadURL     string
 	ketoWriteURL    string
 	http            *http.Client
@@ -31,6 +33,9 @@ type Client struct {
 // Config holds Ory connection settings.
 type Config struct {
 	KratosPublicURL string
+	// KratosAdminURL is the Kratos admin API, used to manage identities.
+	// When empty, identity management methods return an error.
+	KratosAdminURL string
 	// KetoURL is the base Keto URL, used for both reads (checks) and writes
 	// when the specific URLs below are empty.
 	KetoURL string
@@ -55,6 +60,7 @@ func NewClient(cfg Config) *Client {
 	}
 	c := &Client{
 		kratosPublicURL: cfg.KratosPublicURL,
+		kratosAdminURL:  cfg.KratosAdminURL,
 		ketoReadURL:     firstNonEmpty(cfg.KetoReadURL, cfg.KetoURL),
 		ketoWriteURL:    firstNonEmpty(cfg.KetoWriteURL, cfg.KetoURL),
 		http:            &http.Client{Timeout: 10 * time.Second},
@@ -139,6 +145,62 @@ func (s *Session) Roles() []string {
 	default:
 		return nil
 	}
+}
+
+// Identity is a Kratos identity as returned by the admin API.
+type Identity struct {
+	ID     string         `json:"id"`
+	State  string         `json:"state"`
+	Traits map[string]any `json:"traits"`
+}
+
+// ListIdentities returns the Kratos identities (up to pageSize, default 250).
+func (c *Client) ListIdentities(ctx context.Context, pageSize int) ([]Identity, error) {
+	if c.kratosAdminURL == "" {
+		return nil, errors.New("ory: kratos_admin_url not configured")
+	}
+	if pageSize <= 0 {
+		pageSize = 250
+	}
+	url := fmt.Sprintf("%s/admin/identities?page_size=%d", c.kratosAdminURL, pageSize)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("ory: list identities request: %w", err)
+	}
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("ory: list identities failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("ory: list identities returned %d", resp.StatusCode)
+	}
+	var identities []Identity
+	if err := json.NewDecoder(resp.Body).Decode(&identities); err != nil {
+		return nil, fmt.Errorf("ory: decode identities: %w", err)
+	}
+	return identities, nil
+}
+
+// DeleteIdentity removes a Kratos identity by id (admin API).
+func (c *Client) DeleteIdentity(ctx context.Context, id string) error {
+	if c.kratosAdminURL == "" {
+		return errors.New("ory: kratos_admin_url not configured")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, c.kratosAdminURL+"/admin/identities/"+id, nil)
+	if err != nil {
+		return fmt.Errorf("ory: delete identity request: %w", err)
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("ory: delete identity failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("ory: delete identity returned %d", resp.StatusCode)
+	}
+	return nil
 }
 
 // ValidateSession validates a session cookie or token against Ory Kratos.

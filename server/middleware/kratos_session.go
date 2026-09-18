@@ -1,10 +1,27 @@
 package middleware
 
 import (
+	"strings"
+
 	"github.com/gofiber/fiber/v3"
 
 	"github.com/natuleadan/sdk-api/server/auth/ory"
 )
+
+// kratosSessionCookie returns the value of the first Kratos session cookie.
+// Kratos names it ory_session_<project> (or ory_session in older versions).
+func kratosSessionCookie(c fiber.Ctx) string {
+	if v := c.Cookies("ory_session"); v != "" {
+		return v
+	}
+	var found string
+	for key, value := range c.Request().Header.Cookies() {
+		if found == "" && strings.HasPrefix(string(key), "ory_session") {
+			found = string(value)
+		}
+	}
+	return found
+}
 
 // KratosSessionConfig configures Ory Kratos session validation.
 type KratosSessionConfig struct {
@@ -27,7 +44,10 @@ func KratosSession(cfg KratosSessionConfig) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		token, _ := extractToken(c, "header:Authorization")
 		if token == "" {
-			token = c.Cookies("ory_session")
+			token = c.Get("X-Session-Token")
+		}
+		if token == "" {
+			token = kratosSessionCookie(c)
 		}
 		if token == "" {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{

@@ -2064,14 +2064,16 @@ func registerAuthRefresh(s *Service, auth *AuthConfig) {
 }
 
 func seedOpenFGAPermissions(s *Service, client *openfga.Client) {
-	permissions := collectPermissionsFromEntries(s.config)
-	if len(permissions) == 0 {
-		return
-	}
+	permissions := collectPermissions(s.config)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	// Always write the model: it declares the `user` and `role` types the role
+	// gate (member) needs, even when no permission is declared.
 	if _, err := client.EnsureModel(ctx, permissions); err != nil {
 		logx.Errorf("auth: failed to write OpenFGA model: %v", err)
+		return
+	}
+	if len(permissions) == 0 {
 		return
 	}
 	if err := client.SeedPermissions(ctx, permissions); err != nil {
@@ -2081,14 +2083,19 @@ func seedOpenFGAPermissions(s *Service, client *openfga.Client) {
 	}
 }
 
-func collectPermissionsFromEntries(cfg *ServiceConfig) []openfga.PermissionDef {
+// collectPermissions gathers role→permission grants from two driver-agnostic
+// sources: the global auth.role_permissions map and each entry's
+// roles x permissions. Role names are arbitrary and permissions are explicit
+// ("resource:action"), so there is no name-based guessing and any number of
+// roles/permissions can be declared.
+func collectPermissions(cfg *ServiceConfig) []openfga.PermissionDef {
 	if cfg == nil {
 		return nil
 	}
 	seen := make(map[string]bool)
 	var permissions []openfga.PermissionDef
 	add := func(role, resource, action string) {
-		if resource == "" || action == "" {
+		if role == "" || resource == "" || action == "" {
 			return
 		}
 		k := role + "|" + resource + "|" + action
@@ -2102,47 +2109,31 @@ func collectPermissionsFromEntries(cfg *ServiceConfig) []openfga.PermissionDef {
 			Actions:  []string{action},
 		})
 	}
+	addGrant := func(role, perm string) {
+		parts := strings.SplitN(perm, ":", 2)
+		if len(parts) != 2 {
+			return
+		}
+		add(role, parts[0], parts[1])
+	}
+	if cfg.Auth != nil {
+		for role, perms := range cfg.Auth.RolePermissions {
+			for _, perm := range perms {
+				addGrant(role, perm)
+			}
+		}
+	}
 	for _, entry := range cfg.Entry {
-		if len(entry.Roles) == 0 {
+		if len(entry.Roles) == 0 || len(entry.Permissions) == 0 {
 			continue
 		}
-		resource := entry.Resource
-		if resource == "" {
-			resource = entry.Model
-		}
 		for _, role := range entry.Roles {
-			// Explicit entry.permissions ("resource:action") grant exactly
-			// that action to the role; otherwise fall back to the role's
-			// default CRUD action set on the entry resource.
-			if len(entry.Permissions) > 0 {
-				for _, perm := range entry.Permissions {
-					parts := strings.SplitN(perm, ":", 2)
-					if len(parts) != 2 {
-						continue
-					}
-					add(role, parts[0], parts[1])
-				}
-				continue
-			}
-			for _, action := range defaultActionsForRole(role) {
-				add(role, resource, action)
+			for _, perm := range entry.Permissions {
+				addGrant(role, perm)
 			}
 		}
 	}
 	return permissions
-}
-
-func defaultActionsForRole(role string) []string {
-	switch {
-	case strings.HasSuffix(role, ":admin"), strings.HasSuffix(role, ":manager"):
-		return []string{"create", "read", "update", "delete", "publish"}
-	case strings.HasSuffix(role, ":editor"), strings.HasSuffix(role, ":writer"):
-		return []string{"create", "read", "update"}
-	case strings.HasSuffix(role, ":viewer"), strings.HasSuffix(role, ":reader"):
-		return []string{"read"}
-	default:
-		return []string{"read"}
-	}
 }
 
 func convertSecurityHeaders(cfg *SecurityHeadersConf) *middleware.SecurityHeadersConfig {

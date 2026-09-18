@@ -90,6 +90,11 @@ type AuthConfig struct {
 	OpenFGAURL string `json:"openfga_url" config:",optional"`
 	// OpenFGAStore is a constant.
 	OpenFGAStore string `json:"openfga_store" config:",optional"`
+	// RolePermissions declares arbitrary role → permission grants
+	// (permission = "resource:action"), independent of entries. Role names are
+	// free-form; any number of roles and permissions can be declared. Used to
+	// seed the authorization model/tuples for the openfga-zitadel driver.
+	RolePermissions map[string][]string `json:"role_permissions" config:",optional"`
 	// KratosURL is a constant.
 	KratosURL string `json:"kratos_url" config:",optional"`
 	// KetoURL is a constant.

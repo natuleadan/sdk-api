@@ -47,8 +47,9 @@ func (c *Client) AssignRole(ctx context.Context, user, role string) error {
 type ResourceActions map[string][]string
 
 // EnsureModel derives the authorization model from the collected permissions
-// and writes it. Resources and actions come from the permissions themselves, so
-// custom actions (e.g. `users:manage`) are covered, not only CRUD.
+// and writes it. The base types (`user`, `role`) are always written so the role
+// gate works even with no permissions; resources and actions come from the
+// permissions themselves, so custom actions (e.g. `users:manage`) are covered.
 func (c *Client) EnsureModel(ctx context.Context, permissions []PermissionDef) (string, error) {
 	resources := make(ResourceActions)
 	for _, p := range permissions {
@@ -60,9 +61,6 @@ func (c *Client) EnsureModel(ctx context.Context, permissions []PermissionDef) (
 				resources[p.Resource] = append(resources[p.Resource], action)
 			}
 		}
-	}
-	if len(resources) == 0 {
-		return "", nil
 	}
 	return c.EnsureDefaultModel(ctx, resources)
 }

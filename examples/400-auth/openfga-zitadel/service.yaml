@@ -1,0 +1,223 @@
+name: auth-openfga-zitadel
+port: 23400
+
+server:
+  host: "0.0.0.0"
+  prefork: false
+  timeout: 30s
+  body_limit: 4194304
+  max_conns: 10000
+  health_path: /healthz
+  api_prefix: /api
+  shutdown_timeout: 10s
+  middleware:
+    - path: "/*"
+      apply: [logger]
+  security:
+    encrypt_cookie:
+      enabled: true
+      key: "${ENCRYPT_COOKIE_KEY}"
+      except:
+        - "csrf_token"
+  # The API authenticates with Bearer (introspection) or API keys, never with
+  # cookies, so CSRF does not apply.
+  csrf:
+    enabled: false
+  security_headers:
+    frame_options: DENY
+    referrer_policy: no-referrer
+    permissions_policy: "camera=(), microphone=()"
+    hsts: false
+    csp_config:
+      level: basic
+      default_src: ["'self'"]
+      script_src: ["'self'"]
+      style_src: ["'self'"]
+      img_src: ["'self'", "data:"]
+  cors:
+    # credentials:true forbids origins ["*"] (Fiber panics at startup).
+    origins: ["http://localhost:23400", "http://example.com"]
+    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"]
+    headers: ["Content-Type", "Authorization", "X-CSRF-Token", "X-Debug"]
+    credentials: true
+    max_age: 3600
+  rate_limit:
+    enabled: true
+    kv: cache-main
+    algorithm: token_bucket
+    ttl: 5m
+
+kv:
+  - name: cache-main
+    driver: redis
+    url: "${REDIS_URL}"
+
+databases:
+  - name: primary
+    driver: postgres
+    url: "${DATABASE_URL}"
+    pool:
+      max_conns: 50
+      min_conns: 2
+      reserved_conns: 5
+
+# Identity comes from Zitadel (opaque access tokens validated by RFC 7662
+# introspection); authorization is 100% OpenFGA. Role names are arbitrary:
+# list them in entries or in role_permissions.
+auth:
+  enabled: true
+  driver: openfga-zitadel
+  openfga_url: "${OPENFGA_URL}"
+  openfga_store: "${OPENFGA_STORE}"
+  oauth:
+    introspection_url: "${ZITADEL_INTROSPECTION_URL}"
+    client_id: "${ZITADEL_INTROSPECTION_CLIENT_ID}"
+    client_secret: "${ZITADEL_INTROSPECTION_CLIENT_SECRET}"
+    cache_ttl: 5s
+  role_permissions:
+    admin: ["users:manage"]
+    facturacion-lectura: ["products:read"]
+
+entry:
+  # ---- products (any authenticated subject) ----
+  - type: rest
+    method: GET
+    path: /products
+    handler: listProducts
+    auth_modes: [oauth, apikey]
+    api_key_prefix: "sk-"
+
+  - type: rest
+    method: POST
+    path: /products
+    handler: createProduct
+    auth_modes: [oauth, apikey]
+    api_key_prefix: "sk-"
+    roles: ["editor"]
+
+  - type: rest
+    method: GET
+    path: /products/:id
+    handler: getProduct
+    auth_modes: [oauth, apikey]
+    api_key_prefix: "sk-"
+
+  - type: rest
+    method: PATCH
+    path: /products/:id
+    handler: updateProduct
+    auth_modes: [oauth, apikey]
+    api_key_prefix: "sk-"
+    roles: ["editor"]
+
+  - type: rest
+    method: DELETE
+    path: /products/:id
+    handler: deleteProduct
+    auth_modes: [oauth, apikey]
+    api_key_prefix: "sk-"
+    roles: ["editor"]
+
+  # ---- admin (role-gated through OpenFGA) ----
+  - type: rest
+    method: DELETE
+    path: /admin/products/:id/hard
+    handler: hardDeleteProduct
+    auth_modes: [oauth]
+    roles: ["admin"]
+
+  - type: rest
+    method: PATCH
+    path: /admin/products/:id/visibility
+    handler: setVisibility
+    auth_modes: [oauth]
+    roles: ["admin"]
+
+  - type: rest
+    method: GET
+    path: /admin/products/:id/audit
+    handler: getAuditLog
+    auth_modes: [oauth]
+    roles: ["admin"]
+
+  - type: rest
+    method: GET
+    path: /admin/users
+    handler: listUsers
+    auth_modes: [oauth]
+    roles: ["admin"]
+    permissions: ["users:manage"]
+
+  - type: rest
+    method: DELETE
+    path: /admin/users/:id
+    handler: deleteUser
+    auth_modes: [oauth]
+    roles: ["admin"]
+    permissions: ["users:manage"]
+
+  - type: rest
+    method: PATCH
+    path: /admin/users/:id/role
+    handler: setUserRole
+    auth_modes: [oauth]
+    roles: ["admin"]
+    permissions: ["users:manage"]
+
+  # ---- rate limiting (logic only) ----
+  - type: rest
+    method: POST
+    path: /rate-limited
+    handler: rateLimitedHandler
+    auth_modes: [oauth, apikey]
+    api_key_prefix: "sk-"
+    rate_limit:
+      requests_per_second: 10
+      burst: 20
+    rate_limit_per_user:
+      requests_per_second: 5
+      burst: 10
+    rate_limit_per_key:
+      requests_per_second: 10
+      burst: 20
+
+  - type: rest
+    method: POST
+    path: /per-role-limited
+    handler: perRoleLimited
+    auth_modes: [oauth]
+    roles: ["admin", "editor", "viewer"]
+    rate_limit_per_role:
+      admin:
+        requests_per_second: 5
+        burst: 10
+      editor:
+        requests_per_second: 3
+        burst: 6
+      viewer:
+        requests_per_second: 1
+        burst: 2
+
+  - type: rest
+    method: GET
+    path: /viewer-data
+    handler: viewerDataHandler
+    auth_modes: [oauth]
+    roles: ["viewer"]
+
+  - type: rest
+    method: GET
+    path: /admin/dual-products
+    handler: listProducts
+    auth_modes: [oauth, apikey]
+    api_key_prefix: "sk-"
+    roles: ["admin"]
+
+  # ---- tenant-scoped CRUD ----
+  - type: crud
+    model: TenantProduct
+    resource: tenant-products
+    auth_modes: [oauth]
+    db: primary
+    tenant_scope: org_id
+    tenant_field: tenant_id

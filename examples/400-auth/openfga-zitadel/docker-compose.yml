@@ -1,0 +1,114 @@
+name: auth-openfga-zitadel
+
+# Generic, self-contained stack for the OpenFGA + Zitadel auth example:
+#   - postgres: application data (products, tenants, audit)
+#   - valkey:   lightweight cache for rate limiting
+#   - openfga:  authorization engine (ReBAC) with its own postgres
+#   - zitadel:  OIDC identity provider with its own postgres
+# Ports are local-only defaults; no production endpoints or secrets here.
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: auth_fga
+    ports:
+      - "25436:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    ports:
+      - "6379:6379"
+
+  postgres_openfga:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: openfga
+      POSTGRES_PASSWORD: openfgapass
+      POSTGRES_DB: openfga
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openfga"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  openfga_migrate:
+    image: openfga/openfga:v1.18.1
+    command: migrate
+    depends_on:
+      postgres_openfga:
+        condition: service_healthy
+    environment:
+      OPENFGA_DATASTORE_ENGINE: postgres
+      OPENFGA_DATASTORE_URI: postgres://openfga:openfgapass@postgres_openfga:5432/openfga?sslmode=disable
+
+  openfga:
+    image: openfga/openfga:v1.18.1
+    command: run
+    depends_on:
+      openfga_migrate:
+        condition: service_completed_successfully
+    environment:
+      OPENFGA_DATASTORE_ENGINE: postgres
+      OPENFGA_DATASTORE_URI: postgres://openfga:openfgapass@postgres_openfga:5432/openfga?sslmode=disable
+      OPENFGA_PLAYGROUND_ENABLED: "true"
+    ports:
+      - "18080:8080"
+      - "18081:8081"
+      - "13000:3000"
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/grpc_health_probe", "-addr=:8081"]
+      interval: 5s
+      timeout: 30s
+      retries: 3
+
+  postgres_zitadel:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: zitadel
+      POSTGRES_PASSWORD: zitadelpass
+      POSTGRES_DB: zitadel
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zitadel"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  zitadel:
+    image: ghcr.io/zitadel/zitadel:v4.15.3
+    command: start-from-init --masterkey "MasterkeyNeedsToHave32Characters" --tlsMode disabled
+    depends_on:
+      postgres_zitadel:
+        condition: service_healthy
+    environment:
+      ZITADEL_DATABASE_POSTGRES_HOST: postgres_zitadel
+      ZITADEL_DATABASE_POSTGRES_PORT: 5432
+      ZITADEL_DATABASE_POSTGRES_DATABASE: zitadel
+      ZITADEL_DATABASE_POSTGRES_USER_USERNAME: zitadel
+      ZITADEL_DATABASE_POSTGRES_USER_PASSWORD: zitadelpass
+      ZITADEL_DATABASE_POSTGRES_USER_SSL_MODE: disable
+      ZITADEL_DATABASE_POSTGRES_ADMIN_USERNAME: zitadel
+      ZITADEL_DATABASE_POSTGRES_ADMIN_PASSWORD: zitadelpass
+      ZITADEL_DATABASE_POSTGRES_ADMIN_SSL_MODE: disable
+      ZITADEL_EXTERNALSECURE: "false"
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME: admin
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: Admin123!
+      # Machine user for tests + its JSON key (written to the mounted path).
+      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_USERNAME: machine
+      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_NAME: Machine
+      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINEKEY_TYPE: "1"
+      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINEKEY_EXPIRATIONDATE: "2030-01-01T00:00:00Z"
+      ZITADEL_FIRSTINSTANCE_MACHINEKEYPATH: /machinekey/machinekey.json
+    volumes:
+      - ./.machinekey:/machinekey
+    ports:
+      - "18082:8080"
+      - "18083:8081"
+    healthcheck:
+      disable: true

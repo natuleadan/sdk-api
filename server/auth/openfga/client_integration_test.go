@@ -309,3 +309,35 @@ func TestIntegration_OpenFGA_RolesAndPermissions(t *testing.T) {
 		}
 	}
 }
+
+// TestIntegration_OpenFGA_RolesWithoutPermissions covers arbitrary role names
+// with no declared permissions: the base model must still allow membership.
+func TestIntegration_OpenFGA_RolesWithoutPermissions(t *testing.T) {
+	skipIfNoOpenFGA(t)
+	ctx := context.Background()
+	storeID := ensureOpenFGAStoreNamed(t, "sdk-api-test-role-only")
+	client, err := NewClient(Config{APIURL: openfgaAPIURL, StoreID: storeID})
+	if err != nil {
+		t.Fatalf("NewClient failed: %v", err)
+	}
+	if _, err := client.EnsureModel(ctx, nil); err != nil {
+		t.Fatalf("EnsureModel failed: %v", err)
+	}
+
+	// Arbitrary, unrelated role names must work.
+	for _, role := range []string{"support_tier_2", "facturacion-lectura", "ROLE_42"} {
+		subject := "user:" + role
+		if err := client.AssignRole(ctx, subject, role); err != nil {
+			t.Fatalf("AssignRole %s failed: %v", role, err)
+		}
+		allowed, err := client.Check(ctx, CheckRequest{
+			User: subject, Relation: "member", Object: "role:" + role,
+		})
+		if err != nil {
+			t.Fatalf("check %s failed: %v", role, err)
+		}
+		if !allowed {
+			t.Errorf("expected member for arbitrary role %q", role)
+		}
+	}
+}

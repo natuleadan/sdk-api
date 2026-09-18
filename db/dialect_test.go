@@ -8,7 +8,7 @@ import (
 )
 
 func TestColumnType_TypeOverride(t *testing.T) {
-	str := reflect.TypeOf("")
+	str := reflect.TypeFor[string]()
 	cases := []struct {
 		name     string
 		override string
@@ -33,7 +33,7 @@ func TestColumnType_TypeOverride(t *testing.T) {
 }
 
 func TestColumnType_BaseAndAuto(t *testing.T) {
-	str := reflect.TypeOf("")
+	str := reflect.TypeFor[string]()
 	assert.Equal(t, "TEXT", columnType(dialectPostgres, FieldInfo{FieldType: str}))
 	assert.Equal(t, "VARCHAR(255)", columnType(dialectMySQL, FieldInfo{FieldType: str}))
 	assert.Equal(t, "TEXT", columnType(dialectSQLite, FieldInfo{FieldType: str}))

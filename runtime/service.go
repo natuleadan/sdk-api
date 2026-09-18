@@ -554,7 +554,7 @@ func MongoMustRegister(svc *Service, name, poolName, database, collection, looku
 			if field == "" || field == lookupField {
 				continue
 			}
-			if err := model.EnsureIndex(context.Background(), field); err != nil {
+			if err := model.EnsureIndexField(context.Background(), field, false); err != nil {
 				log.Fatalf("runtime: mongo index %q: %v", field, err)
 			}
 		}

@@ -8,6 +8,7 @@ package oauthstore
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -44,7 +45,7 @@ func (s *StringSlice) Scan(value any) error {
 	return json.Unmarshal(data, s)
 }
 
-func (s StringSlice) Value() (any, error) {
+func (s StringSlice) Value() (driver.Value, error) {
 	if s == nil {
 		return nil, nil
 	}

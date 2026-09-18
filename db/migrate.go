@@ -140,3 +140,30 @@ func sqlType(t reflect.Type) string {
 		return "TEXT"
 	}
 }
+
+// applyTableConstraints appends table-level UNIQUE/CHECK constraints and
+// collects INDEX statements declared via the optional TableConstraints
+// interface. Shared by every driver's AutoInit.
+func applyTableConstraints[T any](tableName string, parts, indexes []string) ([]string, []string) {
+	var zero T
+	tc, ok := any(zero).(TableConstraints)
+	if !ok {
+		return parts, indexes
+	}
+	for _, c := range tc.Constraints() {
+		switch c.Type {
+		case "UNIQUE":
+			parts = append(parts, fmt.Sprintf("UNIQUE (%s)", strings.Join(c.Columns, ", ")))
+		case "INDEX":
+			idxName := c.Name
+			if idxName == "" {
+				idxName = fmt.Sprintf("idx_%s_%s", tableName, strings.Join(c.Columns, "_"))
+			}
+			indexes = append(indexes,
+				fmt.Sprintf("CREATE INDEX IF NOT EXISTS %s ON %s (%s)", idxName, tableName, strings.Join(c.Columns, ", ")))
+		case "CHECK":
+			parts = append(parts, fmt.Sprintf("CHECK (%s)", c.Columns[0]))
+		}
+	}
+	return parts, indexes
+}

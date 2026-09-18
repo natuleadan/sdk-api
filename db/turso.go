@@ -98,23 +98,7 @@ func (t *TursoTable[T]) AutoInit(ctx context.Context) error {
 		}
 	}
 
-	var zero T
-	if tc, ok := any(zero).(TableConstraints); ok {
-		for _, c := range tc.Constraints() {
-			switch c.Type {
-			case "UNIQUE":
-				parts = append(parts, fmt.Sprintf("UNIQUE (%s)", strings.Join(c.Columns, ", ")))
-			case "INDEX":
-				idxName := c.Name
-				if idxName == "" {
-					idxName = fmt.Sprintf("idx_%s_%s", t.tableName, strings.Join(c.Columns, "_"))
-				}
-				indexes = append(indexes, fmt.Sprintf("CREATE INDEX IF NOT EXISTS %s ON %s (%s)", idxName, t.tableName, strings.Join(c.Columns, ", ")))
-			case "CHECK":
-				parts = append(parts, fmt.Sprintf("CHECK (%s)", c.Columns[0]))
-			}
-		}
-	}
+	parts, indexes = applyTableConstraints[T](t.tableName, parts, indexes)
 
 	query := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (\n  %s\n)", t.tableName, strings.Join(parts, ",\n  "))
 	if _, err := t.db.ExecContext(ctx, query); err != nil {

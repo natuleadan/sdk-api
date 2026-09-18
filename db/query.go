@@ -67,43 +67,60 @@ func Rewrite(d SQLDialect, query string, args ...any) (string, []any) {
 			b.WriteByte(c)
 			continue
 		}
-		if c == '$' && i+1 < len(query) && isDigit(query[i+1]) {
-			j := i + 1
-			for j < len(query) && isDigit(query[j]) {
-				j++
-			}
-			n, _ := strconv.Atoi(query[i+1 : j])
-			if n >= 1 && n <= len(args) {
-				b.WriteString(Placeholder(d, len(out)+1))
-				out = append(out, args[n-1])
-				i = j - 1
-				continue
-			}
+		if n, end, ok := takePlaceholder(query, i, len(args)); ok {
+			b.WriteString(Placeholder(d, len(out)+1))
+			out = append(out, args[n-1])
+			i = end
+			continue
 		}
-		if isIdentStart(c) {
-			j := i + 1
-			for j < len(query) && isIdentPart(query[j]) {
-				j++
-			}
-			if _, n, ok := matchCall(query, j); ok {
-				switch strings.ToLower(query[i:j]) {
-				case "now":
-					b.WriteString(Now(d))
-					i = n
-					continue
-				case "gen_random_uuid":
-					b.WriteString(RandomUUIDExpr(d))
-					i = n
-					continue
-				}
-			}
-			b.WriteString(query[i:j])
-			i = j - 1
+		if expr, end, ok := takeFunction(query, i, d); ok {
+			b.WriteString(expr)
+			i = end
 			continue
 		}
 		b.WriteByte(c)
 	}
 	return b.String(), out
+}
+
+// takePlaceholder reports the $n argument index ending at the closing digit and
+// the index of that digit, when query[i] starts a valid placeholder.
+func takePlaceholder(query string, i, nargs int) (int, int, bool) {
+	if query[i] != '$' || i+1 >= len(query) || !isDigit(query[i+1]) {
+		return 0, 0, false
+	}
+	j := i + 1
+	for j < len(query) && isDigit(query[j]) {
+		j++
+	}
+	n, _ := strconv.Atoi(query[i+1 : j])
+	if n < 1 || n > nargs {
+		return 0, 0, false
+	}
+	return n, j - 1, true
+}
+
+// takeFunction translates a call to now() or gen_random_uuid() at query[i].
+func takeFunction(query string, i int, d SQLDialect) (string, int, bool) {
+	if !isIdentStart(query[i]) {
+		return "", 0, false
+	}
+	j := i + 1
+	for j < len(query) && isIdentPart(query[j]) {
+		j++
+	}
+	end, ok := matchCall(query, j)
+	if !ok {
+		return "", 0, false
+	}
+	switch strings.ToLower(query[i:j]) {
+	case "now":
+		return Now(d), end, true
+	case "gen_random_uuid":
+		return RandomUUIDExpr(d), end, true
+	default:
+		return "", 0, false
+	}
 }
 
 // RandomUUIDExpr returns a server-side random id expression for the dialect.
@@ -121,22 +138,22 @@ func RandomUUIDExpr(d SQLDialect) string {
 // matchCall reports whether the identifier ending at `from` is followed by an
 // (optionally spaced) empty-argument call "()", returning the index of the
 // closing parenthesis.
-func matchCall(query string, from int) (string, int, bool) {
+func matchCall(query string, from int) (int, bool) {
 	i := from
 	for i < len(query) && query[i] == ' ' {
 		i++
 	}
 	if i >= len(query) || query[i] != '(' {
-		return "", 0, false
+		return 0, false
 	}
 	j := i + 1
 	for j < len(query) && query[j] == ' ' {
 		j++
 	}
 	if j >= len(query) || query[j] != ')' {
-		return "", 0, false
+		return 0, false
 	}
-	return query[from:i], j, true
+	return j, true
 }
 
 func isIdentStart(b byte) bool {

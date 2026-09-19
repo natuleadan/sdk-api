@@ -2,7 +2,7 @@ module github.com/natuleadan/300-file-storage-pg-nats
 
 go 1.27
 
-require github.com/natuleadan/sdk-api v0.26.0
+require github.com/natuleadan/sdk-api v0.31.0
 
 require (
 	filippo.io/edwards25519 v1.2.0 // indirect

@@ -6,7 +6,7 @@ require (
 	github.com/go-jose/go-jose/v3 v3.0.5
 	github.com/go-webauthn/webauthn v0.17.4
 	github.com/golang-jwt/jwt/v5 v5.3.1
-	github.com/natuleadan/sdk-api v0.28.0
+	github.com/natuleadan/sdk-api v0.31.0
 	github.com/ory/fosite v0.49.0
 	github.com/twilio/twilio-go v1.30.9
 	golang.org/x/oauth2 v0.36.0
@@ -177,5 +177,3 @@ require (
 	turso.tech/database/tursogo v0.7.2 // indirect
 	turso.tech/database/tursogo-serverless v0.0.0-20260830080448-e279ac849ff2 // indirect
 )
-
-replace github.com/natuleadan/sdk-api => ../../..

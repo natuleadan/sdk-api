@@ -4,7 +4,7 @@ go 1.27
 
 require (
 	github.com/gofiber/contrib/v3/websocket v1.2.2
-	github.com/natuleadan/sdk-api v0.26.0
+	github.com/natuleadan/sdk-api v0.31.0
 )
 
 require (

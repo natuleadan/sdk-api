@@ -3,7 +3,7 @@ module 600-grpc
 go 1.27
 
 require (
-	github.com/natuleadan/sdk-api v0.26.0
+	github.com/natuleadan/sdk-api v0.31.0
 	google.golang.org/grpc v1.83.2
 	google.golang.org/protobuf v1.36.11
 )

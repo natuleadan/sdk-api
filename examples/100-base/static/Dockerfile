@@ -1,6 +1,6 @@
 FROM golang:1.27-alpine AS builder
 WORKDIR /build
-ARG SDK_VERSION=v0.26.0
+ARG SDK_VERSION=v0.31.0
 COPY sdk-api/examples/100-base/static ./
 RUN go mod edit -require=github.com/natuleadan/sdk-api@${SDK_VERSION} && go mod tidy && go mod download
 RUN CGO_ENABLED=0 go build -o /svc ./cmd/

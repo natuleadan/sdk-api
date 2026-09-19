@@ -1,6 +1,6 @@
 FROM golang:1.27 AS builder
 WORKDIR /build
-ARG SDK_VERSION=v0.26.0
+ARG SDK_VERSION=v0.31.0
 COPY sdk-api/examples/200-url-shortener/go-libsql ./
 RUN go mod edit -require=github.com/natuleadan/sdk-api@${SDK_VERSION} && go mod tidy && go mod download
 RUN CGO_ENABLED=1 go build -tags golibsql -o /svc ./cmd/

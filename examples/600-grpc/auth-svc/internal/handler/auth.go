@@ -53,5 +53,3 @@ func Login(svcCtx *ServiceContext) func(*runtime.RestCtx) error {
 		return c.JSON(runtime.Map{"token": signed, "user_id": id})
 	}
 }
-
-

@@ -4,8 +4,8 @@ import (
 	"log"
 	"strings"
 
-	"scalar-ui/internal/handler"
 	"github.com/natuleadan/sdk-api/runtime"
+	"scalar-ui/internal/handler"
 )
 
 func main() {

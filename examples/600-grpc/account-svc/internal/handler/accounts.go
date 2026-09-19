@@ -20,7 +20,9 @@ func (s *ServiceContext) SetService(svc *runtime.Service) {
 
 func CreateAccount(svcCtx *ServiceContext) func(*runtime.RestCtx) error {
 	return func(c *runtime.RestCtx) error {
-		var body struct{ Currency string `json:"currency"` }
+		var body struct {
+			Currency string `json:"currency"`
+		}
 		if err := c.Bind(&body); err != nil {
 			return c.Status(400).JSON(runtime.Map{"error": "invalid body"})
 		}

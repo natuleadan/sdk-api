@@ -3,8 +3,8 @@ package main
 import (
 	"log"
 
-	"redirects/internal/handler"
 	"github.com/natuleadan/sdk-api/runtime"
+	"redirects/internal/handler"
 )
 
 func main() {

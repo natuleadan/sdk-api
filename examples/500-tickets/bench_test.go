@@ -188,7 +188,9 @@ func TestOrder_RaceCondition_30x10(t *testing.T) {
 	// Create a fresh ticket with stock=10
 	body := mustMarshal(map[string]any{"name": "RaceTicket", "description": "race test", "price": 10, "stock": 10})
 	resp, _ := request("POST", "/api/v1/tickets", body)
-	var ticket struct{ ID int64 `json:"id"` }
+	var ticket struct {
+		ID int64 `json:"id"`
+	}
 	json.Unmarshal([]byte(readBody(resp)), &ticket)
 	if ticket.ID == 0 {
 		t.Fatal("failed to create race ticket")
@@ -470,7 +472,9 @@ func TestOrder_Async_InvalidBody(t *testing.T) {
 	for range 10 {
 		time.Sleep(200 * time.Millisecond)
 		resp2, _ := request("GET", r.StatusURL, nil)
-		var state struct{ Status string `json:"status"` }
+		var state struct {
+			Status string `json:"status"`
+		}
 		json.Unmarshal([]byte(readBody(resp2)), &state)
 		if state.Status == "failed" {
 			return
@@ -495,7 +499,9 @@ func TestOrder_Async_NegativeQuantity(t *testing.T) {
 	for range 10 {
 		time.Sleep(200 * time.Millisecond)
 		resp2, _ := request("GET", r.StatusURL, nil)
-		var state struct{ Status string `json:"status"` }
+		var state struct {
+			Status string `json:"status"`
+		}
 		json.Unmarshal([]byte(readBody(resp2)), &state)
 		if state.Status == "failed" {
 			return
@@ -558,8 +564,25 @@ func TestReport_AfterSales(t *testing.T) {
 func TestAsync_Delete_204(t *testing.T) {
 	body := mustMarshal(map[string]any{"ticket_id": 1, "quantity": 2})
 	resp, _ := request("POST", "/api/v1/orders/batch", body)
-	var r struct{ StatusURL string `json:"status_url"` }
+	var r struct {
+		StatusURL string `json:"status_url"`
+	}
 	json.Unmarshal([]byte(readBody(resp)), &r)
+
+	// Wait for a terminal state: the worker takes the job as soon as it is
+	// queued, and cancelling a processing job is a 409 by design. Only a
+	// completed/failed job is cancellable.
+	for range 15 {
+		time.Sleep(200 * time.Millisecond)
+		st, _ := request("GET", r.StatusURL, nil)
+		var state struct {
+			Status string `json:"status"`
+		}
+		json.Unmarshal([]byte(readBody(st)), &state)
+		if state.Status == "completed" || state.Status == "failed" {
+			break
+		}
+	}
 
 	resp2, _ := request("DELETE", r.StatusURL, nil)
 	if resp2.StatusCode != 204 {
@@ -577,7 +600,9 @@ func TestAsync_Delete_404(t *testing.T) {
 func TestAsync_Delete_409(t *testing.T) {
 	body := mustMarshal(map[string]any{"ticket_id": 1, "quantity": 10})
 	resp, _ := request("POST", "/api/v1/orders/batch", body)
-	var r struct{ StatusURL string `json:"status_url"` }
+	var r struct {
+		StatusURL string `json:"status_url"`
+	}
 	json.Unmarshal([]byte(readBody(resp)), &r)
 
 	time.Sleep(100 * time.Millisecond)
@@ -604,7 +629,9 @@ func TestAsync_Callback_Received(t *testing.T) {
 	for range 15 {
 		time.Sleep(200 * time.Millisecond)
 		resp2, _ := request("GET", r.StatusURL, nil)
-		var state struct{ Status string `json:"status"` }
+		var state struct {
+			Status string `json:"status"`
+		}
 		json.Unmarshal([]byte(readBody(resp2)), &state)
 		if state.Status == "completed" || state.Status == "failed" {
 			break
@@ -704,13 +731,17 @@ func TestAsync_Validate_QuantityTooHigh(t *testing.T) {
 	if resp.StatusCode != 202 {
 		t.Fatalf("status = %d, want 202", resp.StatusCode)
 	}
-	var r struct{ StatusURL string `json:"status_url"` }
+	var r struct {
+		StatusURL string `json:"status_url"`
+	}
 	json.Unmarshal([]byte(readBody(resp)), &r)
 
 	for range 10 {
 		time.Sleep(200 * time.Millisecond)
 		resp2, _ := request("GET", r.StatusURL, nil)
-		var state struct{ Status string `json:"status"` }
+		var state struct {
+			Status string `json:"status"`
+		}
 		json.Unmarshal([]byte(readBody(resp2)), &state)
 		if state.Status == "failed" {
 			return
@@ -722,13 +753,17 @@ func TestAsync_Validate_QuantityTooHigh(t *testing.T) {
 func TestAsync_Validate_NegativeQuantity(t *testing.T) {
 	body := mustMarshal(map[string]any{"ticket_id": 1, "quantity": -5})
 	resp, _ := request("POST", "/api/v1/orders/batch", body)
-	var r struct{ StatusURL string `json:"status_url"` }
+	var r struct {
+		StatusURL string `json:"status_url"`
+	}
 	json.Unmarshal([]byte(readBody(resp)), &r)
 
 	for range 10 {
 		time.Sleep(200 * time.Millisecond)
 		resp2, _ := request("GET", r.StatusURL, nil)
-		var state struct{ Status string `json:"status"` }
+		var state struct {
+			Status string `json:"status"`
+		}
 		json.Unmarshal([]byte(readBody(resp2)), &state)
 		if state.Status == "failed" {
 			return
@@ -740,13 +775,17 @@ func TestAsync_Validate_NegativeQuantity(t *testing.T) {
 func TestAsync_Validate_InvalidTicketID(t *testing.T) {
 	body := mustMarshal(map[string]any{"ticket_id": -1, "quantity": 1})
 	resp, _ := request("POST", "/api/v1/orders/batch", body)
-	var r struct{ StatusURL string `json:"status_url"` }
+	var r struct {
+		StatusURL string `json:"status_url"`
+	}
 	json.Unmarshal([]byte(readBody(resp)), &r)
 
 	for range 10 {
 		time.Sleep(200 * time.Millisecond)
 		resp2, _ := request("GET", r.StatusURL, nil)
-		var state struct{ Status string `json:"status"` }
+		var state struct {
+			Status string `json:"status"`
+		}
 		json.Unmarshal([]byte(readBody(resp2)), &state)
 		if state.Status == "failed" {
 			return
@@ -765,7 +804,9 @@ func TestAsync_VIPBatch_Accepts202(t *testing.T) {
 	if resp.StatusCode != 202 {
 		t.Errorf("status = %d, want 202: %s", resp.StatusCode, readBody(resp))
 	}
-	var r struct{ StatusURL string `json:"status_url"` }
+	var r struct {
+		StatusURL string `json:"status_url"`
+	}
 	json.Unmarshal([]byte(readBody(resp)), &r)
 	if r.StatusURL == "" {
 		t.Error("no status_url")
@@ -776,13 +817,17 @@ func TestAsync_VIPBatch_Completes(t *testing.T) {
 	request("POST", "/api/v1/admin/reset-stock", mustMarshal(map[string]any{"ticket_id": 5, "stock": 10}))
 	body := mustMarshal(map[string]any{"ticket_id": 5, "quantity": 5})
 	resp, _ := request("POST", "/api/v1/orders/batch-vip", body)
-	var r struct{ StatusURL string `json:"status_url"` }
+	var r struct {
+		StatusURL string `json:"status_url"`
+	}
 	json.Unmarshal([]byte(readBody(resp)), &r)
 
 	for range 15 {
 		time.Sleep(200 * time.Millisecond)
 		resp2, _ := request("GET", r.StatusURL, nil)
-		var state struct{ Status string `json:"status"` }
+		var state struct {
+			Status string `json:"status"`
+		}
 		json.Unmarshal([]byte(readBody(resp2)), &state)
 		if state.Status == "completed" {
 			return
@@ -808,13 +853,17 @@ func TestAsync_Callback_PerRequestURL(t *testing.T) {
 	if resp.StatusCode != 202 {
 		t.Fatalf("status = %d, want 202", resp.StatusCode)
 	}
-	var r struct{ StatusURL string `json:"status_url"` }
+	var r struct {
+		StatusURL string `json:"status_url"`
+	}
 	json.Unmarshal([]byte(readBody(resp)), &r)
 
 	for range 10 {
 		time.Sleep(200 * time.Millisecond)
 		resp2, _ := request("GET", r.StatusURL, nil)
-		var state struct{ Status string `json:"status"` }
+		var state struct {
+			Status string `json:"status"`
+		}
 		json.Unmarshal([]byte(readBody(resp2)), &state)
 		if state.Status == "completed" || state.Status == "failed" {
 			return
@@ -846,7 +895,9 @@ func TestAsync_List_ReturnsJobs(t *testing.T) {
 func TestAsync_List_EmptyListOK(t *testing.T) {
 	body := mustMarshal(map[string]any{"ticket_id": 1, "quantity": 2})
 	resp, _ := request("POST", "/api/v1/orders/batch", body)
-	var r struct{ StatusURL string `json:"status_url"` }
+	var r struct {
+		StatusURL string `json:"status_url"`
+	}
 	json.Unmarshal([]byte(readBody(resp)), &r)
 
 	resp2, _ := request("DELETE", r.StatusURL, nil)
@@ -857,4 +908,3 @@ func TestAsync_List_EmptyListOK(t *testing.T) {
 		t.Errorf("status = %d, want 200", resp3.StatusCode)
 	}
 }
-

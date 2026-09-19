@@ -7,7 +7,9 @@ import (
 
 func BuyCredits(svcCtx *ServiceContext) func(*runtime.RestCtx) error {
 	return func(c *runtime.RestCtx) error {
-		var body struct{ Amount int `json:"amount"` }
+		var body struct {
+			Amount int `json:"amount"`
+		}
 		if err := c.Bind(&body); err != nil || body.Amount <= 0 {
 			return c.Status(400).JSON(runtime.Map{"error": "invalid amount"})
 		}
@@ -30,7 +32,9 @@ func GetBalance(svcCtx *ServiceContext) func(*runtime.RestCtx) error {
 
 func DeductCredits(svcCtx *ServiceContext) func(*runtime.RestCtx) error {
 	return func(c *runtime.RestCtx) error {
-		var body struct{ Amount int `json:"amount"` }
+		var body struct {
+			Amount int `json:"amount"`
+		}
 		if err := c.Bind(&body); err != nil || body.Amount <= 0 {
 			return c.Status(400).JSON(runtime.Map{"error": "invalid amount"})
 		}

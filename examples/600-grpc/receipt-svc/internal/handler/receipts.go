@@ -34,7 +34,7 @@ func GenerateReceipt(svcCtx *ServiceContext) func(*runtime.RestCtx) error {
 			return c.Status(200).JSON(runtime.Map{
 				"receipt_url": fmt.Sprintf("http://localhost:23605/api/v1/receipts/%s", storageKey),
 				"transfer_id": body.TransferID,
-				"from": body.FromAccount, "to": body.ToAccount,
+				"from":        body.FromAccount, "to": body.ToAccount,
 				"amount": body.Amount,
 			})
 		}

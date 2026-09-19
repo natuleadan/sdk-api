@@ -3,8 +3,8 @@ package main
 import (
 	"log"
 
-	"static/internal/handler"
 	"github.com/natuleadan/sdk-api/runtime"
+	"static/internal/handler"
 )
 
 func main() {

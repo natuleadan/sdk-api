@@ -9,7 +9,6 @@ import (
 	"github.com/natuleadan/sdk-api/runtime"
 )
 
-
 type LinkData struct {
 	ID        int    `json:"id"`
 	ShortCode string `json:"shortCode"`

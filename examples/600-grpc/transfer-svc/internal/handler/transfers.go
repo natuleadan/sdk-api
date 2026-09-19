@@ -66,11 +66,11 @@ func InitiateTransfer(svcCtx *ServiceContext) func(*runtime.RestCtx) error {
 		broker := svcCtx.svc.NATS("default")
 		if broker != nil {
 			_ = broker.PublishJSON(c.Context(), "transfers.initiated", runtime.Map{
-				"transfer_id":      transfer.ID,
-				"from_account_id":  body.FromAccountID,
-				"to_account_id":    body.ToAccountID,
-				"amount":           body.Amount,
-				"idempotency_key":  body.IdempotencyKey,
+				"transfer_id":     transfer.ID,
+				"from_account_id": body.FromAccountID,
+				"to_account_id":   body.ToAccountID,
+				"amount":          body.Amount,
+				"idempotency_key": body.IdempotencyKey,
 			})
 		}
 

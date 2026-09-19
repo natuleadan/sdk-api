@@ -1,8 +1,8 @@
 package handler
 
 import (
-	"kv-dragonfly-v2/internal/svc"
 	"github.com/natuleadan/sdk-api/runtime"
+	"kv-dragonfly-v2/internal/svc"
 )
 
 func RegisterRoutes(s *runtime.Service, svcCtx *svc.ServiceContext) {

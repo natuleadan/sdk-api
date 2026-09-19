@@ -12,8 +12,8 @@ import (
 
 	"github.com/natuleadan/sdk-api/db"
 	"github.com/natuleadan/sdk-api/runtime"
-	"google.golang.org/grpc"
 	"github.com/natuleadan/sdk-api/server/middleware"
+	"google.golang.org/grpc"
 )
 
 func main() {

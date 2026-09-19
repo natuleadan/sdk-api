@@ -4,9 +4,9 @@ import (
 	"log"
 	"os"
 
+	"github.com/natuleadan/sdk-api/runtime"
 	"kv-dragonfly-v2/internal/handler"
 	appsvc "kv-dragonfly-v2/internal/svc"
-	"github.com/natuleadan/sdk-api/runtime"
 )
 
 func main() {

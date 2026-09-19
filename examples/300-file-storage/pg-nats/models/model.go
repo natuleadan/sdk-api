@@ -19,5 +19,3 @@ type UploadResponse struct {
 	Size       int    `json:"size"`
 	PresignURL string `json:"presignURL,omitempty"`
 }
-
-

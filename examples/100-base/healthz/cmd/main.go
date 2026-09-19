@@ -3,8 +3,8 @@ package main
 import (
 	"log"
 
-	"healthz/internal/handler"
 	"github.com/natuleadan/sdk-api/runtime"
+	"healthz/internal/handler"
 )
 
 func main() {

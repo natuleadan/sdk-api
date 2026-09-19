@@ -13,8 +13,8 @@ func NewServiceContext() *ServiceContext {
 func CheckFraud(svcCtx *ServiceContext) func(*runtime.RestCtx) error {
 	return func(c *runtime.RestCtx) error {
 		var body struct {
-			Amount  float64 `json:"amount"`
-			UserID  string  `json:"user_id"`
+			Amount float64 `json:"amount"`
+			UserID string  `json:"user_id"`
 		}
 		if err := c.Bind(&body); err != nil {
 			return c.Status(400).JSON(runtime.Map{"error": "invalid body"})

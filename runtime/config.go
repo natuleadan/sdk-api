@@ -97,6 +97,9 @@ type AuthConfig struct {
 	RolePermissions map[string][]string `json:"role_permissions" config:",optional"`
 	// KratosURL is a constant.
 	KratosURL string `json:"kratos_url" config:",optional"`
+	// KratosAdminURL is the Kratos admin API, used to list and delete
+	// identities. Required only for the identity-management endpoints.
+	KratosAdminURL string `json:"kratos_admin_url" config:",optional"`
 	// KetoURL is the base Ory Keto URL (used for reads and writes when the
 	// specific URLs below are not set).
 	KetoURL string `json:"keto_url" config:",optional"`

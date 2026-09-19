@@ -1976,6 +1976,7 @@ func initAuthClients(s *Service, auth *AuthConfig) {
 		if auth.KratosURL != "" || auth.KetoURL != "" {
 			oryCfg := ory.Config{
 				KratosPublicURL: auth.KratosURL,
+				KratosAdminURL:  auth.KratosAdminURL,
 				KetoURL:         auth.KetoURL,
 				KetoReadURL:     auth.KetoReadURL,
 				KetoWriteURL:    auth.KetoWriteURL,

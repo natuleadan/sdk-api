@@ -1,0 +1,28 @@
+name: auth-libsql
+
+# Same auth example as manual-pg, on the local Turso/libSQL engine (an embedded
+# SQLite-compatible file - no database server, no credentials). Only the plug
+# changes; the SDK translates the SQL per dialect.
+services:
+  valkey:
+    image: valkey/valkey:8-alpine
+    ports:
+      - "6379:6379"
+
+  bench:
+    build:
+      context: ../../../..
+      dockerfile: sdk-api/examples/400-auth/manual-libsql/Dockerfile
+    ports:
+      - "23400:23400"
+    depends_on:
+      - valkey
+    environment:
+      DOCKER_TEST: "1"
+      DB_DRIVER: turso
+      DATABASE_URL: /app/data/manual.db
+      REDIS_URL: valkey:6379
+      JWT_SECRET: dev-secret-hs256-change-in-prod
+      ENCRYPT_COOKIE_KEY: diPHoCg5vhBrTHCSJhlud1RRMRFpRo+4N/d32S+48t8=
+    env_file:
+      - oidc_private_key.env

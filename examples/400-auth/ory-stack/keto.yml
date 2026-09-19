@@ -1,0 +1,29 @@
+version: v0.14.0
+
+dsn: postgres://ory:orypass@postgres_ory:5432/ory?sslmode=disable
+
+serve:
+  read:
+    host: 0.0.0.0
+    port: 4466
+  write:
+    host: 0.0.0.0
+    port: 4467
+
+log:
+  level: warn
+
+# Tuple-based (Zanzibar) authorization, no OPL:
+#   roles:<role>#assignee@user:<id>          grants a role to a subject
+#   <resource>:<action>#perform@user:<id>    grants a permission to a subject
+# The SDK's ory driver checks these relations (namespace/relation configurable
+# through auth.ory in the YAML).
+namespaces:
+  - id: 0
+    name: roles
+  - id: 1
+    name: products
+  - id: 2
+    name: users
+  - id: 3
+    name: documents

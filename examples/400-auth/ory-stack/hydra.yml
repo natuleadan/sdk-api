@@ -1,0 +1,25 @@
+version: v2.3.0
+
+dsn: postgres://ory:orypass@postgres_ory:5432/ory?sslmode=disable
+
+serve:
+  public:
+    host: 0.0.0.0
+    port: 4444
+  admin:
+    host: 0.0.0.0
+    port: 4445
+
+urls:
+  self:
+    issuer: http://localhost:4444
+  consent: http://localhost:23400/api/oauth/consent
+  login: http://localhost:23400/api/oauth/login
+  logout: http://localhost:23400/api/oauth/logout
+
+secrets:
+  system:
+    - this-needs-to-be-changed-in-production-1234567890
+
+log:
+  level: warn

@@ -22,7 +22,10 @@ server:
   # The API authenticates with Bearer (introspection) or API keys, never with
   # cookies, so CSRF does not apply.
   csrf:
-    enabled: false
+    enabled: true
+    json_check: true
+    exclude_paths:
+      - "/api/no-csrf"
   security_headers:
     frame_options: DENY
     referrer_policy: no-referrer
@@ -212,6 +215,48 @@ entry:
     auth_modes: [oauth, apikey]
     api_key_prefix: "sk-"
     roles: ["admin"]
+
+
+  - type: rest
+    method: GET
+    path: /cookie/profile
+    handler: cookieProfile
+    auth_modes: [oauth]
+    jwt_from: "cookie:token"
+
+  - type: rest
+    method: POST
+    path: /per-user-limited
+    handler: perUserLimited
+    auth_modes: [oauth]
+    rate_limit_per_user:
+      requests_per_second: 2
+      burst: 4
+
+  - type: rest
+    method: POST
+    path: /per-key-limited
+    handler: perKeyLimited
+    auth_modes: [apikey]
+    api_key_prefix: "sk-"
+    rate_limit_per_key:
+      requests_per_second: 3
+      burst: 6
+
+  - type: rest
+    method: POST
+    path: /max-func-limited
+    handler: maxFuncLimited
+    auth_modes: [oauth]
+    rate_limit_per_user:
+      requests_per_second: 1
+      burst: 2
+
+  - type: rest
+    method: POST
+    path: /no-csrf
+    handler: noCSRFHandler
+    csrf: false
 
   # ---- tenant-scoped CRUD ----
   - type: crud

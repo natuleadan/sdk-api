@@ -331,7 +331,7 @@ func TestRateLimitedEndpoint(t *testing.T) {
 	token, _ := machineToken(t)
 	ok := 0
 	for i := 0; i < 3; i++ {
-		if code := status(t, http.MethodPost, "/rate-limited", token, nil); code == 200 {
+		if code := status(t, http.MethodPost, "/rate-limited", token, map[string]any{}); code == 200 {
 			ok++
 		}
 	}

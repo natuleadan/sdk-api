@@ -29,7 +29,7 @@ func handleAccessCode(svcCtx *svc.ServiceContext) func(c *runtime.RestCtx) error
 			return c.Status(400).JSON(runtime.Map{"code": 400, "message": "email required"})
 		}
 
-		pool := c.PoolPG("primary")
+		pool := svc.DB(c)
 		var userID string
 		err := pool.QueryRow(c.Context(),
 			`SELECT id FROM users WHERE username = $1`, body.Email).Scan(&userID)
@@ -62,7 +62,7 @@ func handleAccessCodeVerify(svcCtx *svc.ServiceContext) func(c *runtime.RestCtx)
 			return c.Status(400).JSON(runtime.Map{"code": 400, "message": "email and code required"})
 		}
 
-		pool := c.PoolPG("primary")
+		pool := svc.DB(c)
 		var id, userID string
 		var used bool
 		var expiresAt time.Time

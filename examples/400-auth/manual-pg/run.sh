@@ -13,6 +13,7 @@ for arg in "$@"; do
 done
 
 export CONFIG_PATH=service.yaml
+export DB_DRIVER="${DB_DRIVER:-postgres}"
 
 echo "=== starting service ==="
 export DOCKER_TEST=1

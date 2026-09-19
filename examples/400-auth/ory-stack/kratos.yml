@@ -1,0 +1,98 @@
+version: v1.3.1
+
+dsn: postgres://ory:orypass@postgres_ory:5432/ory?sslmode=disable&search_path=kratos
+
+serve:
+  public:
+    base_url: http://localhost:14433
+    host: 0.0.0.0
+    port: 4433
+    cors:
+      enabled: true
+      allowed_origins:
+        - http://localhost:23400
+      allowed_methods: [POST, GET, PUT, PATCH, DELETE]
+      allowed_headers: [Authorization, Content-Type]
+      exposed_headers: [Content-Type]
+      allow_credentials: true
+  admin:
+    base_url: http://localhost:14434
+    host: 0.0.0.0
+    port: 4434
+
+selfservice:
+  default_browser_return_url: http://localhost:23400/
+  allowed_return_urls:
+    - http://localhost:23400
+  methods:
+    password:
+      enabled: true
+    totp:
+      enabled: true
+      config:
+        issuer: natuleadan
+    webauthn:
+      enabled: true
+      config:
+        rp:
+          id: localhost
+          display_name: natuleadan
+        passwordless: true
+  flows:
+    error:
+      ui_url: http://localhost:23400/error
+    login:
+      ui_url: http://localhost:23400/login
+      lifespan: 10m
+      after:
+        hooks:
+          - hook: revoke_active_sessions
+    registration:
+      ui_url: http://localhost:23400/register
+      lifespan: 10m
+      after:
+        password:
+          hooks:
+            - hook: session
+    recovery:
+      enabled: true
+      ui_url: http://localhost:23400/recovery
+      lifespan: 10m
+      after:
+        hooks:
+          - hook: revoke_active_sessions
+    verification:
+      enabled: true
+      ui_url: http://localhost:23400/verify
+      lifespan: 10m
+    settings:
+      ui_url: http://localhost:23400/settings
+      lifespan: 10m
+      privileged_session_max_age: 15m
+    logout:
+      after:
+        default_browser_return_url: http://localhost:23400/
+
+# Development courier: recovery/verification links are written to the log
+# instead of being sent by email.
+courier:
+  smtp:
+    connection_uri: smtp://mailpit:1025/?skip_ssl_verify=true
+  delivery_strategy: smtp
+
+identity:
+  default_schema_id: default
+  schemas:
+    - id: default
+      url: file:///etc/config/kratos/identity.schema.json
+
+session:
+  lifespan: 24h
+  cookie:
+    name: ory_session
+    same_site: Lax
+    persistent: true
+
+log:
+  level: warning
+  format: json

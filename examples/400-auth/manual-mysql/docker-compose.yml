@@ -1,0 +1,43 @@
+name: auth-mysql
+
+# Same auth example as manual-pg, on MariaDB (MySQL-compatible). Only the plug
+# changes; the SDK translates the SQL per dialect.
+services:
+  mariadb:
+    image: mariadb:11
+    environment:
+      MARIADB_ROOT_PASSWORD: root
+      MARIADB_DATABASE: auth
+      MARIADB_USER: test
+      MARIADB_PASSWORD: pass
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    ports:
+      - "6379:6379"
+
+  bench:
+    build:
+      context: ../../../..
+      dockerfile: sdk-api/examples/400-auth/manual-mysql/Dockerfile
+    ports:
+      - "23400:23400"
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    environment:
+      DOCKER_TEST: "1"
+      DB_DRIVER: mysql
+      DATABASE_URL: "test:pass@tcp(mariadb:3306)/auth?parseTime=true"
+      REDIS_URL: valkey:6379
+      JWT_SECRET: dev-secret-hs256-change-in-prod
+      ENCRYPT_COOKIE_KEY: diPHoCg5vhBrTHCSJhlud1RRMRFpRo+4N/d32S+48t8=
+    env_file:
+      - oidc_private_key.env

@@ -1,0 +1,127 @@
+name: auth-ory-stack
+
+# Generic, self-contained stack for the Ory auth example:
+#   - postgres:      application data (products, tenants, audit)
+#   - valkey:        lightweight cache for rate limiting
+#   - postgres_ory:  shared database for Kratos (identity) and Keto (authz)
+#   - kratos:        Ory Kratos identity server (public :4433, admin :4434)
+#   - keto:          Ory Keto authorization server (read :4466, write :4467)
+# Ports are local-only defaults; no production endpoints or secrets here.
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: auth_ory
+    ports:
+      - "25437:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    ports:
+      - "6379:6379"
+
+  postgres_ory:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: ory
+      POSTGRES_PASSWORD: orypass
+      POSTGRES_DB: ory
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ory"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  kratos_migrate:
+    image: oryd/kratos:v1.3.1
+    command: migrate sql -e --yes
+    depends_on:
+      postgres_ory:
+        condition: service_healthy
+    environment:
+      DSN: postgres://ory:orypass@postgres_ory:5432/ory?sslmode=disable&search_path=kratos
+
+  kratos:
+    image: oryd/kratos:v1.3.1
+    command: serve -c /etc/config/kratos/kratos.yml --dev --watch-courier
+    depends_on:
+      kratos_migrate:
+        condition: service_completed_successfully
+    environment:
+      DSN: postgres://ory:orypass@postgres_ory:5432/ory?sslmode=disable&search_path=kratos
+      LOG_LEVEL: warning
+    volumes:
+      - ./kratos.yml:/etc/config/kratos/kratos.yml:ro
+      - ./identity.schema.json:/etc/config/kratos/identity.schema.json:ro
+    ports:
+      - "14433:4433"
+      - "14434:4434"
+
+  keto_migrate:
+    image: oryd/keto:v0.14.0
+    command: migrate up --yes -c /etc/config/keto/keto.yml
+    depends_on:
+      postgres_ory:
+        condition: service_healthy
+    environment:
+      DSN: postgres://ory:orypass@postgres_ory:5432/ory?sslmode=disable&search_path=keto
+    volumes:
+      - ./keto.yml:/etc/config/keto/keto.yml:ro
+
+  keto:
+    image: oryd/keto:v0.14.0
+    command: serve -c /etc/config/keto/keto.yml
+    depends_on:
+      keto_migrate:
+        condition: service_completed_successfully
+    environment:
+      DSN: postgres://ory:orypass@postgres_ory:5432/ory?sslmode=disable&search_path=keto
+      LOG_LEVEL: warn
+    volumes:
+      - ./keto.yml:/etc/config/keto/keto.yml:ro
+    ports:
+      - "4466:4466"
+      - "4467:4467"
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+  hydra_migrate:
+    image: oryd/hydra:v2.3.0
+    command: migrate sql -e --yes
+    depends_on:
+      postgres_ory:
+        condition: service_healthy
+    environment:
+      DSN: postgres://ory:orypass@postgres_ory:5432/ory?sslmode=disable&search_path=hydra
+
+  hydra:
+    image: oryd/hydra:v2.3.0
+    command: serve all --dev -c /etc/config/hydra/hydra.yml
+    depends_on:
+      hydra_migrate:
+        condition: service_completed_successfully
+    environment:
+      DSN: postgres://ory:orypass@postgres_ory:5432/ory?sslmode=disable&search_path=hydra
+      LOG_LEVEL: warn
+      URLS_SELF_ISSUER: http://localhost:4444
+      URLS_CONSENT: http://localhost:23400/api/oauth/consent
+      URLS_LOGIN: http://localhost:23400/api/oauth/login
+      URLS_LOGOUT: http://localhost:23400/api/oauth/logout
+      SECRETS_SYSTEM: this-needs-to-be-changed-in-production-1234567890
+      OIDC_SUBJECT_IDENTIFIERS_SUBJECT_IDENTIFIERS_ENABLED: "true"
+    volumes:
+      - ./hydra.yml:/etc/config/hydra/hydra.yml:ro
+    ports:
+      - "4444:4444"
+      - "4445:4445"

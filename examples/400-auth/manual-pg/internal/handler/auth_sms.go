@@ -19,7 +19,7 @@ func handleSMSSend(svcCtx *svc.ServiceContext) func(c *runtime.RestCtx) error {
 			return c.Status(400).JSON(runtime.Map{"code": 400, "message": "phone required"})
 		}
 
-		pool := c.PoolPG("primary")
+		pool := svc.DB(c)
 		var userID string
 		err := pool.QueryRow(c.Context(),
 			`SELECT id FROM users WHERE username = $1`, body.Phone).Scan(&userID)
@@ -27,20 +27,20 @@ func handleSMSSend(svcCtx *svc.ServiceContext) func(c *runtime.RestCtx) error {
 			userID = "anon-" + body.Phone
 		}
 
-	code := generateCode(6)
-	expiresAt := time.Now().Add(5 * time.Minute)
-	_, err = pool.Exec(c.Context(),
-		`INSERT INTO auth_codes (user_id, code, purpose, delivered_to, delivery_method, expires_at)
+		code := generateCode(6)
+		expiresAt := time.Now().Add(5 * time.Minute)
+		_, err = pool.Exec(c.Context(),
+			`INSERT INTO auth_codes (user_id, code, purpose, delivered_to, delivery_method, expires_at)
 		 VALUES ($1, $2, 'sms_verify', $3, 'sms', $4)`,
-		userID, code, body.Phone, expiresAt)
-	if err != nil {
-		return c.Status(500).JSON(runtime.Map{"code": 500, "message": "code generation failed"})
-	}
+			userID, code, body.Phone, expiresAt)
+		if err != nil {
+			return c.Status(500).JSON(runtime.Map{"code": 500, "message": "code generation failed"})
+		}
 
-	msg := fmt.Sprintf("Your 400-auth verification code is: %s", code)
-	svcCtx.SMSProvider.Send(c.Context(), body.Phone, msg)
+		msg := fmt.Sprintf("Your 400-auth verification code is: %s", code)
+		svcCtx.SMSProvider.Send(c.Context(), body.Phone, msg)
 
-	log.Printf("[SMS CODE] %s: %s", body.Phone, code)
+		log.Printf("[SMS CODE] %s: %s", body.Phone, code)
 		return c.JSON(runtime.Map{"status": "code_sent", "phone": body.Phone})
 	}
 }
@@ -55,7 +55,7 @@ func handleSMSVerify(svcCtx *svc.ServiceContext) func(c *runtime.RestCtx) error 
 			return c.Status(400).JSON(runtime.Map{"code": 400, "message": "phone and code required"})
 		}
 
-		pool := c.PoolPG("primary")
+		pool := svc.DB(c)
 		var id, userID string
 		var used bool
 		var expiresAt time.Time

@@ -21,7 +21,7 @@ func handleVerifyEmail(_ *svc.ServiceContext) func(c *runtime.RestCtx) error {
 		if token == "" {
 			return c.Status(400).JSON(runtime.Map{"code": 400, "message": "token required"})
 		}
-		pool := c.PoolPG("primary")
+		pool := svc.DB(c)
 		var userID string
 		var expiresAt time.Time
 		err := pool.QueryRow(c.Context(),

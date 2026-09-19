@@ -18,6 +18,7 @@ func RegisterRestRoutes(s *runtime.Service, svcCtx *svc.ServiceContext) {
 	s.WithRest("revokeTokenHandler", handleRevokeToken(svcCtx))
 	s.WithRest("blacklistProtectedHandler", handleBlacklistProtected(svcCtx))
 	s.WithRest("noCSRFHandler", handleNoCSRF(svcCtx))
+	s.WithRest("cookieProfile", handleCookieProfile(svcCtx))
 	s.WithRest("profileHandler", handleProfile(svcCtx))
 	s.WithRest("listProducts", handleListProducts(svcCtx))
 	s.WithRest("createProduct", handleCreateProduct(svcCtx))

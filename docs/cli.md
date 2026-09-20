@@ -105,6 +105,28 @@ sdk-api validate --strict             # fail on warnings
 | `--verbose` | Show parsed configuration details |
 | `--strict` | Exit with error on warnings |
 
+### `sdk-api migrate <status|up|down>`
+
+Applies versioned SQL migrations from a directory to a database (see `docs/database.md#migrations`).
+
+```bash
+sdk-api migrate status                              # applied / pending / modified
+sdk-api migrate up                                  # apply pending migrations
+sdk-api migrate down                                # roll back the last one
+sdk-api migrate up --driver postgres --dsn "$DB"    # explicit connection
+sdk-api migrate up --driver turso-serverless --dsn "$URL" --auth-token "$TOKEN"
+sdk-api migrate up --service service.yaml --db app  # a named database in the yaml
+```
+
+| Flag | Description |
+|------|-------------|
+| `--dir` | Migrations directory (default `migrations`) |
+| `--driver` | Database driver (postgres, mysql, turso, turso-serverless, libsql) |
+| `--dsn` | Connection string (overrides `--service`) |
+| `--auth-token` | Token for remote Turso/libSQL drivers |
+| `--service` | service.yaml to read the database from (default `service.yaml`) |
+| `--db` | Database name inside service.yaml (default: the first one) |
+
 ### `sdk-api dev [flags]`
 
 Runs the service in development mode with hot reload. Watches for file changes and automatically rebuilds and restarts.

@@ -270,7 +270,7 @@ table.AutoInit(ctx)
 - Creates indexes for `index` and `unique` fields
 - Applies table-level constraints declared via `TableConstraints` interface (composite UNIQUE, INDEX, CHECK)
 - Translates `type=` overrides and `default=` values per driver, so the same model targets PostgreSQL, MySQL and Turso/libSQL (see the dialect notes under **DB Tags**)
-- Does NOT run migrations (ALTER TABLE). Schema changes must be manual.
+- Does NOT run migrations (ALTER TABLE). Use the migration runner below for schema changes.
 
 MongoDB has no DDL. Its AutoInit equivalent is ensuring indexes at startup:
 `db.IndexFields[Model]()` derives the `primary`/`unique`/`index` columns and the
@@ -304,6 +304,73 @@ func (OAuthSession) Constraints() []db.Constraint {
 ```
 
 Supported constraint types: `UNIQUE`, `INDEX`, `CHECK`.
+
+## Migrations
+
+`AutoInit` creates a table that does not exist, but it never evolves one that
+does. For schema changes (a new column, a new index, a data backfill) use the
+versioned migration runner, so dev, staging and production converge to the same
+schema instead of diverging silently.
+
+### Files
+
+Migrations live in a directory (default `migrations/`), one file per version:
+
+```
+migrations/
+  0001_auth_baseline.sql
+  0002_add_users_email.sql
+  0002_add_users_email.down.sql   # optional rollback companion
+```
+
+The version is the leading integer, so order is explicit and never depends on
+directory listing. A `.down.sql` file shares the version of its up migration and
+is never treated as a version of its own.
+
+### CLI
+
+```bash
+# Connection from service.yaml (first database, or --db <name>)
+sdk-api migrate status
+sdk-api migrate up
+sdk-api migrate down
+
+# Explicit connection (overrides --service)
+sdk-api migrate up --driver postgres --dsn "$DATABASE_URL"
+sdk-api migrate up --driver turso-serverless --dsn "$TURSO_URL" --auth-token "$TURSO_TOKEN"
+
+# Custom directory
+sdk-api migrate up --dir db/migrations
+```
+
+- `status` lists every file as `applied`, `pending`, or `MODIFIED` (a file that
+  changed after being applied).
+- `up` applies pending migrations in order, each in its own transaction.
+- `down` rolls back the highest applied migration using its `.down.sql`.
+
+### Library
+
+```go
+conn, _ := db.OpenForDriver("turso-serverless", url, token)
+mig, _ := db.NewMigrator(conn, "migrations")
+defer mig.Close()
+
+applied, err := mig.Up(ctx)      // versions applied in this run
+status, err := mig.Status(ctx)   // applied / pending / modified
+version, err := mig.Down(ctx)    // rolled back version (0 if nothing)
+```
+
+### Guarantees
+
+- A `schema_migrations` control table records the applied version, name and a
+  SHA-256 checksum of the file.
+- A migration runs **exactly once** per environment; re-running `up` is a no-op.
+- If an applied file's checksum changes, `up` **fails** instead of guessing: the
+  schema and the file would diverge.
+- Each migration runs in a transaction, so a failure leaves neither the schema
+  nor the control table half-updated.
+- File access is confined to the migrations directory with `os.Root`, so a name
+  can never escape it.
 
 ## Helpers
 

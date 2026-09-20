@@ -268,7 +268,7 @@ Set `PG_SERVER_MAX_CONNS` and `REPLICA_COUNT` as env vars in your deployment.
 
 ### AutoInit
 
-`AutoInit()` creates tables on startup but does NOT run ALTER TABLE migrations. Use a migration tool (golang-migrate, goose) for schema changes.
+`AutoInit()` creates tables on startup but does NOT run ALTER TABLE migrations. Use the versioned migration runner (`sdk-api migrate up`, `db.NewMigrator`) for schema changes — see `docs/database.md#migrations`.
 
 ### Tags
 

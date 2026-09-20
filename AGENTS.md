@@ -20,7 +20,7 @@ General-purpose Go SDK for event-driven microservices and monoliths. YAML-driven
 | Runtime API | `docs/runtime.md` |
 | gRPC microservices | `docs/runtime.md#grpc` |
 | NATS + Kafka messaging | `docs/messaging.md` |
-| Database drivers & CRUD | `docs/database.md` |
+| Database drivers & CRUD | `docs/database.md` (incl. `#migrations`) |
 | Async jobs entry type | `docs/entry-async.md` |
 | GraphQL entry type | `docs/entry-graphql.md` |
 | gRPC entry type | `docs/entry-grpc.md` |
@@ -33,7 +33,7 @@ General-purpose Go SDK for event-driven microservices and monoliths. YAML-driven
 
 ## Entrypoints
 
-- `cmd/sdk-api/` — CLI generator (new/docker/kube/client/validate/dev)
+- `cmd/sdk-api/` — CLI generator (new/docker/kube/client/validate/dev/migrate)
 - `runtime/` — Service orchestrator, entry router, exit workers, cron, hooks, gRPC
 - `server/` — Fiber HTTP + 34+ middlewares + storage backends
 - `db/` — Table[T] CRUD (pgx, Turso, MySQL, MongoDB) + AutoInit
@@ -104,6 +104,11 @@ General-purpose Go SDK for event-driven microservices and monoliths. YAML-driven
 3. Register: `svc.RegisterGrpcService("UserService", func(srv *grpc.Server) { pb.RegisterUserServiceServer(srv, &userServer{}) })`
 4. Or with YAML entry: add `entry: - type: grpc, service_name: UserService` + `svc.RegisterGrpcService("UserService", fn)`
 5. Client: `runtime.GrpcCall(ctx, svc.GetGRPCClient("user-svc"), func(conn runtime.ClientConnInterface) (T, error) { ... })`
+
+### Add a schema migration
+1. Add `migrations/0002_<name>.sql` (optional `.down.sql` companion)
+2. `sdk-api migrate up` (reads the database from `service.yaml` or `--driver`/`--dsn`)
+3. Library: `db.NewMigrator(conn, "migrations").Up(ctx)` — AutoInit creates tables, the migrator evolves them
 
 ### Change runtime mode
 1. By default, the generated project uses `runtime.NewFromYAML` with embedded config

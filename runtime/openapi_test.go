@@ -371,6 +371,49 @@ func TestBuildOpenAPI_AuthSchemes(t *testing.T) {
 	}
 }
 
+func TestBuildOpenAPI_PerOperationSecurity(t *testing.T) {
+	cfg := &ServiceConfig{
+		Name:   "sec-svc",
+		Server: ServerConf{APIPrefix: "/api"},
+		Entry: []EntryDef{
+			{Type: "rest", Method: "POST", Path: "/login", Handler: "login"},
+			{Type: "rest", Method: "GET", Path: "/profile", Handler: "profile", AuthModes: []string{"jwt"}},
+			{Type: "rest", Method: "GET", Path: "/key-data", Handler: "keydata", AuthModes: []string{"jwt", "apikey"}},
+		},
+	}
+	spec, err := BuildOpenAPI(cfg, nil)
+	if err != nil {
+		t.Fatalf("BuildOpenAPI: %v", err)
+	}
+
+	login := spec.Paths.Find("/api/login")
+	if login == nil || login.Post == nil {
+		t.Fatal("login operation missing")
+	}
+	if login.Post.Security == nil || len(*login.Post.Security) != 0 {
+		t.Error("public operation must carry an explicitly empty security requirement")
+	}
+
+	profile := spec.Paths.Find("/api/profile")
+	if profile == nil || profile.Get == nil {
+		t.Fatal("profile operation missing")
+	}
+	if profile.Get.Security == nil || len(*profile.Get.Security) != 1 {
+		t.Fatalf("protected operation must carry one requirement, got %+v", profile.Get.Security)
+	}
+	if _, ok := (*profile.Get.Security)[0]["bearerAuth"]; !ok {
+		t.Errorf("jwt mode must map to bearerAuth, got %+v", (*profile.Get.Security)[0])
+	}
+
+	keydata := spec.Paths.Find("/api/key-data")
+	if keydata == nil || keydata.Get == nil {
+		t.Fatal("key-data operation missing")
+	}
+	if keydata.Get.Security == nil || len(*keydata.Get.Security) != 2 {
+		t.Fatalf("dual-mode operation must carry two requirements, got %+v", keydata.Get.Security)
+	}
+}
+
 func TestBuildOpenAPI_NoAuth(t *testing.T) {
 	cfg := &ServiceConfig{
 		Name:   "plain-svc",

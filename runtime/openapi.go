@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -39,6 +40,7 @@ func BuildOpenAPI(cfg *ServiceConfig, models map[string]*db.TableInfo) (*openapi
 		}
 		addEntryPaths(doc, entry, models, prefix)
 	}
+	applyEntrySecurity(doc, cfg.Entry, prefix)
 
 	doc.Security = securityRequirements(cfg.Entry)
 	sessionCookie := "sid"
@@ -75,6 +77,65 @@ func addEntryPaths(doc *openapi3.T, entry *EntryDef, models map[string]*db.Table
 		addAsyncPaths(doc, entry, prefix)
 	case "graphql":
 		addGraphQLPath(doc, entry, prefix)
+	}
+}
+
+// applyEntrySecurity stamps every documented operation with the security
+// requirement of the entry that produced it, so readers see per-route locks:
+// protected routes name their schemes, public routes carry an explicitly empty
+// requirement instead of inheriting the document-level one. Entries that share
+// a path keep the first writer's requirement, mirroring the pathItem merge.
+func applyEntrySecurity(doc *openapi3.T, entries []EntryDef, prefix string) {
+	type opKey struct {
+		method string
+		path   string
+	}
+	modes := map[opKey][]string{}
+	remember := func(method, path string, entryModes []string) {
+		key := opKey{method: strings.ToUpper(method), path: path}
+		if _, ok := modes[key]; !ok {
+			modes[key] = entryModes
+		}
+	}
+	for i := range entries {
+		entry := &entries[i]
+		if entry.Hidden {
+			continue
+		}
+		switch entry.Type {
+		case "rest", "webhook":
+			if entry.Method != "" {
+				remember(entry.Method, prefix+entry.Path, entry.AuthModes)
+			}
+		case "crud":
+			resource := entry.Resource
+			if resource == "" {
+				resource = plural(entry.Table)
+			}
+			base := prefix + "/" + resource
+			remember("GET", base, entry.AuthModes)
+			remember("POST", base, entry.AuthModes)
+			idPath := base + "/:id"
+			if strings.Contains(entry.Path, ":id") {
+				idPath = prefix + entry.Path
+			}
+			remember("GET", idPath, entry.AuthModes)
+			remember("PATCH", idPath, entry.AuthModes)
+			remember("DELETE", idPath, entry.AuthModes)
+		}
+	}
+	for path, item := range doc.Paths.Map() {
+		for method, op := range map[string]*openapi3.Operation{
+			"GET": item.Get, "POST": item.Post, "PUT": item.Put,
+			"PATCH": item.Patch, "DELETE": item.Delete,
+		} {
+			if op == nil {
+				continue
+			}
+			if entryModes, ok := modes[opKey{method: method, path: path}]; ok {
+				op.Security = requirementForModes(entryModes)
+			}
+		}
 	}
 }
 
@@ -143,6 +204,33 @@ func operationHasTag(op *openapi3.Operation, excluded map[string]bool) bool {
 	return false
 }
 
+// authModeSchemes is the single mapping from entry auth modes to OpenAPI
+// security scheme names, shared by the global requirements, the per-operation
+// pass and the scheme definitions below.
+var authModeSchemes = []struct {
+	mode string
+	name string
+}{
+	{"jwt", "bearerAuth"},
+	{"apikey", "apiKeyAuth"},
+	{"basic", "basicAuth"},
+	{"oauth", "oauthAuth"},
+	{"session", "sessionAuth"},
+}
+
+// requirementForModes maps entry auth modes onto one OpenAPI security
+// requirement. The result is always non-nil: an empty requirement means the
+// operation is openly accessible.
+func requirementForModes(modes []string) *openapi3.SecurityRequirements {
+	reqs := make(openapi3.SecurityRequirements, 0, len(modes))
+	for _, m := range authModeSchemes {
+		if slices.Contains(modes, m.mode) {
+			reqs = append(reqs, openapi3.SecurityRequirement{m.name: []string{}})
+		}
+	}
+	return &reqs
+}
+
 // securityRequirements derives the operation-level security requirements from
 // the union of all entry auth modes. Entries without auth stay public.
 func securityRequirements(entries []EntryDef) openapi3.SecurityRequirements {
@@ -155,25 +243,14 @@ func securityRequirements(entries []EntryDef) openapi3.SecurityRequirements {
 			has[mode] = true
 		}
 	}
-	reqs := make(openapi3.SecurityRequirements, 0, 5)
-	for _, m := range []struct {
-		mode string
-		name string
-	}{
-		{"jwt", "bearerAuth"},
-		{"apikey", "apiKeyAuth"},
-		{"basic", "basicAuth"},
-		{"oauth", "oauthAuth"},
-		{"session", "sessionAuth"},
-	} {
-		if has[m.mode] {
-			reqs = append(reqs, openapi3.SecurityRequirement{m.name: []string{}})
-		}
+	modes := make([]string, 0, len(has))
+	for mode := range has {
+		modes = append(modes, mode)
 	}
-	if len(reqs) == 0 {
+	if len(modes) == 0 {
 		return nil
 	}
-	return reqs
+	return *requirementForModes(modes)
 }
 
 // buildSecuritySchemes maps the entry auth modes onto OpenAPI security

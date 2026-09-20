@@ -129,9 +129,12 @@ func TestCircuitBreaker_DoWithAcceptable(t *testing.T) {
 	t.Run("doWithAcceptable with ctx timeout", func(t *testing.T) {
 		b := NewBreaker()
 		assert.NotEmpty(t, b.Name())
-		ctx, cancel := context.WithTimeout(context.Background(), time.Microsecond)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
 		defer cancel()
-		time.Sleep(time.Millisecond)
+		// Wait until the deadline is observable, so the check is deterministic.
+		// A 1µs timeout plus a single select raced the timer on loaded CI
+		// runners; waiting on ctx.Done removes the race without weakening it.
+		<-ctx.Done()
 		err := b.DoWithAcceptableCtx(ctx, func() error {
 			return nil
 		}, func(err error) bool {

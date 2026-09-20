@@ -31,3 +31,21 @@ func OpenStdlib(driver, dsn string) (*sql.DB, error) {
 	}
 	return database, nil
 }
+
+// OpenForDriver opens a *sql.DB using the driver's canonical constructor,
+// including the out-of-band auth token that remote Turso/libSQL drivers need.
+// It is the entry point for tools that must reach any supported family (the
+// migration runner, for example) without duplicating the DSN wiring.
+func OpenForDriver(driver, dsn, authToken string) (*sql.DB, error) {
+	switch driver {
+	case "turso-serverless":
+		return TursoServerlessOpen(dsn, authToken)
+	case "libsql":
+		return LibsqlOpen(dsn, authToken)
+	default:
+		if authToken != "" {
+			return nil, fmt.Errorf("db: driver %q does not take an auth token", driver)
+		}
+		return OpenStdlib(driver, dsn)
+	}
+}

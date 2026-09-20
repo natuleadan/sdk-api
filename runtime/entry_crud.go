@@ -16,7 +16,7 @@ import (
 type cachedMarker interface{ isCached() }
 
 func registerCRUD(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, brokers map[string]events.EventBroker, mws []fiber.Handler, pools map[string]any) error {
-	provider, ok := handlers.CRUD[entry.Model]
+	provider, ok := crudProvider(entry, handlers)
 	if !ok {
 		return fmt.Errorf("crud model %q: no provider registered", entry.Model)
 	}

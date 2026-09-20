@@ -1173,11 +1173,39 @@ func TestValidateEntryAuth_ValidHandler(t *testing.T) {
 }
 
 func TestValidateEntryAuth_CRUDResource(t *testing.T) {
-	entry := &EntryDef{AuthModes: []string{"jwt"}, Roles: []string{"editor"}, Resource: "products", Type: "crud"}
-	handlers := &EntryHandlers{CRUD: map[string]CRUDProvider{"products": nil}}
+	entry := &EntryDef{AuthModes: []string{"jwt"}, Roles: []string{"editor"}, Model: "Product", Resource: "products", Type: "crud"}
+	handlers := &EntryHandlers{CRUD: map[string]CRUDProvider{"Product": nil}}
 	err := validateEntryAuth(entry, handlers)
 	if err != nil {
-		t.Errorf("expected nil for valid CRUD resource, got %v", err)
+		t.Errorf("expected nil for valid CRUD model, got %v", err)
+	}
+}
+
+// TestValidateEntryAuth_CRUDCompositeResource covers the regression where a CRUD
+// entry overrode `resource` with a namespaced value (e.g. "auth/tenant-products")
+// while the provider is registered by model name. Validation used to look the
+// provider up by Resource, so the auth check failed and tenant scoping never
+// attached. Providers are always keyed by model.
+func TestValidateEntryAuth_CRUDCompositeResource(t *testing.T) {
+	entry := &EntryDef{
+		AuthModes: []string{"jwt"}, Roles: []string{"admin"},
+		Model: "TenantProduct", Resource: "auth/tenant-products", Type: "crud",
+		TenantScope: "org_id", TenantField: "tenant_id",
+	}
+	handlers := &EntryHandlers{CRUD: map[string]CRUDProvider{"TenantProduct": nil}}
+	if err := validateEntryAuth(entry, handlers); err != nil {
+		t.Errorf("expected nil for composite resource resolved by model, got %v", err)
+	}
+	if _, ok := crudProvider(entry, handlers); !ok {
+		t.Error("crudProvider should resolve by model name regardless of resource override")
+	}
+}
+
+func TestValidateEntryAuth_CRUDMissingModel(t *testing.T) {
+	entry := &EntryDef{AuthModes: []string{"jwt"}, Roles: []string{"admin"}, Model: "Ghost", Type: "crud"}
+	handlers := &EntryHandlers{CRUD: map[string]CRUDProvider{"Product": nil}}
+	if err := validateEntryAuth(entry, handlers); err == nil {
+		t.Error("expected error when the CRUD model has no provider")
 	}
 }
 

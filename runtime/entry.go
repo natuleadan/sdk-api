@@ -147,14 +147,26 @@ func validateEntryAuth(entry *EntryDef, handlers *EntryHandlers) error {
 		}
 		return fmt.Errorf("handler %q not registered", entry.Handler)
 	}
-	if entry.Resource != "" && entry.Type == "crud" {
+	if entry.Type == "crud" {
 		if handlers.CRUD != nil {
-			if _, ok := handlers.CRUD[entry.Resource]; ok {
+			if _, ok := handlers.CRUD[entry.Model]; ok {
 				return nil
 			}
 		}
+		return fmt.Errorf("crud model %q: no provider registered", entry.Model)
 	}
 	return nil
+}
+
+// crudProvider resolves the CRUD provider for an entry. The provider is always
+// keyed by the model name (WithCRUD/WithCRUDFactory register by model), even
+// when the entry overrides resource or path.
+func crudProvider(entry *EntryDef, handlers *EntryHandlers) (CRUDProvider, bool) {
+	if handlers == nil || handlers.CRUD == nil {
+		return nil, false
+	}
+	p, ok := handlers.CRUD[entry.Model]
+	return p, ok
 }
 
 func registerAuthMiddleware(entry *EntryDef, driver string, jwtCfg *middleware.JWTConfig, authValidator func(context.Context, *middleware.AuthContext, []string, []string) error, apiKeyValidator func(ctx context.Context, key string) (*middleware.AuthContext, error), fgaClient openfga.Checker, oryClient *ory.Client, zitadelClient *zitadel.Client, serverPerUser, serverPerKey *middleware.RateLimitEntry, rlAlgorithm string, rlTTL time.Duration, extra entryAuthExtra, rlRdb ...*redis.Redis) []fiber.Handler {

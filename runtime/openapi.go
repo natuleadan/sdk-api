@@ -342,12 +342,12 @@ func addCRUDPaths(doc *openapi3.T, entry *EntryDef, models map[string]*db.TableI
 
 	// Register schema if model info available
 	if info != nil {
-		doc.Components.Schemas[entry.Model] = &openapi3.SchemaRef{Value: buildSchema(info)}
+		doc.Components.Schemas[entry.Model] = &openapi3.SchemaRef{Value: buildSchema(doc, info, models)}
 	}
 
 	schemaRef := &openapi3.SchemaRef{Value: &openapi3.Schema{}}
 	if info != nil {
-		schemaRef = &openapi3.SchemaRef{Value: buildSchema(info)}
+		schemaRef = &openapi3.SchemaRef{Value: buildSchema(doc, info, models)}
 	}
 
 	// GET list
@@ -471,7 +471,7 @@ func registerModelSchema(doc *openapi3.T, name string, models map[string]*db.Tab
 		doc.Components.Schemas = openapi3.Schemas{}
 	}
 	if _, ok := doc.Components.Schemas[name]; !ok {
-		doc.Components.Schemas[name] = &openapi3.SchemaRef{Value: buildSchema(info)}
+		doc.Components.Schemas[name] = &openapi3.SchemaRef{Value: buildSchema(doc, info, models)}
 	}
 	return &openapi3.SchemaRef{Ref: "#/components/schemas/" + name}
 }
@@ -694,7 +694,7 @@ func addGraphQLPath(doc *openapi3.T, entry *EntryDef, prefix string) {
 
 // ---- Schema builders ----
 
-func buildSchema(info *db.TableInfo) *openapi3.Schema {
+func buildSchema(doc *openapi3.T, info *db.TableInfo, models map[string]*db.TableInfo) *openapi3.Schema {
 	s := &openapi3.Schema{
 		Type:       oapiTypes("object"),
 		Properties: openapi3.Schemas{},
@@ -703,40 +703,75 @@ func buildSchema(info *db.TableInfo) *openapi3.Schema {
 		if f.Skip {
 			continue
 		}
-		prop := fieldToSchema(f.FieldType)
+		prop := fieldToSchemaRef(doc, f.FieldType, models)
 		jsonName := f.Column
 		if tag := f.Tags.Get("json"); tag != "" {
 			if name, _, _ := strings.Cut(tag, ","); name != "" && name != "-" {
 				jsonName = name
 			}
 		}
-		s.Properties[jsonName] = &openapi3.SchemaRef{Value: prop}
+		s.Properties[jsonName] = prop
 	}
 	return s
 }
 
-func fieldToSchema(t reflect.Type) *openapi3.Schema {
+// fieldToSchemaRef maps a Go type to an OpenAPI schema reference: scalars
+// inline, slices and maps recursively, and structs as a $ref to their
+// registered model (by Go type name; a plain object when it is not registered).
+// Before this, slices and maps fell through to `string`, which is why the
+// collection bodies never showed up in the docs UI.
+func fieldToSchemaRef(doc *openapi3.T, t reflect.Type, models map[string]*db.TableInfo) *openapi3.SchemaRef {
 	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	switch t.Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return &openapi3.Schema{Type: oapiTypes("integer")}
+		return inlineSchema(&openapi3.Schema{Type: oapiTypes("integer")})
 	case reflect.Float32, reflect.Float64:
-		return &openapi3.Schema{Type: oapiTypes("number")}
+		return inlineSchema(&openapi3.Schema{Type: oapiTypes("number")})
 	case reflect.String:
-		return &openapi3.Schema{Type: oapiTypes("string")}
+		return inlineSchema(&openapi3.Schema{Type: oapiTypes("string")})
 	case reflect.Bool:
-		return &openapi3.Schema{Type: oapiTypes("boolean")}
+		return inlineSchema(&openapi3.Schema{Type: oapiTypes("boolean")})
+	case reflect.Slice, reflect.Array:
+		// []byte is binary data, not an array of numbers.
+		if t.Elem().Kind() == reflect.Uint8 {
+			return inlineSchema(&openapi3.Schema{Type: oapiTypes("string"), Format: "byte"})
+		}
+		return inlineSchema(&openapi3.Schema{
+			Type:  oapiTypes("array"),
+			Items: fieldToSchemaRef(doc, t.Elem(), models),
+		})
+	case reflect.Map:
+		return inlineSchema(&openapi3.Schema{
+			Type: oapiTypes("object"),
+			AdditionalProperties: openapi3.AdditionalProperties{
+				Schema: fieldToSchemaRef(doc, t.Elem(), models),
+			},
+		})
 	case reflect.Struct:
 		if t.String() == "time.Time" {
-			return &openapi3.Schema{Type: oapiTypes("string"), Format: "date-time"}
+			return inlineSchema(&openapi3.Schema{Type: oapiTypes("string"), Format: "date-time"})
 		}
-		return &openapi3.Schema{Type: oapiTypes("object")}
+		// A registered model becomes a component so the UI links to it; the
+		// registry key is the Go type name by convention (RegisterModel).
+		if doc != nil {
+			if _, ok := models[t.Name()]; ok {
+				if r := registerModelSchema(doc, t.Name(), models); r != nil {
+					return r
+				}
+			}
+		}
+		return inlineSchema(&openapi3.Schema{Type: oapiTypes("object")})
 	default:
-		return &openapi3.Schema{Type: oapiTypes("string")}
+		return inlineSchema(&openapi3.Schema{Type: oapiTypes("string")})
 	}
+}
+
+// inlineSchema wraps an inline schema as a reference.
+func inlineSchema(s *openapi3.Schema) *openapi3.SchemaRef {
+	return &openapi3.SchemaRef{Value: s}
 }
 
 // ---- Helpers ----

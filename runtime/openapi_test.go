@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/natuleadan/sdk-api/db"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,6 +21,76 @@ type TestProduct struct {
 type TestError struct {
 	Message string `db:"message" json:"message"`
 	Code    string `db:"code" json:"code"`
+}
+
+// TestCollection exercises the collection shapes the docs UI used to render as
+// plain strings: a slice of a registered model, a map, and a nested struct.
+type TestCollection struct {
+	Items  []TestProduct        `db:"items" json:"items"`
+	Count  int                  `db:"count" json:"count"`
+	Labels map[string]string    `db:"labels" json:"labels"`
+	Nested TestProduct          `db:"nested" json:"nested"`
+	Raw    []byte               `db:"raw" json:"raw"`
+	Meta   map[string]TestError `db:"meta" json:"meta"`
+}
+
+func TestBuildSchema_Collections(t *testing.T) {
+	info, err := db.ParseStructReflect(reflect.TypeFor[TestCollection]())
+	if err != nil {
+		t.Fatalf("ParseStructReflect: %v", err)
+	}
+	product, err := db.ParseStructReflect(reflect.TypeFor[TestProduct]())
+	if err != nil {
+		t.Fatalf("ParseStructReflect product: %v", err)
+	}
+	errorInfo, err := db.ParseStructReflect(reflect.TypeFor[TestError]())
+	if err != nil {
+		t.Fatalf("ParseStructReflect error: %v", err)
+	}
+	models := map[string]*db.TableInfo{"TestProduct": product, "TestError": errorInfo}
+	doc := &openapi3.T{Components: &openapi3.Components{Schemas: openapi3.Schemas{}}}
+
+	schema := buildSchema(doc, info, models)
+
+	// items: array of $ref to the registered model.
+	items := schema.Properties["items"]
+	if items == nil || items.Value.Type.Slice()[0] != "array" {
+		t.Fatalf("items = %+v, want array", items)
+	}
+	if items.Value.Items == nil || items.Value.Items.Ref != "#/components/schemas/TestProduct" {
+		t.Errorf("items.items = %+v, want the TestProduct ref", items.Value.Items)
+	}
+	if _, ok := doc.Components.Schemas["TestProduct"]; !ok {
+		t.Error("nested model was not registered as a component")
+	}
+
+	// count: integer.
+	if c := schema.Properties["count"]; c == nil || c.Value.Type.Slice()[0] != "integer" {
+		t.Errorf("count = %+v, want integer", c)
+	}
+
+	// labels: object with string values.
+	if l := schema.Properties["labels"]; l == nil || l.Value.Type.Slice()[0] != "object" ||
+		l.Value.AdditionalProperties.Schema == nil ||
+		l.Value.AdditionalProperties.Schema.Value.Type.Slice()[0] != "string" {
+		t.Errorf("labels = %+v, want object of string", l)
+	}
+
+	// nested: $ref to the registered model.
+	if n := schema.Properties["nested"]; n == nil || n.Ref != "#/components/schemas/TestProduct" {
+		t.Errorf("nested = %+v, want the TestProduct ref", n)
+	}
+
+	// raw: []byte is binary, not an array of numbers.
+	if r := schema.Properties["raw"]; r == nil || r.Value.Format != "byte" {
+		t.Errorf("raw = %+v, want byte string", r)
+	}
+
+	// meta: object whose values are a $ref.
+	if m := schema.Properties["meta"]; m == nil || m.Value.AdditionalProperties.Schema == nil ||
+		m.Value.AdditionalProperties.Schema.Ref != "#/components/schemas/TestError" {
+		t.Errorf("meta = %+v, want object of TestError ref", m)
+	}
 }
 
 func TestBuildOpenAPI_CRUD(t *testing.T) {
@@ -253,7 +324,7 @@ func TestBuildSchema_Fields(t *testing.T) {
 		t.Fatalf("ParseStructReflect: %v", err)
 	}
 
-	schema := buildSchema(info)
+	schema := buildSchema(nil, info, nil)
 	if schema.Type.Slice()[0] != "object" {
 		t.Errorf("type = %v", schema.Type)
 	}

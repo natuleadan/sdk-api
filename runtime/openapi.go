@@ -513,6 +513,15 @@ func operationResponses(doc *openapi3.T, entry *EntryDef, successSchema *openapi
 		if desc == "" {
 			desc = http.StatusText(n)
 		}
+		// A declared success code must not drop the generated schema: refresh
+		// its description and keep the content attached.
+		if n == success {
+			if desc != "" {
+				successResp.Description = new(desc)
+			}
+			responses.Set(code, &openapi3.ResponseRef{Value: successResp})
+			continue
+		}
 		resp := &openapi3.Response{Description: new(desc)}
 		if errSchema != nil && n >= 400 {
 			resp.Content = openapi3.NewContentWithJSONSchemaRef(errSchema)

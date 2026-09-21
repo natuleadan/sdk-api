@@ -510,6 +510,49 @@ func TestBuildOpenAPI_GraphQL(t *testing.T) {
 	}
 }
 
+// TestOperationDocs_DeclaredSuccessKeepsSchema guards the case where an entry
+// documents its own success code (200/201) with a custom description: the
+// generated response schema must stay attached. It used to be replaced by a
+// description-only response, silently dropping the body from the spec.
+func TestOperationDocs_DeclaredSuccessKeepsSchema(t *testing.T) {
+	info, err := db.ParseStructReflect(reflect.TypeFor[TestProduct]())
+	if err != nil {
+		t.Fatalf("ParseStructReflect: %v", err)
+	}
+	cfg := &ServiceConfig{
+		Name:   "docs-svc",
+		Server: ServerConf{APIPrefix: "/api"},
+		Entry: []EntryDef{
+			{
+				Type:          "rest",
+				Method:        "POST",
+				Path:          "/widgets",
+				Handler:       "createWidget",
+				ResponseModel: "Product",
+				Responses:     map[string]string{"201": "Widget created", "500": "Internal error"},
+			},
+		},
+	}
+	spec, err := BuildOpenAPI(cfg, map[string]*db.TableInfo{"Product": info})
+	if err != nil {
+		t.Fatalf("BuildOpenAPI: %v", err)
+	}
+	item := spec.Paths.Find("/api/widgets")
+	if item == nil || item.Post == nil {
+		t.Fatal("/api/widgets POST missing")
+	}
+	created := item.Post.Responses.Value("201")
+	if created == nil || created.Value == nil {
+		t.Fatal("201 response missing")
+	}
+	if created.Value.Content == nil {
+		t.Fatal("declared 201 dropped the response schema")
+	}
+	if created.Value.Description == nil || *created.Value.Description != "Widget created" {
+		t.Errorf("description = %v, want the declared one", created.Value.Description)
+	}
+}
+
 // TestOperationDocs_BodyTitleDescription asserts the contract infra asked for:
 // every non-CRUD operation documents a summary (title), a description, and a
 // response for every status it can return — including a body for write

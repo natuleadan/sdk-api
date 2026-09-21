@@ -7,6 +7,8 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v3"
+
+	"github.com/natuleadan/sdk-api/runtime/errcode"
 )
 
 var (
@@ -26,18 +28,12 @@ func ValidateInput(modelName string) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		inputType, ok := validationModels[modelName]
 		if !ok {
-			return c.Status(500).JSON(fiber.Map{
-				"code":    500,
-				"message": fmt.Sprintf("validation model %q not registered", modelName),
-			})
+			return errcode.WriteProblem(c, 500, errcode.ErrCodeInternal, fmt.Sprintf("validation model %q not registered", modelName))
 		}
 
 		input := reflect.New(inputType).Interface()
 		if err := c.Bind().Body(input); err != nil {
-			return c.Status(400).JSON(fiber.Map{
-				"code":    400,
-				"message": "invalid request body",
-			})
+			return errcode.WriteProblem(c, 400, errcode.ErrCodeValidation, "invalid request body")
 		}
 
 		if err := validate.Struct(input); err != nil {
@@ -46,16 +42,9 @@ func ValidateInput(modelName string) fiber.Handler {
 				for _, e := range errs {
 					fields[e.Field()] = validationError(e)
 				}
-				return c.Status(422).JSON(fiber.Map{
-					"code":    422,
-					"message": "validation failed",
-					"fields":  fields,
-				})
+				return errcode.WriteProblemWith(c, 422, errcode.ErrCodeValidation, "validation failed", map[string]any{"fields": fields})
 			}
-			return c.Status(422).JSON(fiber.Map{
-				"code":    422,
-				"message": err.Error(),
-			})
+			return errcode.WriteProblem(c, 422, errcode.ErrCodeValidation, err.Error())
 		}
 
 		c.Locals("validated_input", input)

@@ -695,8 +695,13 @@ func errorHandler(problemBase string) fiber.ErrorHandler {
 			Instance: c.Path(),
 			Code:     errCode,
 		}
+		// The header goes after JSON: Fiber's JSON sets application/json and
+		// would overwrite an earlier value.
+		if err := c.Status(code).JSON(doc); err != nil {
+			return err
+		}
 		c.Set(fiber.HeaderContentType, "application/problem+json")
-		return c.Status(code).JSON(doc)
+		return nil
 	}
 }
 

@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v3"
+
+	"github.com/natuleadan/sdk-api/runtime/errcode"
 )
 
 type CSRFConfig struct {
@@ -40,7 +42,7 @@ func CSRF(cfg CSRFConfig) fiber.Handler {
 		if c.Method() == "GET" || c.Method() == "HEAD" || c.Method() == "OPTIONS" {
 			token, err := generateCSRFToken()
 			if err != nil {
-				return c.Status(500).JSON(fiber.Map{"error": "csrf token generation failed"})
+				return errcode.WriteProblem(c, 500, errcode.ErrCodeInternal, "csrf token generation failed")
 			}
 			c.Cookie(&fiber.Cookie{
 				Name:     cookieName,
@@ -63,9 +65,7 @@ func CSRF(cfg CSRFConfig) fiber.Handler {
 		headerToken := c.Get(headerName)
 		cookieToken := c.Cookies(cookieName)
 		if headerToken == "" || cookieToken == "" || headerToken != cookieToken {
-			return c.Status(403).JSON(fiber.Map{
-				"error": "csrf token mismatch",
-			})
+			return errcode.WriteProblem(c, 403, errcode.ErrCodeForbidden, "csrf token mismatch")
 		}
 		return c.Next()
 	}

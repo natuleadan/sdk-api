@@ -13,6 +13,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/golang-jwt/jwt/v5"
 
+	"github.com/natuleadan/sdk-api/runtime/errcode"
 	"github.com/natuleadan/sdk-api/server/auth/jwks"
 )
 
@@ -63,10 +64,7 @@ func JWT(cfg JWTConfig) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		token, rawToken := extractToken(c, cfg.TokenLookup)
 		if token == "" {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"code":    401,
-				"message": "missing or malformed token",
-			})
+			return errcode.WriteProblem(c, fiber.StatusUnauthorized, errcode.ErrCodeUnauthorized, "missing or malformed token")
 		}
 
 		claims, err := currentParser.parse(token)
@@ -74,26 +72,17 @@ func JWT(cfg JWTConfig) fiber.Handler {
 			claims, err = prevParser.parse(token)
 		}
 		if err != nil {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"code":    401,
-				"message": "invalid or expired token",
-			})
+			return errcode.WriteProblem(c, fiber.StatusUnauthorized, errcode.ErrCodeUnauthorized, "invalid or expired token")
 		}
 
 		if err := validateClaims(claims, cfg); err != nil {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"code":    401,
-				"message": err.Error(),
-			})
+			return errcode.WriteProblem(c, fiber.StatusUnauthorized, errcode.ErrCodeUnauthorized, err.Error())
 		}
 
 		c.Locals(cfg.ContextKey, claims)
 		injectAuth(c, buildAuthContext(claims, rawToken))
 		if cfg.TokenBlacklist != nil && cfg.TokenBlacklist(rawToken) {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"code":    401,
-				"message": "token revoked",
-			})
+			return errcode.WriteProblem(c, fiber.StatusUnauthorized, errcode.ErrCodeUnauthorized, "token revoked")
 		}
 		return c.Next()
 	}

@@ -2,10 +2,87 @@ package errcode
 
 import (
 	"errors"
+	"net/http"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/samber/oops"
 )
+
+// Problem is an RFC 9457 (Problem Details for HTTP APIs) document: the error
+// body every service answers with, served as application/problem+json.
+//
+// `code` is a registered extension carrying the machine-readable error code;
+// a client that only knows the standard ignores it.
+type Problem struct {
+	// Type identifies the problem type ("about:blank", the RFC default, when
+	// the writer has no registry base).
+	Type string `json:"type"`
+	// Title is the short summary of the type (the HTTP status phrase).
+	Title string `json:"title"`
+	// Status repeats the HTTP status code in the body, per the RFC.
+	Status int `json:"status"`
+	// Detail explains this occurrence.
+	Detail string `json:"detail,omitempty"`
+	// Instance identifies this occurrence (the request path).
+	Instance string `json:"instance,omitempty"`
+	// Code is the machine-readable error code (extension).
+	Code string `json:"code,omitempty"`
+}
+
+// WriteProblem answers with an RFC 9457 problem document. Middleware and entry
+// handlers that must answer directly (not through the server error handler)
+// use it so every error shares one shape. The type is "about:blank", the
+// standard default when no problem registry is configured.
+func WriteProblem(c fiber.Ctx, status int, code, detail string) error {
+	title := http.StatusText(status)
+	if title == "" {
+		title = "Request failed"
+	}
+	// The header goes after JSON: Fiber's JSON sets application/json and would
+	// overwrite an earlier value.
+	if err := c.Status(status).JSON(Problem{
+		Type:     "about:blank",
+		Title:    title,
+		Status:   status,
+		Detail:   detail,
+		Instance: c.Path(),
+		Code:     code,
+	}); err != nil {
+		return err
+	}
+	c.Set(fiber.HeaderContentType, "application/problem+json")
+	return nil
+}
+
+// WriteProblemWith is WriteProblem plus extra extension members (the RFC
+// allows them). Used when the error carries structured data, like the failing
+// fields of an input validation.
+func WriteProblemWith(c fiber.Ctx, status int, code, detail string, extra map[string]any) error {
+	title := http.StatusText(status)
+	if title == "" {
+		title = "Request failed"
+	}
+	doc := map[string]any{
+		"type":     "about:blank",
+		"title":    title,
+		"status":   status,
+		"detail":   detail,
+		"instance": c.Path(),
+		"code":     code,
+	}
+	for k, v := range extra {
+		if _, reserved := doc[k]; !reserved {
+			doc[k] = v
+		}
+	}
+	// The header goes after JSON: Fiber's JSON sets application/json and would
+	// overwrite an earlier value.
+	if err := c.Status(status).JSON(doc); err != nil {
+		return err
+	}
+	c.Set(fiber.HeaderContentType, "application/problem+json")
+	return nil
+}
 
 const (
 	ErrCodeNotFound     = "ERR_NOT_FOUND"
@@ -13,6 +90,7 @@ const (
 	ErrCodeUnauthorized = "ERR_UNAUTHORIZED"
 	ErrCodeForbidden    = "ERR_FORBIDDEN"
 	ErrCodeRateLimited  = "ERR_RATE_LIMITED"
+	ErrCodeConflict     = "ERR_CONFLICT"
 	ErrCodeTimeout      = "ERR_TIMEOUT"
 	ErrCodeDBConnection = "ERR_DB_CONNECTION"
 	ErrCodeDBQuery      = "ERR_DB_QUERY"

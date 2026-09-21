@@ -130,7 +130,7 @@ func (m *AsyncJobManager) HandleCancel() fiber.Handler {
 			return errcode.ErrNotFound("job", id)
 		}
 		if js.Status == JobProcessing {
-			return c.Status(409).JSON(fiber.Map{"error": "cannot cancel, job is processing"})
+			return errcode.WriteProblem(c, 409, errcode.ErrCodeConflict, "cannot cancel, job is processing")
 		}
 		m.store.Delete(id)
 		return c.SendStatus(204)
@@ -142,7 +142,8 @@ func (m *AsyncJobManager) HandleList() fiber.Handler {
 	return func(c fiber.Ctx) error {
 		jobs, err := m.store.List()
 		if err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+			logx.Errorf("async jobs list: %v", err)
+			return errcode.WriteProblem(c, 500, errcode.ErrCodeInternal, "internal server error")
 		}
 		return c.JSON(fiber.Map{"jobs": jobs, "total": len(jobs)})
 	}

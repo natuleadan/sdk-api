@@ -7,6 +7,7 @@ import (
 	"github.com/graphql-go/graphql"
 	"github.com/natuleadan/sdk-api/db"
 	"github.com/natuleadan/sdk-api/infra/logx"
+	"github.com/natuleadan/sdk-api/runtime/errcode"
 )
 
 func registerGraphQL(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, prefix string, models map[string]*db.TableInfo, mws []fiber.Handler) error {
@@ -23,10 +24,10 @@ func registerGraphQL(app *fiber.App, entry *EntryDef, handlers *EntryHandlers, p
 			Variables map[string]any `json:"variables,omitempty"`
 		}
 		if err := c.Bind().Body(&req); err != nil {
-			return c.Status(400).JSON(fiber.Map{"error": "invalid request body"})
+			return errcode.WriteProblem(c, 400, errcode.ErrCodeValidation, "invalid request body")
 		}
 		if req.Query == "" {
-			return c.Status(400).JSON(fiber.Map{"error": "query is required"})
+			return errcode.WriteProblem(c, 400, errcode.ErrCodeValidation, "query is required")
 		}
 
 		result := graphql.Do(graphql.Params{

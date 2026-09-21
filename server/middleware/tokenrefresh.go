@@ -13,6 +13,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/natuleadan/sdk-api/infra/logx"
+	"github.com/natuleadan/sdk-api/runtime/errcode"
 )
 
 // TokenRefreshConfig configures the token refresh endpoint behavior.
@@ -68,13 +69,13 @@ func zitadelTokenRefresh(c fiber.Ctx, cfg TokenRefreshConfig, refreshToken strin
 	req, err := http.NewRequestWithContext(c.Context(), http.MethodPost,
 		cfg.ZitadelTokenURL, strings.NewReader(body))
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"code": 500, "message": "internal error"})
+		return errcode.WriteProblem(c, 500, errcode.ErrCodeInternal, "internal error")
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return c.Status(502).JSON(fiber.Map{"code": 502, "message": "token refresh failed"})
+		return errcode.WriteProblem(c, 502, errcode.ErrCodeInternal, "token refresh failed")
 	}
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
@@ -84,11 +85,11 @@ func zitadelTokenRefresh(c fiber.Ctx, cfg TokenRefreshConfig, refreshToken strin
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return c.Status(502).JSON(fiber.Map{"code": 502, "message": "read failed"})
+		return errcode.WriteProblem(c, 502, errcode.ErrCodeInternal, "read failed")
 	}
 	var result map[string]any
 	if err := json.Unmarshal(respBody, &result); err != nil {
-		return c.Status(502).JSON(fiber.Map{"code": 502, "message": "parse failed"})
+		return errcode.WriteProblem(c, 502, errcode.ErrCodeInternal, "parse failed")
 	}
 	return c.Status(resp.StatusCode).JSON(result)
 }
@@ -96,18 +97,18 @@ func zitadelTokenRefresh(c fiber.Ctx, cfg TokenRefreshConfig, refreshToken strin
 func kratosTokenRefresh(c fiber.Ctx, cfg TokenRefreshConfig, refreshToken string) error {
 	body, err := json.Marshal(map[string]string{"session_token": refreshToken})
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"code": 500, "message": "internal error"})
+		return errcode.WriteProblem(c, 500, errcode.ErrCodeInternal, "internal error")
 	}
 	req, err := http.NewRequestWithContext(c.Context(), http.MethodPost,
 		cfg.KratosRefreshURL, bytes.NewReader(body))
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"code": 500, "message": "internal error"})
+		return errcode.WriteProblem(c, 500, errcode.ErrCodeInternal, "internal error")
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return c.Status(502).JSON(fiber.Map{"code": 502, "message": "token refresh failed"})
+		return errcode.WriteProblem(c, 502, errcode.ErrCodeInternal, "token refresh failed")
 	}
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
@@ -117,11 +118,11 @@ func kratosTokenRefresh(c fiber.Ctx, cfg TokenRefreshConfig, refreshToken string
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return c.Status(502).JSON(fiber.Map{"code": 502, "message": "read failed"})
+		return errcode.WriteProblem(c, 502, errcode.ErrCodeInternal, "read failed")
 	}
 	var result map[string]any
 	if err := json.Unmarshal(respBody, &result); err != nil {
-		return c.Status(502).JSON(fiber.Map{"code": 502, "message": "parse failed"})
+		return errcode.WriteProblem(c, 502, errcode.ErrCodeInternal, "parse failed")
 	}
 	return c.Status(resp.StatusCode).JSON(result)
 }
@@ -152,7 +153,7 @@ func manualTokenRefresh(c fiber.Ctx, cfg TokenRefreshConfig, _ string) error {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	signed, err := token.SignedString([]byte(cfg.JWTSecret))
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"code": 500, "message": "signing failed"})
+		return errcode.WriteProblem(c, 500, errcode.ErrCodeInternal, "signing failed")
 	}
 
 	return c.JSON(fiber.Map{

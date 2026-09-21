@@ -59,11 +59,11 @@ func TestErrorHandler(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 
 	body, _ := io.ReadAll(resp.Body)
-	var errResp ErrorResponse
+	var errResp Problem
 	if err := json.Unmarshal(body, &errResp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
-	assert.Equal(t, 500, errResp.Code)
+	assert.Equal(t, 500, errResp.Status)
 }
 
 func TestCustomRoute(t *testing.T) {
@@ -271,11 +271,11 @@ func TestErrorHandler_SanitizesInternalError(t *testing.T) {
 	resp, _ := app.app.Test(req)
 
 	body, _ := io.ReadAll(resp.Body)
-	var errResp ErrorResponse
+	var errResp Problem
 	json.Unmarshal(body, &errResp)
-	assert.Equal(t, 500, errResp.Code)
-	if errResp.Message != "internal server error" {
-		t.Errorf("expected sanitized message, got %q", errResp.Message)
+	assert.Equal(t, 500, errResp.Status)
+	if errResp.Detail != "internal server error" {
+		t.Errorf("expected sanitized message, got %q", errResp.Detail)
 	}
 }
 
@@ -291,11 +291,11 @@ func TestErrorHandler_LeavesClientErrors(t *testing.T) {
 	resp, _ := app.app.Test(req)
 
 	body, _ := io.ReadAll(resp.Body)
-	var errResp ErrorResponse
+	var errResp Problem
 	json.Unmarshal(body, &errResp)
-	assert.Equal(t, 400, errResp.Code)
-	if errResp.Message != "invalid input" {
-		t.Errorf("expected original message, got %q", errResp.Message)
+	assert.Equal(t, 400, errResp.Status)
+	if errResp.Detail != "invalid input" {
+		t.Errorf("expected original message, got %q", errResp.Detail)
 	}
 }
 
@@ -311,12 +311,12 @@ func TestOopsErrorHandler_4xxWithCode(t *testing.T) {
 	resp, _ := app.app.Test(req)
 
 	body, _ := io.ReadAll(resp.Body)
-	var errResp ErrorResponse
+	var errResp Problem
 	json.Unmarshal(body, &errResp)
-	assert.Equal(t, 401, errResp.Code)
-	assert.Equal(t, errcode.ErrCodeUnauthorized, errResp.Error)
-	if errResp.Message != "missing token" {
-		t.Errorf("expected message %q, got %q", "missing token", errResp.Message)
+	assert.Equal(t, 401, errResp.Status)
+	assert.Equal(t, errcode.ErrCodeUnauthorized, errResp.Code)
+	if errResp.Detail != "missing token" {
+		t.Errorf("expected message %q, got %q", "missing token", errResp.Detail)
 	}
 }
 
@@ -334,12 +334,12 @@ func TestOopsErrorHandler_5xxWithCode(t *testing.T) {
 	resp, _ := app.app.Test(req)
 
 	body, _ := io.ReadAll(resp.Body)
-	var errResp ErrorResponse
+	var errResp Problem
 	json.Unmarshal(body, &errResp)
-	assert.Equal(t, 500, errResp.Code)
-	assert.Equal(t, errcode.ErrCodeDBQuery, errResp.Error)
-	if errResp.Message != "internal server error" {
-		t.Errorf("expected 'internal server error', got %q", errResp.Message)
+	assert.Equal(t, 500, errResp.Status)
+	assert.Equal(t, errcode.ErrCodeDBQuery, errResp.Code)
+	if errResp.Detail != "internal server error" {
+		t.Errorf("expected 'internal server error', got %q", errResp.Detail)
 	}
 }
 
@@ -355,12 +355,12 @@ func TestOopsErrorHandler_404WithCode(t *testing.T) {
 	resp, _ := app.app.Test(req)
 
 	body, _ := io.ReadAll(resp.Body)
-	var errResp ErrorResponse
+	var errResp Problem
 	json.Unmarshal(body, &errResp)
-	assert.Equal(t, 404, errResp.Code)
-	assert.Equal(t, errcode.ErrCodeNotFound, errResp.Error)
-	if errResp.Message != "resource not found" {
-		t.Errorf("expected 'resource not found', got %q", errResp.Message)
+	assert.Equal(t, 404, errResp.Status)
+	assert.Equal(t, errcode.ErrCodeNotFound, errResp.Code)
+	if errResp.Detail != "resource not found" {
+		t.Errorf("expected 'resource not found', got %q", errResp.Detail)
 	}
 }
 
@@ -376,11 +376,11 @@ func TestOopsErrorHandler_FallbackToFiberError(t *testing.T) {
 	resp, _ := app.app.Test(req)
 
 	body, _ := io.ReadAll(resp.Body)
-	var errResp ErrorResponse
+	var errResp Problem
 	json.Unmarshal(body, &errResp)
-	assert.Equal(t, 422, errResp.Code)
-	if errResp.Message != "invalid input" {
-		t.Errorf("expected message 'invalid input', got %q", errResp.Message)
+	assert.Equal(t, 422, errResp.Status)
+	if errResp.Detail != "invalid input" {
+		t.Errorf("expected message 'invalid input', got %q", errResp.Detail)
 	}
 }
 
@@ -396,10 +396,10 @@ func TestOopsErrorHandler_RateLimited(t *testing.T) {
 	resp, _ := app.app.Test(req)
 
 	body, _ := io.ReadAll(resp.Body)
-	var errResp ErrorResponse
+	var errResp Problem
 	json.Unmarshal(body, &errResp)
 	assert.Equal(t, 429, resp.StatusCode)
-	assert.Equal(t, errcode.ErrCodeRateLimited, errResp.Error)
+	assert.Equal(t, errcode.ErrCodeRateLimited, errResp.Code)
 }
 
 func TestJoinOrStar(t *testing.T) {
@@ -593,11 +593,11 @@ func TestErrorHandler_5xxAlwaysSanitizes(t *testing.T) {
 	req := testRequest("/error-5xx")
 	resp, _ := app.app.Test(req)
 	body, _ := io.ReadAll(resp.Body)
-	var errResp ErrorResponse
+	var errResp Problem
 	json.Unmarshal(body, &errResp)
-	assert.Equal(t, 500, errResp.Code)
-	assert.Equal(t, errcode.ErrCodeDBQuery, errResp.Error)
-	assert.Equal(t, "internal server error", errResp.Message)
+	assert.Equal(t, 500, errResp.Status)
+	assert.Equal(t, errcode.ErrCodeDBQuery, errResp.Code)
+	assert.Equal(t, "internal server error", errResp.Detail)
 }
 
 func TestErrorHandler_NilErrorDoesNotPanic(t *testing.T) {
@@ -652,10 +652,10 @@ func TestErrorHandler_Forbidden(t *testing.T) {
 	})
 	req := testRequest("/forbidden")
 	resp, _ := app.app.Test(req)
-	var errResp ErrorResponse
+	var errResp Problem
 	json.Unmarshal(mustReadBody(resp), &errResp)
-	assert.Equal(t, 403, errResp.Code)
-	assert.Equal(t, errcode.ErrCodeForbidden, errResp.Error)
+	assert.Equal(t, 403, errResp.Status)
+	assert.Equal(t, errcode.ErrCodeForbidden, errResp.Code)
 }
 
 func TestErrorHandler_Timeout(t *testing.T) {
@@ -667,10 +667,10 @@ func TestErrorHandler_Timeout(t *testing.T) {
 	})
 	req := testRequest("/timeout")
 	resp, _ := app.app.Test(req)
-	var errResp ErrorResponse
+	var errResp Problem
 	json.Unmarshal(mustReadBody(resp), &errResp)
-	assert.Equal(t, 504, errResp.Code)
-	assert.Equal(t, errcode.ErrCodeTimeout, errResp.Error)
+	assert.Equal(t, 504, errResp.Status)
+	assert.Equal(t, errcode.ErrCodeTimeout, errResp.Code)
 }
 
 // --- CORS Preflight ---

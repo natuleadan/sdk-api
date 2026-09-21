@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -51,6 +52,10 @@ type Config struct {
 	RecoverStack     bool
 	APIPrefix        string
 	Routes           []RouteConfig
+	// ProblemTypeBase is the URI space of the RFC 9457 problem types used in
+	// error responses (application/problem+json). Empty answers "about:blank",
+	// the standard default when the service publishes no problem registry.
+	ProblemTypeBase string
 	// TrustedProxies lists proxy IPs/CIDRs (Bunny, Traefik, Nginx) trusted
 	// for X-Forwarded-For client IP detection (per-IP rate limiting, logs).
 	// Empty (default) keeps direct-remote-IP behavior.
@@ -233,7 +238,7 @@ func New(cfg Config, telemetry TelemetryConfig, security SecurityConfig, corsCfg
 		ReadTimeout:       cfg.ReadTimeout,
 		WriteTimeout:      cfg.WriteTimeout,
 		IdleTimeout:       cfg.IdleTimeout,
-		ErrorHandler:      errorHandler,
+		ErrorHandler:      errorHandler(cfg.ProblemTypeBase),
 		StreamRequestBody: cfg.StreamRequestBody,
 		ReduceMemoryUsage: cfg.ReduceMemoryUsage,
 	}
@@ -602,10 +607,26 @@ func (s *Server) registerShutdown() { //nolint:unused
 	})
 }
 
-type ErrorResponse struct {
-	Code    int    `json:"code"`
-	Error   string `json:"error,omitempty"`
-	Message string `json:"message"`
+// Problem is an RFC 9457 (Problem Details for HTTP APIs) document: the error
+// body every service answers with, served as application/problem+json.
+//
+// `code` is a registered extension carrying the machine-readable error code
+// (ERR_*); a client that only knows the standard ignores it.
+type Problem struct {
+	// Type identifies the problem type. "about:blank" (the RFC default) when
+	// the service does not publish a registry; ServerConf.ProblemTypeBase
+	// points it at the service's own URI space.
+	Type string `json:"type"`
+	// Title is the short summary of the type (the HTTP status phrase).
+	Title string `json:"title"`
+	// Status repeats the HTTP status code in the body, per the RFC.
+	Status int `json:"status"`
+	// Detail explains this occurrence.
+	Detail string `json:"detail,omitempty"`
+	// Instance identifies this occurrence (the request path).
+	Instance string `json:"instance,omitempty"`
+	// Code is the machine-readable error code (extension).
+	Code string `json:"code,omitempty"`
 }
 
 func oopsCodeToHTTP(codeStr string) int {
@@ -627,42 +648,74 @@ func oopsCodeToHTTP(codeStr string) int {
 	}
 }
 
-func errorHandler(c fiber.Ctx, err error) error {
-	code := fiber.StatusInternalServerError
-	errCode := errcode.ErrCodeInternal
-	message := "internal server error"
+// errorHandler builds the RFC 9457 error handler. problemBase is the URI space
+// of the problem types (empty answers "about:blank", the standard default).
+func errorHandler(problemBase string) fiber.ErrorHandler {
+	return func(c fiber.Ctx, err error) error {
+		// A handler that answered with its own problem document and returned an
+		// error must not be overwritten: the response is already written.
+		if len(c.Response().Body()) > 0 {
+			return nil
+		}
+		code := fiber.StatusInternalServerError
+		errCode := errcode.ErrCodeInternal
+		message := "internal server error"
 
-	if fe, ok := errors.AsType[*fiber.Error](err); ok {
-		code = fe.Code
-		message = fe.Message
-	}
+		if fe, ok := errors.AsType[*fiber.Error](err); ok {
+			code = fe.Code
+			message = fe.Message
+		}
 
-	if oo, ok := errors.AsType[oops.OopsError](err); ok {
-		if c := oo.Code(); c != nil {
-			errCode = c.(string)
-			if code >= 500 {
-				code = oopsCodeToHTTP(errCode)
+		if oo, ok := errors.AsType[oops.OopsError](err); ok {
+			if c := oo.Code(); c != nil {
+				errCode = c.(string)
+				if code >= 500 {
+					code = oopsCodeToHTTP(errCode)
+				}
 			}
+			if p := oo.Public(); p != "" && code < 500 {
+				message = p
+			}
+			logx.Errorw("request error",
+				logx.Field("error", fmt.Sprintf("%+v", err)),
+			)
+		} else if code >= 500 {
+			logx.Errorf("internal error: %v", err)
 		}
-		if p := oo.Public(); p != "" && code < 500 {
-			message = p
+
+		if code >= 500 {
+			message = "internal server error"
 		}
-		logx.Errorw("request error",
-			logx.Field("error", fmt.Sprintf("%+v", err)),
-		)
-	} else if code >= 500 {
-		logx.Errorf("internal error: %v", err)
-	}
 
-	if code >= 500 {
-		message = "internal server error"
+		doc := Problem{
+			Type:     problemType(problemBase, errCode),
+			Title:    statusTitle(code),
+			Status:   code,
+			Detail:   message,
+			Instance: c.Path(),
+			Code:     errCode,
+		}
+		c.Set(fiber.HeaderContentType, "application/problem+json")
+		return c.Status(code).JSON(doc)
 	}
+}
 
-	return c.Status(code).JSON(ErrorResponse{
-		Code:    code,
-		Error:   errCode,
-		Message: message,
-	})
+// problemType builds the problem type URI: <base>/<slug> when the service
+// publishes a registry, about:blank otherwise (the RFC default).
+func problemType(base, code string) string {
+	if base == "" {
+		return "about:blank"
+	}
+	return strings.TrimRight(base, "/") + "/" + strings.ReplaceAll(strings.ToLower(code), "_", "-")
+}
+
+// statusTitle is the stable summary of an HTTP status (the RFC wants a title
+// that does not change per occurrence).
+func statusTitle(code int) string {
+	if t := http.StatusText(code); t != "" {
+		return t
+	}
+	return "Request failed"
 }
 
 // Health probes ----------------------------------------------------------------

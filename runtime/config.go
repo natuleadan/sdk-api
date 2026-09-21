@@ -249,6 +249,10 @@ type ServerConf struct {
 	ShutdownTimeout string `json:"shutdown_timeout" config:",default=10s"`
 	// RecoverStack is a constant.
 	RecoverStack bool `json:"recover_stack" config:",default=true"`
+	// ProblemTypeBase is the URI space of the RFC 9457 problem types answered in
+	// error responses (application/problem+json). Empty answers "about:blank",
+	// the standard default when the service publishes no problem registry.
+	ProblemTypeBase string `json:"problem_type_base" config:",optional"`
 	// APIPrefix is a constant.
 	APIPrefix string `json:"api_prefix" config:",default=/api"`
 	// TrustedProxies lists proxy IPs/CIDRs trusted for X-Forwarded-For

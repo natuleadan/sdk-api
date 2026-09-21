@@ -1764,6 +1764,7 @@ func buildServerConfig(cfg *ServiceConfig, sc ServerConf, routes []server.RouteC
 		ShutdownTimeout:   parseServerDuration(sc.ShutdownTimeout, 10*time.Second),
 		RecoverStack:      sc.RecoverStack,
 		APIPrefix:         sc.APIPrefix,
+		ProblemTypeBase:   sc.ProblemTypeBase,
 		TrustedProxies:    sc.TrustedProxies,
 		Routes:            routes,
 		SecurityHeaders:   convertSecurityHeaders(sc.SecurityHeaders),

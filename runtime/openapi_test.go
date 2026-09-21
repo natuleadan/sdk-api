@@ -624,6 +624,45 @@ func TestOperationDocs_DeclaredSuccessKeepsSchema(t *testing.T) {
 	}
 }
 
+// TestOperationDocs_Declared200OnPostWins guards the platform case: most POSTs
+// answer 200 and only creates answer 201. When the entry declares 200, the
+// schema must attach to 200 and no phantom 201 may appear in the spec.
+func TestOperationDocs_Declared200OnPostWins(t *testing.T) {
+	info, err := db.ParseStructReflect(reflect.TypeFor[TestProduct]())
+	if err != nil {
+		t.Fatalf("ParseStructReflect: %v", err)
+	}
+	cfg := &ServiceConfig{
+		Name:   "docs-svc",
+		Server: ServerConf{APIPrefix: "/api"},
+		Entry: []EntryDef{
+			{
+				Type:          "rest",
+				Method:        "POST",
+				Path:          "/widgets/revoke",
+				Handler:       "revokeWidget",
+				ResponseModel: "Product",
+				Responses:     map[string]string{"200": "Widget revoked", "500": "Internal error"},
+			},
+		},
+	}
+	spec, err := BuildOpenAPI(cfg, map[string]*db.TableInfo{"Product": info})
+	if err != nil {
+		t.Fatalf("BuildOpenAPI: %v", err)
+	}
+	item := spec.Paths.Find("/api/widgets/revoke")
+	if item == nil || item.Post == nil {
+		t.Fatal("/api/widgets/revoke POST missing")
+	}
+	ok := item.Post.Responses.Value("200")
+	if ok == nil || ok.Value == nil || ok.Value.Content == nil {
+		t.Fatal("declared 200 lost the response schema")
+	}
+	if _, phantom := item.Post.Responses.Map()["201"]; phantom {
+		t.Error("undeclared 201 must not appear in the spec")
+	}
+}
+
 // TestOperationDocs_BodyTitleDescription asserts the contract infra asked for:
 // every non-CRUD operation documents a summary (title), a description, and a
 // response for every status it can return — including a body for write

@@ -488,6 +488,26 @@ func operationResponses(doc *openapi3.T, entry *EntryDef, successSchema *openapi
 		success = 201
 		successDesc = "Created"
 	}
+	codes := make([]string, 0, len(entry.Responses))
+	for code := range entry.Responses {
+		codes = append(codes, code)
+	}
+	sort.Strings(codes)
+	// A declared 2xx code is the truth: the handler answers that status, not
+	// the method default. Most POSTs answer 200 and only creates answer 201;
+	// attaching the schema to an undeclared 201 would document a status the
+	// handler never returns while leaving the real one bodiless.
+	for _, code := range codes {
+		if n, err := strconv.Atoi(code); err == nil && n >= 200 && n < 300 {
+			success = n
+			if d := entry.Responses[code]; d != "" {
+				successDesc = d
+			} else {
+				successDesc = http.StatusText(n)
+			}
+			break
+		}
+	}
 	successResp := &openapi3.Response{Description: new(successDesc)}
 	if successSchema != nil {
 		successResp.Content = openapi3.NewContentWithJSONSchemaRef(successSchema)
@@ -499,11 +519,6 @@ func operationResponses(doc *openapi3.T, entry *EntryDef, successSchema *openapi
 	if entry.ErrorModel != "" {
 		errSchema = registerModelSchema(doc, entry.ErrorModel, models)
 	}
-	codes := make([]string, 0, len(entry.Responses))
-	for code := range entry.Responses {
-		codes = append(codes, code)
-	}
-	sort.Strings(codes)
 	for _, code := range codes {
 		n, err := strconv.Atoi(code)
 		if err != nil {

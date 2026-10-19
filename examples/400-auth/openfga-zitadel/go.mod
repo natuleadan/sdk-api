@@ -36,7 +36,7 @@ require (
 	github.com/fsnotify/fsnotify v1.10.1 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.2 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.13 // indirect
-	github.com/getkin/kin-openapi v0.146.0 // indirect
+	github.com/getkin/kin-openapi v0.149.0 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/jsonpointer v1.0.0 // indirect
@@ -105,7 +105,7 @@ require (
 	github.com/sagikazarmark/locafero v0.11.0 // indirect
 	github.com/samber/lo v1.53.0 // indirect
 	github.com/samber/oops v1.23.0 // indirect
-	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3 // indirect
 	github.com/savsgio/gotils v0.0.0-20250924091648-bce9a52d7761 // indirect
 	github.com/seatgeek/logrus-gelf-formatter v0.0.0-20210414080842-5b05eb8ff761 // indirect
 	github.com/segmentio/kafka-go v0.4.51 // indirect

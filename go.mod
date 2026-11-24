@@ -1,7 +1,6 @@
-// Deprecated: sdk-api is retired and archived. Development continues in Natuleadan Orion: https://github.com/natuleadan/orion
+// Deprecated: this module is retired and superseded by https://github.com/natuleadan/orion.
 module github.com/natuleadan/sdk-api
 
-go 1.27
+go 1.24
 
-// Retired: every earlier release is withdrawn. Use Orion instead.
-retract [v0.0.0-0, v1.0.0]
+retract [v0.0.0-0, v999999.0.0] // retired: superseded by Orion
